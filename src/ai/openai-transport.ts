@@ -1,5 +1,5 @@
 /**
- * Live OpenAI transport for the AI gateway (guide §4, DECISIONS D-006).
+ * Live OpenAI transport for the AI gateway (guide §4, DECISIONS D-006/D-015).
  *
  * This is the ONLY file besides `gateway.ts` that reaches a model provider, and one
  * of the few that names real model IDs (the routing table in `gateway.ts` owns the
@@ -7,9 +7,14 @@
  * is imported by business logic — the gateway depends on the `CompletionTransport`
  * interface, and this concrete transport is injected at the edge (Inngest consumer).
  *
- * It uses `fetch` (Node ≥ 18 global) so there is no OpenAI SDK dependency to add
- * (cost rule). It requests JSON output, forwards the fenced prompt unchanged, and
- * computes the USD cost from a small per-model price table for the cost ledger (§13).
+ * It targets the OpenAI **Responses API** (`/v1/responses`), because the configured
+ * model (`gpt-5.6-sol`) is served there rather than on Chat Completions. Mapping:
+ *   - `system` → `instructions`
+ *   - `user`   → `input` (JSON mode requires the word "json" in the input, so we
+ *                append a short JSON directive)
+ *   - `maxTokens` → `max_output_tokens`
+ * Output text is read from `output[].content[].text`; usage from `usage`. It uses the
+ * global `fetch` (Node ≥ 18) so there is no OpenAI SDK dependency to add (cost rule).
  */
 import { env } from "@/config/env";
 import type { CompletionRequest, CompletionResponse, CompletionTransport } from "./gateway";
@@ -18,13 +23,15 @@ import type { CompletionRequest, CompletionResponse, CompletionTransport } from 
  * USD price per 1M tokens, per model. Update alongside OpenAI's pricing page. Keeping
  * this here (not in the gateway) means the gateway stays provider-agnostic. If a model
  * id is unknown we record cost "0" rather than guessing — an explicit, auditable zero.
+ * TODO(pricing): fill in gpt-5.6-sol input/output rates once confirmed on the pricing
+ * page; until then the cost ledger records 0 for it (tokens are still recorded).
  */
 const PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
   "gpt-4o-mini": { input: 0.15, output: 0.6 },
   "gpt-4o": { input: 2.5, output: 10 },
 };
 
-const OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions";
+const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 
 export interface OpenAiTransportOptions {
   apiKey?: string;
@@ -50,7 +57,7 @@ export function computeCostUsd(model: string, inputTokens: number, outputTokens:
  */
 export function makeOpenAiTransport(opts: OpenAiTransportOptions = {}): CompletionTransport {
   const apiKey = opts.apiKey ?? env.openai.apiKey();
-  const baseUrl = opts.baseUrl ?? OPENAI_CHAT_URL;
+  const baseUrl = opts.baseUrl ?? OPENAI_RESPONSES_URL;
   const timeoutMs = opts.timeoutMs ?? 30_000;
   const doFetch = opts.fetchImpl ?? fetch;
 
@@ -69,14 +76,11 @@ export function makeOpenAiTransport(opts: OpenAiTransportOptions = {}): Completi
           signal: controller.signal,
           body: JSON.stringify({
             model: req.model,
-            max_tokens: req.maxTokens,
-            temperature: 0,
-            // Force a JSON object back; the gateway still re-validates with Zod.
-            response_format: { type: "json_object" },
-            messages: [
-              { role: "system", content: req.system },
-              { role: "user", content: req.user },
-            ],
+            instructions: req.system,
+            // JSON mode (text.format json_object) requires the word "json" in the input.
+            input: `${req.user}\n\nReturn the result as a single json object.`,
+            max_output_tokens: req.maxTokens,
+            text: { format: { type: "json_object" } },
           }),
         });
       } finally {
@@ -89,10 +93,10 @@ export function makeOpenAiTransport(opts: OpenAiTransportOptions = {}): Completi
         throw new Error(`OpenAI ${res.status}: ${detail.slice(0, 300)}`);
       }
 
-      const json = (await res.json()) as OpenAiChatResponse;
-      const text = json.choices?.[0]?.message?.content ?? "";
-      const inputTokens = json.usage?.prompt_tokens ?? 0;
-      const outputTokens = json.usage?.completion_tokens ?? 0;
+      const json = (await res.json()) as OpenAiResponsesResponse;
+      const text = extractOutputText(json);
+      const inputTokens = json.usage?.input_tokens ?? 0;
+      const outputTokens = json.usage?.output_tokens ?? 0;
 
       return {
         text,
@@ -103,9 +107,24 @@ export function makeOpenAiTransport(opts: OpenAiTransportOptions = {}): Completi
   };
 }
 
-interface OpenAiChatResponse {
-  choices?: { message?: { content?: string } }[];
-  usage?: { prompt_tokens?: number; completion_tokens?: number };
+interface OpenAiResponsesResponse {
+  output?: {
+    type?: string;
+    content?: { type?: string; text?: string }[];
+  }[];
+  usage?: { input_tokens?: number; output_tokens?: number };
+}
+
+/** Concatenate every assistant `output_text` chunk (ignores reasoning items). */
+export function extractOutputText(json: OpenAiResponsesResponse): string {
+  let text = "";
+  for (const item of json.output ?? []) {
+    if (item.type && item.type !== "message") continue;
+    for (const c of item.content ?? []) {
+      if (c.type === "output_text" || c.type === "text") text += c.text ?? "";
+    }
+  }
+  return text;
 }
 
 async function safeText(res: Response): Promise<string> {

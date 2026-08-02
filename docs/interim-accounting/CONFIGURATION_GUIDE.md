@@ -116,6 +116,17 @@ Costs are recorded to the `ai_runs` table on every call (model, tokens, USD — 
 so you can watch spend in SQL. In tests the gateway runs against an injected fake; no
 live calls happen.
 
+**Model:** the gateway is set to **`gpt-5.6-sol`** for all routes (D-015), called via the
+OpenAI **Responses API**. ⚠️ **Action needed:** the key you provided authenticates, but
+its project's access to `gpt-5.6-sol` is **intermittent** (some calls return
+`403 model_not_found`). Fix this on the OpenAI side before go-live:
+1. Platform → your project → **Limits / Model access**: ensure `gpt-5.6-sol` is enabled.
+2. If it's a frontier model gated behind **organization verification**, complete that.
+3. Confirm the project has billing/credits and is not tier-limited for this model.
+Verify with: `curl https://api.openai.com/v1/responses -H "Authorization: Bearer $OPENAI_API_KEY"
+-H "Content-Type: application/json" -d '{"model":"gpt-5.6-sol","input":"return a json object","max_output_tokens":100,"text":{"format":{"type":"json_object"}}}'`
+— it should return HTTP 200 **consistently**. (Also **rotate** the key you shared in chat.)
+
 ---
 
 ## 3. Inngest (durable jobs) (5 min)

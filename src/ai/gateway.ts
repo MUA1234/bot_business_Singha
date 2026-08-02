@@ -15,10 +15,13 @@ import { randomUUID } from "node:crypto";
 import { parseAiExtraction, type AiExtraction } from "@/schemas/ai-extraction";
 import { EXTRACTION_PROMPT_VERSION, EXTRACTION_SYSTEM_PROMPT, wrapUntrusted } from "./prompts";
 
-/** Logical model routing. Real model IDs live ONLY in this table. */
+/** Logical model routing. Real model IDs live ONLY in this table.
+ *  Per owner instruction (2026-08-02) both routes use `gpt-5.6-sol` — a Responses-API
+ *  model (see openai-transport.ts). `maxTokens` maps to `max_output_tokens`; kept
+ *  generous so reasoning + the JSON answer are never truncated. */
 export const MODEL_ROUTES = {
-  extraction: { model: "gpt-4o-mini", maxTokens: 1500 },
-  extraction_hard: { model: "gpt-4o", maxTokens: 2000 },
+  extraction: { model: "gpt-5.6-sol", maxTokens: 4000 },
+  extraction_hard: { model: "gpt-5.6-sol", maxTokens: 4000 },
 } as const;
 export type RouteName = keyof typeof MODEL_ROUTES;
 
