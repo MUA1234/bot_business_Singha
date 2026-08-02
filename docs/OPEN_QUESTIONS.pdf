@@ -1,0 +1,155 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 2 /Kids [6 0 R 8 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Length 2887 >>
+stream
+BT
+/F2 18.0 Tf
+1 0 0 1 60.0 692.0 Tm
+(OPEN_QUESTIONS.md) Tj
+/F1 10.5 Tf
+1 0 0 1 60.0 671.0 Tm
+(Status: Phase 0 deliverable - for review. Answers unblock Phase 1+ and become decisions in) Tj
+/F1 10.5 Tf
+1 0 0 1 60.0 657.9 Tm
+(DECISIONS.md. Each proceeds on the safer default until answered.) Tj
+/F2 13.5 Tf
+1 0 0 1 60.0 627.8 Tm
+(Organisation & people) Tj
+/F1 10.5 Tf
+1 0 0 1 80.0 605.9 Tm
+(1. Which legal entity / business is the pilot? Name, country, currency, timezone,) Tj
+/F1 10.5 Tf
+1 0 0 1 60.0 586.8 Tm
+(tax IDs? Safer default: single entity, Sri Lanka / LKR / Asia-Colombo \(matches Sasiri) Tj
+/F1 10.5 Tf
+1 0 0 1 60.0 573.6 Tm
+(context\).) Tj
+/F1 10.5 Tf
+1 0 0 1 80.0 552.5 Tm
+(2. The ~5-15 staff: names, roles, managers, branches/departments? Who is) Tj
+/F1 10.5 Tf
+1 0 0 1 60.0 533.4 Tm
+(owner_admin, manager, finance?) Tj
+/F1 10.5 Tf
+1 0 0 1 80.0 512.2 Tm
+(3. Authority thresholds: expense self-approve limit per role; finance-review) Tj
+/F1 10.5 Tf
+1 0 0 1 60.0 493.1 Tm
+(threshold; who may verify tasks; who may reactivate employees; who approves QuickBooks) Tj
+/F1 10.5 Tf
+1 0 0 1 60.0 480.0 Tm
+(drafts? Safer default: employees can approve nothing; all sensitive actions require) Tj
+/F1 10.5 Tf
+1 0 0 1 60.0 466.9 Tm
+(manager/finance approval until thresholds are set.) Tj
+/F2 13.5 Tf
+1 0 0 1 60.0 436.8 Tm
+(Finance / QuickBooks) Tj
+/F1 10.5 Tf
+1 0 0 1 80.0 414.9 Tm
+(4. QuickBooks entity\(ies\) and is a sandbox company available? _Safer default:) Tj
+/F1 10.5 Tf
+1 0 0 1 60.0 395.8 Tm
+(sandbox-only until confirmed; production stays draft-only._) Tj
+/F1 10.5 Tf
+1 0 0 1 80.0 374.6 Tm
+(5. Chart-of-accounts / tax-code expectations for expense mapping? Who is the) Tj
+/F1 10.5 Tf
+1 0 0 1 60.0 355.5 Tm
+(accountant reviewer for uncertain tax?) Tj
+/F1 10.5 Tf
+1 0 0 1 80.0 334.4 Tm
+(6. Retention appetite for financial records and event payloads?) Tj
+/F2 13.5 Tf
+1 0 0 1 60.0 304.2 Tm
+(Channels) Tj
+/F1 10.5 Tf
+1 0 0 1 80.0 282.4 Tm
+(7. WhatsApp number strategy: a separate WhatsApp Business number for staff ops) Tj
+/F1 10.5 Tf
+1 0 0 1 60.0 263.2 Tm
+(\(recommended\), or share the Sasiri sales number? Safer default: separate number.) Tj
+/F1 10.5 Tf
+1 0 0 1 80.0 242.1 Tm
+(8. Are approved WhatsApp message templates available for business-initiated staff) Tj
+/F1 10.5 Tf
+1 0 0 1 60.0 223.0 Tm
+(messages outside the 24h window?) Tj
+/F2 13.5 Tf
+1 0 0 1 60.0 192.9 Tm
+(Privacy / gated) Tj
+/F1 10.5 Tf
+1 0 0 1 80.0 171.0 Tm
+(9. Timeline and owner for the GPS/CCTV/attendance privacy gate \(notices, policy,) Tj
+/F1 10.5 Tf
+1 0 0 1 60.0 151.9 Tm
+(retention, legal review\)? Default: out of scope until explicitly cleared.) Tj
+/F1 10.5 Tf
+1 0 0 1 80.0 130.8 Tm
+(10. Any regulatory constraints \(data residency, labour law\) affecting attendance,) Tj
+/F1 10.5 Tf
+1 0 0 1 60.0 111.6 Tm
+(monitoring, or employee data?) Tj
+/F2 13.5 Tf
+1 0 0 1 60.0 81.5 Tm
+(Ownership / process) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 5 0 R >>
+endobj
+7 0 obj
+<< /Length 512 >>
+stream
+BT
+/F1 10.5 Tf
+1 0 0 1 80.0 707.5 Tm
+(11. Who are the sign-off owners: management \(scope\), finance \(accounting/payments\),) Tj
+/F1 10.5 Tf
+1 0 0 1 60.0 688.4 Tm
+(privacy/legal \(gated features\)?) Tj
+/F1 10.5 Tf
+1 0 0 1 80.0 667.2 Tm
+(12. Where do staging vs production Supabase/Vercel/Inngest/QuickBooks accounts) Tj
+/F1 10.5 Tf
+1 0 0 1 60.0 648.1 Tm
+(live, and who administers them?) Tj
+/F1 10.5 Tf
+1 0 0 1 80.0 627.0 Tm
+(13. Alert owners per alert type \(dead-letter, cost spike, integration down\)?) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 7 0 R >>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000127 00000 n 
+0000000197 00000 n 
+0000000272 00000 n 
+0000003211 00000 n 
+0000003347 00000 n 
+0000003910 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R >>
+startxref
+4046
+%%EOF
