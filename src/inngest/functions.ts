@@ -1,16 +1,29 @@
 /**
- * Inngest consumers. THIS FILE IS THE "FURTHER DEVELOPMENT" BOUNDARY.
+ * Inngest consumers. This is where processing continues past the webhook boundary.
  *
- * Everything up to here — ingest, persist, dedup, enqueue — is built and tested.
- * The consumer below is where the next phase continues: load the stored source
- * event, run the AI gateway extraction, detect missing fields, create a draft
- * financial_event, evaluate policy, and route to the approval queue.
+ * Ingestion (persist → dedup → enqueue) happens in the webhook route. This function
+ * picks up the stored source event and runs the consumer pipeline
+ * (`src/inngest/processing.ts`): AI extraction → missing-field detection → duplicate
+ * scoring → draft financial_event → deterministic policy → approval/clarification →
+ * audit. All of that logic is pure and unit-tested; here we bind the live ports
+ * (Supabase + the OpenAI-backed gateway) and run it under Inngest's durable retries.
  *
- * It is intentionally left as a documented skeleton because wiring the live AI
- * transport requires your OpenAI key (a configuration step). The pure logic it
- * will call (gateway, intelligence, policy, journal) already exists and is tested.
+ * Idempotency (guide invariant #9): the function key is the source_event_id, so a
+ * given external event is processed at most once even if the queue delivers twice.
  */
 import { inngest } from "./client";
+import { AiGateway } from "@/ai/gateway";
+import { makeOpenAiTransport } from "@/ai/openai-transport";
+import { serviceClient } from "@/db/client";
+import { makeSupabaseConsumerStore, makeSupabaseCostLedger } from "@/db/consumer-store";
+import { processSourceEvent, type ConsumerDeps } from "./processing";
+
+/** Build the live deps once per invocation (lazy — no client is created at import). */
+function liveDeps(): ConsumerDeps {
+  const db = serviceClient();
+  const gateway = new AiGateway(makeOpenAiTransport(), makeSupabaseCostLedger(db));
+  return { gateway, ...makeSupabaseConsumerStore(db) };
+}
 
 export const onSourceEventReceived = inngest.createFunction(
   {
@@ -26,23 +39,15 @@ export const onSourceEventReceived = inngest.createFunction(
       correlation_id: string;
     };
 
-    // ── NEXT PHASE (after webhook config) wires these steps: ──
-    // 1. step.run("load-source-event", …)         → fetch raw payload + evidence
-    // 2. step.run("ai-extract", …)                → AiGateway.runExtraction(untrusted)
-    // 3. step.run("detect-missing", …)            → detectMissingFields()
-    // 4. step.run("dedup", …)                     → scoreDuplicate() vs recent events
-    // 5. step.run("create-draft", …)              → insert financial_events (state=draft)
-    // 6. step.run("evaluate-policy", …)           → evaluatePolicy() → approval_requests
-    // 7. step.run("audit", …)                     → append audit_events
+    // The whole pipeline runs inside one durable step. It is internally idempotent
+    // via the function-level idempotency key; a RetryableExtractionError thrown from
+    // inside bubbles up so Inngest retries with backoff, and dead-letters after the
+    // configured retries (guide invariant #9: a failed process never loses the event).
+    const outcome = await step.run("process-source-event", () =>
+      processSourceEvent({ source_event_id, correlation_id }, liveDeps()),
+    );
 
-    await step.run("acknowledge", async () => ({
-      acknowledged: true,
-      source_event_id,
-      correlation_id,
-      note: "stored + enqueued; downstream processing wired in the next phase",
-    }));
-
-    return { source_event_id };
+    return outcome;
   },
 );
 
