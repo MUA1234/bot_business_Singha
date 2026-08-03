@@ -12,6 +12,13 @@ export default function Home() {
         <li>Webhook: <code>/api/webhooks/whatsapp</code></li>
         <li>Inngest: <code>/api/inngest</code></li>
       </ul>
+      <footer style={{ marginTop: 40, paddingTop: 16, borderTop: "1px solid #eee", fontSize: 14 }}>
+        <a href="/privacy">Privacy Policy</a>
+        {" · "}
+        <a href="/terms">Terms of Service</a>
+        {" · "}
+        <a href="/data-deletion">Data Deletion</a>
+      </footer>
     </main>
   );
 }
