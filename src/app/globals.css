@@ -1,23 +1,25 @@
 /*
- * Singha design system — "Evolution" theme.
- * Deep purple → magenta gradient, translucent glass cards, pink accent, Singha red.
+ * Singha design system — "Lion" theme.
+ * Warm near-black background with a red glow, translucent glass cards, bright-red
+ * accent (matches the Singha lion / auction reference), Singha red.
  * Self-contained (no external fonts/assets) so it works on Vercel and offline.
  */
 
 :root {
-  /* Brand */
+  /* Brand — red highlight scheme (matches the Singha lion / auction reference). */
   --singha-red: #e2231a;
-  --accent: #ec1e79;         /* magenta/pink action colour (Evolution "like" btn) */
-  --accent-2: #a11d8f;       /* deep magenta */
-  --accent-grad: linear-gradient(135deg, #ec1e79 0%, #b31f9e 100%);
+  --accent: #ef3b2b;         /* bright red action colour (buttons, links, highlights) */
+  --accent-2: #c9241a;       /* deep red */
+  --accent-grad: linear-gradient(135deg, #ef3b2b 0%, #c9241a 100%);
+  --accent-rgb: 239, 59, 43; /* --accent as RGB, for translucent shadows/rings */
 
-  /* Surfaces */
-  --bg-0: #1a0524;           /* darkest */
-  --bg-1: #2c0a3d;
-  --bg-2: #45115e;
-  --page-grad: radial-gradient(1200px 800px at 15% -10%, #5a1470 0%, transparent 55%),
-               radial-gradient(1000px 700px at 110% 10%, #c81e6b 0%, transparent 45%),
-               linear-gradient(160deg, #1a0524 0%, #2c0a3d 50%, #3f0f56 100%);
+  /* Surfaces — warm near-black with red glow (was deep purple). */
+  --bg-0: #0e0708;           /* darkest */
+  --bg-1: #170a0b;
+  --bg-2: #241011;
+  --page-grad: radial-gradient(1200px 800px at 15% -10%, #3a0f0d 0%, transparent 55%),
+               radial-gradient(1000px 700px at 110% 10%, #7a1712 0%, transparent 45%),
+               linear-gradient(160deg, #0e0708 0%, #170a0b 50%, #22100f 100%);
 
   /* Glass panels */
   --panel: rgba(255, 255, 255, 0.055);
@@ -25,15 +27,15 @@
   --panel-border: rgba(255, 255, 255, 0.12);
   --panel-blur: 18px;
 
-  /* Text */
-  --text: #f5eefc;
-  --text-muted: #c4b0d6;
-  --text-dim: #9a86ad;
+  /* Text — warm neutrals (were lavender-tinted). */
+  --text: #f8f1f0;
+  --text-muted: #cdbcba;
+  --text-dim: #9d8a88;
 
   /* State */
   --ok: #2fd48b;
   --warn: #ffb020;
-  --danger: #ff5470;
+  --danger: #ff5a4d;         /* warm red (was pinkish #ff5470) */
   --info: #56ccf2;
 
   --radius: 20px;
@@ -119,7 +121,7 @@ p { margin: 0; line-height: 1.55; }
   border: none; cursor: pointer; font-family: inherit; font-weight: 700;
   font-size: 0.9rem; padding: 11px 22px; border-radius: 999px;
   color: #fff; background: var(--accent-grad);
-  box-shadow: 0 10px 24px -8px rgba(236, 30, 121, 0.6);
+  box-shadow: 0 10px 24px -8px rgba(var(--accent-rgb), 0.6);
   transition: transform 0.12s ease, filter 0.12s ease, opacity 0.12s ease;
 }
 .btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
@@ -129,7 +131,7 @@ p { margin: 0; line-height: 1.55; }
   background: var(--panel-strong); color: var(--text);
   border: 1px solid var(--panel-border); box-shadow: none;
 }
-.btn.danger { background: linear-gradient(135deg, #ff5470, #d81f4a); box-shadow: none; }
+.btn.danger { background: linear-gradient(135deg, #ff5a4d, #d81f14); box-shadow: none; }
 .btn.sm { padding: 7px 14px; font-size: 0.8rem; }
 .btn.block { width: 100%; }
 
@@ -144,10 +146,10 @@ p { margin: 0; line-height: 1.55; }
 }
 .input::placeholder, .textarea::placeholder { color: var(--text-dim); }
 .input:focus, .select:focus, .textarea:focus {
-  border-color: var(--accent); box-shadow: 0 0 0 3px rgba(236, 30, 121, 0.22);
+  border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.22);
 }
 .select { appearance: none; background-image:
-  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23c4b0d6' d='M6 8 0 0h12z'/%3E%3C/svg%3E");
+  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23cdbcba' d='M6 8 0 0h12z'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 13px center; padding-right: 34px; }
 .select option { color: #111; }
 .textarea { min-height: 90px; resize: vertical; }
@@ -164,7 +166,7 @@ p { margin: 0; line-height: 1.55; }
 }
 .badge.ok { color: var(--ok); border-color: rgba(47, 212, 139, 0.4); }
 .badge.warn { color: var(--warn); border-color: rgba(255, 176, 32, 0.4); }
-.badge.danger { color: var(--danger); border-color: rgba(255, 84, 112, 0.4); }
+.badge.danger { color: var(--danger); border-color: rgba(255, 90, 77, 0.4); }
 .badge.info { color: var(--info); border-color: rgba(86, 204, 242, 0.4); }
 .badge.accent { color: #fff; background: var(--accent-grad); border: none; }
 
@@ -205,7 +207,7 @@ table.data tr:hover td { background: rgba(255, 255, 255, 0.03); }
   transition: background 0.12s ease, color 0.12s ease; white-space: nowrap;
 }
 .nav-item:hover { background: var(--panel); color: var(--text); }
-.nav-item.active { background: var(--accent-grad); color: #fff; box-shadow: 0 8px 20px -10px rgba(236, 30, 121, 0.7); }
+.nav-item.active { background: var(--accent-grad); color: #fff; box-shadow: 0 8px 20px -10px rgba(var(--accent-rgb), 0.7); }
 .nav-item .ico { width: 20px; flex: none; display: inline-flex; align-items: center; justify-content: center; }
 /* Fluid gutters; cap content width so it stays readable on ultra-wide / 4K. */
 .main {
@@ -275,6 +277,6 @@ table.data tr:hover td { background: rgba(255, 255, 255, 0.03); }
 /* misc */
 .divider { height: 1px; background: var(--panel-border); border: none; margin: 20px 0; }
 .notice { padding: 12px 14px; border-radius: 12px; font-size: 0.86rem; }
-.notice.err { background: rgba(255, 84, 112, 0.12); border: 1px solid rgba(255, 84, 112, 0.4); color: #ffc0cb; }
+.notice.err { background: rgba(255, 90, 77, 0.12); border: 1px solid rgba(255, 90, 77, 0.4); color: #ffcfc9; }
 .notice.ok { background: rgba(47, 212, 139, 0.12); border: 1px solid rgba(47, 212, 139, 0.4); color: #b6f5d8; }
 .empty { text-align: center; color: var(--text-dim); padding: 40px 20px; }
