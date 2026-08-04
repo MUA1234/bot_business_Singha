@@ -1,11 +1,13 @@
 /**
  * WhatsApp Cloud API webhook — THE INTEGRATION BOUNDARY.
  *
- * This handler is complete: it verifies Meta's subscription challenge (GET),
- * hard-rejects an invalid signature (POST — DECISIONS D-007), and persists-then-
- * enqueues every inbound message idempotently (guide invariant #9). It does NOT
- * become live until you configure the WhatsApp env vars and register this URL in
- * the Meta dashboard — see docs/interim-accounting/CONFIGURATION_GUIDE.md.
+ * Verifies Meta's subscription challenge (GET), hard-rejects an invalid signature
+ * (POST — DECISIONS D-007), and handles each inbound customer message inline: the
+ * order-intake engine collects details, prices from the catalog / routes a price
+ * confirmation, and replies over WhatsApp — synchronously, no Inngest required
+ * (owner instruction 2026-08-04). Idempotency is on the provider message id
+ * (`handleCustomerMessage` dedups on wa_message_id), so a redelivered webhook is a
+ * no-op. Requires the WhatsApp env vars (see docs/.../APP_LAYER_STATUS.md).
  *
  * Official Meta Cloud API only — never an unofficial library (CLAUDE.md BAN-SAFETY).
  */
@@ -15,9 +17,10 @@ import {
   verifyWebhookChallenge,
   verifyWhatsappSignature,
 } from "@/lib/whatsapp-signature";
-import { inngest } from "@/inngest/client";
+import { handleCustomerMessage } from "@/lib/order-intake";
 
 export const runtime = "nodejs"; // needs node:crypto for signature verification
+export const maxDuration = 60; // allow time for the AI turn + reply
 
 /** GET — Meta subscription verification handshake. */
 export async function GET(req: Request): Promise<Response> {
@@ -46,18 +49,24 @@ export async function POST(req: Request): Promise<Response> {
 
   const results: string[] = [];
 
-  // Each inbound customer text message → the durable order-intake pipeline.
-  // Idempotency is on wa_message_id inside the Inngest function, so enqueuing a
-  // redelivered message is safe.
+  // Handle each inbound customer text message inline (collect → quote/route → reply).
+  // Per-message try/catch so one failure never fails the whole batch; dedup on the
+  // provider message id makes any Meta redelivery a no-op.
   for (const msg of extractTextMessages(payload)) {
-    await inngest.send({
-      name: "whatsapp/customer_message.received",
-      data: { from: msg.from, text: msg.text, wa_message_id: msg.id },
-    });
-    results.push("enqueued");
+    try {
+      const res = await handleCustomerMessage({
+        from: msg.from,
+        text: msg.text,
+        waMessageId: msg.id,
+      });
+      results.push(res.status);
+    } catch (e) {
+      console.error("[whatsapp] handleCustomerMessage failed:", (e as Error).message);
+      results.push("error");
+    }
   }
 
-  // Always 200 so Meta doesn't retry a delivery we've already enqueued.
+  // Always 200 so Meta doesn't hammer retries for a message we've recorded.
   return NextResponse.json({ ok: true, processed: results });
 }
 
