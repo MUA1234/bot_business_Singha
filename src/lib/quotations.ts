@@ -11,6 +11,7 @@
  * or a human confirmation only.
  */
 import Decimal from "decimal.js";
+import { randomBytes } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 import { env } from "@/config/env";
@@ -28,10 +29,23 @@ export interface CustomerDetails {
   requestText?: string | null;
 }
 
+/**
+ * Unguessable token. The public quotation page (/q/<token>) exposes customer PII
+ * and is guarded ONLY by this token, so it MUST use a CSPRNG — never Math.random(),
+ * whose output is predictable and would let an attacker enumerate quotations.
+ * Rejection sampling keeps the character distribution uniform (no modulo bias).
+ */
 function randToken(n = 24): string {
-  const a = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const a = "abcdefghijklmnopqrstuvwxyz0123456789"; // 36 chars
+  const max = 256 - (256 % a.length); // largest multiple of 36 ≤ 256; reject above
   let s = "";
-  for (let i = 0; i < n; i++) s += a[Math.floor(Math.random() * a.length)];
+  while (s.length < n) {
+    for (const byte of randomBytes(n)) {
+      if (byte >= max) continue; // discard biased values
+      s += a[byte % a.length];
+      if (s.length === n) break;
+    }
+  }
   return s;
 }
 

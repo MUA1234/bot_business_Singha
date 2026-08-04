@@ -2,7 +2,12 @@ import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { PrintButton } from "./PrintButton";
 
-export const metadata = { title: "Quotation — Singha" };
+// Quotations carry customer PII behind a shareable capability-URL. Never let a
+// search engine index or cache them, even if a token leaks into a referrer/history.
+export const metadata = {
+  title: "Quotation — Singha",
+  robots: { index: false, follow: false, nocache: true },
+};
 
 function money(v: number | string | null, currency: string): string {
   if (v == null) return "—";
