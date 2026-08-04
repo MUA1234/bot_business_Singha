@@ -60,6 +60,16 @@ export default async function QuotationPage({ params }: { params: { token: strin
         .qbtn{background:linear-gradient(135deg,#ec1e79,#b31f9e);color:#fff;border:none;border-radius:999px;padding:10px 20px;font-weight:700;cursor:pointer;font-size:.9rem}
         .qwait{background:#fff6e6;border:1px solid #ffd591;color:#8a5a00;padding:12px 16px;border-radius:12px;margin-bottom:18px;font-size:.9rem}
         .pill{display:inline-block;font-size:.7rem;font-weight:700;padding:3px 9px;border-radius:999px;background:#f4ecfa;color:#7a1f6a}
+        @media (max-width:560px){
+          .qpage{padding:16px 10px}
+          .qhead{flex-direction:column;gap:14px;padding:20px}
+          .qmeta{text-align:left}
+          .qbody{padding:20px}
+          .qparties{gap:20px}
+          .qtotal .box{min-width:0;width:100%}
+          table.q{font-size:.82rem}
+          table.q th,table.q td{padding:8px 8px}
+        }
         @media print{.qpage{background:#fff;padding:0}.qactions{display:none}.qdoc{box-shadow:none;border-radius:0}}
       `}</style>
       <div className="qpage">
