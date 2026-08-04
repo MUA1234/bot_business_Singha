@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Brand } from "@/components/Brand";
+import { Icon } from "@/components/Icon";
 
 export default function Home() {
   return (
@@ -29,15 +30,15 @@ export default function Home() {
 
       <section id="how" className="grid cols-3 mt-3">
         <div className="card">
-          <div className="card-title">🛒 WhatsApp orders</div>
+          <div className="card-title row gap-1"><Icon name="shopping-cart" size={18} /> WhatsApp orders</div>
           <p className="card-sub mt-1">Every customer message becomes a tracked order and conversation.</p>
         </div>
         <div className="card">
-          <div className="card-title">🧾 Auto quotations</div>
+          <div className="card-title row gap-1"><Icon name="file-text" size={18} /> Auto quotations</div>
           <p className="card-sub mt-1">Priced from your catalog, on your Singha-branded template — sent automatically.</p>
         </div>
         <div className="card">
-          <div className="card-title">👥 Department dashboards</div>
+          <div className="card-title row gap-1"><Icon name="users" size={18} /> Department dashboards</div>
           <p className="card-sub mt-1">Admin creates logins; each employee sees only their department.</p>
         </div>
       </section>

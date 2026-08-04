@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getDepartment } from "@/lib/departments";
+import { Icon } from "@/components/Icon";
 import { CreateEmployeeForm } from "./CreateEmployeeForm";
 import { setEmployeeActive, setEmployeePassword } from "./actions";
 
@@ -67,7 +68,7 @@ export default async function EmployeesPage() {
                       </td>
                       <td>
                         <span className="badge">
-                          {dept?.icon} {dept?.label ?? r.department}
+                          {dept && <Icon name={dept.icon} size={13} />} {dept?.label ?? r.department}
                         </span>
                         {r.is_admin && <span className="badge accent" style={{ marginLeft: 6 }}>Admin</span>}
                       </td>

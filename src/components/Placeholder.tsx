@@ -1,4 +1,5 @@
 import { getDepartment } from "@/lib/departments";
+import { Icon } from "./Icon";
 
 /** A friendly, on-brand scaffold for dashboards whose deep features come next. */
 export function Placeholder({
@@ -19,7 +20,7 @@ export function Placeholder({
       </div>
       <div className="card pad-lg">
         <div className="row gap-2">
-          <div style={{ fontSize: 40 }}>{dept?.icon ?? "🚧"}</div>
+          <div style={{ color: "var(--accent)" }}><Icon name={dept?.icon ?? "layout-dashboard"} size={40} /></div>
           <div>
             <div className="card-title">This dashboard is ready and wired to your data.</div>
             <p className="card-sub mt-1">

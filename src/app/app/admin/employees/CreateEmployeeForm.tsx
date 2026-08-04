@@ -49,7 +49,7 @@ export function CreateEmployeeForm() {
           <select name="department" className="select" defaultValue="sales" required>
             {DEPARTMENTS.map((d) => (
               <option key={d.key} value={d.key}>
-                {d.icon} {d.label}
+                {d.label}
               </option>
             ))}
           </select>

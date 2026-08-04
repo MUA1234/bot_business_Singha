@@ -35,7 +35,7 @@ export async function PriceRequests({
   }
 
   if (!rows || rows.length === 0) {
-    return <div className="empty">No open price confirmations. 🎉</div>;
+    return <div className="empty">No open price confirmations.</div>;
   }
 
   return (

@@ -1,4 +1,5 @@
 import { requireDepartment } from "@/lib/auth";
+import { Icon } from "@/components/Icon";
 
 export const metadata = { title: "Excel Exports — Singha" };
 
@@ -27,7 +28,7 @@ export default async function ExportsPage() {
               <div className="card-title">{e.label}</div>
               <p className="card-sub mt-1">{e.desc}</p>
             </div>
-            <a className="btn sm" href={`/api/exports/${e.kind}`}>⬇ Export</a>
+            <a className="btn sm" href={`/api/exports/${e.kind}`}><Icon name="download" size={15} /> Export</a>
           </div>
         ))}
       </div>

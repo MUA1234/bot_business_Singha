@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { DEPARTMENTS } from "@/lib/departments";
+import { Icon } from "@/components/Icon";
 
 export const metadata = { title: "Departments — Singha Admin" };
 
@@ -30,8 +31,8 @@ export default async function DepartmentsPage() {
         {DEPARTMENTS.map((d) => (
           <div key={d.key} className="card">
             <div className="row between">
-              <div className="card-title">
-                {d.icon} {d.label}
+              <div className="card-title row gap-1">
+                <Icon name={d.icon} size={18} /> {d.label}
               </div>
               {active.get(d.key) === false ? (
                 <span className="badge danger">Off</span>

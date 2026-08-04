@@ -1,6 +1,7 @@
 import { requireDepartment } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { quoteUrl } from "@/lib/quotations";
+import { Icon } from "@/components/Icon";
 
 export const metadata = { title: "Invoices — Singha" };
 
@@ -21,7 +22,7 @@ export default async function InvoicesPage() {
           <h1>Invoices</h1>
           <p className="muted mt-1">Billing documents generated from finalised quotations.</p>
         </div>
-        <a className="btn ghost sm" href="/api/exports/quotations">⬇ Export to Excel (CSV)</a>
+        <a className="btn ghost sm" href="/api/exports/quotations"><Icon name="download" size={15} /> Export to Excel (CSV)</a>
       </div>
       <div className="card">
         {(quotes ?? []).length === 0 ? (

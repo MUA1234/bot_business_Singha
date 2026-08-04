@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { Icon } from "@/components/Icon";
 
 export const metadata = { title: "Admin — Singha" };
 
@@ -30,7 +31,7 @@ export default async function AdminHome() {
   return (
     <div className="stack gap-3">
       <div>
-        <h1>Welcome, {admin.fullName || admin.username} 👋</h1>
+        <h1>Welcome, {admin.fullName || admin.username}</h1>
         <p className="muted mt-1">You have full control of the Singha platform.</p>
       </div>
 
@@ -46,15 +47,15 @@ export default async function AdminHome() {
 
       <div className="grid cols-3">
         <Link href="/app/admin/employees" className="card">
-          <div className="card-title">👥 Employees</div>
+          <div className="card-title row gap-1"><Icon name="users" size={17} /> Employees</div>
           <p className="card-sub">Create logins and assign departments.</p>
         </Link>
         <Link href="/app/admin/departments" className="card">
-          <div className="card-title">🏢 Departments</div>
+          <div className="card-title row gap-1"><Icon name="building-2" size={17} /> Departments</div>
           <p className="card-sub">Enable or disable department dashboards.</p>
         </Link>
         <Link href="/app/admin/catalog" className="card">
-          <div className="card-title">🏷️ Products &amp; Prices</div>
+          <div className="card-title row gap-1"><Icon name="tag" size={17} /> Products &amp; Prices</div>
           <p className="card-sub">The prices the AI quoting engine uses.</p>
         </Link>
       </div>

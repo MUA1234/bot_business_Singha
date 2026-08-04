@@ -4,7 +4,22 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import type { NavItem } from "@/lib/departments";
 import { Brand } from "./Brand";
+import { Icon } from "./Icon";
 import { signOut } from "@/app/login/actions";
+
+/**
+ * The active nav item is the one whose href is the *longest* prefix of the current
+ * path (exact match or a `/sub` path). This prevents a parent like /app/admin from
+ * staying highlighted when you're on a child like /app/admin/departments.
+ */
+function activeHrefFor(nav: NavItem[], pathname: string): string | null {
+  let best: string | null = null;
+  for (const item of nav) {
+    const matches = pathname === item.href || pathname.startsWith(item.href + "/");
+    if (matches && (best === null || item.href.length > best.length)) best = item.href;
+  }
+  return best;
+}
 
 /**
  * Authenticated shell: department sidebar + topbar. Active link is highlighted
@@ -24,6 +39,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const activeHref = activeHrefFor(nav, pathname);
 
   return (
     <div className="shell">
@@ -31,18 +47,16 @@ export function AppShell({
         <div style={{ padding: "6px 10px 14px" }}>
           <Brand size={26} />
         </div>
-        {nav.map((item) => {
-          const active =
-            pathname === item.href ||
-            (item.href !== `/app` && pathname.startsWith(item.href + "/")) ||
-            pathname === item.href;
-          return (
-            <Link key={item.href} href={item.href} className={`nav-item${active ? " active" : ""}`}>
-              <span className="ico">{item.icon}</span>
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+        {nav.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`nav-item${item.href === activeHref ? " active" : ""}`}
+          >
+            <span className="ico"><Icon name={item.icon} size={18} /></span>
+            <span>{item.label}</span>
+          </Link>
+        ))}
         <div className="grow" />
         <form action={signOut} style={{ padding: "8px 4px" }}>
           <button className="btn ghost sm block" type="submit">Sign out</button>

@@ -186,7 +186,7 @@ table.data tr:hover td { background: rgba(255, 255, 255, 0.03); }
 }
 .nav-item:hover { background: var(--panel); color: var(--text); }
 .nav-item.active { background: var(--accent-grad); color: #fff; box-shadow: 0 8px 20px -10px rgba(236, 30, 121, 0.7); }
-.nav-item .ico { width: 20px; text-align: center; }
+.nav-item .ico { width: 20px; display: inline-flex; align-items: center; justify-content: center; }
 .main { padding: 28px 32px; min-width: 0; }
 .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
 @media (max-width: 820px) {
