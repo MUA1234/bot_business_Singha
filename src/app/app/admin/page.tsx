@@ -1,0 +1,63 @@
+import Link from "next/link";
+import { requireAdmin } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabase/server";
+
+export const metadata = { title: "Admin — Singha" };
+
+async function count(table: string, companyId: string, extra?: (q: any) => any): Promise<number> {
+  let q = supabaseAdmin().from(table).select("id", { count: "exact", head: true }).eq("company_id", companyId);
+  if (extra) q = extra(q);
+  const { count } = await q;
+  return count ?? 0;
+}
+
+export default async function AdminHome() {
+  const admin = await requireAdmin();
+  const [employees, quotations, openPrice, orders] = await Promise.all([
+    count("profiles", admin.companyId),
+    count("quotations", admin.companyId),
+    count("price_confirmations", admin.companyId, (q) => q.eq("status", "open")),
+    count("orders", admin.companyId, (q) => q.eq("status", "new")),
+  ]);
+
+  const tiles = [
+    { k: "Employees", v: employees, href: "/app/admin/employees", d: "Manage accounts" },
+    { k: "New orders", v: orders, href: "/app/sales/orders", d: "From WhatsApp" },
+    { k: "Quotations", v: quotations, href: "/app/sales/quotations", d: "All statuses" },
+    { k: "Open price confirmations", v: openPrice, href: "/app/sales/price-requests", d: "Need a human price" },
+  ];
+
+  return (
+    <div className="stack gap-3">
+      <div>
+        <h1>Welcome, {admin.fullName || admin.username} 👋</h1>
+        <p className="muted mt-1">You have full control of the Singha platform.</p>
+      </div>
+
+      <div className="grid cols-4">
+        {tiles.map((t) => (
+          <Link key={t.k} href={t.href} className="card stat">
+            <div className="k">{t.k}</div>
+            <div className="v">{t.v}</div>
+            <div className="d dim">{t.d}</div>
+          </Link>
+        ))}
+      </div>
+
+      <div className="grid cols-3">
+        <Link href="/app/admin/employees" className="card">
+          <div className="card-title">👥 Employees</div>
+          <p className="card-sub">Create logins and assign departments.</p>
+        </Link>
+        <Link href="/app/admin/departments" className="card">
+          <div className="card-title">🏢 Departments</div>
+          <p className="card-sub">Enable or disable department dashboards.</p>
+        </Link>
+        <Link href="/app/admin/catalog" className="card">
+          <div className="card-title">🏷️ Products &amp; Prices</div>
+          <p className="card-sub">The prices the AI quoting engine uses.</p>
+        </Link>
+      </div>
+    </div>
+  );
+}

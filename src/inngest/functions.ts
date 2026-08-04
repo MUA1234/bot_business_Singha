@@ -17,6 +17,7 @@ import { makeOpenAiTransport } from "@/ai/openai-transport";
 import { serviceClient } from "@/db/client";
 import { makeSupabaseConsumerStore, makeSupabaseCostLedger } from "@/db/consumer-store";
 import { processSourceEvent, type ConsumerDeps } from "./processing";
+import { handleCustomerMessage } from "@/lib/order-intake";
 
 /** Build the live deps once per invocation (lazy — no client is created at import). */
 function liveDeps(): ConsumerDeps {
@@ -51,4 +52,29 @@ export const onSourceEventReceived = inngest.createFunction(
   },
 );
 
-export const functions = [onSourceEventReceived];
+/**
+ * Customer WhatsApp order intake. Separate from the finance pipeline: a customer's
+ * "I want 3 gates" is an order, not a financial event. Idempotent on the provider
+ * message id so a redelivered webhook never double-replies or double-quotes.
+ */
+export const onCustomerWhatsAppMessage = inngest.createFunction(
+  {
+    id: "on-customer-whatsapp-message",
+    idempotency: "event.data.wa_message_id",
+    retries: 3,
+  },
+  { event: "whatsapp/customer_message.received" },
+  async ({ event, step }) => {
+    const { from, text, wa_message_id, company_id } = event.data as {
+      from: string;
+      text: string;
+      wa_message_id: string;
+      company_id?: string;
+    };
+    return await step.run("handle-customer-message", () =>
+      handleCustomerMessage({ from, text, waMessageId: wa_message_id, companyId: company_id }),
+    );
+  },
+);
+
+export const functions = [onSourceEventReceived, onCustomerWhatsAppMessage];

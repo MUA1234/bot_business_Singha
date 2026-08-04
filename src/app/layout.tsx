@@ -1,8 +1,15 @@
 import type { ReactNode } from "react";
+import "./globals.css";
 
 export const metadata = {
-  title: "AI Finance System — Accounting Core v0",
-  description: "Event-driven, multi-company AI finance system (interim).",
+  title: "Singha — Business Control",
+  description: "Singha AI business control system: orders, quotations, finance & departments.",
+};
+
+export const viewport = {
+  themeColor: "#1a0524",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

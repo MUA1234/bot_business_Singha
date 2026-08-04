@@ -15,10 +15,7 @@ import {
   verifyWebhookChallenge,
   verifyWhatsappSignature,
 } from "@/lib/whatsapp-signature";
-import { ingestSourceEvent } from "@/events/source-event";
-import { makeSupabaseSourceEventStore } from "@/db/source-event-store";
-import { serviceClient } from "@/db/client";
-import { inngestQueue } from "@/inngest/client";
+import { inngest } from "@/inngest/client";
 
 export const runtime = "nodejs"; // needs node:crypto for signature verification
 
@@ -47,42 +44,45 @@ export async function POST(req: Request): Promise<Response> {
     return new Response("bad json", { status: 400 });
   }
 
-  const store = makeSupabaseSourceEventStore(serviceClient());
   const results: string[] = [];
 
-  // Meta batches messages under entry[].changes[].value.messages[].
-  for (const msg of extractMessages(payload)) {
-    const res = await ingestSourceEvent(
-      {
-        source: "whatsapp",
-        providerMessageId: msg.id,
-        rawPayload: msg.raw,
-        body: JSON.stringify(msg.raw),
-      },
-      store,
-      inngestQueue,
-    );
-    results.push(res.status);
+  // Each inbound customer text message → the durable order-intake pipeline.
+  // Idempotency is on wa_message_id inside the Inngest function, so enqueuing a
+  // redelivered message is safe.
+  for (const msg of extractTextMessages(payload)) {
+    await inngest.send({
+      name: "whatsapp/customer_message.received",
+      data: { from: msg.from, text: msg.text, wa_message_id: msg.id },
+    });
+    results.push("enqueued");
   }
 
-  // Always 200 so Meta doesn't retry a delivery we've already stored.
+  // Always 200 so Meta doesn't retry a delivery we've already enqueued.
   return NextResponse.json({ ok: true, processed: results });
 }
 
-interface InboundMessage {
+interface InboundText {
   id: string;
-  raw: unknown;
+  from: string;
+  text: string;
 }
 
-function extractMessages(payload: unknown): InboundMessage[] {
-  const out: InboundMessage[] = [];
+/** Pull inbound text messages (id, sender, body) from Meta's batched payload. */
+function extractTextMessages(payload: unknown): InboundText[] {
+  const out: InboundText[] = [];
   const p = payload as {
-    entry?: { changes?: { value?: { messages?: { id?: string }[] } }[] }[];
+    entry?: {
+      changes?: {
+        value?: { messages?: { id?: string; from?: string; type?: string; text?: { body?: string } }[] };
+      }[];
+    }[];
   };
   for (const entry of p.entry ?? []) {
     for (const change of entry.changes ?? []) {
       for (const message of change.value?.messages ?? []) {
-        if (message.id) out.push({ id: message.id, raw: message });
+        if (message.id && message.from && message.type === "text" && message.text?.body) {
+          out.push({ id: message.id, from: message.from, text: message.text.body });
+        }
       }
     }
   }

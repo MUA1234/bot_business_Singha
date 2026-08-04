@@ -22,6 +22,8 @@ import { EXTRACTION_PROMPT_VERSION, EXTRACTION_SYSTEM_PROMPT, wrapUntrusted } fr
 export const MODEL_ROUTES = {
   extraction: { model: "gpt-5.6-sol", maxTokens: 4000 },
   extraction_hard: { model: "gpt-5.6-sol", maxTokens: 4000 },
+  // Customer-facing WhatsApp order intake (collect details, never price).
+  quotation: { model: "gpt-5.6-sol", maxTokens: 2000 },
 } as const;
 export type RouteName = keyof typeof MODEL_ROUTES;
 
