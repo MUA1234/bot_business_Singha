@@ -28,6 +28,7 @@ import {
   Crown,
   Download,
   Printer,
+  MessageSquare,
   LayoutDashboard,
   type LucideIcon,
 } from "lucide-react";
@@ -56,6 +57,7 @@ const MAP: Record<string, LucideIcon> = {
   crown: Crown,
   download: Download,
   printer: Printer,
+  "message-square": MessageSquare,
 };
 
 export function Icon({

@@ -108,6 +108,17 @@ export const DEPARTMENTS: Department[] = [
   },
 ];
 
+// Customer WhatsApp messages are visible to EVERY employee (owner instruction),
+// so inject a shared "Messages" link into each department's nav, right after its
+// Overview item. Keeping it here (rather than in each array above) guarantees no
+// department is ever missed.
+const MESSAGES_NAV: NavItem = { href: "/app/messages", label: "Messages", icon: "message-square" };
+for (const d of DEPARTMENTS) {
+  if (!d.nav.some((n) => n.href === MESSAGES_NAV.href)) {
+    d.nav.splice(1, 0, { ...MESSAGES_NAV });
+  }
+}
+
 export const DEPARTMENT_KEYS = DEPARTMENTS.map((d) => d.key);
 
 export function getDepartment(key: string | null | undefined): Department | undefined {
