@@ -330,6 +330,20 @@ Pure engines (all tested) + company-scoped, audited, graceful UI:
   **HR** (staff, pending leave, overloaded), **Marketing** (campaigns, audiences, leads).
   Every tile links to the underlying records.
 
+## Scheduled monitoring (§13 — no new migration)
+
+- `GET /api/cron/daily-digest` (secured by `CRON_SECRET`; Vercel Cron config in
+  `vercel.json`, 07:00 daily): per company, counts overdue tasks/obligations, upcoming
+  renewals and overloaded staff → notifies admins. Notifications only — no execution.
+  Pure `digest.ts` (3 tests).
+
+## Still gated (owner decision required)
+
+- **§5.3 identity login cutover** — high risk / low current value; recommend deferring
+  until multi-company is actually needed.
+- **Async WhatsApp + outbox** — conflicts the 2026-08-04 owner "sync reply" order;
+  needs an explicit override.
+
 ## Database
 
 Migrations 0008–0013 applied to the Singha Supabase project (confirmed by owner,
