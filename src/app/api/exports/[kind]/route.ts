@@ -15,6 +15,9 @@ export async function GET(_req: Request, { params }: { params: { kind: string } 
   if (!p) return new NextResponse("Unauthorized", { status: 401 });
   if (!p.isAdmin && p.department !== "finance")
     return new NextResponse("Forbidden", { status: 403 });
+  // The audit trail is admin-only.
+  if (params.kind === "audit" && !p.isAdmin)
+    return new NextResponse("Forbidden", { status: 403 });
 
   const db = supabaseAdmin();
   let headers: string[] = [];
@@ -67,6 +70,27 @@ export async function GET(_req: Request, { params }: { params: { kind: string } 
       rows = (data ?? []).map((c: any) => [
         c.name, c.sku, c.unit_price, c.currency, c.is_active ? "yes" : "no", c.created_at,
       ]);
+      break;
+    }
+    case "journals": {
+      const { data } = await db
+        .from("journal_entries")
+        .select("posting_date, currency, memo, status, total_debit, total_credit")
+        .eq("company_id", p.companyId)
+        .order("posting_date", { ascending: false });
+      headers = ["Date", "Currency", "Memo", "Status", "Debit", "Credit"];
+      rows = (data ?? []).map((j: any) => [j.posting_date, j.currency, j.memo, j.status, j.total_debit, j.total_credit]);
+      break;
+    }
+    case "audit": {
+      const { data } = await db
+        .from("audit_events")
+        .select("created_at, actor_type, actor_id, action, entity_type, entity_id")
+        .eq("company_id", p.companyId)
+        .order("created_at", { ascending: false })
+        .limit(5000);
+      headers = ["When", "Actor type", "Actor", "Action", "Entity type", "Entity id"];
+      rows = (data ?? []).map((a: any) => [a.created_at, a.actor_type, a.actor_id, a.action, a.entity_type, a.entity_id]);
       break;
     }
     default:

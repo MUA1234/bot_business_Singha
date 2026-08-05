@@ -1,0 +1,1075 @@
+' ============================================================================
+' SINGHA AI MANAGEMENT SYSTEM - ARCHITECTURE V2
+' Self-contained PlantUML source; no external includes are required.
+'
+' Purpose
+' - Multi-company Senior AI Manager coordinating staff, departments and projects.
+' - Event-driven monitoring of WhatsApp, email, documents and operational systems.
+' - Internally-owned double-entry accounting system (no QuickBooks dependency).
+' - Human-controlled approvals for money, legal, HR and other sensitive actions.
+'
+' This file contains multiple diagrams. PlantUML renders each @startuml block as
+' a separate diagram. Suggested output names are taken from each diagram ID.
+' ============================================================================
+
+
+' ============================================================================
+' DIAGRAM 1 - ENTERPRISE SYSTEM CONTEXT
+' ============================================================================
+@startuml Singha_01_Enterprise_Context
+title Singha AI Management System - Enterprise Context
+
+skinparam backgroundColor #FCFCFC
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam ArrowColor #555555
+skinparam actorBorderColor #7A1C1C
+skinparam actorBackgroundColor #FFF4F2
+skinparam rectangleBorderColor #5C5C5C
+skinparam rectangleBackgroundColor #FFFFFF
+skinparam packageBorderColor #B5362B
+skinparam packageBackgroundColor #FFF8F7
+
+actor "Owner / Board" as Owner
+actor "Senior Managers" as Managers
+actor "Employees" as Staff
+actor "Customers" as Customers
+actor "Suppliers / Contractors" as Suppliers
+actor "Auditors / Legal Advisers" as Auditors
+
+rectangle "Singha AI Management Platform" as Platform {
+  rectangle "Owner Command Centre" as Command
+  rectangle "Senior AI Manager" as AIManager
+  rectangle "Department Workspaces" as Workspaces
+  rectangle "Accounting & Control Core" as Accounting
+  rectangle "Approval & Audit System" as Controls
+}
+
+cloud "Communication Channels" as Channels {
+  rectangle "WhatsApp" as WhatsApp
+  rectangle "Email" as Email
+  rectangle "Web / PWA" as Web
+  rectangle "Google Sheets / Calendar" as Google
+}
+
+cloud "Operational Sources" as Sources {
+  rectangle "Bank Statements" as Bank
+  rectangle "Documents / Receipts" as Docs
+  rectangle "GPS / Telematics" as GPS
+  rectangle "CCTV / Access Control" as CCTV
+}
+
+Owner --> Command : priorities, policies, approvals
+Managers --> Workspaces : supervise and approve
+Staff --> Workspaces : estimates, updates, evidence
+Customers --> Channels : enquiries, orders, support
+Suppliers --> Channels : quotations, bills, updates
+Auditors --> Controls : authorised review
+
+Channels --> Platform : verified inbound events
+Sources --> Platform : financial and operational events
+Platform --> Channels : tasks, reminders, replies, alerts
+
+Command --> AIManager
+AIManager --> Workspaces : coordinate work
+AIManager --> Accounting : financial intelligence
+AIManager --> Controls : recommendations and requests
+Controls --> Owner : sensitive decisions
+
+note right of Platform
+  Core rule:
+  AI recommendations do not bypass policy,
+  approval, company isolation or audit controls.
+end note
+
+legend left
+  |= Area |= Responsibility |
+  | AI | Analyse, plan, coordinate and recommend |
+  | Policy | Decide permitted authority and approval path |
+  | Domain services | Perform validated business operations |
+  | Humans | Approve sensitive or exceptional actions |
+endlegend
+@enduml
+
+
+' ============================================================================
+' DIAGRAM 2 - LOGICAL CONTAINER ARCHITECTURE
+' ============================================================================
+@startuml Singha_02_Logical_Containers
+title Singha AI Management System - Logical Container Architecture
+
+skinparam backgroundColor #FCFCFC
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam componentStyle rectangle
+skinparam ArrowColor #4B4B4B
+skinparam packageBorderColor #A52D24
+skinparam packageBackgroundColor #FFF8F7
+skinparam componentBorderColor #5C5C5C
+skinparam componentBackgroundColor #FFFFFF
+skinparam databaseBorderColor #7A1C1C
+skinparam databaseBackgroundColor #FFF4F2
+
+package "Experience Layer" {
+  component "Owner Command Centre" as UICommand
+  component "Department Dashboards" as UIDepartment
+  component "Employee Workspace" as UIEmployee
+  component "Customer / Supplier Portals" as UIPortal
+  component "Mobile PWA" as UIPWA
+}
+
+package "Ingress & Communication" {
+  component "API Gateway" as APIGateway
+  component "Webhook Verifier" as Webhook
+  component "Channel Router" as ChannelRouter
+  component "File & OCR Intake" as FileIntake
+  component "Outbound Message Outbox" as Outbox
+}
+
+package "Management Intelligence" {
+  component "Senior AI Manager" as AIMgr
+  component "AI Gateway & Model Router" as AIGateway
+  component "Knowledge / Retrieval Service" as Knowledge
+  component "Policy & Authority Engine" as Policy
+  component "Approval Orchestrator" as Approval
+  component "Action Executor" as Executor
+}
+
+package "Business Domain Services" {
+  component "Organisation & Workforce" as Workforce
+  component "Projects & Tasks" as Work
+  component "Finance & Accounting" as Finance
+  component "CRM, Sales & Service" as CRM
+  component "Procurement & Inventory" as Procurement
+  component "Legal & Compliance" as Legal
+  component "Fleet, GPS & Attendance" as Fleet
+  component "Documents & Evidence" as Evidence
+}
+
+package "Event & Data Platform" {
+  queue "Durable Event Bus / Inngest" as EventBus
+  database "PostgreSQL / Supabase\nRLS + transactions" as DB
+  database "Object Storage\nreceipts, contracts, media" as Storage
+  database "Immutable Audit & AI Run Log" as Audit
+  component "Read Models / Projections" as Projections
+  component "Search / Embeddings Index" as Search
+}
+
+package "External Adapters" {
+  component "Meta WhatsApp Cloud API" as Meta
+  component "Email Provider" as Mail
+  component "Google Workspace" as GWS
+  component "Bank Import / Open Banking" as Banking
+  component "GPS / CCTV Providers" as Devices
+}
+
+UICommand --> APIGateway
+UIDepartment --> APIGateway
+UIEmployee --> APIGateway
+UIPortal --> APIGateway
+UIPWA --> APIGateway
+
+Meta --> Webhook
+Mail --> Webhook
+GWS --> Webhook
+Banking --> Webhook
+Devices --> Webhook
+Webhook --> ChannelRouter : authenticated payload
+ChannelRouter --> DB : persist raw source event
+ChannelRouter --> EventBus : enqueue after persistence
+FileIntake --> Storage
+FileIntake --> EventBus
+
+EventBus --> AIMgr : business events
+AIMgr --> AIGateway
+AIMgr --> Knowledge
+AIMgr --> Policy
+Policy --> Approval
+Policy --> Executor : permitted low-risk action
+Approval --> Executor : approved action
+
+Executor --> Workforce
+Executor --> Work
+Executor --> Finance
+Executor --> CRM
+Executor --> Procurement
+Executor --> Legal
+Executor --> Fleet
+Executor --> Evidence
+
+Workforce --> DB
+Work --> DB
+Finance --> DB
+CRM --> DB
+Procurement --> DB
+Legal --> DB
+Fleet --> DB
+Evidence --> Storage
+Evidence --> DB
+
+DB --> Projections
+Projections --> UICommand
+Projections --> UIDepartment
+Knowledge --> Search
+AIMgr --> Audit
+Policy --> Audit
+Approval --> Audit
+Executor --> Audit
+
+Executor --> Outbox
+Outbox --> Meta
+Outbox --> Mail
+Outbox --> GWS
+
+note bottom of EventBus
+  Every external event is persisted before processing.
+  Consumers are idempotent and retryable.
+  Failed events enter a restricted dead-letter workflow.
+end note
+@enduml
+
+
+' ============================================================================
+' DIAGRAM 3 - SENIOR AI MANAGER INTERNAL ARCHITECTURE
+' ============================================================================
+@startuml Singha_03_AI_Manager_Internals
+title Senior AI Manager - Internal Decision Architecture
+
+skinparam backgroundColor #FCFCFC
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam componentStyle rectangle
+skinparam packageBorderColor #A52D24
+skinparam packageBackgroundColor #FFF8F7
+skinparam componentBorderColor #555555
+skinparam componentBackgroundColor #FFFFFF
+
+package "Observation" {
+  component "Event Classifier" as Classifier
+  component "Entity Resolver" as Resolver
+  component "Fact Extractor" as Extractor
+  component "Evidence & Confidence Assessor" as Confidence
+}
+
+package "Management Memory" {
+  component "Business State Graph" as StateGraph
+  component "Policies & SOP Knowledge" as SOP
+  component "Conversation Memory" as ConversationMemory
+  component "Plans, Commitments & Deadlines" as Commitments
+}
+
+package "Reasoning & Coordination" {
+  component "Priority & Risk Scorer" as Risk
+  component "Planner / Work Decomposer" as Planner
+  component "Capacity & Assignment Optimiser" as Capacity
+  component "Progress Monitor" as Progress
+  component "Forecast & Scenario Engine" as Forecast
+  component "Exception Detector" as Exception
+}
+
+package "Governance" {
+  component "Structured Output Validator" as Validator
+  component "Authority & Policy Evaluator" as Authority
+  component "Approval Route Builder" as ApprovalRoute
+  component "Human Review Queue" as HumanReview
+  component "Safety / Prompt-Injection Fence" as Safety
+}
+
+package "Controlled Outputs" {
+  component "Task / Project Commands" as WorkCommand
+  component "Financial Recommendations" as FinanceCommand
+  component "Messages & Follow-ups" as MessageCommand
+  component "Legal / Compliance Alerts" as LegalCommand
+  component "Executive Briefings" as Briefing
+}
+
+Classifier --> Resolver
+Resolver --> Extractor
+Extractor --> Confidence
+Confidence --> StateGraph
+ConversationMemory --> StateGraph
+SOP --> StateGraph
+Commitments --> StateGraph
+
+StateGraph --> Risk
+StateGraph --> Planner
+StateGraph --> Capacity
+StateGraph --> Progress
+StateGraph --> Forecast
+StateGraph --> Exception
+
+Risk --> Planner
+Capacity --> Planner
+Progress --> Exception
+Forecast --> Exception
+Exception --> Planner
+
+Planner --> Safety
+Safety --> Validator
+Validator --> Authority
+Authority --> ApprovalRoute : approval required
+Authority --> WorkCommand : permitted
+Authority --> MessageCommand : permitted
+ApprovalRoute --> HumanReview
+HumanReview --> FinanceCommand : approved
+HumanReview --> LegalCommand : approved
+
+WorkCommand --> Commitments : update plan
+MessageCommand --> ConversationMemory : record outcome
+FinanceCommand --> StateGraph : update verified state
+LegalCommand --> StateGraph : update verified state
+Exception --> Briefing
+
+note right of Authority
+  Example decision record:
+  - proposed action
+  - evidence and source links
+  - policy version
+  - risk level and confidence
+  - required approver(s)
+  - expiry and conditions
+end note
+
+note bottom of HumanReview
+  No autonomous bank payment, ledger posting,
+  legal commitment, dismissal, surveillance action
+  or high-risk customer promise.
+end note
+@enduml
+
+
+' ============================================================================
+' DIAGRAM 4 - DEPARTMENT AND BUSINESS CAPABILITY MAP
+' ============================================================================
+@startuml Singha_04_Business_Capabilities
+title Senior AI Manager - Department and Business Capability Map
+
+skinparam backgroundColor #FCFCFC
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam packageBorderColor #A52D24
+skinparam packageBackgroundColor #FFF8F7
+skinparam rectangleBorderColor #5C5C5C
+skinparam rectangleBackgroundColor #FFFFFF
+
+rectangle "Senior AI Manager\nPriorities · Coordination · Monitoring · Escalation" as Core
+
+package "Executive & Governance" {
+  rectangle "Objectives / KPIs / OKRs" as Objectives
+  rectangle "Decision & Approval Inbox" as Decisions
+  rectangle "Risk / Audit / Health" as RiskAudit
+}
+
+package "People & Work" {
+  rectangle "HR & Employee Records" as HR
+  rectangle "Capacity / Rosters / Leave" as Rosters
+  rectangle "Projects / Tasks / Evidence" as Tasks
+  rectangle "Performance & Training" as Performance
+}
+
+package "Money & Control" {
+  rectangle "Accounting Ledger" as Ledger
+  rectangle "Receivables / Payables" as Subledgers
+  rectangle "Budgets / Cash Flow / Forecast" as Planning
+  rectangle "Payments / Receipts / Reconciliation" as Payments
+}
+
+package "Revenue & Customers" {
+  rectangle "CRM / Leads / Customers" as CustomerMgmt
+  rectangle "Pricing / Quotations / Orders" as Sales
+  rectangle "AI Reception / Sales / Support" as Agents
+  rectangle "Marketing / Campaigns" as Marketing
+}
+
+package "Delivery & Resources" {
+  rectangle "Procurement / Suppliers / POs" as Purchasing
+  rectangle "Inventory / Assets / Equipment" as Inventory
+  rectangle "Vehicles / Drivers / Fuel / Maintenance" as Transport
+  rectangle "Sites / GPS / Attendance / CCTV" as Sites
+}
+
+package "Legal & Assurance" {
+  rectangle "Contracts / Matters / Obligations" as Contracts
+  rectangle "Licences / Renewals / Compliance" as Compliance
+  rectangle "Document & Evidence Control" as DocControl
+  rectangle "External Adviser Handover" as Adviser
+}
+
+Core --> Objectives
+Core --> Decisions
+Core --> RiskAudit
+Core --> HR
+Core --> Rosters
+Core --> Tasks
+Core --> Performance
+Core --> Ledger
+Core --> Subledgers
+Core --> Planning
+Core --> Payments
+Core --> CustomerMgmt
+Core --> Sales
+Core --> Agents
+Core --> Marketing
+Core --> Purchasing
+Core --> Inventory
+Core --> Transport
+Core --> Sites
+Core --> Contracts
+Core --> Compliance
+Core --> DocControl
+Core --> Adviser
+
+Tasks --> Rosters : capacity-aware assignment
+Sales --> Tasks : fulfilment work
+Purchasing --> Tasks : procurement work
+Payments --> Ledger : approved posting
+Transport --> Payments : fuel and maintenance evidence
+Sites --> Tasks : attendance and progress evidence
+Contracts --> Compliance : obligations and renewals
+DocControl --> Payments : receipts and invoices
+DocControl --> Contracts : signed evidence
+
+note bottom of Sites
+  GPS/CCTV features remain legally gated.
+  Use purpose limitation, consent, access controls,
+  minimum retention and correction procedures.
+end note
+@enduml
+
+
+' ============================================================================
+' DIAGRAM 5 - END-TO-END EVENT AND MANAGEMENT WORKFLOW
+' ============================================================================
+@startuml Singha_05_Event_Workflow
+title End-to-End Event Processing and Management Workflow
+
+skinparam backgroundColor #FCFCFC
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam sequenceArrowThickness 1
+skinparam participantBorderColor #6B2823
+skinparam participantBackgroundColor #FFF4F2
+skinparam databaseBorderColor #6B2823
+skinparam databaseBackgroundColor #FFFFFF
+skinparam sequenceLifeLineBorderColor #777777
+
+actor "Employee / Customer / Supplier" as Sender
+participant "Channel Adapter" as Channel
+participant "Verified Ingress" as Ingress
+database "Source Event Store" as EventStore
+participant "Durable Event Bus" as Bus
+participant "Senior AI Manager" as AI
+participant "Policy & Approval" as PolicyApproval
+participant "Domain Service" as Domain
+database "Operational DB / Ledger" as OperationalDB
+participant "Notification Outbox" as Notification
+actor "Manager / Owner" as Approver
+
+Sender -> Channel : message, document or update
+Channel -> Ingress : signed provider webhook
+Ingress -> Ingress : verify, normalise, deduplicate
+Ingress -> EventStore : persist raw event + correlation ID
+EventStore --> Ingress : stored
+Ingress -> Bus : enqueue source_event.received
+Ingress --> Channel : acknowledge quickly
+
+Bus -> AI : process event with durable retry
+AI -> EventStore : load source and related evidence
+AI -> AI : classify, resolve entities, extract facts
+AI -> AI : assess confidence, risk and impact
+AI -> PolicyApproval : structured proposed action
+
+alt Missing or uncertain information
+  PolicyApproval --> AI : clarification required
+  AI -> Notification : clarification message
+  Notification -> Channel : send through outbox
+  Channel -> Sender : request missing information
+else Sensitive or above authority limit
+  PolicyApproval -> Approver : approval request + evidence
+  alt Approved
+    Approver --> PolicyApproval : approve with conditions
+    PolicyApproval -> Domain : authorised command
+  else Rejected or expired
+    Approver --> PolicyApproval : reject / expire
+    PolicyApproval -> Notification : notify requester
+  end
+else Permitted routine action
+  PolicyApproval -> Domain : authorised command
+end
+
+Domain -> OperationalDB : transactional state change
+OperationalDB --> Domain : committed result
+Domain -> EventStore : append audit + outcome event
+Domain -> Notification : task, reply or alert
+Notification -> Channel : idempotent outbound delivery
+Channel -> Sender : outcome / next action
+
+note over Ingress,Bus
+  Persist first, acknowledge second, process asynchronously.
+end note
+
+note over PolicyApproval,Domain
+  Only deterministic domain services mutate business state.
+  The language model never writes directly to the ledger or bank.
+end note
+@enduml
+
+
+' ============================================================================
+' DIAGRAM 6 - EMPLOYEE TASK, CAPACITY AND PROGRESS LIFECYCLE
+' ============================================================================
+@startuml Singha_06_Task_Lifecycle
+title Employee Task, Capacity and Progress Lifecycle
+
+skinparam backgroundColor #FCFCFC
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam stateBorderColor #6B2823
+skinparam stateBackgroundColor #FFF7F5
+skinparam ArrowColor #555555
+
+[*] --> Captured : message / manager / recurring rule / AI plan
+Captured --> Clarifying : scope or evidence missing
+Clarifying --> Captured : information received
+Captured --> Planned : scope, owner criteria and priority set
+
+Planned --> CapacityCheck : candidate assignees identified
+CapacityCheck --> WaitingAssignment : insufficient capacity
+WaitingAssignment --> CapacityCheck : capacity changed
+CapacityCheck --> AwaitingEstimate : worker selected
+
+AwaitingEstimate --> Scheduled : worker accepts estimate and deadline
+AwaitingEstimate --> CapacityCheck : worker declines / conflict
+Scheduled --> InProgress : work starts
+Scheduled --> Overdue : start or due date missed
+
+InProgress --> Blocked : dependency / resource / legal issue
+Blocked --> InProgress : blocker resolved
+InProgress --> AwaitingEvidence : worker reports completion
+InProgress --> Overdue : due date missed
+
+Overdue --> InProgress : recovery plan accepted
+Overdue --> Escalated : repeated delay / high impact
+Escalated --> CapacityCheck : reassign or add support
+Escalated --> InProgress : manager recovery decision
+
+AwaitingEvidence --> Verification : evidence supplied
+AwaitingEvidence --> InProgress : insufficient evidence
+Verification --> Completed : acceptance criteria satisfied
+Verification --> InProgress : correction required
+Completed --> [*]
+
+state InProgress {
+  [*] --> Working
+  Working --> CheckInDue : scheduled follow-up
+  CheckInDue --> Working : progress update received
+  CheckInDue --> ExceptionReview : no response / risk detected
+  ExceptionReview --> Working : plan updated
+}
+
+note right of CapacityCheck
+  Inputs:
+  - contracted hours and work schedule
+  - active task estimates
+  - skills, role and site availability
+  - leave, travel and dependency load
+  - priority and authority
+end note
+
+note right of Verification
+  Evidence may include:
+  message confirmation, document, photo,
+  approval, system status, GPS/site event
+  or financial reconciliation.
+end note
+@enduml
+
+
+' ============================================================================
+' DIAGRAM 7 - FINANCE, APPROVAL AND ACCOUNTING CONTROL FLOW
+' ============================================================================
+@startuml Singha_07_Financial_Control_Flow
+title Financial Event, Approval and Double-Entry Accounting Flow
+
+skinparam backgroundColor #FCFCFC
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam componentStyle rectangle
+skinparam packageBorderColor #A52D24
+skinparam packageBackgroundColor #FFF8F7
+skinparam componentBorderColor #5C5C5C
+skinparam componentBackgroundColor #FFFFFF
+skinparam databaseBorderColor #6B2823
+skinparam databaseBackgroundColor #FFF4F2
+
+package "Financial Evidence" {
+  component "Bill / Receipt / Invoice" as Document
+  component "Conversation Update" as Conversation
+  component "Bank Transaction" as BankTransaction
+  component "Purchase / Sales / Payroll Event" as BusinessEvent
+}
+
+package "Financial Intelligence" {
+  component "Extract & Validate" as FinancialExtract
+  component "Duplicate / Fraud / Exception Check" as DuplicateCheck
+  component "Entity, Project & Account Coding" as Coding
+  component "Commitment & Cash-flow Update" as Cashflow
+}
+
+package "Control Gateway" {
+  component "Authority Matrix" as AuthorityMatrix
+  component "Budget / Threshold Policy" as BudgetPolicy
+  component "Separation of Duties" as Separation
+  component "Approval Workflow" as FinanceApproval
+}
+
+package "Accounting Core" {
+  component "Posting Rules" as PostingRules
+  component "Balanced Journal Builder" as JournalBuilder
+  database "Immutable Journal & Lines" as Journal
+  component "Subledgers\nAR · AP · Advances · Loans" as Subledger
+  component "Reconciliation" as Reconciliation
+  component "Reports & Forecasts" as Reports
+}
+
+Document --> FinancialExtract
+Conversation --> FinancialExtract
+BankTransaction --> FinancialExtract
+BusinessEvent --> FinancialExtract
+FinancialExtract --> DuplicateCheck
+DuplicateCheck --> Coding
+Coding --> Cashflow
+
+Cashflow --> AuthorityMatrix
+AuthorityMatrix --> BudgetPolicy
+BudgetPolicy --> Separation
+Separation --> FinanceApproval
+
+FinanceApproval --> PostingRules : approved for posting
+PostingRules --> JournalBuilder
+JournalBuilder --> Journal : atomic debit = credit
+Journal --> Subledger
+Journal --> Reconciliation
+BankTransaction --> Reconciliation
+Reconciliation --> Reports
+Subledger --> Reports
+Cashflow --> Reports : commitments / forecast
+
+FinanceApproval -[#red,dashed]-> PostingRules : reject / hold / request evidence
+
+note right of FinanceApproval
+  Approval is not a bank payment.
+  Posting authority and payment authority are separate.
+  Supplier bank-detail changes require special control.
+end note
+
+note bottom of Journal
+  Posted journals are never edited or deleted.
+  Corrections use linked reversals and replacement entries.
+  Closed periods require explicit controlled reopening.
+end note
+@enduml
+
+
+' ============================================================================
+' DIAGRAM 8 - MULTI-COMPANY DATA OWNERSHIP AND CORE DOMAIN MODEL
+' ============================================================================
+@startuml Singha_08_Core_Data_Model
+title Multi-Company Data Ownership and Core Domain Model
+
+hide methods
+hide stereotypes
+skinparam backgroundColor #FCFCFC
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam classBorderColor #6B2823
+skinparam classBackgroundColor #FFF9F8
+skinparam ArrowColor #555555
+
+class Company {
+  id
+  legal_name
+  base_currency
+  status
+}
+class OrganisationUnit {
+  id
+  company_id
+  type
+  parent_id
+  name
+}
+class User
+class Membership {
+  company_id
+  user_id
+  status
+}
+class Role
+class Permission
+class AuthorityRule
+class EmployeeProfile
+
+class Project
+class Task
+class Assignment
+class CheckIn
+class Evidence
+class CapacitySnapshot
+
+class Party
+class LeadOpportunity
+class QuoteOrder
+class PurchaseOrder
+
+class FinancialEvent
+class ApprovalRequest
+class Journal
+class JournalLine
+class Account
+class BudgetForecast
+class BankTransaction
+
+class ChannelConnection
+class Conversation
+class Message
+class SourceEvent
+class AIRun
+class AuditEvent
+
+class Vehicle
+class Trip
+class DeviceEvent
+class AttendanceEvent
+class LegalMatter
+class Obligation
+
+Company "1" *-- "many" OrganisationUnit
+Company "1" *-- "many" Membership
+User "1" -- "many" Membership
+Membership "many" -- "many" Role
+Role "many" -- "many" Permission
+Membership "1" -- "many" AuthorityRule
+Membership "1" -- "0..1" EmployeeProfile
+
+Company "1" *-- "many" Project
+Project "1" *-- "many" Task
+Task "1" *-- "many" Assignment
+Assignment "many" --> "1" EmployeeProfile
+Task "1" *-- "many" CheckIn
+Task "1" *-- "many" Evidence
+EmployeeProfile "1" -- "many" CapacitySnapshot
+
+Company "1" *-- "many" Party
+Party "1" -- "many" LeadOpportunity
+LeadOpportunity "1" -- "many" QuoteOrder
+Party "1" -- "many" PurchaseOrder
+
+Company "1" *-- "many" FinancialEvent
+FinancialEvent "1" -- "many" ApprovalRequest
+FinancialEvent "0..1" --> "0..1" Journal
+Journal "1" *-- "2..many" JournalLine
+JournalLine "many" --> "1" Account
+Company "1" *-- "many" Account
+Company "1" *-- "many" BudgetForecast
+Company "1" *-- "many" BankTransaction
+
+Company "1" *-- "many" ChannelConnection
+ChannelConnection "1" -- "many" Conversation
+Conversation "1" *-- "many" Message
+Message "0..1" --> "1" SourceEvent
+SourceEvent "1" -- "many" AIRun
+SourceEvent "1" -- "many" AuditEvent
+
+Company "1" *-- "many" Vehicle
+Vehicle "1" -- "many" Trip
+Vehicle "1" -- "many" DeviceEvent
+EmployeeProfile "1" -- "many" AttendanceEvent
+Company "1" *-- "many" LegalMatter
+LegalMatter "1" *-- "many" Obligation
+
+note bottom of Company
+  Every tenant-owned record carries company_id.
+  Composite constraints and RLS prevent cross-company references.
+  Service-role access is restricted to verified system workers.
+end note
+@enduml
+
+
+' ============================================================================
+' DIAGRAM 9 - SECURITY, AUTHORITY AND HUMAN APPROVAL LEVELS
+' ============================================================================
+@startuml Singha_09_Authority_Levels
+title AI Authority Levels and Human Approval Controls
+
+skinparam backgroundColor #FCFCFC
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam stateBorderColor #6B2823
+skinparam stateBackgroundColor #FFF7F5
+skinparam ArrowColor #555555
+
+[*] --> ProposedAction
+ProposedAction --> EvidenceCheck
+
+EvidenceCheck --> Clarification : missing / conflicting evidence
+Clarification --> EvidenceCheck : corrected information
+EvidenceCheck --> RiskClassification : evidence sufficient
+
+RiskClassification --> Automatic : low-risk informational action
+RiskClassification --> PolicyControlled : routine action within delegated limit
+RiskClassification --> ManagerApproval : operational commitment / exception
+RiskClassification --> SpecialistApproval : finance / legal / HR / privacy
+RiskClassification --> OwnerApproval : high-value / strategic / irreversible
+
+Automatic --> SchemaValidation
+PolicyControlled --> PolicyValidation
+PolicyValidation --> SchemaValidation : permitted
+PolicyValidation --> ManagerApproval : limit exceeded
+
+ManagerApproval --> SchemaValidation : approved
+SpecialistApproval --> SchemaValidation : approved
+OwnerApproval --> SchemaValidation : approved
+
+ManagerApproval --> Rejected : rejected / expired
+SpecialistApproval --> Rejected : rejected / expired
+OwnerApproval --> Rejected : rejected / expired
+
+SchemaValidation --> ActionExecutor
+ActionExecutor --> AuditRecorded
+Rejected --> AuditRecorded
+AuditRecorded --> [*]
+
+note right of Automatic
+  Examples:
+  reminders, task creation, progress questions,
+  summaries and non-sensitive notifications.
+end note
+
+note right of SpecialistApproval
+  Separate permissions for:
+  approve expense, post ledger, initiate payment,
+  authorise payment, sign contract, access CCTV.
+end note
+@enduml
+
+
+' ============================================================================
+' DIAGRAM 10 - DEPLOYMENT AND OPERATIONS TOPOLOGY
+' ============================================================================
+@startuml Singha_10_Deployment_Topology
+title Deployment, Security Boundaries and Operational Health
+
+skinparam backgroundColor #FCFCFC
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam nodeBorderColor #6B2823
+skinparam nodeBackgroundColor #FFF8F7
+skinparam componentBorderColor #5C5C5C
+skinparam componentBackgroundColor #FFFFFF
+skinparam databaseBorderColor #6B2823
+skinparam databaseBackgroundColor #FFF4F2
+
+cloud "Users and Providers" {
+  node "Browser / PWA" as Browser
+  node "Meta / Email / Google" as Providers
+  node "Bank / GPS / CCTV" as ExternalSystems
+}
+
+node "Edge / Web Platform" as Edge {
+  component "Next.js Web Application" as NextApp
+  component "Protected API Routes" as API
+  component "Verified Webhooks" as Webhooks
+  component "Middleware / Session" as Session
+}
+
+node "Durable Processing" as Processing {
+  component "Inngest Functions" as Inngest
+  component "Scheduled Monitoring" as Schedules
+  component "Retry / Dead-Letter Handling" as DLQ
+}
+
+node "Data Platform" as DataPlatform {
+  database "Supabase PostgreSQL" as Postgres
+  database "Supabase Auth" as Auth
+  database "Object Storage" as ObjectStore
+}
+
+node "AI Providers" as AIProviders {
+  component "Model Router" as ModelRouter
+  component "Primary Model" as PrimaryModel
+  component "Fallback / Specialist Model" as FallbackModel
+}
+
+node "Operations & Security" as Operations {
+  component "Logs / Metrics / Traces" as Telemetry
+  component "Health & Cost Monitor" as Health
+  component "Alerting" as Alerting
+  component "Backup / Recovery" as Backup
+  component "Secrets Management" as Secrets
+}
+
+Browser --> NextApp : TLS
+NextApp --> Session
+Session --> Auth
+NextApp --> API
+Providers --> Webhooks : signed webhooks
+ExternalSystems --> Webhooks : authenticated feeds
+Webhooks --> Postgres : persist source event
+Webhooks --> Inngest : enqueue
+API --> Postgres : user-scoped RLS
+API --> ObjectStore : signed upload / download
+
+Inngest --> Postgres : service worker, scoped operations
+Inngest --> ObjectStore
+Inngest --> ModelRouter
+ModelRouter --> PrimaryModel
+ModelRouter --> FallbackModel
+Schedules --> Inngest
+Inngest --> DLQ : exhausted retries
+
+NextApp --> Telemetry
+API --> Telemetry
+Webhooks --> Telemetry
+Inngest --> Telemetry
+ModelRouter --> Health
+Postgres --> Health
+Telemetry --> Health
+Health --> Alerting
+Postgres --> Backup
+ObjectStore --> Backup
+Secrets --> NextApp
+Secrets --> Inngest
+
+note right of DataPlatform
+  Separate development, staging and production environments.
+  Production data is never copied into development.
+  Migrations are forward-only and tested before release.
+end note
+
+note bottom of Operations
+  Monitor queue age, failed events, integration health,
+  model latency/cost/schema errors, RLS failures,
+  overdue approvals, backup age and suspicious access.
+end note
+@enduml
+
+
+' ============================================================================
+' DIAGRAM 11 - PROPOSED CODEBASE MODULE MAP
+' ============================================================================
+@startuml Singha_11_Codebase_Module_Map
+title Proposed Architecture V2 - Codebase Module Map
+
+skinparam backgroundColor #FCFCFC
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Courier
+skinparam packageBorderColor #A52D24
+skinparam packageBackgroundColor #FFF8F7
+skinparam componentBorderColor #5C5C5C
+skinparam componentBackgroundColor #FFFFFF
+skinparam componentStyle rectangle
+
+package "src/app" as App {
+  component "app/*\nrole-based pages" as Pages
+  component "api/webhooks/*\nverified ingress only" as WebhookRoutes
+  component "api/commands/*\nvalidated commands" as CommandRoutes
+}
+
+package "src/platform" as PlatformCode {
+  component "auth/\ntenancy + memberships" as AuthCode
+  component "events/\nsource events + outbox" as EventsCode
+  component "observability/\naudit + health" as ObsCode
+  component "storage/\ndocuments + evidence" as StorageCode
+}
+
+package "src/management" as ManagementCode {
+  component "ai-manager/\nobserve + plan + monitor" as AIManagerCode
+  component "policy/\nauthority + approvals" as PolicyCode
+  component "knowledge/\nSOPs + retrieval" as KnowledgeCode
+  component "models/\ngateway + router + schemas" as ModelsCode
+}
+
+package "src/modules" as ModulesCode {
+  component "organisation/" as OrgCode
+  component "work/" as WorkCode
+  component "finance/" as FinanceCode
+  component "commercial/" as CommercialCode
+  component "procurement/" as ProcurementCode
+  component "legal/" as LegalCode
+  component "fleet/" as FleetCode
+}
+
+package "src/integrations" as IntegrationCode {
+  component "whatsapp/" as WAIntegration
+  component "email/" as EmailIntegration
+  component "google/" as GoogleIntegration
+  component "banking/" as BankIntegration
+  component "gps-cctv/" as DeviceIntegration
+}
+
+package "src/db" as DBCode {
+  component "migrations/" as Migrations
+  component "repositories/\ncompany-scoped data access" as Repositories
+  component "generated-types/" as DBTypes
+  component "transactions/" as Transactions
+}
+
+Pages --> CommandRoutes
+WebhookRoutes --> EventsCode
+CommandRoutes --> AuthCode
+CommandRoutes --> PolicyCode
+EventsCode --> AIManagerCode
+AIManagerCode --> KnowledgeCode
+AIManagerCode --> ModelsCode
+AIManagerCode --> PolicyCode
+PolicyCode --> OrgCode
+PolicyCode --> WorkCode
+PolicyCode --> FinanceCode
+PolicyCode --> CommercialCode
+PolicyCode --> ProcurementCode
+PolicyCode --> LegalCode
+PolicyCode --> FleetCode
+
+OrgCode --> Repositories
+WorkCode --> Repositories
+FinanceCode --> Transactions
+CommercialCode --> Repositories
+ProcurementCode --> Transactions
+LegalCode --> Repositories
+FleetCode --> Repositories
+Repositories --> DBTypes
+Transactions --> DBTypes
+Migrations --> DBTypes
+
+WAIntegration --> WebhookRoutes
+EmailIntegration --> WebhookRoutes
+GoogleIntegration --> WebhookRoutes
+BankIntegration --> WebhookRoutes
+DeviceIntegration --> WebhookRoutes
+EventsCode --> ObsCode
+StorageCode --> ObsCode
+
+note bottom of ModulesCode
+  Modules expose commands, queries and domain events.
+  They do not call AI providers or channel APIs directly.
+end note
+
+note bottom of DBCode
+  User requests use RLS-bound clients.
+  Service-role access is isolated behind reviewed worker repositories.
+end note
+@enduml
+
+
+' ============================================================================
+' END OF ARCHITECTURE PACKAGE
+' ============================================================================

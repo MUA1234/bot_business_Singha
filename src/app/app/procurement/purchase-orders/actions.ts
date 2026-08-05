@@ -1,0 +1,84 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { requireProfile } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabase/server";
+import { writeAudit } from "@/lib/audit";
+
+async function requireProc() {
+  const p = await requireProfile();
+  if (!p.isAdmin && p.department !== "procurement") throw new Error("Not allowed");
+  return p;
+}
+
+function poNumber(): string {
+  const d = new Date();
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  return `PO-${ymd}-${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+export async function createPurchaseOrder(formData: FormData): Promise<void> {
+  const p = await requireProc();
+  const title = String(formData.get("title") ?? "").trim();
+  const db = supabaseAdmin();
+  const { data, error } = await db
+    .from("purchase_orders")
+    .insert({ company_id: p.companyId, po_number: poNumber(), status: "draft", total_amount: 0 })
+    .select("id")
+    .maybeSingle();
+  if (error) return;
+  await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "purchase_order.created", entityType: "purchase_order", entityId: data?.id ?? null, payload: { title } });
+  revalidatePath("/app/procurement/purchase-orders");
+}
+
+/** Confirm a PO belongs to the caller's company. */
+async function poInCompany(id: string, companyId: string) {
+  const { data } = await supabaseAdmin().from("purchase_orders").select("id").eq("id", id).eq("company_id", companyId).maybeSingle();
+  return data ?? null;
+}
+
+async function recomputePoTotalAndStatus(poId: string, companyId: string) {
+  const db = supabaseAdmin();
+  const { data: lines } = await db.from("po_lines").select("quantity, unit_price, received_quantity").eq("purchase_order_id", poId).eq("company_id", companyId);
+  const rows = lines ?? [];
+  const total = rows.reduce((s: number, l: any) => s + Number(l.quantity ?? 0) * Number(l.unit_price ?? 0), 0);
+  const anyReceived = rows.some((l: any) => Number(l.received_quantity ?? 0) > 0);
+  const allReceived = rows.length > 0 && rows.every((l: any) => Number(l.received_quantity ?? 0) >= Number(l.quantity ?? 0));
+  const status = allReceived ? "received" : anyReceived ? "part_received" : "draft";
+  await db.from("purchase_orders").update({ total_amount: total, status }).eq("id", poId).eq("company_id", companyId);
+}
+
+export async function addPoLine(formData: FormData): Promise<void> {
+  const p = await requireProc();
+  const poId = String(formData.get("po_id") ?? "");
+  if (!(await poInCompany(poId, p.companyId))) return;
+  const description = String(formData.get("description") ?? "").trim();
+  if (!description) return;
+  const quantity = Math.max(0, Number(formData.get("quantity") ?? 0) || 0);
+  const unit_price = Math.max(0, Number(formData.get("unit_price") ?? 0) || 0);
+
+  await supabaseAdmin().from("po_lines").insert({
+    purchase_order_id: poId, company_id: p.companyId, description, quantity, unit_price, received_quantity: 0,
+  });
+  await recomputePoTotalAndStatus(poId, p.companyId);
+  revalidatePath(`/app/procurement/purchase-orders/${poId}`);
+}
+
+export async function recordLineReceipt(formData: FormData): Promise<void> {
+  const p = await requireProc();
+  const poId = String(formData.get("po_id") ?? "");
+  const lineId = String(formData.get("line_id") ?? "");
+  const received = Math.max(0, Number(formData.get("received") ?? 0) || 0);
+  if (!(await poInCompany(poId, p.companyId))) return;
+
+  // Line must belong to this PO + company.
+  const { data: line } = await supabaseAdmin()
+    .from("po_lines").select("id").eq("id", lineId).eq("purchase_order_id", poId).eq("company_id", p.companyId).maybeSingle();
+  if (!line) return;
+
+  await supabaseAdmin().from("po_lines").update({ received_quantity: received }).eq("id", lineId).eq("company_id", p.companyId);
+  await supabaseAdmin().from("goods_receipts").insert({ company_id: p.companyId, purchase_order_id: poId, received_by: p.userId });
+  await recomputePoTotalAndStatus(poId, p.companyId);
+  await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "goods.received", entityType: "purchase_order", entityId: poId, payload: { lineId, received } });
+  revalidatePath(`/app/procurement/purchase-orders/${poId}`);
+}

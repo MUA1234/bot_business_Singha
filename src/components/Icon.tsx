@@ -29,6 +29,12 @@ import {
   Download,
   Printer,
   MessageSquare,
+  Gauge,
+  Scale,
+  Car,
+  Shield,
+  ClipboardList,
+  Fuel,
   LayoutDashboard,
   type LucideIcon,
 } from "lucide-react";
@@ -58,6 +64,12 @@ const MAP: Record<string, LucideIcon> = {
   download: Download,
   printer: Printer,
   "message-square": MessageSquare,
+  gauge: Gauge,
+  scale: Scale,
+  car: Car,
+  shield: Shield,
+  clipboard: ClipboardList,
+  fuel: Fuel,
 };
 
 export function Icon({

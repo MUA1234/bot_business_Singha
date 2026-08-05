@@ -31,12 +31,20 @@ export const DEPARTMENTS: Department[] = [
     description: "Full control: employees, departments, catalog, and every dashboard.",
     nav: [
       { href: "/app/admin", label: "Overview", icon: "home" },
+      { href: "/app/command", label: "Command Centre", icon: "gauge" },
+      { href: "/app/command/analyze", label: "AI Manager", icon: "shield" },
+      { href: "/app/admin/objectives", label: "Objectives", icon: "target" },
       { href: "/app/admin/employees", label: "Employees", icon: "users" },
+      { href: "/app/admin/health", label: "System Health", icon: "shield" },
+      { href: "/app/admin/audit", label: "Audit Log", icon: "clipboard" },
       { href: "/app/admin/departments", label: "Departments", icon: "building-2" },
       { href: "/app/admin/catalog", label: "Products & Prices", icon: "tag" },
       { href: "/app/sales", label: "Sales & Orders", icon: "shopping-cart" },
       { href: "/app/finance", label: "Finance", icon: "wallet" },
       { href: "/app/marketing", label: "Marketing", icon: "megaphone" },
+      { href: "/app/procurement", label: "Procurement", icon: "truck" },
+      { href: "/app/legal", label: "Legal", icon: "scale" },
+      { href: "/app/fleet", label: "Fleet", icon: "car" },
     ],
   },
   {
@@ -50,6 +58,8 @@ export const DEPARTMENTS: Department[] = [
       { href: "/app/sales/quotations", label: "Quotations", icon: "file-text" },
       { href: "/app/sales/price-requests", label: "Price Confirmations", icon: "help-circle" },
       { href: "/app/sales/customers", label: "Customers", icon: "user-round" },
+      { href: "/app/sales/leads", label: "Leads", icon: "target" },
+      { href: "/app/sales/opportunities", label: "Opportunities", icon: "rocket" },
     ],
   },
   {
@@ -59,7 +69,21 @@ export const DEPARTMENTS: Department[] = [
     description: "Invoices, payments, approvals, ledger exports.",
     nav: [
       { href: "/app/finance", label: "Overview", icon: "home" },
-      { href: "/app/finance/invoices", label: "Invoices", icon: "file-text" },
+      { href: "/app/finance/chart-of-accounts", label: "Chart of Accounts", icon: "clipboard" },
+      { href: "/app/finance/journals", label: "Journals", icon: "file-text" },
+      { href: "/app/finance/trial-balance", label: "Trial Balance", icon: "table" },
+      { href: "/app/finance/pnl", label: "Profit & Loss", icon: "table" },
+      { href: "/app/finance/balance-sheet", label: "Balance Sheet", icon: "table" },
+      { href: "/app/finance/periods", label: "Periods", icon: "check-circle" },
+      { href: "/app/finance/customer-invoices", label: "Customer Invoices", icon: "file-text" },
+      { href: "/app/finance/supplier-bills", label: "Supplier Bills", icon: "file-text" },
+      { href: "/app/finance/expenses", label: "Expense Claims", icon: "wallet" },
+      { href: "/app/finance/invoices", label: "Quotations", icon: "file-text" },
+      { href: "/app/finance/receivables", label: "Receivables & Payables", icon: "wallet" },
+      { href: "/app/finance/forecast", label: "Cash Forecast", icon: "gauge" },
+      { href: "/app/finance/commitments", label: "Commitments", icon: "clipboard" },
+      { href: "/app/finance/accounts", label: "Bank & Cash", icon: "wallet" },
+      { href: "/app/finance/reconciliation", label: "Reconciliation", icon: "check-circle" },
       { href: "/app/finance/approvals", label: "Approvals", icon: "check-circle" },
       { href: "/app/finance/price-requests", label: "Price Confirmations", icon: "help-circle" },
       { href: "/app/finance/exports", label: "Excel Exports", icon: "table" },
@@ -94,6 +118,7 @@ export const DEPARTMENTS: Department[] = [
     nav: [
       { href: "/app/hr", label: "Overview", icon: "home" },
       { href: "/app/hr/staff", label: "Staff", icon: "users" },
+      { href: "/app/hr/capacity", label: "Capacity", icon: "gauge" },
     ],
   },
   {
@@ -104,6 +129,33 @@ export const DEPARTMENTS: Department[] = [
     nav: [
       { href: "/app/procurement", label: "Overview", icon: "home" },
       { href: "/app/procurement/suppliers", label: "Suppliers", icon: "factory" },
+      { href: "/app/procurement/rfqs", label: "RFQs", icon: "help-circle" },
+      { href: "/app/procurement/purchase-requests", label: "Purchase Requests", icon: "clipboard" },
+      { href: "/app/procurement/purchase-orders", label: "Purchase Orders", icon: "package" },
+      { href: "/app/procurement/inventory", label: "Inventory", icon: "package" },
+    ],
+  },
+  {
+    key: "legal",
+    label: "Legal & Compliance",
+    icon: "scale",
+    description: "Matters, contracts, obligations and licence renewals.",
+    nav: [
+      { href: "/app/legal", label: "Overview", icon: "home" },
+      { href: "/app/legal/matters", label: "Matters", icon: "clipboard" },
+      { href: "/app/legal/contracts", label: "Contracts", icon: "file-text" },
+      { href: "/app/legal/licences", label: "Licences", icon: "shield" },
+    ],
+  },
+  {
+    key: "fleet",
+    label: "Fleet & Transport",
+    icon: "car",
+    description: "Vehicles, drivers, trips, fuel and maintenance.",
+    nav: [
+      { href: "/app/fleet", label: "Overview", icon: "home" },
+      { href: "/app/fleet/vehicles", label: "Vehicles", icon: "car" },
+      { href: "/app/fleet/drivers", label: "Drivers", icon: "users" },
     ],
   },
 ];
@@ -112,10 +164,15 @@ export const DEPARTMENTS: Department[] = [
 // so inject a shared "Messages" link into each department's nav, right after its
 // Overview item. Keeping it here (rather than in each array above) guarantees no
 // department is ever missed.
-const MESSAGES_NAV: NavItem = { href: "/app/messages", label: "Messages", icon: "message-square" };
+const SHARED_NAV: NavItem[] = [
+  { href: "/app/me", label: "My Work", icon: "list-todo" },
+  { href: "/app/notifications", label: "Notifications", icon: "message-square" },
+  { href: "/app/messages", label: "Messages", icon: "message-square" },
+];
 for (const d of DEPARTMENTS) {
-  if (!d.nav.some((n) => n.href === MESSAGES_NAV.href)) {
-    d.nav.splice(1, 0, { ...MESSAGES_NAV });
+  for (let i = 0; i < SHARED_NAV.length; i++) {
+    const item = SHARED_NAV[i]!;
+    if (!d.nav.some((n) => n.href === item.href)) d.nav.splice(1 + i, 0, { ...item });
   }
 }
 

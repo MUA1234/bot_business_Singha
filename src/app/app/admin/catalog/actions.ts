@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { writeAudit } from "@/lib/audit";
 
 export interface CatalogState {
   error?: string;
@@ -42,10 +43,32 @@ export async function addProduct(_prev: CatalogState, formData: FormData): Promi
 }
 
 export async function setProductActive(formData: FormData): Promise<void> {
-  await requireCatalogEditor();
+  const p = await requireCatalogEditor();
   const id = String(formData.get("id") ?? "");
   const is_active = formData.get("active") === "true";
   if (!id) return;
-  await supabaseAdmin().from("product_catalog").update({ is_active }).eq("id", id);
+
+  // Company-scoped: confirm the product belongs to the caller's company before
+  // mutating (Constitution §5 — never update by a bare id from the browser).
+  const { data: target } = await supabaseAdmin()
+    .from("product_catalog")
+    .select("id")
+    .eq("id", id)
+    .eq("company_id", p.companyId)
+    .maybeSingle();
+  if (!target) return;
+
+  await supabaseAdmin()
+    .from("product_catalog")
+    .update({ is_active })
+    .eq("id", id)
+    .eq("company_id", p.companyId);
+  await writeAudit({
+    companyId: p.companyId,
+    actorId: p.userId,
+    action: is_active ? "product.activated" : "product.deactivated",
+    entityType: "product_catalog",
+    entityId: id,
+  });
   revalidatePath("/app/admin/catalog");
 }

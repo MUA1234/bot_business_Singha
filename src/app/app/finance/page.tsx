@@ -2,20 +2,54 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { Icon } from "@/components/Icon";
+import { ageItems, type AgingItem } from "@/modules/finance/aging";
 
 export const metadata = { title: "Finance — Singha" };
+
+/** Read-only query that never throws (missing table → []). */
+async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
+  try {
+    return (await run()).data ?? [];
+  } catch {
+    return [];
+  }
+}
 
 export default async function FinanceHome() {
   const p = await requireDepartment("finance");
   const db = supabaseAdmin();
 
-  const [{ data: sent }, { count: openPrice }] = await Promise.all([
+  const [{ data: sent }, { count: openPrice }, invoices, bills] = await Promise.all([
     db.from("quotations").select("total, currency, status").eq("company_id", p.companyId).eq("status", "sent"),
     db.from("price_confirmations").select("id", { count: "exact", head: true }).eq("company_id", p.companyId).eq("status", "open"),
+    safe<any>(() =>
+      db
+        .from("customer_invoices")
+        .select("currency, total_amount, amount_settled, due_date, status")
+        .eq("company_id", p.companyId)
+        .not("status", "in", "(paid,cancelled)") as any,
+    ),
+    safe<any>(() =>
+      db
+        .from("supplier_bills")
+        .select("currency, total_amount, amount_settled, due_date, status")
+        .eq("company_id", p.companyId)
+        .not("status", "in", "(paid,cancelled)") as any,
+    ),
   ]);
 
-  const currency = sent?.[0]?.currency ?? "LKR";
+  const currency = sent?.[0]?.currency ?? invoices[0]?.currency ?? "LKR";
   const quotedValue = (sent ?? []).reduce((s: number, q: any) => s + Number(q.total || 0), 0);
+
+  // Outstanding = total − settled, aged. Decimal strings throughout (Constitution §8).
+  const toItems = (rows: any[]): AgingItem[] =>
+    rows.map((r) => ({
+      dueDate: r.due_date ?? null,
+      outstanding: String(Number(r.total_amount ?? 0) - Number(r.amount_settled ?? 0)),
+    }));
+  const now = new Date();
+  const ar = ageItems(toItems(invoices), currency, now);
+  const ap = ageItems(toItems(bills), currency, now);
 
   const tiles = [
     { k: "Quoted value (sent)", v: `${currency} ${quotedValue.toLocaleString()}`, href: "/app/finance/invoices" },
@@ -36,6 +70,19 @@ export default async function FinanceHome() {
             <div className="v" style={{ fontSize: "1.5rem" }}>{t.v}</div>
           </Link>
         ))}
+      </div>
+
+      <div className="grid cols-2">
+        <Link href="/app/finance/receivables" className="card stat">
+          <div className="k">Receivables outstanding</div>
+          <div className="v" style={{ fontSize: "1.5rem", color: "var(--ok)" }}>{currency} {Number(ar.total).toLocaleString()}</div>
+          <div className="d dim">Overdue: {currency} {Number(ar.overdue).toLocaleString()} · 90+: {Number(ar.buckets.d90_plus).toLocaleString()}</div>
+        </Link>
+        <Link href="/app/finance/receivables" className="card stat">
+          <div className="k">Payables outstanding</div>
+          <div className="v" style={{ fontSize: "1.5rem", color: "var(--warn)" }}>{currency} {Number(ap.total).toLocaleString()}</div>
+          <div className="d dim">Overdue: {currency} {Number(ap.overdue).toLocaleString()} · 90+: {Number(ap.buckets.d90_plus).toLocaleString()}</div>
+        </Link>
       </div>
       <div className="grid cols-3">
         <Link href="/app/finance/invoices" className="card"><div className="card-title row gap-1"><Icon name="file-text" size={17} /> Invoices</div><p className="card-sub">Billing documents from quotations.</p></Link>

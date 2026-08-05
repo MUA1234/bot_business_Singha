@@ -1,0 +1,48 @@
+# Non-interactive CI (Architecture V2 change plan §13.1; Constitution §13).
+# Runs on every push and PR. No secrets required for these steps.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install (from lockfile)
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        # eslint/eslint-config-next are not in the lockfile yet (local npm cache is
+        # broken on the maintainer's machine); install them on the clean CI runner.
+        run: |
+          npm i --no-save eslint@^8 eslint-config-next@^14
+          npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+        env:
+          # Build must not require real secrets. Placeholder public values keep
+          # Next/Supabase client construction happy; nothing connects at build time.
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: build-placeholder-anon-key
+
+      - name: Migration file sanity (naming + ordering)
+        run: |
+          echo "Checking migration filenames are sequential..."
+          ls src/db/migrations | grep -E '^[0-9]{4}_.*\.sql$' | sort -c && echo "OK"

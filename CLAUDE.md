@@ -2,8 +2,20 @@
 
 > This file is authoritative for any coding agent working in this repository.
 > It is Prompt 1 of `docs/CLAUDE_DEVELOPER_PROMPT_PACK.md`, kept in sync with the specs.
-> The build is currently at **Phase 0 (assessment & architecture) — documentation only.**
-> No feature code exists yet. Do not write feature code until Phase 0 docs are approved.
+>
+> **Implementation status (current):** This is a WORKING application, not a Phase-0
+> documentation stub. It has an app shell, auth, department dashboards, an admin
+> panel, a live WhatsApp Cloud API quotation flow, an internally-owned double-entry
+> Accounting Core, event ingestion, and 66+ passing tests. Do NOT treat this repo as
+> greenfield. See `docs/CURRENT_IMPLEMENTATION_STATUS.md`.
+>
+> **Active target:** evolve this into the Senior AI Manager described in
+> `docs/architecture-v2/CHANGE_PLAN.md` + `docs/architecture-v2/Singha_AI_Management_Architecture_V2.puml`,
+> in the phase order defined there (Phase 0 security foundations first).
+>
+> **Superseded-document rule:** A coding agent MUST NOT rely on any instruction that
+> conflicts with `docs/architecture-v2/CHANGE_PLAN.md`. Where a document is marked
+> superseded (e.g. the QuickBooks integration docs), ignore it.
 
 ## Authoritative documents
 
@@ -32,14 +44,16 @@ Where the spec is silent, follow the build prompt, then `docs/DECISIONS.md`.
 This is a multi-company, event-driven AI business control system, not merely a
 chatbot or task list.
 
-QuickBooks remains the accounting source of truth. The operational database is the
+The internally-owned double-entry **Accounting Core** (`src/accounting/*`) is the
+accounting source of truth. **QuickBooks is NOT used** (superseded — DECISIONS D-011;
+`docs/QUICKBOOKS_INTEGRATION_MODEL.md` is archived). The operational database is the
 source of truth for tasks, staff, projects, approvals, operational payment records
 and AI decisions. WhatsApp / GPS / CCTV are inputs and evidence, never truth.
 
 Every external event must be validated, stored, deduplicated, idempotently
 processed, retryable, auditable and traceable to its source. A failed process must
 never lose the original event. A duplicate event must never create a duplicate task,
-receipt, payment, reimbursement or QuickBooks entry.
+receipt, payment, reimbursement or ledger entry.
 
 Every record must have explicit company scope. Cross-company data leakage is a
 **critical** security failure and must be proven impossible by tests.
