@@ -1,15 +1,21 @@
 "use client";
 
-import { useActionState } from "react";
+import { useFormState, useFormStatus } from "react-dom";
 import Link from "next/link";
 import { analyzeUpdate, type AnalyzeState } from "./actions";
+
+/** Submit button that reflects the pending state (React 18 idiom). */
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return <button className="btn" type="submit" disabled={pending}>{pending ? "Analysing…" : "Analyse"}</button>;
+}
 
 /**
  * Paste a business update → the Senior AI Manager observes it, captures follow-up
  * tasks, and flags what needs human approval. It proposes; it never executes.
  */
 export function AnalyzeForm() {
-  const [state, formAction, pending] = useActionState<AnalyzeState, FormData>(analyzeUpdate, {});
+  const [state, formAction] = useFormState<AnalyzeState, FormData>(analyzeUpdate, {});
   const r = state.result;
 
   return (
@@ -18,7 +24,7 @@ export function AnalyzeForm() {
         <form action={formAction} className="stack gap-2">
           <textarea name="update" className="textarea" style={{ minHeight: 120 }}
             placeholder="Paste a business update — e.g. a WhatsApp message, a site report, an email…" />
-          <button className="btn" type="submit" disabled={pending}>{pending ? "Analysing…" : "Analyse"}</button>
+          <SubmitButton />
         </form>
         {state.error && <div className="notice err mt-2">{state.error}</div>}
       </div>

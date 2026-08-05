@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useActionState } from "react";
+import { useFormState } from "react-dom";
 import { checkDraftJournal, type DraftLine } from "@/accounting/manual-entry";
 import { postJournal, type JournalState } from "../actions";
 
@@ -17,7 +17,7 @@ const blank = (): DraftLine => ({ account_code: "", debit: "", credit: "", descr
  * balance check (pure engine, in-browser) and posts atomically via the server action.
  */
 export function JournalForm({ accounts, currency }: { accounts: AccountOpt[]; currency: string }) {
-  const [state, formAction] = useActionState<JournalState, FormData>(postJournal, {});
+  const [state, formAction] = useFormState<JournalState, FormData>(postJournal, {});
   const [lines, setLines] = useState<DraftLine[]>([blank(), blank()]);
 
   const update = (i: number, patch: Partial<DraftLine>) =>
