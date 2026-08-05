@@ -296,6 +296,40 @@ Pure engines (all tested) + company-scoped, audited, graceful UI:
   appears with a signed download link. Degrades gracefully if the bucket is absent.
   **Requires a private storage bucket named `evidence`.**
 
+## Loans (§8.3 — no new migration)
+
+- `/app/finance/loans`: register a loan → generates a reducing-balance **amortization
+  schedule** (pure `amortization.ts`, 4 tests, decimal — principals sum exactly to the
+  loan, balance clears to zero). Uses `loans`/`loan_schedules` (migration 0005).
+
+## AI Manager over real conversations (§6.2 — no new migration)
+
+- Conversation thread (`/app/messages/[id]`) has an admin **"Analyse with AI"** action:
+  runs the observation→plan pipeline over the actual WhatsApp thread (untrusted text
+  fenced) and **captures follow-up tasks**. Observe/propose only — never replies to the
+  customer, never executes. Connects the AI manager to real business data.
+
+## Tax codes + petty cash (§8.3 — no new migration)
+
+- **Tax codes** — `/app/finance/tax-codes`: rate register; pure `tax.ts`
+  (tax/gross/net, part of 3 tests).
+- **Cash counts** — `/app/finance/cash-counts`: record a physical count; system
+  computes the book balance (cash-position engine) and stores the **variance** (pure
+  `petty-cash.ts`).
+
+## Customer 360 (§9.1 — no new migration)
+
+- `/app/sales/accounts` (customers with outstanding) + `/app/sales/accounts/[id]`
+  (profile, invoices aged, receipts, outstanding/overdue/90+). Reuses the aging engine.
+  (Sales nav: WhatsApp threads renamed "Conversations"; new "Customer Accounts".)
+
+## Department dashboards (§10 — no new migration)
+
+- Replaced the last placeholder overviews with real dashboards: **Operations**
+  (task counts + live exceptions), **Procurement** (open PRs/POs/RFQs + reorder count),
+  **HR** (staff, pending leave, overloaded), **Marketing** (campaigns, audiences, leads).
+  Every tile links to the underlying records.
+
 ## Database
 
 Migrations 0008–0013 applied to the Singha Supabase project (confirmed by owner,
