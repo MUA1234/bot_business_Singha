@@ -35,6 +35,9 @@ const nextConfig = {
   reactStrictMode: true,
   // Don't advertise the framework/version to attackers.
   poweredByHeader: false,
+  // Linting runs in CI (.github/workflows/ci.yml), not during the Vercel build —
+  // this silences the "ESLint must be installed" build warning. Type errors still fail.
+  eslint: { ignoreDuringBuilds: true },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
