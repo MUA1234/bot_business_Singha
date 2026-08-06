@@ -1,5 +1,13 @@
 # PHASED_IMPLEMENTATION_PLAN.md
 
+> **⚠️ QUICKBOOKS SUPERSEDED (D-011 / NEXT_PHASE_DEVELOPER_BRIEF).** QuickBooks is
+> **not used** and is **not** the accounting source of truth. The internally-owned
+> double-entry Accounting Core (`src/accounting/*`) is the sole accounting source of
+> truth. Ignore every QuickBooks connection / posting / draft / sync / OAuth /
+> reconciliation instruction in this document; those references are historical only.
+> See document precedence in `CLAUDE.md`.
+
+
 **Status:** Phase 0 deliverable — for review. Master spec §29 + build-prompt §3.
 One phase at a time. After each: run tests, print `=== PHASE N COMPLETE ===`,
 summarise, and **wait for approval**.

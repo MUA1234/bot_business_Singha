@@ -1,5 +1,13 @@
 # Claude Developer Prompt Pack
 
+> **⚠️ QUICKBOOKS SUPERSEDED (D-011 / NEXT_PHASE_DEVELOPER_BRIEF).** QuickBooks is
+> **not used** and is **not** the accounting source of truth. The internally-owned
+> double-entry Accounting Core (`src/accounting/*`) is the sole accounting source of
+> truth. Ignore every QuickBooks connection / posting / draft / sync / OAuth /
+> reconciliation instruction in this document; those references are historical only.
+> See document precedence in `CLAUDE.md`.
+
+
 ## AI Business Management System
 
 **Version:** 1.0  
@@ -58,7 +66,8 @@ missing prerequisite.
 This is a multi-company, event-driven AI business control system, not merely a
 chatbot or task list.
 
-QuickBooks remains the accounting source of truth. The operational database is
+The internally-owned double-entry Accounting Core (`src/accounting/*`) is the
+accounting source of truth (not QuickBooks — D-011). The operational database is
 the source of truth for tasks, staff, projects, approvals, operational payment
 records and AI decisions.
 

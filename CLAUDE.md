@@ -6,38 +6,55 @@
 > **Implementation status (current):** This is a WORKING application, not a Phase-0
 > documentation stub. It has an app shell, auth, department dashboards, an admin
 > panel, a live WhatsApp Cloud API quotation flow, an internally-owned double-entry
-> Accounting Core, event ingestion, and 66+ passing tests. Do NOT treat this repo as
-> greenfield. See `docs/CURRENT_IMPLEMENTATION_STATUS.md`.
+> Accounting Core, event ingestion, and 195 passing unit tests (46 files). Do NOT
+> treat this repo as greenfield. See `docs/CURRENT_IMPLEMENTATION_STATUS.md`.
 >
-> **Active target:** evolve this into the Senior AI Manager described in
-> `docs/architecture-v2/CHANGE_PLAN.md` + `docs/architecture-v2/Singha_AI_Management_Architecture_V2.puml`,
-> in the phase order defined there (Phase 0 security foundations first).
+> **Active target / current approved phase:** the **Production Control Foundation**
+> defined in `docs/architecture-v2/NEXT_PHASE_DEVELOPER_BRIEF.md` (work packages
+> WP0–WP6, executed strictly in order). It refines the target architecture in
+> `docs/architecture-v2/CHANGE_PLAN.md` + `docs/architecture-v2/Singha_AI_Management_Architecture_V2.puml`.
 >
 > **Superseded-document rule:** A coding agent MUST NOT rely on any instruction that
-> conflicts with `docs/architecture-v2/CHANGE_PLAN.md`. Where a document is marked
-> superseded (e.g. the QuickBooks integration docs), ignore it.
+> conflicts with the document precedence below. Where a document is marked superseded
+> (e.g. the QuickBooks integration docs), ignore it.
 
-## Authoritative documents
+## Authoritative documents & document precedence
 
-Before making changes, read:
+Before making changes, read (in this order):
 
-- `docs/AI_BUSINESS_MANAGER_MASTER_SPEC.md` (the WHAT — product spec, wins on conflict)
-- `docs/CLAUDE_DEVELOPER_PROMPT_PACK.md` (the HOW — phased process)
-- `docs/PRODUCT_REQUIREMENTS.md`
-- `docs/ARCHITECTURE.md`
-- `docs/DATA_MODEL.md`
-- `docs/SECURITY_AND_PRIVACY_MODEL.md`
-- `docs/PERMISSION_MODEL.md`
-- `docs/AUTHORITY_MATRIX.md`
-- `docs/TEST_STRATEGY.md`
-- `docs/PHASED_IMPLEMENTATION_PLAN.md` (the current approved phase plan)
+1. `AGENTS.md`
+2. `docs/architecture-v2/NEXT_PHASE_DEVELOPER_BRIEF.md` (the current approved phase)
+3. `docs/architecture-v2/CHANGE_PLAN.md` + `docs/architecture-v2/Singha_AI_Management_Architecture_V2.puml`
+4. `docs/architecture-v2/IDENTITY_UNIFICATION_PLAN.md`
+5. `CLAUDE.md` (this file)
+6. `docs/SECURITY_AND_PRIVACY_MODEL.md`, `docs/PERMISSION_MODEL.md`,
+   `docs/AUTHORITY_MATRIX.md`, `docs/TEST_STRATEGY.md`
+7. `docs/CURRENT_IMPLEMENTATION_STATUS.md`
+8. Supporting specs: `docs/AI_BUSINESS_MANAGER_MASTER_SPEC.md`,
+   `docs/PRODUCT_REQUIREMENTS.md`, `docs/ARCHITECTURE.md`, `docs/DATA_MODEL.md`,
+   `docs/PHASED_IMPLEMENTATION_PLAN.md`
 
 If a document does not yet exist, do not invent its approval. Identify it as a
 missing prerequisite.
 
-**Conflict rule:** Where the master spec and any other document (including the
-`MASTER BUILD PROMPT` that kicked off this repo) conflict, **the master spec wins.**
-Where the spec is silent, follow the build prompt, then `docs/DECISIONS.md`.
+**Conflict rule (authoritative precedence — highest wins):**
+
+1. The owner's explicit instruction for the current task.
+2. `docs/architecture-v2/NEXT_PHASE_DEVELOPER_BRIEF.md`.
+3. Architecture V2 `CHANGE_PLAN.md` and the Architecture V2 PlantUML.
+4. Security, permission, authority, accounting, and test specifications.
+5. `CLAUDE.md` (after conflicting legacy statements are corrected).
+6. Older documents (including `docs/AI_BUSINESS_MANAGER_MASTER_SPEC.md`, the
+   `MASTER BUILD PROMPT`, and `docs/DECISIONS.md`) **only where they do not conflict**
+   with the documents above.
+
+Note: earlier docs called the master spec the always-wins document. That is
+**superseded** — the master spec now sits at level 6 and its QuickBooks-as-source-of-
+truth statements are void (see below and DECISIONS D-011).
+
+**QuickBooks:** not used, not the source of truth. Any active instruction referring to
+QuickBooks posting/sync/draft/reconciliation is superseded. The internally owned
+double-entry Accounting Core (`src/accounting/*`) is the accounting source of truth.
 
 ## Core system principles
 
@@ -115,10 +132,16 @@ confidence, cost, approval and execution outcome for material AI decisions.
 
 ## Financial controls
 
-- QuickBooks posting begins in **draft / read-only** mode only.
+- Accounting is posted **only** to the internally-owned double-entry Accounting Core
+  (`src/accounting/*`). There is no QuickBooks posting, sync, or draft workflow.
+- Material journals are posted only by a human-initiated, permission-checked,
+  transactional path; the AI never posts a material journal.
 - Approval to record an expense is **not** permission to execute a bank payment.
+- The system does not execute bank transfers. Recording a payment is not a transfer.
 - Preserve original receipts, extraction results, corrections and approvals.
-- Prevent duplicate receipts, reimbursements, QuickBooks posts and payments.
+- Prevent duplicate receipts, reimbursements, journals, payments and reversals
+  (caller-supplied idempotency keys for settlement/reversal).
+- Never edit or delete posted accounting history; correct it with controlled reversals.
 - Uncertain tax or accounting treatment requires authorised finance review.
 
 ## CCTV, GPS and attendance controls (GATED — build LAST)

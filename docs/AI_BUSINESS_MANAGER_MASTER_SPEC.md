@@ -1,5 +1,16 @@
 # AI Business Management System
 
+> **⚠️ PRECEDENCE & QUICKBOOKS NOTICE (read first).**
+> This spec is no longer the always-wins document. Current precedence is defined in
+> `CLAUDE.md` and `docs/architecture-v2/NEXT_PHASE_DEVELOPER_BRIEF.md`; this spec sits
+> **below** the Brief and the Architecture V2 CHANGE_PLAN and applies only where it does
+> not conflict with them. **QuickBooks is not used and is not the accounting source of
+> truth** (DECISIONS D-011). The internally-owned double-entry **Accounting Core**
+> (`src/accounting/*`) is the sole accounting source of truth. Ignore every QuickBooks
+> connection / posting / draft / sync / reconciliation instruction below; those
+> references are historical only and describe the internal Accounting Core equivalent
+> where an accounting action is required.
+
 ## Master Architecture and Development Prompt — Version 2
 
 **Updated:** 20 July 2026  
@@ -164,7 +175,8 @@ The system must continue processing events, reminders and monitoring when no use
 ## 5. Sources of truth
 
 - The operational database is the source of truth for tasks, projects, staff, capacity, customers, approvals, operational payments and AI decisions.
-- QuickBooks remains the accounting source of truth.
+- The internally-owned double-entry Accounting Core (`src/accounting/*`) is the
+  accounting source of truth. (Superseded: this line previously named QuickBooks — D-011.)
 - Google Sheets is an integration and transitional staff interface, not the primary database.
 - WhatsApp and email are communication sources and evidence.
 - Google Calendar is the source for connected scheduled commitments.
@@ -358,7 +370,7 @@ Calculate expenditure by business, branch, project, mine/site, vehicle, equipmen
 
 ## 16. QuickBooks and finance controls
 
-QuickBooks remains the accounting source of truth. Map approved submissions to the correct transaction type, not one generic expense type. Store company ID, transaction type/ID, sync/version token, upload time, fields, attachment, reconciliation and retry history.
+The internally-owned Accounting Core is the accounting source of truth (not QuickBooks — D-011). Map approved submissions to the correct transaction type, not one generic expense type. Store company ID, transaction type/ID, version token, posting time, fields, attachment, reconciliation and retry history.
 
 Initially create an internal draft, finance-approved posting request or supported QuickBooks draft. Require authorised finance approval before posting. The AI must never execute the bank payment merely because an item is approved or posted.
 

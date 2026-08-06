@@ -1,7 +1,18 @@
 # QUICKBOOKS_INTEGRATION_MODEL.md
 
-**Status:** Phase 0 deliverable — for review. Master spec §16. Implemented Phase 10.
-**Pilot mode: DRAFT / READ-ONLY only. No automatic posting. No bank payment. Ever.**
+> # ⚠️ ARCHIVED / SUPERSEDED — DO NOT IMPLEMENT
+>
+> **QuickBooks is not used and is not the accounting source of truth.** This document
+> was superseded by **DECISIONS D-011** (2026-07-30) and by
+> `docs/architecture-v2/NEXT_PHASE_DEVELOPER_BRIEF.md`. The internally-owned
+> double-entry **Accounting Core** (`src/accounting/*`) is the sole accounting source
+> of truth. Everything below is retained for historical record only — no coding agent
+> may act on any QuickBooks connection / posting / draft / sync / OAuth / reconciliation
+> instruction in this file.
+
+**Status:** ARCHIVED (historical). Superseded by D-011 and the internal Accounting Core.
+_Original status line (historical): "Phase 0 deliverable — for review. Master spec §16.
+Implemented Phase 10. Pilot mode: DRAFT / READ-ONLY only."_
 
 ## 1. Principles
 
