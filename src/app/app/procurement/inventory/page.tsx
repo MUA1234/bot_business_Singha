@@ -4,7 +4,8 @@
  * audited, graceful.
  */
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { needsReorder, reorderList, stockValuation, type StockItem } from "@/modules/procurement/inventory";
 import { createItem, moveStock } from "./actions";
 
@@ -15,7 +16,7 @@ export default async function InventoryPage() {
 
   let rows: any[] = [];
   try {
-    rows = (await supabaseAdmin().from("inventory_items").select("id, name, sku, unit, quantity_on_hand, reorder_level, unit_cost, currency").eq("company_id", p.companyId).order("name").limit(500)).data ?? [];
+    rows = (await supabaseReadClient().from("inventory_items").select("id, name, sku, unit, quantity_on_hand, reorder_level, unit_cost, currency").eq("company_id", p.companyId).order("name").limit(500)).data ?? [];
   } catch {
     rows = [];
   }

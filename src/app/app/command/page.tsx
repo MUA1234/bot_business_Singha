@@ -9,7 +9,8 @@
  */
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import {
   detectTaskExceptions,
   detectCapacityExceptions,
@@ -37,7 +38,7 @@ async function safeSelect<T>(run: () => Promise<{ data: T[] | null; error: unkno
 
 export default async function CommandCentrePage() {
   const admin = await requireAdmin();
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
   const now = new Date();
 
   const taskRows = await safeSelect<any>(() =>
@@ -167,7 +168,7 @@ export default async function CommandCentrePage() {
       </div>
 
       <div className="card">
-        <div className="card-title">Today's briefing</div>
+        <div className="card-title">Today&apos;s briefing</div>
         <div className="stack gap-1 mt-2">
           {briefing.map((line, i) => (
             <div key={i} style={{ fontSize: "0.95rem" }}>{line}</div>

@@ -6,7 +6,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { bucketFor, type AgingBucket } from "@/modules/finance/aging";
 
 export const metadata = { title: "Receivables & Payables — Singha" };
@@ -86,7 +87,7 @@ function Table({ title, rows }: { title: string; rows: Row[] }) {
 
 export default async function ReceivablesPage() {
   const p = await requireDepartment("finance");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
   const now = new Date();
 
   const [invoices, bills] = await Promise.all([

@@ -3,7 +3,8 @@
  * from customers / leads. Audited, graceful.
  */
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { createAudience } from "./actions";
 
 export const metadata = { title: "Audiences — Singha" };
@@ -18,7 +19,7 @@ async function count(run: () => Promise<{ count: number | null }>): Promise<numb
 
 export default async function AudiencesPage() {
   const p = await requireDepartment("marketing");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   let rows: any[] = [];
   try {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { Icon } from "@/components/Icon";
 import { ageItems, type AgingItem } from "@/modules/finance/aging";
 
@@ -17,7 +18,7 @@ async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 
 export default async function FinanceHome() {
   const p = await requireDepartment("finance");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const [{ data: sent }, { count: openPrice }, invoices, bills] = await Promise.all([
     db.from("quotations").select("total, currency, status").eq("company_id", p.companyId).eq("status", "sent"),

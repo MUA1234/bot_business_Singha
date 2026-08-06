@@ -4,7 +4,8 @@
  * Reopening is a controlled, audited action. Company-scoped, graceful.
  */
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { createFiscalYear, setPeriodStatus } from "./actions";
 
 export const metadata = { title: "Periods — Singha" };
@@ -19,7 +20,7 @@ async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 
 export default async function PeriodsPage() {
   const p = await requireDepartment("finance");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
   const thisYear = new Date().getUTCFullYear();
 
   const [years, periods] = await Promise.all([

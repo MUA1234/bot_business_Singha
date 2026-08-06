@@ -3,7 +3,8 @@
  * Graceful before the Phase-4 tables exist.
  */
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { createPurchaseRequest, setPurchaseRequestStatus } from "./actions";
 
 export const metadata = { title: "Purchase Requests — Singha" };
@@ -22,7 +23,7 @@ export default async function PurchaseRequestsPage() {
 
   let rows: any[] = [];
   try {
-    const { data } = await supabaseAdmin()
+    const { data } = await supabaseReadClient()
       .from("purchase_requests")
       .select("id, title, estimated_cost, currency, status, created_at")
       .eq("company_id", p.companyId)

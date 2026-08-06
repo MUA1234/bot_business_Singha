@@ -3,7 +3,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { createVehicle } from "./actions";
 
 export const metadata = { title: "Vehicles — Singha" };
@@ -13,7 +14,7 @@ export default async function VehiclesPage() {
 
   let rows: any[] = [];
   try {
-    const { data } = await supabaseAdmin()
+    const { data } = await supabaseReadClient()
       .from("vehicles")
       .select("id, registration_no, make, model, year, status, odometer")
       .eq("company_id", p.companyId)

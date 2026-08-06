@@ -3,7 +3,8 @@
  * Company-scoped + audited, graceful.
  */
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { createLoan } from "./actions";
 
 export const metadata = { title: "Loans — Singha" };
@@ -18,7 +19,7 @@ async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 
 export default async function LoansPage() {
   const p = await requireDepartment("finance");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
   const [loans, schedules] = await Promise.all([
     safe<any>(() => db.from("loans").select("id, counterparty, principal, currency, interest_rate, start_date, status").eq("company_id", p.companyId).order("start_date", { ascending: false }).limit(100) as any),
     safe<any>(() => db.from("loan_schedules").select("loan_id, due_date, principal_due, interest_due, status").eq("company_id", p.companyId).order("due_date") as any),

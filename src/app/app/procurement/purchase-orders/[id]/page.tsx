@@ -6,7 +6,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { addPoLine, recordLineReceipt } from "../actions";
 import { ThreeWayCheck } from "./ThreeWayCheck";
 
@@ -14,7 +15,7 @@ export const metadata = { title: "Purchase Order — Singha" };
 
 export default async function PurchaseOrderDetail({ params }: { params: { id: string } }) {
   const p = await requireDepartment("procurement");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const { data: po } = await db
     .from("purchase_orders")

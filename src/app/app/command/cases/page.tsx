@@ -5,7 +5,8 @@
  */
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 
 export const metadata = { title: "Management Cases — Singha" };
 
@@ -17,7 +18,7 @@ export default async function CasesPage() {
   const admin = await requireAdmin();
   let cases: any[] = [];
   try {
-    const { data } = await supabaseAdmin()
+    const { data } = await supabaseReadClient()
       .from("management_cases")
       .select("id, created_at, correlation_id, source_event_id, ai_run_id, confirmed_facts, inferred_facts, uncertainty, confidence, required_authority, requires_human, created_tasks")
       .eq("company_id", admin.companyId)

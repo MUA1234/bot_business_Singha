@@ -3,7 +3,8 @@
  * graceful.
  */
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { taxAmount } from "@/accounting/tax";
 import { createTaxCode } from "./actions";
 
@@ -14,7 +15,7 @@ export default async function TaxCodesPage() {
 
   let rows: any[] = [];
   try {
-    rows = (await supabaseAdmin().from("tax_codes").select("id, code, name, rate, is_active").eq("company_id", p.companyId).order("code").limit(100)).data ?? [];
+    rows = (await supabaseReadClient().from("tax_codes").select("id, code, name, rate, is_active").eq("company_id", p.companyId).order("code").limit(100)).data ?? [];
   } catch {
     rows = [];
   }

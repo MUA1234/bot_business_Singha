@@ -3,7 +3,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { createPurchaseOrder } from "./actions";
 
 export const metadata = { title: "Purchase Orders — Singha" };
@@ -13,7 +14,7 @@ export default async function PurchaseOrdersPage() {
 
   let rows: any[] = [];
   try {
-    const { data } = await supabaseAdmin()
+    const { data } = await supabaseReadClient()
       .from("purchase_orders")
       .select("id, po_number, total_amount, currency, status, created_at")
       .eq("company_id", p.companyId)

@@ -4,7 +4,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { createBankAccount, createCashAccount } from "./actions";
 
 export const metadata = { title: "Bank & Cash — Singha" };
@@ -51,7 +52,7 @@ function AccountCard({ title, rows, action, kind }: { title: string; rows: any[]
 
 export default async function AccountsPage() {
   const p = await requireDepartment("finance");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
   const [banks, cashes] = await Promise.all([
     safe<any>(() => db.from("bank_accounts").select("id, name, currency, opening_balance, gl_account_code").eq("company_id", p.companyId).order("name") as any),
     safe<any>(() => db.from("cash_accounts").select("id, name, currency, opening_balance, gl_account_code").eq("company_id", p.companyId).order("name") as any),

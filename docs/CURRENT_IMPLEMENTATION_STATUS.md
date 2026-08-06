@@ -53,11 +53,13 @@ a source of truth or a posting target is void.
 | CI workflow (typecheck/lint/test/build/migration-order) | foundation (see CI notes below) | `.github/workflows/ci.yml` |
 | Scheduled daily digest (Vercel Cron) | implemented (see CRON gap below) | `src/app/api/cron/daily-digest/route.ts` |
 
-## Observed test / build / CI status (2026-08-06)
+## Observed test / build / CI status (2026-08-06, after Production Control Foundation work)
 
 - `npm run typecheck` → **passes** (exit 0).
-- `npm test` → **195 passed, 46 test files** (Vitest; ~1s). These are **unit tests
-  only** — no live DB, RLS, or concurrency tests exist yet.
+- `npm test` → **362 passing, 4 skipped** (73 files; the 4 skipped are the live
+  two-company isolation tests, gated on a non-prod `DATABASE_URL`). Everything else is
+  pure/unit — no live DB, RLS, or concurrency tests run yet (that needs a staging DB).
+- `npm run build` → passes with placeholder public env.
 - `npm run lint` → **fails locally**: ESLint is **not declared** in `package.json` /
   lockfile. CI installs it ad-hoc with `npm i --no-save eslint@^8 eslint-config-next@^14`.
   (WP6 fixes this — declare ESLint and run from the lockfile.)
@@ -105,9 +107,45 @@ a source of truth or a posting target is void.
   `route.ts:27`). Health screens can render DB errors as zero counts. ESLint not in the
   lockfile. Dependency audit untriaged.
 
+## Production Control Foundation — progress (WP0–WP6)
+
+Evidence-based status. **"foundation"** = code + unit tests exist and it is deploy-safe,
+but the enforcing/execution half needs the staging DB / Inngest / CI. Nothing below is
+**verified in staging** yet (no staging DB). Migrations 0023–0029 are additive and **not
+yet applied anywhere** (see `MIGRATION_STATE.md`).
+
+- **WP0 documentation reset** — implemented. Brief in-repo, single precedence, QuickBooks
+  superseded, this file + `MIGRATION_STATE.md`.
+- **WP1 identity/RLS** — foundation. Migration `0023` (membership-based
+  `has_company_access`/`has_capability`, write RLS, seeded role→permission), `0024`
+  (composite company FKs), central helpers `src/lib/access.ts`, pure `canActOnTask` +
+  delegation authority engine, gated live isolation tests. **Not done:** the
+  service-role→RLS cutover of ~120 files + running the live isolation tests (staging DB).
+- **WP2 accounting controls** — foundation. Decimal-money everywhere (no JS floats),
+  audit fail-closed (`writeAuditStrict`), server-side reconciliation validation, caller
+  idempotency for settlements (`0026`), expense self-approval SoD + dup-prevention,
+  supplier bank-detail maker/checker (`0029`). **Not done:** posting+audit+key atomic in
+  one DB transaction, `REVOKE/GRANT`, concurrency tests.
+- **WP3 staff progress** — implemented (pending `0025`). Worker workflow engine + rich
+  capacity (planned/actual/remaining/free/blocked/overdue), worker/manager actions, task
+  Progress UI, capacity view, follow-up/escalation engine.
+- **WP4 durable WhatsApp** — foundation. Webhook is now **persist-first** (raw event
+  stored before processing) + signature-verified + deduped; approved template registry,
+  retry/backoff/dead-letter + replay logic, admin outbox/replay view. **Not done:** async
+  Inngest enqueue + the running sender/dead-letter worker.
+- **WP5 AI manager loop** — implemented (pending `0027`/`0028`). Cost recorded for all
+  manager analysis, `gpt-5.6-sol` price env-configurable, logical model routes, durable
+  management cases persisted + admin view, correlation trail, prompt-injection +
+  extraction/uncertainty/authority-routing eval datasets.
+- **WP6 reliability** — foundation. `CRON_SECRET` fail-closed + no info leak, structured
+  logging + redaction adopted, metric unavailable-vs-zero, health §6.3, ranked alerts +
+  ledger-integrity check. **Not done:** ESLint in the lockfile (blocked by a root-owned
+  `~/.npm` cache), migration/RLS/integration CI gates, dependency-audit triage.
+
 ## Migrations
 
-Canonical migrations are `src/db/migrations/0001*`…`0022*` (one source of truth).
+Canonical migrations are `src/db/migrations/0001*`…`0029*` (one source of truth;
+0023–0029 added during the Production Control Foundation work, all additive/idempotent).
 **Applied state per environment is tracked separately in
 `docs/architecture-v2/MIGRATION_STATE.md`** — do not infer "applied" from file existence.
 Summary: 0001–0013 confirmed applied to production (owner, 2026-08-05); 0014–0022 are

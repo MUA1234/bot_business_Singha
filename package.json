@@ -11,6 +11,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run -c vitest.integration.config.ts",
+    "secret-scan": "node scripts/secret-scan.mjs",
+    "migration-lint": "node scripts/migration-lint.mjs",
+    "verify": "npm run secret-scan && npm run migration-lint && npm run typecheck && npm test",
     "lint": "next lint"
   },
   "dependencies": {
@@ -26,8 +30,12 @@
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
+    "@types/pg": "^8.20.4",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.35",
+    "pg": "^8.22.0",
     "typescript": "^5.5.4",
     "vitest": "^2.0.5"
   },

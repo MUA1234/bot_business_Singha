@@ -1,11 +1,12 @@
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 
 export const metadata = { title: "Orders — Singha" };
 
 export default async function OrdersPage() {
   const p = await requireDepartment("sales");
-  const { data: orders } = await supabaseAdmin()
+  const { data: orders } = await supabaseReadClient()
     .from("orders")
     .select("id, customer_name, customer_phone, customer_address, request_text, status, created_at")
     .eq("company_id", p.companyId)

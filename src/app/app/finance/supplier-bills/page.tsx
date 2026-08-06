@@ -4,7 +4,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { createBill } from "./actions";
 
 export const metadata = { title: "Supplier Bills — Singha" };
@@ -14,7 +15,7 @@ export default async function SupplierBillsPage() {
 
   let rows: any[] = [];
   try {
-    const { data } = await supabaseAdmin()
+    const { data } = await supabaseReadClient()
       .from("supplier_bills")
       .select("id, bill_number, currency, total_amount, status, journal_id, due_date, suppliers(name)")
       .eq("company_id", p.companyId)

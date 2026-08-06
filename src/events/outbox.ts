@@ -23,6 +23,9 @@ export interface OutboxEntry {
   /** Stable dedupe input, e.g. `quotation:<id>` or `wa_reply:<message_id>`. */
   dedupeKey: string;
   correlationId?: string;
+  /** Approved template to deliver outside the 24h window (§WP4.7). */
+  templateName?: string;
+  templateParams?: string[];
 }
 
 /**
@@ -84,5 +87,7 @@ export function buildOutboxRow(entry: OutboxEntry) {
     status: "pending" as OutboxStatus,
     attempts: 0,
     correlation_id: entry.correlationId ?? null,
+    template_name: entry.templateName ?? null,
+    template_params: entry.templateParams ?? null,
   };
 }

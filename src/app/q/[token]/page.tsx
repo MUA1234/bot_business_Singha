@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { PrintButton } from "./PrintButton";
 
 // Quotations carry customer PII behind a shareable capability-URL. Never let a
@@ -15,7 +16,7 @@ function money(v: number | string | null, currency: string): string {
 }
 
 export default async function QuotationPage({ params }: { params: { token: string } }) {
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
   const { data: quote } = await db
     .from("quotations")
     .select("id, quote_number, currency, subtotal, tax_amount, total, status, notes, created_at, order_id, company_id")

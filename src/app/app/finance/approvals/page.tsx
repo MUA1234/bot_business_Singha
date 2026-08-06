@@ -5,7 +5,8 @@
  * log. Company-scoped + audited; graceful.
  */
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { computeApprovalProgress, canActOnApproval, type ApprovalAction } from "@/policy/approval-progress";
 import { actOnApproval } from "./actions";
 
@@ -21,7 +22,7 @@ async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 
 export default async function ApprovalsPage() {
   const p = await requireDepartment("finance");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const requests = await safe<any>(() =>
     db.from("approval_requests")

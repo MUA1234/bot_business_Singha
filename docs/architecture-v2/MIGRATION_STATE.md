@@ -58,13 +58,17 @@ _Last reviewed: 2026-08-06 (WP0)._
 | 0020 | rfq | ⚠️ **reported applied, unverified** |
 | 0021 | inventory | ⚠️ **reported applied, unverified** |
 | 0022 | notifications | ⚠️ **reported applied, unverified** |
-| 0023 | identity_capabilities_rls (WP1: membership access, has_capability, write RLS, composite FKs) | ⛔ **not applied anywhere** (added 2026-08-06; additive/idempotent — run on a staging DB first) |
-| 0024 | composite_company_fks (WP1.6: parent/child same-company FKs) | ⛔ **not applied anywhere** (added 2026-08-06; additive/idempotent/defensive) |
-| 0025 | task_progress_capacity (WP3: task actual/remaining/blocker/ETA + assignment estimate + capacity fields) | ⛔ **not applied anywhere** (added 2026-08-06; additive/idempotent) |
-| 0026 | idempotency_keys (WP2: caller-idempotency guard for settlements/reimbursements) | ⛔ **not applied anywhere** (added 2026-08-06; additive/idempotent) |
-| 0027 | ai_run_trail (WP5.3: ai_runs.latency_ms + source_event_id) | ⛔ **not applied anywhere** (added 2026-08-06; additive/idempotent) |
-| 0028 | management_cases (WP5.1: durable evidence-linked AI case records) | ⛔ **not applied anywhere** (added 2026-08-06; additive/idempotent) |
-| 0029 | bank_change_status (WP2.5: supplier bank-detail change maker/checker fields) | ⛔ **not applied anywhere** (added 2026-08-06; additive/idempotent) |
+| 0023 | identity_capabilities_rls (WP1: membership access, has_capability, write RLS, composite FKs) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
+| 0024 | composite_company_fks (WP1.6: parent/child same-company FKs) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
+| 0025 | task_progress_capacity (WP3: task actual/remaining/blocker/ETA + assignment estimate + capacity fields) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
+| 0026 | idempotency_keys (WP2: caller-idempotency guard for settlements/reimbursements) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
+| 0027 | ai_run_trail (WP5.3: ai_runs.latency_ms + source_event_id) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
+| 0028 | management_cases (WP5.1: durable evidence-linked AI case records) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
+| 0029 | bank_change_status (WP2.5: supplier bank-detail change maker/checker fields) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
+| 0030 | fix_reversal_link_immutability (WP2 bugfix: allow reversing-entry link on posted journals — reversals were broken) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
+| 0031 | outbox_next_retry (WP4: message_outbox.next_retry_at for the drain worker backoff) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
+| 0032 | outbox_template (WP4.7: message_outbox template_name/params/lang for out-of-window staff delivery) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
+| 0033 | conversation_ai_analyzed (WP5.1: wa_conversations.ai_analyzed_at for the continuous monitor) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
 
 ### Basis for the "reported applied, unverified" status (0014–0022)
 

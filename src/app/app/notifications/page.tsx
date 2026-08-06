@@ -4,7 +4,8 @@
  */
 import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { unreadCount } from "@/lib/notify";
 import { markRead, markAllRead } from "./actions";
 
@@ -15,7 +16,7 @@ export default async function NotificationsPage() {
 
   let rows: any[] = [];
   try {
-    rows = (await supabaseAdmin().from("notifications")
+    rows = (await supabaseReadClient().from("notifications")
       .select("id, type, title, body, link, is_read, created_at")
       .eq("company_id", p.companyId).eq("recipient_id", p.userId)
       .order("created_at", { ascending: false }).limit(100)).data ?? [];

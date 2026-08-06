@@ -4,7 +4,8 @@
  * transfer. Company-scoped + audited, graceful.
  */
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { decideExpense, reimburseExpense } from "./actions";
 
 export const metadata = { title: "Expense Claims — Singha" };
@@ -19,7 +20,7 @@ async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 
 export default async function ExpensesPage() {
   const p = await requireDepartment("finance");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const [claims, accounts] = await Promise.all([
     safe<any>(() => db.from("expense_claims").select("id, currency, amount, purpose, status, created_at, employees(name)").eq("company_id", p.companyId).order("created_at", { ascending: false }).limit(200) as any),

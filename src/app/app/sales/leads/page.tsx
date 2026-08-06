@@ -5,7 +5,8 @@
  * Phase-4 tables exist.
  */
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { scoreLead, type LeadStage } from "@/modules/commercial/lead-scoring";
 import { createLead, setLeadStage } from "./actions";
 
@@ -19,7 +20,7 @@ export default async function LeadsPage() {
 
   let rows: any[] = [];
   try {
-    const { data } = await supabaseAdmin()
+    const { data } = await supabaseReadClient()
       .from("leads")
       .select("id, name, contact, stage, estimated_value, currency, last_contact_at")
       .eq("company_id", p.companyId)

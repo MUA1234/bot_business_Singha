@@ -5,7 +5,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { detectRenewals, type RenewalItem } from "@/management/ai-manager/renewals";
 
 export const metadata = { title: "Legal & Compliance — Singha" };
@@ -20,7 +21,7 @@ async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 
 export default async function LegalHome() {
   const p = await requireDepartment("legal");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
   const now = new Date();
 
   const [licences, contracts, obligations] = await Promise.all([

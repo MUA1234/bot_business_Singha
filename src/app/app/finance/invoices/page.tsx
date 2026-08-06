@@ -1,5 +1,6 @@
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { quoteUrl } from "@/lib/quotations";
 import { Icon } from "@/components/Icon";
 
@@ -7,7 +8,7 @@ export const metadata = { title: "Invoices — Singha" };
 
 export default async function InvoicesPage() {
   const p = await requireDepartment("finance");
-  const { data: quotes } = await supabaseAdmin()
+  const { data: quotes } = await supabaseReadClient()
     .from("quotations")
     .select("id, quote_number, currency, total, status, public_token, sent_at, created_at")
     .eq("company_id", p.companyId)

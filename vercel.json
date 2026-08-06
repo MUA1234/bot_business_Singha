@@ -3,6 +3,18 @@
     {
       "path": "/api/cron/daily-digest",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/outbox",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/follow-ups",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/ai-monitor",
+      "schedule": "*/30 * * * *"
     }
   ]
 }

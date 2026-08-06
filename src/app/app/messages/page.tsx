@@ -5,7 +5,8 @@
  */
 import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 
 export const metadata = { title: "Messages — Singha" };
 
@@ -20,7 +21,7 @@ interface Convo {
 
 export default async function MessagesPage() {
   const p = await requireProfile();
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const { data: convos } = await db
     .from("wa_conversations")

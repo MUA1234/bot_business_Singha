@@ -4,7 +4,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { renewalStatus } from "@/management/ai-manager/renewals";
 import { createLicence } from "./actions";
 
@@ -16,7 +17,7 @@ export default async function LicencesPage() {
 
   let rows: any[] = [];
   try {
-    rows = (await supabaseAdmin().from("licences").select("id, name, authority, licence_number, expiry_date, status").eq("company_id", p.companyId).order("expiry_date", { ascending: true, nullsFirst: false }).limit(300)).data ?? [];
+    rows = (await supabaseReadClient().from("licences").select("id, name, authority, licence_number, expiry_date, status").eq("company_id", p.companyId).order("expiry_date", { ascending: true, nullsFirst: false }).limit(300)).data ?? [];
   } catch {
     rows = [];
   }

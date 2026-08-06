@@ -5,7 +5,8 @@
  */
 import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { scorePriority } from "@/management/ai-manager/priority";
 import { requestLeave } from "@/app/app/hr/staff/actions";
 import { submitExpense } from "@/app/app/finance/expenses/actions";
@@ -24,7 +25,7 @@ const TERMINAL = new Set(["completed", "cancelled"]);
 
 export default async function MyWorkPage() {
   const profile = await requireProfile();
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
   const now = new Date();
 
   const [tasks, assignedTasks, priceConfs, myLeave] = await Promise.all([
@@ -71,7 +72,7 @@ export default async function MyWorkPage() {
     <div className="stack gap-3">
       <div>
         <h1>My Work</h1>
-        <p className="muted mt-1">Hi {profile.fullName ?? profile.username} — here's what's on you.</p>
+        <p className="muted mt-1">Hi {profile.fullName ?? profile.username} — here&apos;s what&apos;s on you.</p>
       </div>
 
       <div className="card">

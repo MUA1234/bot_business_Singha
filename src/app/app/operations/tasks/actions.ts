@@ -10,6 +10,8 @@ import { assertTransition, type TaskState } from "@/modules/work/task-lifecycle"
 import { authorizeTaskAction } from "@/lib/task-access";
 import type { TaskAction } from "@/modules/identity/can-act-on-task";
 import { applyWorkflowAction, type WorkflowAction } from "@/modules/work/task-progress";
+import { enqueueOutbox } from "@/lib/outbox-enqueue";
+import { InternalTemplates } from "@/lib/whatsapp-templates";
 
 /** Operations staff or an admin may manage tasks (create/assign/verify). */
 async function requireOps() {
@@ -128,6 +130,28 @@ export async function assignTask(formData: FormData): Promise<void> {
   await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "task.assigned", entityType: "task", entityId: id, payload: patch });
   if (typeof patch.assigned_to === "string" && patch.assigned_to && patch.assigned_to !== p.userId) {
     await createNotification({ companyId: p.companyId, recipientId: patch.assigned_to, type: "task_assigned", title: "A task was assigned to you", link: `/app/operations/tasks/${id}` });
+    // §WP4 durable outbound: enqueue an approved task-assignment template to the
+    // assignee's WhatsApp (if a number is on file). The drain worker sends it; the
+    // idempotency key makes a re-assignment of the same task a no-op.
+    const { data: assigneeProfile } = await supabaseAdmin().from("profiles").select("phone, full_name, username").eq("id", patch.assigned_to).eq("company_id", p.companyId).maybeSingle();
+    const { data: taskRow } = await supabaseAdmin().from("tasks").select("title, due_date").eq("id", id).eq("company_id", p.companyId).maybeSingle();
+    const phone = (assigneeProfile?.phone ?? "").replace(/[^\d]/g, "");
+    if (phone && taskRow) {
+      const msg = InternalTemplates.taskAssignment(assigneeProfile?.full_name ?? assigneeProfile?.username ?? "there", {
+        title: taskRow.title,
+        dueDate: taskRow.due_date,
+        taskUrl: undefined,
+      });
+      await enqueueOutbox({
+        channel: "whatsapp",
+        companyId: p.companyId,
+        recipient: phone,
+        body: msg.body,
+        dedupeKey: `task_assign:${id}:${patch.assigned_to}`,
+        templateName: msg.templateName,
+        templateParams: [assigneeProfile?.full_name ?? assigneeProfile?.username ?? "there", taskRow.title],
+      });
+    }
   }
   revalidatePath(`/app/operations/tasks/${id}`);
   revalidatePath("/app/hr/capacity");

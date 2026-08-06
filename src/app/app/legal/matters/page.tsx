@@ -3,7 +3,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { createMatter, setMatterStatus } from "./actions";
 
 export const metadata = { title: "Legal Matters — Singha" };
@@ -14,7 +15,7 @@ export default async function MattersPage() {
 
   let rows: any[] = [];
   try {
-    rows = (await supabaseAdmin().from("legal_matters").select("id, title, matter_type, status, created_at").eq("company_id", p.companyId).order("created_at", { ascending: false }).limit(200)).data ?? [];
+    rows = (await supabaseReadClient().from("legal_matters").select("id, title, matter_type, status, created_at").eq("company_id", p.companyId).order("created_at", { ascending: false }).limit(200)).data ?? [];
   } catch {
     rows = [];
   }
@@ -22,7 +23,7 @@ export default async function MattersPage() {
   return (
     <div className="stack gap-3">
       <div className="row between">
-        <div><h1>Legal Matters</h1><p className="muted mt-1">Cases and issues you're managing.</p></div>
+        <div><h1>Legal Matters</h1><p className="muted mt-1">Cases and issues you&apos;re managing.</p></div>
         <Link className="btn ghost sm" href="/app/legal">← Legal</Link>
       </div>
 

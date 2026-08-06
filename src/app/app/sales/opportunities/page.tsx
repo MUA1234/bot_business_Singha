@@ -3,7 +3,8 @@
  * weighted forecast via the pure pipeline engine. Company-scoped + audited, graceful.
  */
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { summarizePipeline, type Opportunity } from "@/modules/commercial/pipeline-value";
 import { createOpportunity, setOpportunityStatus } from "./actions";
 
@@ -11,7 +12,7 @@ export const metadata = { title: "Opportunities — Singha" };
 
 export default async function OpportunitiesPage() {
   const p = await requireDepartment("sales");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   let rows: any[] = [];
   let leads: any[] = [];

@@ -5,7 +5,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 
 export const metadata = { title: "Customer Accounts — Singha" };
 
@@ -19,7 +20,7 @@ async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 
 export default async function AccountsPage() {
   const p = await requireDepartment("sales");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const [customers, invoices] = await Promise.all([
     safe<any>(() => db.from("customers").select("id, name, email, phone").eq("company_id", p.companyId).order("name").limit(500) as any),
@@ -44,7 +45,7 @@ export default async function AccountsPage() {
 
       <div className="card">
         {rows.length === 0 ? (
-          <div className="empty">No customers yet — they're created when you raise an invoice.</div>
+          <div className="empty">No customers yet — they&apos;re created when you raise an invoice.</div>
         ) : (
           <div className="table-wrap">
             <table className="data">

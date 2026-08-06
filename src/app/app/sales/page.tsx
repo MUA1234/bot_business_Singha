@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 
 export const metadata = { title: "Sales — Singha" };
 
 async function count(table: string, companyId: string, extra?: (q: any) => any) {
-  let q = supabaseAdmin().from(table).select("id", { count: "exact", head: true }).eq("company_id", companyId);
+  let q = supabaseReadClient().from(table).select("id", { count: "exact", head: true }).eq("company_id", companyId);
   if (extra) q = extra(q);
   const { count } = await q;
   return count ?? 0;
@@ -20,7 +21,7 @@ export default async function SalesHome() {
     count("wa_conversations", p.companyId),
   ]);
 
-  const { data: recent } = await supabaseAdmin()
+  const { data: recent } = await supabaseReadClient()
     .from("wa_conversations")
     .select("id, customer_wa_id, customer_name, status, updated_at")
     .eq("company_id", p.companyId)

@@ -4,7 +4,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { recordCashCount } from "./actions";
 
 export const metadata = { title: "Cash Counts — Singha" };
@@ -19,7 +20,7 @@ async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 
 export default async function CashCountsPage() {
   const p = await requireDepartment("finance");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
   const [accounts, counts] = await Promise.all([
     safe<any>(() => db.from("cash_accounts").select("id, name, currency").eq("company_id", p.companyId).order("name") as any),
     safe<any>(() => db.from("cash_counts").select("id, counted_amount, variance, counted_at, cash_accounts(name, currency)").eq("company_id", p.companyId).order("counted_at", { ascending: false }).limit(100) as any),

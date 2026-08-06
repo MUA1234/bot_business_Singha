@@ -4,7 +4,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { JournalForm } from "./JournalForm";
 
 export const metadata = { title: "New Journal — Singha" };
@@ -14,7 +15,7 @@ export default async function NewJournalPage() {
 
   let accounts: { code: string; name: string }[] = [];
   try {
-    const { data } = await supabaseAdmin()
+    const { data } = await supabaseReadClient()
       .from("chart_of_accounts")
       .select("code, name")
       .eq("company_id", p.companyId)

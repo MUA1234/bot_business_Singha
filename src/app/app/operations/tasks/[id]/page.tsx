@@ -7,7 +7,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import type { TaskState } from "@/modules/work/task-lifecycle";
 import { signedEvidenceUrl } from "@/lib/documents";
 import {
@@ -23,7 +24,7 @@ const EVIDENCE_KINDS = ["message", "document", "photo", "approval", "system", "g
 export default async function TaskDetail({ params }: { params: { id: string } }) {
   // WP1/WP3: viewable by an Operations/admin manager OR the task's assignee (any dept).
   const p = await requireProfile();
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const { data: task } = await db
     .from("tasks")

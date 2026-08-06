@@ -4,7 +4,8 @@
  * outbox worker). Audited, graceful.
  */
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { createCampaign, setCampaignStatus } from "./actions";
 
 export const metadata = { title: "Campaigns — Singha" };
@@ -19,7 +20,7 @@ const NEXT: Record<string, string[]> = {
 
 export default async function CampaignsPage() {
   const p = await requireDepartment("marketing");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   let rows: any[] = [];
   let audiences: any[] = [];

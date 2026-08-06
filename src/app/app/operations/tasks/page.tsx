@@ -6,7 +6,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { allowedTransitions, type TaskState } from "@/modules/work/task-lifecycle";
 import { scorePriority } from "@/management/ai-manager/priority";
 import { createTask, setTaskStatus } from "./actions";
@@ -27,7 +28,7 @@ export default async function OpsTasks() {
 
   let rows: TaskRow[] = [];
   try {
-    const { data } = await supabaseAdmin()
+    const { data } = await supabaseReadClient()
       .from("tasks")
       .select("id, title, status, requires_evidence, due_date, priority")
       .eq("company_id", p.companyId)

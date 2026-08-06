@@ -4,7 +4,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { renewalStatus } from "@/management/ai-manager/renewals";
 import { createDriver } from "../vehicles/actions";
 
@@ -16,7 +17,7 @@ export default async function DriversPage() {
 
   let rows: any[] = [];
   try {
-    rows = (await supabaseAdmin().from("drivers").select("id, name, licence_number, licence_expiry, phone, status").eq("company_id", p.companyId).order("name").limit(300)).data ?? [];
+    rows = (await supabaseReadClient().from("drivers").select("id, name, licence_number, licence_expiry, phone, status").eq("company_id", p.companyId).order("name").limit(300)).data ?? [];
   } catch {
     rows = [];
   }

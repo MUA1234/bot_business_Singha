@@ -5,7 +5,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { ageItems, bucketFor, type AgingItem } from "@/modules/finance/aging";
 
 export const metadata = { title: "Customer — Singha" };
@@ -14,7 +15,7 @@ const BUCKET_LABEL: Record<string, string> = { current: "current", d1_30: "1–3
 
 export default async function CustomerDetail({ params }: { params: { id: string } }) {
   const p = await requireDepartment("sales");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
   const now = new Date();
 
   const { data: c } = await db.from("customers").select("id, name, email, phone, status").eq("id", params.id).eq("company_id", p.companyId).maybeSingle();

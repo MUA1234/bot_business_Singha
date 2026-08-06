@@ -5,7 +5,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { remaining, settlementStatus } from "@/accounting/settlement";
 import { postBill, settleBill } from "../actions";
 
@@ -13,7 +14,7 @@ export const metadata = { title: "Bill — Singha" };
 
 export default async function BillDetail({ params }: { params: { id: string } }) {
   const p = await requireDepartment("finance");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const { data: bill } = await db
     .from("supplier_bills")

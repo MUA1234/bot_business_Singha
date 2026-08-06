@@ -5,14 +5,15 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { reverseJournal } from "../actions";
 
 export const metadata = { title: "Journal — Singha" };
 
 export default async function JournalDetail({ params }: { params: { id: string } }) {
   const p = await requireDepartment("finance");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const { data: j } = await db
     .from("journal_entries")

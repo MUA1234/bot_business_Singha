@@ -4,7 +4,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { detectTaskExceptions, type TaskLike } from "@/management/ai-manager/exceptions";
 
 export const metadata = { title: "Operations — Singha" };
@@ -16,7 +17,7 @@ export default async function OperationsHome() {
 
   let tasks: any[] = [];
   try {
-    tasks = (await supabaseAdmin().from("tasks").select("id, title, status, due_date, priority").eq("company_id", p.companyId).limit(500)).data ?? [];
+    tasks = (await supabaseReadClient().from("tasks").select("id, title, status, due_date, priority").eq("company_id", p.companyId).limit(500)).data ?? [];
   } catch {
     tasks = [];
   }

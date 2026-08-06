@@ -1,13 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 
 export const metadata = { title: "Conversation — Singha" };
 
 export default async function ConversationPage({ params }: { params: { id: string } }) {
   const p = await requireDepartment("sales");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const { data: convo } = await db
     .from("wa_conversations")

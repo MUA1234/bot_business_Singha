@@ -4,7 +4,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { createRfq } from "./actions";
 
 export const metadata = { title: "RFQs — Singha" };
@@ -14,7 +15,7 @@ export default async function RfqsPage() {
 
   let rows: any[] = [];
   try {
-    rows = (await supabaseAdmin().from("rfqs").select("id, title, status, created_at").eq("company_id", p.companyId).order("created_at", { ascending: false }).limit(200)).data ?? [];
+    rows = (await supabaseReadClient().from("rfqs").select("id, title, status, created_at").eq("company_id", p.companyId).order("created_at", { ascending: false }).limit(200)).data ?? [];
   } catch {
     rows = [];
   }

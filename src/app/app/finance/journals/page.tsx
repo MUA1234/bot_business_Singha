@@ -4,7 +4,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 
 export const metadata = { title: "Journals — Singha" };
 
@@ -13,7 +14,7 @@ export default async function JournalsPage() {
 
   let rows: any[] = [];
   try {
-    const { data } = await supabaseAdmin()
+    const { data } = await supabaseReadClient()
       .from("journal_entries")
       .select("id, posting_date, currency, memo, status, total_debit, total_credit")
       .eq("company_id", p.companyId)

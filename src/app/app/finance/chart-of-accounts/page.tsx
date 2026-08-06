@@ -4,7 +4,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { createAccount } from "./actions";
 
 export const metadata = { title: "Chart of Accounts — Singha" };
@@ -15,7 +16,7 @@ export default async function ChartOfAccountsPage() {
 
   let rows: any[] = [];
   try {
-    const { data } = await supabaseAdmin()
+    const { data } = await supabaseReadClient()
       .from("chart_of_accounts")
       .select("code, name, type, is_active")
       .eq("company_id", p.companyId)

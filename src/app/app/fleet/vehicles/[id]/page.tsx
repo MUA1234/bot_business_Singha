@@ -5,7 +5,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { fuelEfficiency, type FuelLog } from "@/modules/fleet/fuel-efficiency";
 import { renewalStatus } from "@/management/ai-manager/renewals";
 import { addVehicleDocument, addMaintenance, addFuelLog, addTrip } from "../actions";
@@ -15,7 +16,7 @@ const DOC_TYPES = ["insurance", "registration", "emission", "permit", "other"];
 
 export default async function VehicleDetail({ params }: { params: { id: string } }) {
   const p = await requireDepartment("fleet");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const { data: v } = await db.from("vehicles")
     .select("id, registration_no, make, model, year, status, odometer")

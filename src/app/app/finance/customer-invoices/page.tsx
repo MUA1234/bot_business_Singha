@@ -4,7 +4,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { createInvoice } from "./actions";
 
 export const metadata = { title: "Customer Invoices — Singha" };
@@ -14,7 +15,7 @@ export default async function CustomerInvoicesPage() {
 
   let rows: any[] = [];
   try {
-    const { data } = await supabaseAdmin()
+    const { data } = await supabaseReadClient()
       .from("customer_invoices")
       .select("id, invoice_number, currency, total_amount, amount_settled, status, journal_id, due_date, customers(name)")
       .eq("company_id", p.companyId)

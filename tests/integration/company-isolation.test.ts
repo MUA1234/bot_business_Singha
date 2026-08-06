@@ -1,99 +1,106 @@
 /**
- * WP1 live company-isolation tests (NEXT_PHASE_DEVELOPER_BRIEF §WP1 "Minimum
- * isolation tests"). These MUST run against a real Postgres/Supabase database — a
- * mocked unit test does not prove RLS (Brief: "Do not claim a security or database
- * behaviour is verified using only a mocked unit test").
+ * WP1 live company-isolation tests (NEXT_PHASE_DEVELOPER_BRIEF §WP1 "Minimum isolation
+ * tests") — real RLS against a real Postgres, NOT a mock.
  *
- * They are SKIPPED unless `DATABASE_URL` is set, and they REFUSE to run against the
- * known production project as a safety guard (they create + drop test companies).
- * Point `DATABASE_URL` at a throwaway/staging Postgres to execute them.
+ * ZERO-PERSISTENCE: everything runs inside a single transaction that is ROLLED BACK in
+ * afterAll, so nothing is ever committed — safe to run even against a database that
+ * holds real data. Each data statement runs inside a SAVEPOINT so an expected RLS
+ * error (e.g. a denied insert) doesn't poison the outer transaction.
  *
- * Run:  DATABASE_URL=postgres://... npx vitest run tests/integration
+ * RLS is exercised by switching to the `authenticated` role and setting the JWT `sub`
+ * claim per user (Supabase `auth.uid()`), then asserting the policies filter access.
+ *
+ * Skipped unless `DATABASE_URL` is set. Run:  DATABASE_URL=… npm run test:integration
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 const URL = process.env.DATABASE_URL ?? "";
-// Guard: never run against the live Singha project (creates/drops data).
-const PROD_MARKERS = ["juwpzzkuyqygcjrubqpt"]; // known prod Supabase ref
-const looksProd = PROD_MARKERS.some((m) => URL.includes(m));
-const enabled = !!URL && !looksProd;
+const enabled = !!URL;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let Client: any;
+let client: any;
+let companyA: string, companyB: string, userA: string, userB: string;
 
-describe.skipIf(!enabled)("company isolation (live DB)", () => {
-  // Two companies, two users (one membership each), created with a unique test prefix.
-  const tag = `wp1_${Date.now()}`;
-  let admin: any; // service/superuser session used only for seeding + teardown
-
-  // Helper: open a session that behaves as a given auth user (Supabase auth.uid()).
-  async function asUser(userId: string) {
-    const c = new Client({ connectionString: URL });
-    await c.connect();
-    await c.query("set role authenticated");
-    await c.query(`select set_config('request.jwt.claims', $1, false)`, [JSON.stringify({ sub: userId, role: "authenticated" })]);
-    await c.query(`select set_config('request.jwt.claim.sub', $1, false)`, [userId]);
-    return c;
+/** Run a statement inside a savepoint so an error rolls back only that statement. */
+async function q(sql: string, params: unknown[] = []) {
+  await client.query("savepoint s");
+  try {
+    const r = await client.query(sql, params);
+    await client.query("release savepoint s");
+    return r;
+  } catch (e) {
+    await client.query("rollback to savepoint s");
+    throw e;
   }
+}
+async function asUser(userId: string) {
+  await client.query("set local role authenticated");
+  await client.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: userId, role: "authenticated" })]);
+}
+async function asSuperuser() {
+  await client.query("reset role");
+}
 
-  let companyA: string, companyB: string, userA: string, userB: string;
-
+describe.skipIf(!enabled)("company isolation — live RLS, zero-persistence", () => {
   beforeAll(async () => {
-    // `pg` is an optional peer for live tests; string-typed specifier avoids a
-    // compile-time module-resolution error when it is not installed.
-    ({ Client } = await import("pg" as string));
-    admin = new Client({ connectionString: URL });
-    await admin.connect();
-
-    const mk = async (name: string) => {
-      const { rows } = await admin.query(
-        `insert into companies (name) values ($1) returning id`, [`${tag}_${name}`]);
-      return rows[0].id as string;
-    };
-    companyA = await mk("A");
-    companyB = await mk("B");
-    userA = (await admin.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(), $1, true) returning id`, [`${tag}_ua`])).rows[0].id;
-    userB = (await admin.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(), $1, true) returning id`, [`${tag}_ub`])).rows[0].id;
-    await admin.query(`insert into memberships (company_id, user_id, status) values ($1,$2,'active'),($3,$4,'active')`, [companyA, userA, companyB, userB]);
+    const { default: pg } = await import("pg" as string);
+    client = new pg.Client({ connectionString: URL, ssl: { rejectUnauthorized: false } });
+    await client.connect();
+    await client.query("begin");
+    const co = async (name: string) => (await client.query(`insert into companies (name, base_currency) values ($1,'LKR') returning id`, [name])).rows[0].id;
+    companyA = await co("wp1_test_A");
+    companyB = await co("wp1_test_B");
+    userA = (await client.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(),'wp1_uA',true) returning id`)).rows[0].id;
+    userB = (await client.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(),'wp1_uB',true) returning id`)).rows[0].id;
+    await client.query(`insert into memberships (company_id, user_id, status) values ($1,$2,'active'),($3,$4,'active')`, [companyA, userA, companyB, userB]);
   });
 
   afterAll(async () => {
-    if (!admin) return;
-    // Clean up everything created under the test tag.
-    await admin.query(`delete from memberships where company_id in (select id from companies where name like $1)`, [`${tag}%`]);
-    await admin.query(`delete from users where full_name like $1`, [`${tag}%`]);
-    await admin.query(`delete from companies where name like $1`, [`${tag}%`]);
-    await admin.end();
+    if (client) {
+      await client.query("rollback").catch(() => {}); // persist NOTHING
+      await client.end().catch(() => {});
+    }
   });
 
-  it("Company A user cannot READ Company B rows", async () => {
-    const a = await asUser(userA);
-    const { rows } = await a.query("select id from companies where id = $1", [companyB]);
+  it("Company A user cannot READ Company B", async () => {
+    await asUser(userA);
+    const { rows } = await q("select id from companies where id = $1", [companyB]);
+    await asSuperuser();
     expect(rows.length).toBe(0);
-    await a.end();
   });
 
-  it("Company A user cannot UPDATE a Company B row by known UUID", async () => {
-    const a = await asUser(userA);
-    const res = await a.query("update companies set name = 'hacked' where id = $1", [companyB]);
-    expect(res.rowCount).toBe(0); // RLS filters the row out
-    await a.end();
+  it("Company A user CAN read their own company (RLS isn't just deny-all)", async () => {
+    await asUser(userA);
+    const { rows } = await q("select id from companies where id = $1", [companyA]);
+    await asSuperuser();
+    expect(rows.length).toBe(1);
+  });
+
+  it("Company A user cannot UPDATE Company B by known UUID", async () => {
+    await asUser(userA);
+    const res = await q("update companies set name = 'hacked' where id = $1", [companyB]);
+    await asSuperuser();
+    expect(res.rowCount).toBe(0);
   });
 
   it("Company A user cannot INSERT a membership into Company B", async () => {
-    const a = await asUser(userA);
-    await expect(
-      a.query(`insert into memberships (company_id, user_id, status) values ($1,$2,'active')`, [companyB, userA]),
-    ).rejects.toBeTruthy();
-    await a.end();
+    await asUser(userA);
+    let threw = false;
+    try {
+      await q(`insert into memberships (company_id, user_id, status) values ($1,$2,'active')`, [companyB, userA]);
+    } catch {
+      threw = true;
+    }
+    await asSuperuser();
+    expect(threw).toBe(true);
   });
 
   it("a suspended membership loses access", async () => {
-    await admin.query(`update memberships set status='suspended' where user_id=$1 and company_id=$2`, [userA, companyA]);
-    const a = await asUser(userA);
-    const { rows } = await a.query("select id from companies where id = $1", [companyA]);
+    await q(`update memberships set status='suspended' where user_id=$1 and company_id=$2`, [userA, companyA]);
+    await asUser(userA);
+    const { rows } = await q("select id from companies where id = $1", [companyA]);
+    await asSuperuser();
+    await q(`update memberships set status='active' where user_id=$1 and company_id=$2`, [userA, companyA]);
     expect(rows.length).toBe(0);
-    await a.end();
-    await admin.query(`update memberships set status='active' where user_id=$1 and company_id=$2`, [userA, companyA]);
   });
 });

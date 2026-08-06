@@ -5,7 +5,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { compareQuotations, type Quotation } from "@/modules/procurement/quote-comparison";
 import { addQuotation, awardQuotation } from "../actions";
 
@@ -13,7 +14,7 @@ export const metadata = { title: "RFQ — Singha" };
 
 export default async function RfqDetail({ params }: { params: { id: string } }) {
   const p = await requireDepartment("procurement");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const { data: rfq } = await db.from("rfqs").select("id, title, description, status").eq("id", params.id).eq("company_id", p.companyId).maybeSingle();
   if (!rfq) notFound();

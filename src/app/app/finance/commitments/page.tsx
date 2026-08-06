@@ -5,7 +5,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { createCommitment, settleCommitment, createRecurring } from "./actions";
 
 export const metadata = { title: "Commitments — Singha" };
@@ -20,7 +21,7 @@ async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 
 export default async function CommitmentsPage() {
   const p = await requireDepartment("finance");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
   const [commitments, recurring] = await Promise.all([
     safe<any>(() => db.from("commitments").select("id, description, counterparty, currency, amount, expected_settlement_date, status").eq("company_id", p.companyId).order("expected_settlement_date", { ascending: true, nullsFirst: false }).limit(200) as any),
     safe<any>(() => db.from("recurring_obligations").select("id, description, currency, amount, cadence, next_due").eq("company_id", p.companyId).order("next_due", { ascending: true, nullsFirst: false }).limit(200) as any),

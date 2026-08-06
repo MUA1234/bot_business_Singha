@@ -5,7 +5,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { computeCashPosition, type CashAccount, type CashMovement } from "@/modules/finance/cash-position";
 import { projectCash, type CashFlowItem } from "@/management/ai-manager/forecast";
 import { expandRecurring, type Cadence } from "@/modules/finance/recurring";
@@ -24,7 +25,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 export default async function ForecastPage() {
   const p = await requireDepartment("finance");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const [banks, cashes, pmts, invoices, bills, commitments, recurring] = await Promise.all([
     safe<any>(() => db.from("bank_accounts").select("id, name, currency, opening_balance").eq("company_id", p.companyId) as any),

@@ -4,7 +4,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 
 export const metadata = { title: "Marketing — Singha" };
 
@@ -14,7 +15,7 @@ async function count(run: () => Promise<{ count: number | null }>): Promise<numb
 
 export default async function MarketingHome() {
   const p = await requireDepartment("marketing");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const [running, draft, audiences, leads] = await Promise.all([
     count(() => db.from("campaigns").select("id", { count: "exact", head: true }).eq("company_id", p.companyId).eq("status", "running") as any),

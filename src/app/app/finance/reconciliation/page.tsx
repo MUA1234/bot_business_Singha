@@ -5,7 +5,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { suggestMatches, type BankTxn, type ReconCandidate } from "@/modules/finance/reconcile";
 import { importBankTransactions, confirmMatch } from "./actions";
 
@@ -21,7 +22,7 @@ async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 
 export default async function ReconciliationPage() {
   const p = await requireDepartment("finance");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const banks = await safe<any>(() => db.from("bank_accounts").select("id, name, currency").eq("company_id", p.companyId).order("name") as any);
 

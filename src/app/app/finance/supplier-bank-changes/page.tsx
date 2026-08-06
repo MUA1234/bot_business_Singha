@@ -4,7 +4,8 @@
  * request + decide. Company-scoped; graceful if migration 0029 has not been applied.
  */
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { requestBankChange, decideBankChange } from "./actions";
 
 export const metadata = { title: "Supplier Bank Changes — Singha" };
@@ -19,7 +20,7 @@ async function rows<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 
 export default async function BankChangesPage() {
   const p = await requireDepartment("finance");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const [suppliers, changes] = await Promise.all([
     rows<any>(() => db.from("suppliers").select("id, name, bank_account_name, bank_account_number").eq("company_id", p.companyId).eq("status", "active").order("name") as any),

@@ -6,7 +6,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { analyzeConversation } from "./actions";
 
 export const metadata = { title: "Conversation — Singha" };
@@ -20,7 +21,7 @@ const ERRORS: Record<string, string> = {
 
 export default async function ThreadPage({ params, searchParams }: { params: { id: string }; searchParams: { captured?: string; err?: string } }) {
   const p = await requireProfile();
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const { data: convo } = await db
     .from("wa_conversations")

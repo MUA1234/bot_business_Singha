@@ -5,7 +5,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { trialBalance, profitAndLoss, balanceSheet } from "@/accounting/trial-balance";
 import type { PostedJournal } from "@/accounting/journal";
 import type { AccountType } from "@/domain/accounts";
@@ -22,7 +23,7 @@ async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 
 export default async function TrialBalancePage() {
   const p = await requireDepartment("finance");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const [journals, lines, accounts] = await Promise.all([
     safe<any>(() => db.from("journal_entries").select("id, currency").eq("company_id", p.companyId).eq("status", "posted") as any),

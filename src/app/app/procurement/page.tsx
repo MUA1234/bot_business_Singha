@@ -4,7 +4,8 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { reorderList } from "@/modules/procurement/inventory";
 
 export const metadata = { title: "Procurement — Singha" };
@@ -18,7 +19,7 @@ async function rows<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 
 export default async function ProcurementHome() {
   const p = await requireDepartment("procurement");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const [openPRs, openPOs, openRFQs, suppliers, items] = await Promise.all([
     count(() => db.from("purchase_requests").select("id", { count: "exact", head: true }).eq("company_id", p.companyId).not("status", "in", "(closed,rejected)") as any),

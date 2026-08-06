@@ -5,7 +5,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { renewalStatus } from "@/management/ai-manager/renewals";
 import { addObligation, setObligationStatus } from "../actions";
 
@@ -13,7 +14,7 @@ export const metadata = { title: "Contract — Singha" };
 
 export default async function ContractDetail({ params }: { params: { id: string } }) {
   const p = await requireDepartment("legal");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
   const now = new Date();
 
   const { data: c } = await db.from("contracts")
