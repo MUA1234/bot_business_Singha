@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { invoicePostingLines } from "@/accounting/posting-templates";
 import { checkDraftJournal } from "@/accounting/manual-entry";
@@ -24,7 +24,7 @@ function invNumber(): string {
 /** Create a draft customer invoice (creates/reuses the customer by name). */
 export async function createInvoice(formData: FormData): Promise<void> {
   const p = await requireFinance();
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const customerName = String(formData.get("customer_name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   if (!customerName || !description) return;
@@ -61,7 +61,7 @@ export async function createInvoice(formData: FormData): Promise<void> {
 /** Post the invoice to the ledger: Dr receivable, Cr income (atomic RPC). */
 export async function postInvoice(formData: FormData): Promise<void> {
   const p = await requireFinance();
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const id = String(formData.get("invoice_id") ?? "");
   const receivableCode = String(formData.get("receivable_code") ?? "").trim();
   const incomeCode = String(formData.get("income_code") ?? "").trim();
@@ -95,7 +95,7 @@ export async function postInvoice(formData: FormData): Promise<void> {
  *  transfer. Atomic via the settle_customer_invoice RPC. */
 export async function settleInvoice(formData: FormData): Promise<void> {
   const p = await requireFinance();
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const id = String(formData.get("invoice_id") ?? "");
   const amountMoney = parseMoneyInput(formData.get("amount"), "LKR");
   const cashCode = String(formData.get("cash_code") ?? "").trim();

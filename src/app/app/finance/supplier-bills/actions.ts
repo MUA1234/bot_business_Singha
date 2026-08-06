@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { billPostingLines } from "@/accounting/posting-templates";
 import { checkDraftJournal } from "@/accounting/manual-entry";
@@ -23,7 +23,7 @@ function billNumber(): string {
 
 export async function createBill(formData: FormData): Promise<void> {
   const p = await requireFinance();
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const supplierName = String(formData.get("supplier_name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   if (!supplierName || !description) return;
@@ -58,7 +58,7 @@ export async function createBill(formData: FormData): Promise<void> {
 
 export async function postBill(formData: FormData): Promise<void> {
   const p = await requireFinance();
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const id = String(formData.get("bill_id") ?? "");
   const expenseCode = String(formData.get("expense_code") ?? "").trim();
   const payableCode = String(formData.get("payable_code") ?? "").trim();
@@ -90,7 +90,7 @@ export async function postBill(formData: FormData): Promise<void> {
  *  transfer. Atomic via the settle_supplier_bill RPC. */
 export async function settleBill(formData: FormData): Promise<void> {
   const p = await requireFinance();
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const id = String(formData.get("bill_id") ?? "");
   const amountMoney = parseMoneyInput(formData.get("amount"), "LKR");
   const apCode = String(formData.get("ap_code") ?? "").trim();

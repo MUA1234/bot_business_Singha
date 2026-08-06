@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { parseBankLines } from "@/modules/finance/bank-import";
 import { sha256 } from "@/lib/ids";
@@ -18,7 +18,7 @@ async function requireFinance() {
 /** Import pasted bank statement lines into bank_transactions. */
 export async function importBankTransactions(formData: FormData): Promise<void> {
   const p = await requireFinance();
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const bankAccountId = String(formData.get("bank_account_id") ?? "");
   const text = String(formData.get("lines") ?? "");
   if (!bankAccountId) return;
@@ -50,7 +50,7 @@ export async function importBankTransactions(formData: FormData): Promise<void> 
 /** Confirm a suggested match: record it and mark the bank transaction matched. */
 export async function confirmMatch(formData: FormData): Promise<void> {
   const p = await requireFinance();
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const bankTxnId = String(formData.get("bank_txn_id") ?? "");
   const targetType = String(formData.get("target_type") ?? "");
   const targetId = String(formData.get("target_id") ?? "");

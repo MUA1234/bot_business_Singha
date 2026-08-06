@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notify";
 import { billPostingLines } from "@/accounting/posting-templates";
@@ -20,7 +20,7 @@ async function requireFinance() {
 
 /** Find-or-create the legacy employees row for a profile (interim identity bridge). */
 async function ensureEmployee(profileId: string, companyId: string, name: string): Promise<string | null> {
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const { data } = await db.from("employees").select("id").eq("company_id", companyId).eq("user_id", profileId).maybeSingle();
   if (data) return data.id;
   const { data: created } = await db.from("employees").insert({ company_id: companyId, user_id: profileId, name, status: "active" }).select("id").maybeSingle();
@@ -37,7 +37,7 @@ export async function submitExpense(formData: FormData): Promise<void> {
 
   const employeeId = await ensureEmployee(p.userId, p.companyId, p.fullName ?? p.username);
   if (!employeeId) return;
-  await supabaseAdmin().from("expense_claims").insert({ company_id: p.companyId, employee_id: employeeId, currency: "LKR", amount, purpose, status: "submitted" });
+  await supabaseWriteClient().from("expense_claims").insert({ company_id: p.companyId, employee_id: employeeId, currency: "LKR", amount, purpose, status: "submitted" });
   await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "expense_claim.submitted", entityType: "expense_claim", entityId: employeeId, payload: { amount } });
   revalidatePath("/app/me");
   revalidatePath("/app/finance/expenses");
@@ -45,7 +45,7 @@ export async function submitExpense(formData: FormData): Promise<void> {
 
 /** The profile (user) behind an employees row, if any. */
 async function claimantUserId(companyId: string, employeeId: string): Promise<string | null> {
-  const { data: emp } = await supabaseAdmin().from("employees").select("user_id").eq("id", employeeId).eq("company_id", companyId).maybeSingle();
+  const { data: emp } = await supabaseWriteClient().from("employees").select("user_id").eq("id", employeeId).eq("company_id", companyId).maybeSingle();
   return emp?.user_id ?? null;
 }
 
@@ -60,11 +60,11 @@ export async function decideExpense(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
   const decision = String(formData.get("decision") ?? "");
   if (!id || (decision !== "approved" && decision !== "rejected")) return;
-  const { data: claim } = await supabaseAdmin().from("expense_claims").select("id, employee_id, status").eq("id", id).eq("company_id", p.companyId).maybeSingle();
+  const { data: claim } = await supabaseWriteClient().from("expense_claims").select("id, employee_id, status").eq("id", id).eq("company_id", p.companyId).maybeSingle();
   if (!claim || claim.status !== "submitted") return;
   // §WP2.5 separation of duties — a user may not approve/reject their own claim.
   if (isSelfAction(await claimantUserId(p.companyId, claim.employee_id), p.userId)) return;
-  await supabaseAdmin().from("expense_claims").update({ status: decision }).eq("id", id).eq("company_id", p.companyId);
+  await supabaseWriteClient().from("expense_claims").update({ status: decision }).eq("id", id).eq("company_id", p.companyId);
   await writeAudit({ companyId: p.companyId, actorId: p.userId, action: `expense_claim.${decision}`, entityType: "expense_claim", entityId: id });
   await notifyEmployee(p.companyId, claim.employee_id, `Your expense claim was ${decision}`);
   revalidatePath("/app/finance/expenses");
@@ -74,7 +74,7 @@ export async function decideExpense(formData: FormData): Promise<void> {
  *  Recording only — not a bank transfer. */
 export async function reimburseExpense(formData: FormData): Promise<void> {
   const p = await requireFinance();
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const id = String(formData.get("id") ?? "");
   const expenseCode = String(formData.get("expense_code") ?? "").trim();
   const cashCode = String(formData.get("cash_code") ?? "").trim();

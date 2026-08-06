@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { computeCashPosition, type CashMovement } from "@/modules/finance/cash-position";
 import { cashVariance } from "@/modules/finance/petty-cash";
@@ -17,7 +17,7 @@ async function requireFinance() {
 /** Record a physical cash count and store the variance vs the book balance. */
 export async function recordCashCount(formData: FormData): Promise<void> {
   const p = await requireFinance();
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const cashAccountId = String(formData.get("cash_account_id") ?? "");
   const countedRaw = String(formData.get("counted_amount") ?? "").trim();
   if (!cashAccountId || !/^\d+(\.\d+)?$/.test(countedRaw)) return; // non-negative decimal only

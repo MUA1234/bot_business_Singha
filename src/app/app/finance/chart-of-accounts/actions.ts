@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 
 const TYPES = ["asset", "liability", "equity", "income", "expense"] as const;
@@ -20,7 +20,7 @@ export async function createAccount(formData: FormData): Promise<void> {
   const type = String(formData.get("type") ?? "").trim();
   if (!code || !name || !TYPES.includes(type as any)) return;
 
-  const { error } = await supabaseAdmin()
+  const { error } = await supabaseWriteClient()
     .from("chart_of_accounts")
     .insert({ company_id: p.companyId, code, name, type, is_active: true });
   if (error) return; // duplicate code or table missing

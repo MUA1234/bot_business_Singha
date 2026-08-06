@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { canDecideBankChange } from "@/modules/finance/bank-change-guards";
 
@@ -16,7 +16,7 @@ async function requireFinance() {
  *  supplier is NOT changed until a second person approves (§WP2.5). */
 export async function requestBankChange(formData: FormData): Promise<void> {
   const p = await requireFinance();
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const supplierId = String(formData.get("supplier_id") ?? "");
   const newName = String(formData.get("new_account_name") ?? "").trim();
   const newNumber = String(formData.get("new_account_number") ?? "").trim();
@@ -49,7 +49,7 @@ export async function requestBankChange(formData: FormData): Promise<void> {
  *  approval applies the new details to the supplier. Audited. */
 export async function decideBankChange(formData: FormData): Promise<void> {
   const p = await requireFinance();
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const id = String(formData.get("id") ?? "");
   const decision = String(formData.get("decision") ?? "");
   if (!id || (decision !== "approved" && decision !== "rejected")) return;

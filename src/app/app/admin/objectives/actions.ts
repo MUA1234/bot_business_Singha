@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { assessObjective } from "@/management/ai-manager/objective-status";
 
@@ -16,7 +16,7 @@ export async function createObjective(formData: FormData): Promise<void> {
   const period_start = String(formData.get("period_start") ?? "").trim() || null;
   const period_end = String(formData.get("period_end") ?? "").trim() || null;
 
-  const { error } = await supabaseAdmin().from("objectives").insert({
+  const { error } = await supabaseWriteClient().from("objectives").insert({
     company_id: admin.companyId, title, metric, unit, target_value, current_value: 0,
     period_start, period_end, status: "on_track", owner_id: admin.userId,
   });
@@ -31,12 +31,12 @@ export async function updateObjectiveProgress(formData: FormData): Promise<void>
   const current = Number(formData.get("current_value") ?? NaN);
   if (!id || !Number.isFinite(current)) return;
 
-  const { data: obj } = await supabaseAdmin().from("objectives")
+  const { data: obj } = await supabaseWriteClient().from("objectives")
     .select("target_value, period_start, period_end").eq("id", id).eq("company_id", admin.companyId).maybeSingle();
   if (!obj) return;
 
   const { status } = assessObjective({ target: Number(obj.target_value ?? 0), current, periodStart: obj.period_start, periodEnd: obj.period_end });
-  await supabaseAdmin().from("objectives").update({ current_value: current, status }).eq("id", id).eq("company_id", admin.companyId);
+  await supabaseWriteClient().from("objectives").update({ current_value: current, status }).eq("id", id).eq("company_id", admin.companyId);
   await writeAudit({ companyId: admin.companyId, actorId: admin.userId, action: "objective.progress", entityType: "objective", entityId: id, payload: { current, status } });
   revalidatePath("/app/admin/objectives");
 }

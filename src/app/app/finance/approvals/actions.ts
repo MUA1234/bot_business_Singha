@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notify";
 import { computeApprovalProgress, canActOnApproval } from "@/policy/approval-progress";
@@ -14,7 +14,7 @@ export async function actOnApproval(formData: FormData): Promise<void> {
   const decision = String(formData.get("decision") ?? "");
   if (!requestId || (decision !== "approve" && decision !== "reject")) return;
 
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
 
   // Load the request scoped to the caller's company (never act by bare id).
   const { data: req } = await db

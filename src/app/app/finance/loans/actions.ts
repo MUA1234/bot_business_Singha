@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { amortizationSchedule } from "@/accounting/amortization";
 import { parseMoneyInput } from "@/lib/money";
@@ -16,7 +16,7 @@ async function requireFinance() {
 /** Create a loan and generate its amortization schedule. */
 export async function createLoan(formData: FormData): Promise<void> {
   const p = await requireFinance();
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const counterparty = String(formData.get("counterparty") ?? "").trim() || null;
   const principalMoney = parseMoneyInput(formData.get("principal"), "LKR");
   const interest_rate = Math.max(0, Number(formData.get("interest_rate") ?? 0) || 0);

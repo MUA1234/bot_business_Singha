@@ -71,6 +71,8 @@ _Last reviewed: 2026-08-06 (WP0)._
 | 0033 | conversation_ai_analyzed (WP5.1: wa_conversations.ai_analyzed_at for the continuous monitor) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
 | 0034 | domain_write_rls (WP1: company-scoped write policies on 83 domain tables; ledger/worker/append-only excluded) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
 | 0035 | posting_hardening (WP2: RPCs SECURITY DEFINER + company guard + caller-idempotency + atomic fail-closed audit + REVOKE/GRANT) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
+| 0036 | approval_write_rls (WP1: company-scoped write policies for approval_requests/approval_actions) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
+| 0037 | settlement_row_locks (WP2: FOR UPDATE on settle/reverse source rows — concurrency-safe) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-07) |
 
 ### Basis for the "reported applied, unverified" status (0014–0022)
 

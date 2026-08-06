@@ -55,6 +55,7 @@ access. Green here is the prerequisite for the service-role → RLS cutover.
 | `OPENAI_PRICE_GPT56_INPUT_PER_MTOK`, `OPENAI_PRICE_GPT56_OUTPUT_PER_MTOK` | real AI cost (§WP5.4) | confirmed OpenAI rates; else cost records 0 |
 | `CRON_SECRET` | daily digest auth (§WP6.1) | mandatory — endpoint fails closed without it |
 | `WHATSAPP_*` | webhook + sender | staging number, not the prod one |
+| `WHATSAPP_ASYNC` + `INNGEST_*` | §WP4 async webhook (persist→enqueue→200; durable worker sends) | set `WHATSAPP_ASYNC=on` only after Inngest keys are configured; default off = synchronous reply |
 
 ## 4b. Validate the RLS read cutover (§WP1)
 
@@ -68,7 +69,7 @@ cutover on staging:
 3. Confirm a user from another company cannot see this company's data (the live
    isolation tests already prove this at the DB; this is the app-level confirmation).
 4. When green, make `RLS_READS=on` the default in production.
-5. **Write cutover:** 12 domain CRUD action groups use `supabaseWriteClient()` (flag `RLS_WRITES=on`). Migration 0034 added company-scoped write policies so a user can only write their own company's rows (live-verified in `tests/integration/write-isolation.test.ts`). Validate with `RLS_WRITES=on` on staging, then default it on. Finance/ledger, identity, admin and worker writes stay service-role.
+5. **Write cutover:** 25 action groups (domain CRUD + finance) use `supabaseWriteClient()` (flag `RLS_WRITES=on`). Migration 0034 added company-scoped write policies so a user can only write their own company's rows (live-verified in `tests/integration/write-isolation.test.ts`). Validate with `RLS_WRITES=on` on staging, then default it on. Ledger posting uses SECURITY DEFINER RPCs (migration 0035). Identity, admin, hr, task, worker and the `approvals` action (writes approval_* tables, which need write policies before flag-on) stay service-role.
 
 Not yet cut over (kept on service role deliberately): `admin/*` (cross-cutting admin
 tools) and `hr/*` (profile-listing pages, which behave differently under the

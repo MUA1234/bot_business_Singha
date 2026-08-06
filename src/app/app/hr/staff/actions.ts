@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notify";
 import { calendarDays } from "@/modules/workforce/leave";
@@ -15,7 +15,7 @@ async function requireHR() {
 
 /** Confirm a profile belongs to the caller's company. */
 async function profileInCompany(id: string, companyId: string) {
-  const { data } = await supabaseAdmin().from("profiles").select("id").eq("id", id).eq("company_id", companyId).maybeSingle();
+  const { data } = await supabaseWriteClient().from("profiles").select("id").eq("id", id).eq("company_id", companyId).maybeSingle();
   return data ?? null;
 }
 
@@ -28,7 +28,7 @@ export async function updateEmployeeDetails(formData: FormData): Promise<void> {
   const start_date = String(formData.get("start_date") ?? "").trim() || null;
   const skills = String(formData.get("skills") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
-  await supabaseAdmin().from("profiles").update({ phone, job_title, start_date, skills }).eq("id", id).eq("company_id", hr.companyId);
+  await supabaseWriteClient().from("profiles").update({ phone, job_title, start_date, skills }).eq("id", id).eq("company_id", hr.companyId);
   await writeAudit({ companyId: hr.companyId, actorId: hr.userId, action: "employee.details_updated", entityType: "profile", entityId: id });
   revalidatePath(`/app/hr/staff/${id}`);
 }
@@ -48,7 +48,7 @@ export async function requestLeave(formData: FormData): Promise<void> {
   if (days <= 0) return;
   const reason = String(formData.get("reason") ?? "").trim() || null;
 
-  await supabaseAdmin().from("leave_requests").insert({
+  await supabaseWriteClient().from("leave_requests").insert({
     company_id: p.companyId, profile_id: profileId, start_date: start, end_date: end, days, reason, status: "pending",
   });
   await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "leave.requested", entityType: "leave_request", entityId: profileId, payload: { days } });
@@ -63,10 +63,10 @@ export async function decideLeave(formData: FormData): Promise<void> {
   const decision = String(formData.get("decision") ?? "");
   if (!id || (decision !== "approved" && decision !== "rejected")) return;
 
-  const { data: req } = await supabaseAdmin().from("leave_requests").select("id, profile_id, status").eq("id", id).eq("company_id", hr.companyId).maybeSingle();
+  const { data: req } = await supabaseWriteClient().from("leave_requests").select("id, profile_id, status").eq("id", id).eq("company_id", hr.companyId).maybeSingle();
   if (!req || req.status !== "pending") return;
 
-  await supabaseAdmin().from("leave_requests").update({ status: decision, decided_by: hr.userId, decided_at: new Date().toISOString() }).eq("id", id).eq("company_id", hr.companyId);
+  await supabaseWriteClient().from("leave_requests").update({ status: decision, decided_by: hr.userId, decided_at: new Date().toISOString() }).eq("id", id).eq("company_id", hr.companyId);
   await writeAudit({ companyId: hr.companyId, actorId: hr.userId, action: `leave.${decision}`, entityType: "leave_request", entityId: id });
   await createNotification({ companyId: hr.companyId, recipientId: req.profile_id, type: "leave_decided", title: `Leave request ${decision}`, link: "/app/me" });
   revalidatePath(`/app/hr/staff/${req.profile_id}`);

@@ -25,12 +25,19 @@
 
 ## Current exceptions / decisions
 
-_None recorded yet — run `npm audit --omit=dev` after the `~/.npm` cache is fixed
-(`sudo chown -R 501:20 ~/.npm`, see STAGING_SETUP.md §0) and populate this table._
+Audit run 2026-08-07 (`npm audit --omit=dev`) on `next@14.2.35` (latest 14.x): **3 high**.
 
 | Package | Advisory | Reachable at runtime? | Decision | Date |
 |---|---|---|---|---|
-| _(pending first audit)_ | | | | |
+| next | SSRF in rewrites via attacker-controlled destination host (GHSA-p9j2-gv94-2wf4) | We define **no dynamic/user-controlled rewrites** (`next.config.mjs` has none) → not reachable | **Accept + defer**: only fixed in next@16 (breaking framework migration = STOP condition). Track a dedicated Next 14→16 upgrade WP. | 2026-08-07 |
+| next | Unbounded Server Action payload on Edge runtime (GHSA-4c39-4ccg-62r3) | Our server actions run on the **Node** runtime, not Edge → not reachable | Accept + defer (next@16). | 2026-08-07 |
+| next | Unauthenticated disclosure of internal Server Function endpoints (GHSA-955p-x3mx-jcvp) | Server actions are auth-gated (`requireProfile`/capability); disclosure is of endpoint IDs, not data | Accept + defer (next@16); revisit if the upgrade WP slips. | 2026-08-07 |
+| postcss (transitive via next) | XSS/path-traversal via attacker-controlled `sourceMappingURL` (multiple) | **Build-time** CSS tooling only; no untrusted CSS is processed at runtime | Accept: transitive, dev/build-only; resolves with the next upgrade. | 2026-08-07 |
+
+**Decision:** do **not** run `npm audit fix --force` (it installs next@16, a breaking major). The
+three highs are not reachable given our config (no dynamic rewrites, Node runtime,
+auth-gated actions); they are cleared by a planned, owner-approved **Next 14→16 upgrade
+work package** with its own regression pass.
 
 ## Local verification
 

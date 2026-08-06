@@ -23,6 +23,13 @@ import { makeSupabaseSourceEventStore } from "@/db/source-event-store";
 import { inboundEventKey } from "@/events/outbox";
 import { sha256 } from "@/lib/ids";
 import { newCorrelationId, log } from "@/lib/log";
+import { inngest, WHATSAPP_INBOUND_EVENT } from "@/inngest/client";
+
+/** §WP4: async, persist-first webhook. When on, the webhook only persists + enqueues +
+ *  returns 200; a durable Inngest worker does the AI/order/reply. Requires INNGEST_*
+ *  keys, so it is flag-gated (Constitution: feature-flag high-risk cutovers) and
+ *  defaults to the synchronous reply until enabled + validated on staging. */
+const ASYNC_MODE = process.env.WHATSAPP_ASYNC === "on";
 
 export const runtime = "nodejs"; // needs node:crypto for signature verification
 export const maxDuration = 60; // allow time for the AI turn + reply
@@ -76,20 +83,28 @@ export async function POST(req: Request): Promise<Response> {
       log("error", "whatsapp source event persist failed", { event: "wa.persist_failed", error: (e as Error).message });
     }
 
-    try {
-      const res = await handleCustomerMessage({
-        from: msg.from,
-        text: msg.text,
-        waMessageId: msg.id,
-      });
-      results.push(res.status);
-    } catch (e) {
-      log("error", "handleCustomerMessage failed", { event: "wa.handle_failed", error: (e as Error).message });
-      results.push("error");
+    if (ASYNC_MODE) {
+      // §WP4: enqueue a durable worker; NO AI call or outbound send in the request.
+      // Idempotency (wa_message_id) is enforced by the Inngest function.
+      try {
+        await inngest.send({ name: WHATSAPP_INBOUND_EVENT, data: { from: msg.from, text: msg.text, wa_message_id: msg.id } });
+        results.push("enqueued");
+      } catch (e) {
+        log("error", "whatsapp enqueue failed", { event: "wa.enqueue_failed", error: (e as Error).message });
+        results.push("enqueue_error");
+      }
+    } else {
+      try {
+        const res = await handleCustomerMessage({ from: msg.from, text: msg.text, waMessageId: msg.id });
+        results.push(res.status);
+      } catch (e) {
+        log("error", "handleCustomerMessage failed", { event: "wa.handle_failed", error: (e as Error).message });
+        results.push("error");
+      }
     }
   }
 
-  // Always 200 so Meta doesn't hammer retries for a message we've recorded.
+  // Always 200 promptly so Meta doesn't hammer retries for a message we've recorded.
   return NextResponse.json({ ok: true, processed: results });
 }
 

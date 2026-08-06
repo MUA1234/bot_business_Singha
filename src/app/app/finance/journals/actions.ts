@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { checkDraftJournal, type DraftLine } from "@/accounting/manual-entry";
 
@@ -35,7 +35,7 @@ export async function postJournal(_prev: JournalState, formData: FormData): Prom
     .filter((l) => l.account_code.trim() !== "" && (Number(l.debit || 0) > 0 || Number(l.credit || 0) > 0))
     .map((l) => ({ account_code: l.account_code.trim(), debit: String(l.debit || "0"), credit: String(l.credit || "0"), description: l.description ?? null }));
 
-  const { data, error } = await supabaseAdmin().rpc("post_manual_journal", {
+  const { data, error } = await supabaseWriteClient().rpc("post_manual_journal", {
     p_company: p.companyId,
     p_date: date,
     p_currency: currency,
@@ -65,7 +65,7 @@ export async function reverseJournal(formData: FormData): Promise<void> {
   const id = String(formData.get("journal_id") ?? "");
   if (!id) return;
 
-  const { data: revId, error } = await supabaseAdmin().rpc("reverse_journal", {
+  const { data: revId, error } = await supabaseWriteClient().rpc("reverse_journal", {
     p_company: p.companyId, p_journal: id, p_by: p.userId, p_date: new Date().toISOString().slice(0, 10),
   });
   if (error) return;

@@ -11,7 +11,7 @@
  * Idempotency (guide invariant #9): the function key is the source_event_id, so a
  * given external event is processed at most once even if the queue delivers twice.
  */
-import { inngest } from "./client";
+import { inngest, WHATSAPP_INBOUND_EVENT } from "./client";
 import { AiGateway } from "@/ai/gateway";
 import { makeOpenAiTransport } from "@/ai/openai-transport";
 import { serviceClient } from "@/db/client";
@@ -63,7 +63,7 @@ export const onCustomerWhatsAppMessage = inngest.createFunction(
     idempotency: "event.data.wa_message_id",
     retries: 3,
   },
-  { event: "whatsapp/customer_message.received" },
+  { event: WHATSAPP_INBOUND_EVENT },
   async ({ event, step }) => {
     const { from, text, wa_message_id, company_id } = event.data as {
       from: string;
