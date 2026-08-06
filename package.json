@@ -14,6 +14,8 @@
     "test:integration": "vitest run -c vitest.integration.config.ts",
     "secret-scan": "node scripts/secret-scan.mjs",
     "migration-lint": "node scripts/migration-lint.mjs",
+    "migrate": "node scripts/migrate.mjs",
+    "migrate:status": "node scripts/migrate.mjs --status",
     "verify": "npm run secret-scan && npm run migration-lint && npm run typecheck && npm test",
     "lint": "next lint"
   },

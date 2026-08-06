@@ -90,6 +90,19 @@ Confirm, in the live Supabase project, that the objects created by 0014–0022 e
 `settle_supplier_bill`, `reverse_journal`). Then update each row above from
 "reported applied, unverified" to "confirmed applied (owner, <date>)".
 
-> A durable, queryable applied-migrations ledger (a `schema_migrations` table populated
-> by the runner) is recommended and is in scope for WP6 (migration validation in CI).
-> Until it exists, this file is the record.
+## Migration runner + ledger (WP6.8 — now implemented)
+
+Migrations are applied by `scripts/migrate.mjs` (`npm run migrate`), which records each
+version in a **`schema_migrations`** table so it runs exactly once, in order, each in
+its own transaction:
+
+- `npm run migrate` — apply pending migrations to `DATABASE_URL`.
+- `npm run migrate:status` — show applied vs pending (exit 1 if pending = drift).
+- `node scripts/migrate.mjs --baseline` — mark existing files applied WITHOUT running
+  (used once on a DB whose schema already exists, e.g. the staging DB was baselined
+  2026-08-06 → 35 applied, 0 pending).
+
+CI applies pending migrations to the test DB (`TEST_DATABASE_URL` secret) before the
+integration suite. This table above remains the human-readable per-environment record;
+`schema_migrations` is the machine ledger. Production is applied by the owner (with
+approval) via the same runner.
