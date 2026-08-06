@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 
 async function requireSales() {
@@ -19,7 +19,7 @@ export async function createLead(formData: FormData): Promise<void> {
   const source = String(formData.get("source") ?? "").trim() || null;
   const estimated_value = Number(formData.get("estimated_value") ?? 0) || 0;
 
-  const { data, error } = await supabaseAdmin()
+  const { data, error } = await supabaseWriteClient()
     .from("leads")
     .insert({
       company_id: p.companyId,
@@ -46,11 +46,11 @@ export async function setLeadStage(formData: FormData): Promise<void> {
   const stage = String(formData.get("stage") ?? "");
   if (!id || !STAGES.includes(stage as any)) return;
 
-  const { data: target } = await supabaseAdmin()
+  const { data: target } = await supabaseWriteClient()
     .from("leads").select("id").eq("id", id).eq("company_id", p.companyId).maybeSingle();
   if (!target) return;
 
-  await supabaseAdmin()
+  await supabaseWriteClient()
     .from("leads")
     .update({ stage, last_contact_at: new Date().toISOString() })
     .eq("id", id)

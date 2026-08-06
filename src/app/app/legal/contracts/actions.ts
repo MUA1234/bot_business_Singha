@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 
 async function requireLegal() {
@@ -20,7 +20,7 @@ export async function createContract(formData: FormData): Promise<void> {
   const end_date = String(formData.get("end_date") ?? "").trim() || null;
   const renewal_date = String(formData.get("renewal_date") ?? "").trim() || null;
 
-  const { data, error } = await supabaseAdmin()
+  const { data, error } = await supabaseWriteClient()
     .from("contracts")
     .insert({ company_id: p.companyId, title, counterparty, start_date, end_date, renewal_date, status: "active" })
     .select("id")
@@ -33,7 +33,7 @@ export async function createContract(formData: FormData): Promise<void> {
 
 /** Confirm a contract belongs to the caller's company. */
 async function contractInCompany(id: string, companyId: string) {
-  const { data } = await supabaseAdmin().from("contracts").select("id").eq("id", id).eq("company_id", companyId).maybeSingle();
+  const { data } = await supabaseWriteClient().from("contracts").select("id").eq("id", id).eq("company_id", companyId).maybeSingle();
   return data ?? null;
 }
 
@@ -44,7 +44,7 @@ export async function addObligation(formData: FormData): Promise<void> {
   const description = String(formData.get("description") ?? "").trim();
   if (!description) return;
   const due_date = String(formData.get("due_date") ?? "").trim() || null;
-  await supabaseAdmin().from("obligations").insert({ company_id: p.companyId, contract_id: contractId, description, due_date, status: "open" });
+  await supabaseWriteClient().from("obligations").insert({ company_id: p.companyId, contract_id: contractId, description, due_date, status: "open" });
   await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "obligation.created", entityType: "obligation", entityId: contractId });
   revalidatePath(`/app/legal/contracts/${contractId}`);
   revalidatePath("/app/legal");
@@ -56,9 +56,9 @@ export async function setObligationStatus(formData: FormData): Promise<void> {
   const status = String(formData.get("status") ?? "");
   const contractId = String(formData.get("contract_id") ?? "");
   if (!id || !["open", "done", "waived"].includes(status)) return;
-  const { data: o } = await supabaseAdmin().from("obligations").select("id").eq("id", id).eq("company_id", p.companyId).maybeSingle();
+  const { data: o } = await supabaseWriteClient().from("obligations").select("id").eq("id", id).eq("company_id", p.companyId).maybeSingle();
   if (!o) return;
-  await supabaseAdmin().from("obligations").update({ status }).eq("id", id).eq("company_id", p.companyId);
+  await supabaseWriteClient().from("obligations").update({ status }).eq("id", id).eq("company_id", p.companyId);
   await writeAudit({ companyId: p.companyId, actorId: p.userId, action: `obligation.${status}`, entityType: "obligation", entityId: id });
   revalidatePath(`/app/legal/contracts/${contractId}`);
   revalidatePath("/app/legal");

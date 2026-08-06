@@ -81,6 +81,7 @@ export async function postInvoice(formData: FormData): Promise<void> {
     p_currency: inv.currency, p_memo: `Customer invoice ${inv.invoice_number}`,
     p_posted_by: p.userId,
     p_lines: lines.map((l) => ({ account_code: l.account_code, debit: String(l.debit || "0"), credit: String(l.credit || "0"), description: l.description })),
+    p_idempotency_key: `invoice_post:${id}`, // §WP2 — a retry re-uses the same journal
   });
   if (error) return;
 

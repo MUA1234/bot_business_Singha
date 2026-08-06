@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 
 async function requireProc() {
@@ -12,7 +12,7 @@ async function requireProc() {
 }
 
 async function rfqInCompany(id: string, companyId: string) {
-  const { data } = await supabaseAdmin().from("rfqs").select("id").eq("id", id).eq("company_id", companyId).maybeSingle();
+  const { data } = await supabaseWriteClient().from("rfqs").select("id").eq("id", id).eq("company_id", companyId).maybeSingle();
   return data ?? null;
 }
 
@@ -21,7 +21,7 @@ export async function createRfq(formData: FormData): Promise<void> {
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return;
   const description = String(formData.get("description") ?? "").trim() || null;
-  const { data, error } = await supabaseAdmin().from("rfqs").insert({ company_id: p.companyId, title, description, status: "open", created_by: p.userId }).select("id").maybeSingle();
+  const { data, error } = await supabaseWriteClient().from("rfqs").insert({ company_id: p.companyId, title, description, status: "open", created_by: p.userId }).select("id").maybeSingle();
   if (error) return;
   await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "rfq.created", entityType: "rfq", entityId: data?.id ?? null, payload: { title } });
   revalidatePath("/app/procurement/rfqs");
@@ -39,14 +39,14 @@ export async function addQuotation(formData: FormData): Promise<void> {
 
   // Reuse/create the supplier by name.
   let supplierId: string | null = null;
-  const { data: existing } = await supabaseAdmin().from("suppliers").select("id").eq("company_id", p.companyId).eq("name", supplier_name).maybeSingle();
+  const { data: existing } = await supabaseWriteClient().from("suppliers").select("id").eq("company_id", p.companyId).eq("name", supplier_name).maybeSingle();
   if (existing) supplierId = existing.id;
   else {
-    const { data: s } = await supabaseAdmin().from("suppliers").insert({ company_id: p.companyId, name: supplier_name, status: "active" }).select("id").maybeSingle();
+    const { data: s } = await supabaseWriteClient().from("suppliers").insert({ company_id: p.companyId, name: supplier_name, status: "active" }).select("id").maybeSingle();
     supplierId = s?.id ?? null;
   }
 
-  await supabaseAdmin().from("supplier_quotations").insert({ company_id: p.companyId, rfq_id: rfqId, supplier_id: supplierId, supplier_name, total_amount, lead_time_days, notes });
+  await supabaseWriteClient().from("supplier_quotations").insert({ company_id: p.companyId, rfq_id: rfqId, supplier_id: supplierId, supplier_name, total_amount, lead_time_days, notes });
   revalidatePath(`/app/procurement/rfqs/${rfqId}`);
 }
 
@@ -57,11 +57,11 @@ export async function awardQuotation(formData: FormData): Promise<void> {
   if (!(await rfqInCompany(rfqId, p.companyId)) || !quotationId) return;
 
   // Clear any prior selection, select this one, mark the RFQ awarded.
-  await supabaseAdmin().from("supplier_quotations").update({ is_selected: false }).eq("rfq_id", rfqId).eq("company_id", p.companyId);
-  const { data: q } = await supabaseAdmin().from("supplier_quotations").select("id").eq("id", quotationId).eq("rfq_id", rfqId).eq("company_id", p.companyId).maybeSingle();
+  await supabaseWriteClient().from("supplier_quotations").update({ is_selected: false }).eq("rfq_id", rfqId).eq("company_id", p.companyId);
+  const { data: q } = await supabaseWriteClient().from("supplier_quotations").select("id").eq("id", quotationId).eq("rfq_id", rfqId).eq("company_id", p.companyId).maybeSingle();
   if (!q) return;
-  await supabaseAdmin().from("supplier_quotations").update({ is_selected: true }).eq("id", quotationId).eq("company_id", p.companyId);
-  await supabaseAdmin().from("rfqs").update({ status: "awarded" }).eq("id", rfqId).eq("company_id", p.companyId);
+  await supabaseWriteClient().from("supplier_quotations").update({ is_selected: true }).eq("id", quotationId).eq("company_id", p.companyId);
+  await supabaseWriteClient().from("rfqs").update({ status: "awarded" }).eq("id", rfqId).eq("company_id", p.companyId);
   await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "rfq.awarded", entityType: "rfq", entityId: rfqId, payload: { quotationId } });
   revalidatePath(`/app/procurement/rfqs/${rfqId}`);
   revalidatePath("/app/procurement/rfqs");

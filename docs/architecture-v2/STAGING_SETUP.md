@@ -68,6 +68,7 @@ cutover on staging:
 3. Confirm a user from another company cannot see this company's data (the live
    isolation tests already prove this at the DB; this is the app-level confirmation).
 4. When green, make `RLS_READS=on` the default in production.
+5. **Write cutover:** 12 domain CRUD action groups use `supabaseWriteClient()` (flag `RLS_WRITES=on`). Migration 0034 added company-scoped write policies so a user can only write their own company's rows (live-verified in `tests/integration/write-isolation.test.ts`). Validate with `RLS_WRITES=on` on staging, then default it on. Finance/ledger, identity, admin and worker writes stay service-role.
 
 Not yet cut over (kept on service role deliberately): `admin/*` (cross-cutting admin
 tools) and `hr/*` (profile-listing pages, which behave differently under the

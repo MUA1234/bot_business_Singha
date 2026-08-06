@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 
 async function requireProc() {
@@ -20,7 +20,7 @@ function poNumber(): string {
 export async function createPurchaseOrder(formData: FormData): Promise<void> {
   const p = await requireProc();
   const title = String(formData.get("title") ?? "").trim();
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const { data, error } = await db
     .from("purchase_orders")
     .insert({ company_id: p.companyId, po_number: poNumber(), status: "draft", total_amount: 0 })
@@ -33,12 +33,12 @@ export async function createPurchaseOrder(formData: FormData): Promise<void> {
 
 /** Confirm a PO belongs to the caller's company. */
 async function poInCompany(id: string, companyId: string) {
-  const { data } = await supabaseAdmin().from("purchase_orders").select("id").eq("id", id).eq("company_id", companyId).maybeSingle();
+  const { data } = await supabaseWriteClient().from("purchase_orders").select("id").eq("id", id).eq("company_id", companyId).maybeSingle();
   return data ?? null;
 }
 
 async function recomputePoTotalAndStatus(poId: string, companyId: string) {
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const { data: lines } = await db.from("po_lines").select("quantity, unit_price, received_quantity").eq("purchase_order_id", poId).eq("company_id", companyId);
   const rows = lines ?? [];
   const total = rows.reduce((s: number, l: any) => s + Number(l.quantity ?? 0) * Number(l.unit_price ?? 0), 0);
@@ -57,7 +57,7 @@ export async function addPoLine(formData: FormData): Promise<void> {
   const quantity = Math.max(0, Number(formData.get("quantity") ?? 0) || 0);
   const unit_price = Math.max(0, Number(formData.get("unit_price") ?? 0) || 0);
 
-  await supabaseAdmin().from("po_lines").insert({
+  await supabaseWriteClient().from("po_lines").insert({
     purchase_order_id: poId, company_id: p.companyId, description, quantity, unit_price, received_quantity: 0,
   });
   await recomputePoTotalAndStatus(poId, p.companyId);
@@ -72,12 +72,12 @@ export async function recordLineReceipt(formData: FormData): Promise<void> {
   if (!(await poInCompany(poId, p.companyId))) return;
 
   // Line must belong to this PO + company.
-  const { data: line } = await supabaseAdmin()
+  const { data: line } = await supabaseWriteClient()
     .from("po_lines").select("id").eq("id", lineId).eq("purchase_order_id", poId).eq("company_id", p.companyId).maybeSingle();
   if (!line) return;
 
-  await supabaseAdmin().from("po_lines").update({ received_quantity: received }).eq("id", lineId).eq("company_id", p.companyId);
-  await supabaseAdmin().from("goods_receipts").insert({ company_id: p.companyId, purchase_order_id: poId, received_by: p.userId });
+  await supabaseWriteClient().from("po_lines").update({ received_quantity: received }).eq("id", lineId).eq("company_id", p.companyId);
+  await supabaseWriteClient().from("goods_receipts").insert({ company_id: p.companyId, purchase_order_id: poId, received_by: p.userId });
   await recomputePoTotalAndStatus(poId, p.companyId);
   await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "goods.received", entityType: "purchase_order", entityId: poId, payload: { lineId, received } });
   revalidatePath(`/app/procurement/purchase-orders/${poId}`);

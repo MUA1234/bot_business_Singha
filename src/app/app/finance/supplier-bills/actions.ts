@@ -76,6 +76,7 @@ export async function postBill(formData: FormData): Promise<void> {
     p_company: p.companyId, p_date: new Date().toISOString().slice(0, 10),
     p_currency: bill.currency, p_memo: `Supplier bill ${bill.bill_number}`, p_posted_by: p.userId,
     p_lines: lines.map((l) => ({ account_code: l.account_code, debit: String(l.debit || "0"), credit: String(l.credit || "0"), description: l.description })),
+    p_idempotency_key: `bill_post:${id}`, // §WP2 — a retry re-uses the same journal
   });
   if (error) return;
 

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 
 async function requireProc() {
@@ -20,7 +20,7 @@ export async function createPurchaseRequest(formData: FormData): Promise<void> {
   const description = String(formData.get("description") ?? "").trim() || null;
   const estimated_cost = Number(formData.get("estimated_cost") ?? 0) || null;
 
-  const { data, error } = await supabaseAdmin()
+  const { data, error } = await supabaseWriteClient()
     .from("purchase_requests")
     .insert({ company_id: p.companyId, title, description, estimated_cost, status: "draft", requested_by: p.userId })
     .select("id")
@@ -36,11 +36,11 @@ export async function setPurchaseRequestStatus(formData: FormData): Promise<void
   const status = String(formData.get("status") ?? "");
   if (!id || !STATUSES.includes(status as any)) return;
 
-  const { data: target } = await supabaseAdmin()
+  const { data: target } = await supabaseWriteClient()
     .from("purchase_requests").select("id").eq("id", id).eq("company_id", p.companyId).maybeSingle();
   if (!target) return;
 
-  await supabaseAdmin().from("purchase_requests").update({ status }).eq("id", id).eq("company_id", p.companyId);
+  await supabaseWriteClient().from("purchase_requests").update({ status }).eq("id", id).eq("company_id", p.companyId);
   await writeAudit({ companyId: p.companyId, actorId: p.userId, action: `purchase_request.${status}`, entityType: "purchase_request", entityId: id });
   revalidatePath("/app/procurement/purchase-requests");
 }

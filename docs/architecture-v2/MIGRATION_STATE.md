@@ -69,6 +69,8 @@ _Last reviewed: 2026-08-06 (WP0)._
 | 0031 | outbox_next_retry (WP4: message_outbox.next_retry_at for the drain worker backoff) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
 | 0032 | outbox_template (WP4.7: message_outbox template_name/params/lang for out-of-window staff delivery) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
 | 0033 | conversation_ai_analyzed (WP5.1: wa_conversations.ai_analyzed_at for the continuous monitor) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
+| 0034 | domain_write_rls (WP1: company-scoped write policies on 83 domain tables; ledger/worker/append-only excluded) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
+| 0035 | posting_hardening (WP2: RPCs SECURITY DEFINER + company guard + caller-idempotency + atomic fail-closed audit + REVOKE/GRANT) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
 
 ### Basis for the "reported applied, unverified" status (0014–0022)
 

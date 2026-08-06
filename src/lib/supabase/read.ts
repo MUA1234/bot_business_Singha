@@ -25,3 +25,17 @@ export function rlsReadsEnabled(): boolean {
 export function supabaseReadClient(): SupabaseClient {
   return rlsReadsEnabled() ? supabaseServer() : supabaseAdmin();
 }
+
+/** True when the RLS write cutover is enabled. Default (unset) = off = service role. */
+export function rlsWritesEnabled(): boolean {
+  return process.env.RLS_WRITES === "on";
+}
+
+/**
+ * The client to use for company-scoped WRITES in ordinary user actions. RLS-enforced
+ * when the write cutover is on (a user can only write their own company's rows —
+ * migration 0034), service-role otherwise. App-layer capability checks still run first.
+ */
+export function supabaseWriteClient(): SupabaseClient {
+  return rlsWritesEnabled() ? supabaseServer() : supabaseAdmin();
+}

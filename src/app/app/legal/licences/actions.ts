@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 
 async function requireLegal() {
@@ -19,7 +19,7 @@ export async function createLicence(formData: FormData): Promise<void> {
   const licence_number = String(formData.get("licence_number") ?? "").trim() || null;
   const issue_date = String(formData.get("issue_date") ?? "").trim() || null;
   const expiry_date = String(formData.get("expiry_date") ?? "").trim() || null;
-  const { error } = await supabaseAdmin().from("licences").insert({ company_id: p.companyId, name, authority, licence_number, issue_date, expiry_date, status: "active" });
+  const { error } = await supabaseWriteClient().from("licences").insert({ company_id: p.companyId, name, authority, licence_number, issue_date, expiry_date, status: "active" });
   if (error) return;
   await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "licence.created", entityType: "licence", entityId: name });
   revalidatePath("/app/legal/licences");

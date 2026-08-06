@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 
 async function requireProc() {
@@ -21,12 +21,12 @@ export async function createItem(formData: FormData): Promise<void> {
   const unit_cost = Math.max(0, Number(formData.get("unit_cost") ?? 0) || 0);
   const quantity_on_hand = Math.max(0, Number(formData.get("quantity_on_hand") ?? 0) || 0);
 
-  const { data, error } = await supabaseAdmin().from("inventory_items")
+  const { data, error } = await supabaseWriteClient().from("inventory_items")
     .insert({ company_id: p.companyId, name, sku, unit, reorder_level, unit_cost, quantity_on_hand, created_by: p.userId })
     .select("id").maybeSingle();
   if (error) return; // e.g. duplicate SKU
   if (quantity_on_hand > 0 && data) {
-    await supabaseAdmin().from("stock_movements").insert({ company_id: p.companyId, item_id: data.id, direction: "in", quantity: quantity_on_hand, reason: "opening balance", created_by: p.userId });
+    await supabaseWriteClient().from("stock_movements").insert({ company_id: p.companyId, item_id: data.id, direction: "in", quantity: quantity_on_hand, reason: "opening balance", created_by: p.userId });
   }
   await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "inventory_item.created", entityType: "inventory_item", entityId: data?.id ?? null, payload: { name } });
   revalidatePath("/app/procurement/inventory");
@@ -35,7 +35,7 @@ export async function createItem(formData: FormData): Promise<void> {
 /** Record a stock movement (in/out/adjust) and update quantity on hand atomically-ish. */
 export async function moveStock(formData: FormData): Promise<void> {
   const p = await requireProc();
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const itemId = String(formData.get("item_id") ?? "");
   const direction = String(formData.get("direction") ?? "");
   const quantity = Number(formData.get("quantity") ?? 0);

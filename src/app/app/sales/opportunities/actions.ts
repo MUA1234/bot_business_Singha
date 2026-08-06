@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 
 async function requireSales() {
@@ -20,7 +20,7 @@ export async function createOpportunity(formData: FormData): Promise<void> {
   const expected_close = String(formData.get("expected_close") ?? "").trim() || null;
   const lead_id = String(formData.get("lead_id") ?? "").trim() || null;
 
-  const { error } = await supabaseAdmin().from("opportunities").insert({
+  const { error } = await supabaseWriteClient().from("opportunities").insert({
     company_id: p.companyId, title, amount, probability, expected_close, lead_id, status: "open",
   });
   if (error) return;
@@ -33,12 +33,12 @@ export async function setOpportunityStatus(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
   const status = String(formData.get("status") ?? "");
   if (!id || !["open", "won", "lost"].includes(status)) return;
-  const { data: o } = await supabaseAdmin().from("opportunities").select("id, lead_id").eq("id", id).eq("company_id", p.companyId).maybeSingle();
+  const { data: o } = await supabaseWriteClient().from("opportunities").select("id, lead_id").eq("id", id).eq("company_id", p.companyId).maybeSingle();
   if (!o) return;
-  await supabaseAdmin().from("opportunities").update({ status }).eq("id", id).eq("company_id", p.companyId);
+  await supabaseWriteClient().from("opportunities").update({ status }).eq("id", id).eq("company_id", p.companyId);
   // Reflect a won/lost deal on its source lead, if any.
   if (o.lead_id && (status === "won" || status === "lost")) {
-    await supabaseAdmin().from("leads").update({ stage: status }).eq("id", o.lead_id).eq("company_id", p.companyId);
+    await supabaseWriteClient().from("leads").update({ stage: status }).eq("id", o.lead_id).eq("company_id", p.companyId);
   }
   await writeAudit({ companyId: p.companyId, actorId: p.userId, action: `opportunity.${status}`, entityType: "opportunity", entityId: id });
   revalidatePath("/app/sales/opportunities");

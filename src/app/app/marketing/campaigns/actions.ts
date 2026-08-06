@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 
 async function requireMarketing() {
@@ -26,7 +26,7 @@ export async function createCampaign(formData: FormData): Promise<void> {
   const channel = String(formData.get("channel") ?? "whatsapp");
   const budget = Number(formData.get("budget") ?? 0) || null;
   const audience_id = String(formData.get("audience_id") ?? "").trim() || null;
-  const { error } = await supabaseAdmin().from("campaigns").insert({
+  const { error } = await supabaseWriteClient().from("campaigns").insert({
     company_id: p.companyId, name, channel: ["whatsapp", "email", "other"].includes(channel) ? channel : "whatsapp",
     budget, audience_id, status: "draft", created_by: p.userId,
   });
@@ -40,9 +40,9 @@ export async function setCampaignStatus(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
   const status = String(formData.get("status") ?? "");
   if (!id) return;
-  const { data: c } = await supabaseAdmin().from("campaigns").select("status").eq("id", id).eq("company_id", p.companyId).maybeSingle();
+  const { data: c } = await supabaseWriteClient().from("campaigns").select("status").eq("id", id).eq("company_id", p.companyId).maybeSingle();
   if (!c || !(NEXT[c.status] ?? []).includes(status)) return; // enforce legal transition
-  await supabaseAdmin().from("campaigns").update({ status }).eq("id", id).eq("company_id", p.companyId);
+  await supabaseWriteClient().from("campaigns").update({ status }).eq("id", id).eq("company_id", p.companyId);
   await writeAudit({ companyId: p.companyId, actorId: p.userId, action: `campaign.${status}`, entityType: "campaign", entityId: id });
   revalidatePath("/app/marketing/campaigns");
 }
