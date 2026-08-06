@@ -6,12 +6,12 @@
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { computeCapacity } from "@/modules/work/capacity";
+import { computeCapacityDetail, type CapacityTask } from "@/modules/work/capacity-detail";
 import { recomputeCapacity } from "./actions";
 
 export const metadata = { title: "Capacity — Singha" };
-const CONTRACTED = 40;
-const TERMINAL = new Set(["completed", "cancelled"]);
+const CONTRACTED = 40; // default weekly hours until employee_profiles is populated
+const RESERVED = 4; // operational reserve (meetings/recurring)
 
 async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
   try {
@@ -27,22 +27,35 @@ export default async function CapacityPage() {
 
   const [employees, tasks] = await Promise.all([
     safe<any>(() => db.from("profiles").select("id, username, full_name, department").eq("company_id", p.companyId).eq("is_active", true) as any),
-    safe<any>(() => db.from("tasks").select("assigned_to, estimate_hours, status").eq("company_id", p.companyId).not("assigned_to", "is", null) as any),
+    // actual/remaining exist after migration 0025; safe() degrades gracefully if not.
+    safe<any>(() => db.from("tasks").select("assigned_to, estimate_hours, actual_hours, remaining_hours, status, due_date").eq("company_id", p.companyId).not("assigned_to", "is", null) as any),
   ]);
 
-  const allocByUser = new Map<string, number>();
+  const tasksByUser = new Map<string, CapacityTask[]>();
   for (const t of tasks) {
-    if (TERMINAL.has(t.status)) continue;
-    allocByUser.set(t.assigned_to, (allocByUser.get(t.assigned_to) ?? 0) + Number(t.estimate_hours ?? 0));
+    const list = tasksByUser.get(t.assigned_to) ?? [];
+    list.push({
+      status: t.status,
+      estimateHours: t.estimate_hours != null ? Number(t.estimate_hours) : null,
+      actualHours: t.actual_hours != null ? Number(t.actual_hours) : null,
+      remainingHours: t.remaining_hours != null ? Number(t.remaining_hours) : null,
+      dueDate: t.due_date ?? null,
+    });
+    tasksByUser.set(t.assigned_to, list);
   }
 
   const rows = employees
     .map((e) => {
-      const allocated = allocByUser.get(e.id) ?? 0;
-      const cap = computeCapacity({ contractedHours: CONTRACTED, leaveHours: 0, meetingHours: 0, recurringHours: 0, taskEstimateHours: allocated, contingencyPct: 0.1 });
+      const cap = computeCapacityDetail({
+        contractedWeeklyHours: CONTRACTED,
+        approvedLeaveHours: 0,
+        holidayHours: 0,
+        reservedHours: RESERVED,
+        tasks: tasksByUser.get(e.id) ?? [],
+      });
       return { name: e.full_name || e.username, department: e.department, cap };
     })
-    .sort((a, b) => b.cap.utilizationPct - a.cap.utilizationPct);
+    .sort((a, b) => (Number(b.cap.utilizationPct) || 0) - (Number(a.cap.utilizationPct) || 0));
 
   const statusBadge = (s: string) => (s === "overloaded" ? "danger" : s === "underallocated" ? "info" : "ok");
 
@@ -51,7 +64,7 @@ export default async function CapacityPage() {
       <div className="row between">
         <div>
           <h1>Capacity</h1>
-          <p className="muted mt-1">Workload from assigned tasks (40h week, 10% buffer).</p>
+          <p className="muted mt-1">Planned vs actual vs remaining effort from assigned tasks ({CONTRACTED}h week, {RESERVED}h reserved). Reproducible from records.</p>
         </div>
         <form action={recomputeCapacity}><button className="btn ghost sm" type="submit">Recompute snapshots</button></form>
       </div>
@@ -62,13 +75,21 @@ export default async function CapacityPage() {
         ) : (
           <div className="table-wrap">
             <table className="data">
-              <thead><tr><th>Employee</th><th className="num">Allocated</th><th className="num">Available</th><th className="num">Utilisation</th><th>Status</th></tr></thead>
+              <thead><tr>
+                <th>Employee</th><th className="num">Planned</th><th className="num">Actual</th>
+                <th className="num">Remaining</th><th className="num">Free</th><th className="num">Blocked</th>
+                <th className="num">Overdue</th><th className="num">Util.</th><th>Status</th>
+              </tr></thead>
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={i}>
                     <td style={{ fontWeight: 600 }}>{r.name} <span className="dim small">· {r.department}</span></td>
-                    <td className="num">{r.cap.allocatedHours}h</td>
-                    <td className="num" style={{ color: r.cap.availableHours < 0 ? "var(--danger)" : undefined }}>{r.cap.availableHours}h</td>
+                    <td className="num">{r.cap.plannedHours}h</td>
+                    <td className="num">{r.cap.actualHours}h</td>
+                    <td className="num">{r.cap.remainingHours}h</td>
+                    <td className="num" style={{ color: r.cap.freeHours < 0 ? "var(--danger)" : undefined }}>{r.cap.freeHours}h</td>
+                    <td className="num">{r.cap.blockedTasks || ""}</td>
+                    <td className="num" style={{ color: r.cap.overdueTasks ? "var(--danger)" : undefined }}>{r.cap.overdueTasks || ""}</td>
                     <td className="num">{Number.isFinite(r.cap.utilizationPct) ? `${r.cap.utilizationPct}%` : "∞"}</td>
                     <td><span className={`badge ${statusBadge(r.cap.status)}`}>{r.cap.status}</span></td>
                   </tr>

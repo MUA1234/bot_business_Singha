@@ -4,8 +4,12 @@ import { requireAdmin } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { writeAudit } from "@/lib/audit";
 import { makeOpenAiTransport } from "@/ai/openai-transport";
+import { randomUUID } from "node:crypto";
 import { runManagerObservation } from "@/ai/manager-observation";
 import { planFromObservation } from "@/management/ai-manager/pipeline";
+import { makeSupabaseCostLedger } from "@/db/consumer-store";
+import { buildManagementCase } from "@/management/ai-manager/case";
+import { persistManagementCase } from "@/management/ai-manager/case-store";
 
 export interface AnalyzeState {
   error?: string;
@@ -32,9 +36,15 @@ export async function analyzeUpdate(_prev: AnalyzeState, formData: FormData): Pr
   if (!update) return { error: "Enter a business update to analyse." };
   if (!process.env.OPENAI_API_KEY) return { error: "AI gateway not configured (set OPENAI_API_KEY in the environment)." };
 
+  const correlationId = `cor_${randomUUID().slice(0, 8)}`;
   let obsResult;
   try {
-    obsResult = await runManagerObservation(makeOpenAiTransport(), { update, companyId: admin.companyId, sourceEventId: "manual" });
+    // §WP5.2 — record cost/tokens/latency of manual manager analysis to the ledger.
+    obsResult = await runManagerObservation(
+      makeOpenAiTransport(),
+      { update, companyId: admin.companyId, sourceEventId: "manual", correlationId },
+      makeSupabaseCostLedger(supabaseAdmin()),
+    );
   } catch (e) {
     return { error: `AI unavailable: ${(e as Error).message}` };
   }
@@ -56,6 +66,23 @@ export async function analyzeUpdate(_prev: AnalyzeState, formData: FormData): Pr
     });
     if (!error) created++;
   }
+
+  // §WP5.1 — persist the durable, evidence-linked, correlation-tied management case.
+  const mc = buildManagementCase({
+    correlationId,
+    companyId: admin.companyId,
+    sourceEventId: "manual",
+    observation: obsResult.observation,
+    proposals: [],
+    aiRun: {
+      ai_run_id: obsResult.run.ai_run_id,
+      model: obsResult.run.model,
+      prompt_version: obsResult.run.prompt_version,
+      cost_usd: obsResult.run.cost_usd,
+      latency_ms: obsResult.run.latency_ms,
+    },
+  });
+  await persistManagementCase(db, mc, { createdBy: admin.userId, createdTasks: created, requiresHuman: plan.needsApproval });
 
   await writeAudit({
     companyId: admin.companyId,

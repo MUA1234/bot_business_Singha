@@ -6,6 +6,9 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { writeAudit } from "@/lib/audit";
 import { billPostingLines } from "@/accounting/posting-templates";
 import { checkDraftJournal } from "@/accounting/manual-entry";
+import { parseMoneyInput, lineTotal } from "@/lib/money";
+import { resolveIdempotencyKey } from "@/lib/idempotency";
+import { claimIdempotencyKey } from "@/lib/idempotency-store";
 
 async function requireFinance() {
   const p = await requireProfile();
@@ -24,10 +27,13 @@ export async function createBill(formData: FormData): Promise<void> {
   const supplierName = String(formData.get("supplier_name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   if (!supplierName || !description) return;
-  const quantity = Math.max(0, Number(formData.get("quantity") ?? 1) || 1);
-  const unit_price = Math.max(0, Number(formData.get("unit_price") ?? 0) || 0);
+  const quantity = Math.max(1, Math.trunc(Number(formData.get("quantity") ?? 1) || 1));
+  const unitPrice = parseMoneyInput(formData.get("unit_price"), "LKR");
+  if (!unitPrice || unitPrice.isNegative()) return; // reject malformed/negative money
   const due_date = String(formData.get("due_date") ?? "").trim() || null;
-  const amount = quantity * unit_price;
+  // Decimal money — never a JS float (Constitution invariant #11).
+  const unit_price = unitPrice.toString();
+  const amount = lineTotal(unitPrice, quantity).toString();
 
   let supplierId: string | null = null;
   const { data: existing } = await db.from("suppliers").select("id").eq("company_id", p.companyId).eq("name", supplierName).maybeSingle();
@@ -41,7 +47,7 @@ export async function createBill(formData: FormData): Promise<void> {
   const { data: bill, error } = await db.from("supplier_bills").insert({
     company_id: p.companyId, supplier_id: supplierId, bill_number: billNumber(),
     currency: "LKR", issue_date: new Date().toISOString().slice(0, 10), due_date,
-    total_amount: amount, amount_settled: 0, status: "draft",
+    total_amount: amount, amount_settled: "0.00", status: "draft",
   }).select("id").maybeSingle();
   if (error || !bill) return;
 
@@ -85,10 +91,18 @@ export async function settleBill(formData: FormData): Promise<void> {
   const p = await requireFinance();
   const db = supabaseAdmin();
   const id = String(formData.get("bill_id") ?? "");
-  const amount = Number(formData.get("amount") ?? 0);
+  const amountMoney = parseMoneyInput(formData.get("amount"), "LKR");
   const apCode = String(formData.get("ap_code") ?? "").trim();
   const cashCode = String(formData.get("cash_code") ?? "").trim();
-  if (!id || !apCode || !cashCode || !(amount > 0)) return;
+  if (!id || !apCode || !cashCode || !amountMoney || !amountMoney.isPositive()) return;
+  const amount = Number(amountMoney.toString()); // validated decimal; RPC arg stays numeric
+
+  // §WP2 idempotency: a retried payment with the same params must not double-post.
+  const idemKey = resolveIdempotencyKey(String(formData.get("idem_token") ?? ""), [
+    "settle_supplier_bill", id, amountMoney.toString(), new Date().toISOString().slice(0, 10),
+  ]);
+  const claim = await claimIdempotencyKey(p.companyId, "settle_supplier_bill", idemKey, p.userId);
+  if (claim === "duplicate") return; // already recorded — no double payment
 
   const { error } = await db.rpc("settle_supplier_bill", {
     p_company: p.companyId, p_bill: id, p_amount: amount,

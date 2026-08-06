@@ -11,30 +11,42 @@ import { approvalPolicy, type ApprovalPolicy } from "@/schemas/approval-policy";
 import { assertTransition, type FinancialEventState } from "@/domain/lifecycle";
 import type { AiRunRecord, CostLedger } from "@/ai/gateway";
 import type { ConsumerDeps, LoadedSourceEvent } from "@/inngest/processing";
+import { log } from "@/lib/log";
 
 /** The DB-backed subset of ConsumerDeps (everything except the injected `gateway`). */
 export type ConsumerStore = Omit<ConsumerDeps, "gateway">;
 
-/** Cost ledger that persists every AI run (guide §13). company_id is resolved from the
- *  correlation trail; ai_runs.company_id is nullable so a run is never dropped. */
+/**
+ * Pure map from an AiRunRecord to the ai_runs row. Includes company_id, latency_ms and
+ * source_event_id (the full §WP5.3 trail); company_id is nullable so a run is never
+ * dropped. Exported for testing. latency_ms/source_event_id need migration 0027.
+ */
+export function aiRunRow(run: AiRunRecord): Record<string, unknown> {
+  return {
+    id: run.ai_run_id,
+    company_id: run.company_id ?? null,
+    route: run.route,
+    model: run.model,
+    prompt_version: run.prompt_version,
+    input_tokens: run.input_tokens,
+    output_tokens: run.output_tokens,
+    cost_usd: run.cost_usd,
+    validation_ok: run.validation_ok,
+    validation_issues: run.validation_issues ?? null,
+    confidence_overall: run.confidence_overall,
+    correlation_id: run.correlation_id,
+    latency_ms: run.latency_ms ?? null,
+    source_event_id: run.source_event_id ?? null,
+  };
+}
+
+/** Cost ledger that persists every AI run (guide §13; §WP5.2/5.3). */
 export function makeSupabaseCostLedger(db: SupabaseClient): CostLedger {
   return {
     async record(run: AiRunRecord): Promise<void> {
-      const { error } = await db.from("ai_runs").insert({
-        id: run.ai_run_id,
-        route: run.route,
-        model: run.model,
-        prompt_version: run.prompt_version,
-        input_tokens: run.input_tokens,
-        output_tokens: run.output_tokens,
-        cost_usd: run.cost_usd,
-        validation_ok: run.validation_ok,
-        validation_issues: run.validation_issues ?? null,
-        confidence_overall: run.confidence_overall,
-        correlation_id: run.correlation_id,
-      });
+      const { error } = await db.from("ai_runs").insert(aiRunRow(run));
       // Never throw the pipeline down over a ledger write; surface via console for ops.
-      if (error) console.error("ai_runs insert failed", { ai_run_id: run.ai_run_id, error: error.message });
+      if (error) log("error", "ai_runs insert failed", { event: "ai_runs.insert_failed", aiRunId: run.ai_run_id, error: error.message });
     },
   };
 }

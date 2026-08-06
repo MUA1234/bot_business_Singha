@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { writeAudit } from "@/lib/audit";
+import { parseMoneyInput, Money } from "@/lib/money";
 
 async function requireFinance() {
   const p = await requireProfile();
@@ -16,7 +17,7 @@ export async function createBankAccount(formData: FormData): Promise<void> {
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
   const currency = (String(formData.get("currency") ?? "LKR").trim() || "LKR").toUpperCase().slice(0, 3);
-  const opening = Number(formData.get("opening_balance") ?? 0) || 0;
+  const opening = (parseMoneyInput(formData.get("opening_balance"), currency) ?? Money.of("0", currency)).toString();
   const gl = String(formData.get("gl_account_code") ?? "").trim() || null;
   const { error } = await supabaseAdmin().from("bank_accounts").insert({ company_id: p.companyId, name, currency, opening_balance: opening, gl_account_code: gl, status: "active" });
   if (error) return;
@@ -29,7 +30,7 @@ export async function createCashAccount(formData: FormData): Promise<void> {
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
   const currency = (String(formData.get("currency") ?? "LKR").trim() || "LKR").toUpperCase().slice(0, 3);
-  const opening = Number(formData.get("opening_balance") ?? 0) || 0;
+  const opening = (parseMoneyInput(formData.get("opening_balance"), currency) ?? Money.of("0", currency)).toString();
   const gl = String(formData.get("gl_account_code") ?? "").trim() || null;
   const { error } = await supabaseAdmin().from("cash_accounts").insert({ company_id: p.companyId, name, currency, opening_balance: opening, gl_account_code: gl, status: "active" });
   if (error) return;

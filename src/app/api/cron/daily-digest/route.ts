@@ -6,6 +6,8 @@
  * customer. Secured by CRON_SECRET (Vercel Cron sends it as a Bearer token).
  */
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
+import { log } from "@/lib/log";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { createNotification } from "@/lib/notify";
 import { buildDigestBody } from "@/management/ai-manager/digest";
@@ -23,8 +25,18 @@ async function count(run: () => Promise<{ count: number | null }>): Promise<numb
 }
 
 export async function GET(req: Request): Promise<Response> {
+  // §WP6.1 — FAIL CLOSED: a missing secret is a misconfiguration, not open access.
   const secret = process.env.CRON_SECRET;
-  if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!secret) {
+    log("error", "CRON_SECRET not configured — refusing to run (fail closed)", { event: "cron.misconfigured" });
+    return new NextResponse("cron not configured", { status: 500 });
+  }
+  const provided = req.headers.get("authorization") ?? "";
+  const expected = `Bearer ${secret}`;
+  // Constant-time compare; timingSafeEqual requires equal-length buffers.
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
     return new NextResponse("unauthorized", { status: 401 });
   }
 
@@ -42,7 +54,7 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   let notified = 0;
-  const summary: { company: string; digest: string }[] = [];
+  let companiesNotified = 0;
 
   for (const [companyId, adminIds] of adminsByCompany) {
     const [overdueTasks, overdueObligations, lic, vdoc, contracts, overloaded] = await Promise.all([
@@ -61,8 +73,9 @@ export async function GET(req: Request): Promise<Response> {
       await createNotification({ companyId, recipientId: adminId, type: "digest", title: "Daily digest", body, link: "/app/command" });
       notified++;
     }
-    summary.push({ company: companyId, digest: body });
+    companiesNotified++;
   }
 
-  return NextResponse.json({ ok: true, notified, companies: summary });
+  // §WP6.2 — do NOT leak company identifiers or digest contents in a public response.
+  return NextResponse.json({ ok: true, notified, companies: companiesNotified });
 }

@@ -43,6 +43,36 @@ export function classifyAfterFailure(attemptsSoFar: number): OutboxStatus {
   return attemptsSoFar + 1 >= MAX_OUTBOX_ATTEMPTS ? "dead" : "failed";
 }
 
+/** Base + cap for exponential retry backoff (WP4.4). */
+export const RETRY_BASE_MS = 60_000; // 1 minute
+export const RETRY_CAP_MS = 3_600_000; // 1 hour
+
+/**
+ * When to next attempt delivery after `attemptsSoFar` failures: exponential backoff
+ * (base·2^n) capped at RETRY_CAP_MS. Returns an ISO timestamp, or null once the
+ * message is dead-lettered (no further retry).
+ */
+export function nextRetryAt(attemptsSoFar: number, now: Date = new Date()): string | null {
+  if (attemptsSoFar + 1 >= MAX_OUTBOX_ATTEMPTS) return null; // will be dead-lettered
+  const delay = Math.min(RETRY_BASE_MS * 2 ** Math.max(0, attemptsSoFar), RETRY_CAP_MS);
+  return new Date(now.getTime() + delay).toISOString();
+}
+
+/** A failed row is due for retry when now ≥ its scheduled nextRetryAt. */
+export function isDue(nextRetryIso: string | null, now: Date = new Date()): boolean {
+  if (!nextRetryIso) return false; // dead-lettered or never scheduled
+  return now.getTime() >= new Date(nextRetryIso).getTime();
+}
+
+/**
+ * Deterministic dedup key for an INBOUND provider event (WP4.1): the same provider
+ * message id maps to one key, so persisting raw events is idempotent and a webhook
+ * retry never creates a second task/quotation/outbound.
+ */
+export function inboundEventKey(channel: string, providerMessageId: string): string {
+  return `in_${sha256(`${channel}:${providerMessageId}`)}`;
+}
+
 /** Build the row to insert. Pure — the caller persists it with a service-role client. */
 export function buildOutboxRow(entry: OutboxEntry) {
   return {

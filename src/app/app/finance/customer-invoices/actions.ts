@@ -6,6 +6,9 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { writeAudit } from "@/lib/audit";
 import { invoicePostingLines } from "@/accounting/posting-templates";
 import { checkDraftJournal } from "@/accounting/manual-entry";
+import { parseMoneyInput, lineTotal } from "@/lib/money";
+import { resolveIdempotencyKey } from "@/lib/idempotency";
+import { claimIdempotencyKey } from "@/lib/idempotency-store";
 
 async function requireFinance() {
   const p = await requireProfile();
@@ -25,10 +28,13 @@ export async function createInvoice(formData: FormData): Promise<void> {
   const customerName = String(formData.get("customer_name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   if (!customerName || !description) return;
-  const quantity = Math.max(0, Number(formData.get("quantity") ?? 1) || 1);
-  const unit_price = Math.max(0, Number(formData.get("unit_price") ?? 0) || 0);
+  const quantity = Math.max(1, Math.trunc(Number(formData.get("quantity") ?? 1) || 1));
+  const unitPrice = parseMoneyInput(formData.get("unit_price"), "LKR");
+  if (!unitPrice || unitPrice.isNegative()) return; // reject malformed/negative money
   const due_date = String(formData.get("due_date") ?? "").trim() || null;
-  const amount = quantity * unit_price;
+  // Decimal money — never a JS float (Constitution invariant #11).
+  const unit_price = unitPrice.toString();
+  const amount = lineTotal(unitPrice, quantity).toString();
 
   // Reuse or create the customer.
   let customerId: string | null = null;
@@ -43,7 +49,7 @@ export async function createInvoice(formData: FormData): Promise<void> {
   const { data: inv, error } = await db.from("customer_invoices").insert({
     company_id: p.companyId, customer_id: customerId, invoice_number: invNumber(),
     currency: "LKR", issue_date: new Date().toISOString().slice(0, 10), due_date,
-    total_amount: amount, amount_settled: 0, status: "draft",
+    total_amount: amount, amount_settled: "0.00", status: "draft",
   }).select("id").maybeSingle();
   if (error || !inv) return;
 
@@ -90,10 +96,18 @@ export async function settleInvoice(formData: FormData): Promise<void> {
   const p = await requireFinance();
   const db = supabaseAdmin();
   const id = String(formData.get("invoice_id") ?? "");
-  const amount = Number(formData.get("amount") ?? 0);
+  const amountMoney = parseMoneyInput(formData.get("amount"), "LKR");
   const cashCode = String(formData.get("cash_code") ?? "").trim();
   const arCode = String(formData.get("ar_code") ?? "").trim();
-  if (!id || !cashCode || !arCode || !(amount > 0)) return;
+  if (!id || !cashCode || !arCode || !amountMoney || !amountMoney.isPositive()) return;
+  const amount = Number(amountMoney.toString()); // validated decimal; RPC arg stays numeric
+
+  // §WP2 idempotency: a retried settlement with the same params must not double-post.
+  const idemKey = resolveIdempotencyKey(String(formData.get("idem_token") ?? ""), [
+    "settle_customer_invoice", id, amountMoney.toString(), new Date().toISOString().slice(0, 10),
+  ]);
+  const claim = await claimIdempotencyKey(p.companyId, "settle_customer_invoice", idemKey, p.userId);
+  if (claim === "duplicate") return; // already recorded — no double receipt
 
   const { error } = await db.rpc("settle_customer_invoice", {
     p_company: p.companyId, p_invoice: id, p_amount: amount,

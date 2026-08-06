@@ -8,6 +8,7 @@
 import { Money } from "@/lib/money";
 import type { AiExtraction } from "@/schemas/ai-extraction";
 import type { ApprovalPolicy, ApprovalRule, Permission, Role } from "@/schemas/approval-policy";
+import { delegationPermits, type Delegation } from "@/modules/identity/delegation";
 
 export interface PolicyDecision {
   outcome: "auto_approve" | "require_approval" | "reject";
@@ -142,6 +143,77 @@ export function checkSeparationOfDuties(
   }
 
   return { allowed: reasons.length === 0, reasons };
+}
+
+/**
+ * Delegation-aware authority check (NEXT_PHASE_DEVELOPER_BRIEF §WP1.7).
+ *
+ * Composes separation-of-duties with a temporary delegation: hard SoD blocks
+ * (approving your own submission, being the beneficiary, a sensitive action needing a
+ * second person) can NEVER be overridden by a delegation. But when the only gap is a
+ * missing role/permission, an active, in-window, in-ceiling delegation to this
+ * approver grants the authority. Pure and fully unit-tested.
+ */
+export interface DelegatedAuthorityInput {
+  approver: Approver;
+  requiredRoles: Role[];
+  ctx: SoDContext;
+  /** Optional delegation context; when present it can substitute for a missing role. */
+  delegation?: {
+    membershipId: string;
+    companyId: string;
+    domain: string;
+    amount: string; // decimal string
+    currency: string;
+    delegations: Delegation[];
+    now?: Date;
+  };
+}
+
+export function checkAuthority(
+  input: DelegatedAuthorityInput,
+): { allowed: boolean; via: "own" | "delegation" | null; reasons: string[] } {
+  const { approver, requiredRoles, ctx, delegation } = input;
+
+  // Hard separation-of-duties blocks — never overridable by a delegation.
+  const hard: string[] = [];
+  if (ctx.approver_is_beneficiary) hard.push("approver is the beneficiary — self-approval blocked");
+  if (approver.user_id === ctx.submitter_user_id) hard.push("submitter cannot approve their own submission");
+  const sensitive: Permission[] = ["change_supplier_bank_details", "authorize_payment", "initiate_payment"];
+  if (ctx.action && sensitive.includes(ctx.action) && approver.user_id === ctx.submitter_user_id) {
+    hard.push(`sensitive action ${ctx.action} requires a second person`);
+  }
+  if (hard.length) return { allowed: false, via: null, reasons: hard };
+
+  // Own authority: holds `approve` and (if required) one of the required roles.
+  const ownOk =
+    approver.permissions.includes("approve") &&
+    (requiredRoles.length === 0 || requiredRoles.some((r) => approver.roles.includes(r)));
+  if (ownOk) return { allowed: true, via: "own", reasons: ["authorised by own role/permission"] };
+
+  // Otherwise an active delegation within its ceiling may grant the authority.
+  if (
+    delegation &&
+    delegationPermits(
+      {
+        membershipId: delegation.membershipId,
+        companyId: delegation.companyId,
+        domain: delegation.domain,
+        amount: delegation.amount,
+        currency: delegation.currency,
+      },
+      delegation.delegations,
+      delegation.now,
+    )
+  ) {
+    return { allowed: true, via: "delegation", reasons: ["authorised by active delegation within its ceiling"] };
+  }
+
+  return {
+    allowed: false,
+    via: null,
+    reasons: ["approver lacks required role/permission and no valid delegation applies"],
+  };
 }
 
 /** Convenience: derive an EvaluatableEvent from a validated AI extraction + draft state. */

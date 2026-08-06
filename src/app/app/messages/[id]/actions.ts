@@ -7,6 +7,9 @@ import { writeAudit } from "@/lib/audit";
 import { makeOpenAiTransport } from "@/ai/openai-transport";
 import { runManagerObservation } from "@/ai/manager-observation";
 import { planFromObservation } from "@/management/ai-manager/pipeline";
+import { makeSupabaseCostLedger } from "@/db/consumer-store";
+import { buildManagementCase } from "@/management/ai-manager/case";
+import { persistManagementCase } from "@/management/ai-manager/case-store";
 
 /**
  * Run the Senior AI Manager over a customer conversation: it observes the thread and
@@ -33,7 +36,11 @@ export async function analyzeConversation(formData: FormData): Promise<void> {
 
   let res;
   try {
-    res = await runManagerObservation(makeOpenAiTransport(), { update: text, companyId: p.companyId, sourceEventId: `wa:${conversationId}` });
+    res = await runManagerObservation(
+      makeOpenAiTransport(),
+      { update: text, companyId: p.companyId, sourceEventId: `wa:${conversationId}` },
+      makeSupabaseCostLedger(db),
+    );
   } catch {
     redirect(`/app/messages/${conversationId}?err=ai_error`);
   }
@@ -48,6 +55,17 @@ export async function analyzeConversation(formData: FormData): Promise<void> {
     });
     if (!error) created++;
   }
+  // §WP5.1 — persist the durable case, tied to the same AI run via its correlation id.
+  const mc = buildManagementCase({
+    correlationId: res.run.correlation_id,
+    companyId: p.companyId,
+    sourceEventId: `wa:${conversationId}`,
+    observation: res.observation,
+    proposals: [],
+    aiRun: { ai_run_id: res.run.ai_run_id, model: res.run.model, prompt_version: res.run.prompt_version, cost_usd: res.run.cost_usd, latency_ms: res.run.latency_ms },
+  });
+  await persistManagementCase(db, mc, { createdBy: p.userId, createdTasks: created, requiresHuman: plan.needsApproval });
+
   await writeAudit({ companyId: p.companyId, actorId: p.userId, actorType: "ai", action: "conversation.analyzed", entityType: "wa_conversation", entityId: conversationId, payload: { createdTasks: created } });
   redirect(`/app/messages/${conversationId}?captured=${created}`);
 }

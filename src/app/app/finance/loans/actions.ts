@@ -5,6 +5,7 @@ import { requireProfile } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { writeAudit } from "@/lib/audit";
 import { amortizationSchedule } from "@/accounting/amortization";
+import { parseMoneyInput } from "@/lib/money";
 
 async function requireFinance() {
   const p = await requireProfile();
@@ -17,11 +18,12 @@ export async function createLoan(formData: FormData): Promise<void> {
   const p = await requireFinance();
   const db = supabaseAdmin();
   const counterparty = String(formData.get("counterparty") ?? "").trim() || null;
-  const principal = Math.max(0, Number(formData.get("principal") ?? 0) || 0);
+  const principalMoney = parseMoneyInput(formData.get("principal"), "LKR");
   const interest_rate = Math.max(0, Number(formData.get("interest_rate") ?? 0) || 0);
   const start_date = String(formData.get("start_date") ?? "").trim();
   const termMonths = Math.max(1, Math.trunc(Number(formData.get("term_months") ?? 0) || 0));
-  if (!(principal > 0) || !start_date || !(termMonths > 0)) return;
+  if (!principalMoney || !principalMoney.isPositive() || !start_date || !(termMonths > 0)) return;
+  const principal = principalMoney.toString(); // decimal string, never a JS float
 
   const { data: loan, error } = await db.from("loans")
     .insert({ company_id: p.companyId, counterparty, principal, currency: "LKR", start_date, interest_rate, status: "active" })

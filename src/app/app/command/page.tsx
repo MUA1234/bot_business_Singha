@@ -155,9 +155,15 @@ export default async function CommandCentrePage() {
 
   return (
     <div className="stack gap-3">
-      <div>
-        <h1>Command Centre</h1>
-        <p className="muted mt-1">What needs attention now — ranked most urgent first.</p>
+      <div className="row between">
+        <div>
+          <h1>Command Centre</h1>
+          <p className="muted mt-1">What needs attention now — ranked most urgent first.</p>
+        </div>
+        <div className="row gap-1">
+          <Link className="btn ghost sm" href="/app/command/analyze">Analyse</Link>
+          <Link className="btn ghost sm" href="/app/command/cases">AI cases</Link>
+        </div>
       </div>
 
       <div className="card">

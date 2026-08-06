@@ -7,6 +7,8 @@
  *
  * Required env: WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID.
  */
+import { log } from "@/lib/log";
+
 const GRAPH_VERSION = "v20.0";
 
 /** The exact footer appended while a quotation is being priced (owner rule, D-017). */
@@ -23,7 +25,7 @@ export async function sendWhatsAppText(to: string, body: string): Promise<SendRe
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   if (!token || !phoneId) {
-    console.warn("[whatsapp] send skipped — WHATSAPP_ACCESS_TOKEN / WHATSAPP_PHONE_NUMBER_ID not set");
+    log("warn", "whatsapp send skipped — access token / phone id not set", { event: "wa.send_skipped" });
     return { ok: false, reason: "not_configured" };
   }
 

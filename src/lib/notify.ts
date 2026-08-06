@@ -4,6 +4,7 @@
  * `unreadCount` is used by the nav/badge and is unit-tested.
  */
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { log } from "@/lib/log";
 
 export interface NewNotification {
   companyId: string;
@@ -25,7 +26,7 @@ export async function createNotification(n: NewNotification): Promise<void> {
       link: n.link ?? null,
     });
   } catch (e) {
-    console.error("[notify] failed:", (e as Error).message);
+    log("error", "notify failed", { event: "notify.failed", error: (e as Error).message });
   }
 }
 

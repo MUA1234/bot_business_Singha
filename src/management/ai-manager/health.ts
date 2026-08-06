@@ -30,3 +30,33 @@ export function systemHealth(m: HealthMetrics): HealthSummary {
   const level: HealthLevel = critical ? "critical" : m.unprocessedEvents > 50 ? "warn" : "ok";
   return { level, issues };
 }
+
+import { type Metric, metricNumber } from "@/lib/metric";
+
+export interface HealthMetricsM {
+  failedEvents: Metric;
+  deadLetters: Metric;
+  outboxFailed: Metric;
+  unprocessedEvents: Metric;
+}
+
+/**
+ * §WP6.3 — classify health from Metrics that distinguish a real value from an
+ * UNAVAILABLE source. An unreadable counter is never treated as healthy: it raises at
+ * least a warning ("health data unavailable") instead of silently reporting 0.
+ */
+export function classifyHealth(m: HealthMetricsM): HealthSummary & { unavailable: boolean } {
+  const unreadable = Object.values(m).some((x) => x.state === "unavailable");
+  const base = systemHealth({
+    failedEvents: metricNumber(m.failedEvents) ?? 0,
+    deadLetters: metricNumber(m.deadLetters) ?? 0,
+    outboxFailed: metricNumber(m.outboxFailed) ?? 0,
+    unprocessedEvents: metricNumber(m.unprocessedEvents) ?? 0,
+  });
+  if (!unreadable) return { ...base, unavailable: false };
+
+  const issues = [...base.issues, "some health data is unavailable (a source could not be read)"];
+  // Never downgrade a critical; otherwise unavailable data is at least a warning.
+  const level: HealthLevel = base.level === "critical" ? "critical" : "warn";
+  return { level, issues, unavailable: true };
+}

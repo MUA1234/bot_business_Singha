@@ -6,27 +6,36 @@
  */
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { requireDepartment } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import type { TaskState } from "@/modules/work/task-lifecycle";
 import { signedEvidenceUrl } from "@/lib/documents";
-import { addCheckIn, addEvidence, completeTask, assignTask, uploadTaskEvidence } from "../actions";
+import {
+  addCheckIn, addEvidence, completeTask, assignTask, uploadTaskEvidence,
+  submitEstimate, declineTask, startTask, logProgress, reportBlocker, unblockTask,
+  submitForEvidence, requestVerification, acceptEstimate, returnForCorrection,
+} from "../actions";
 
 export const metadata = { title: "Task — Singha" };
 
 const EVIDENCE_KINDS = ["message", "document", "photo", "approval", "system", "gps", "financial"];
 
 export default async function TaskDetail({ params }: { params: { id: string } }) {
-  const p = await requireDepartment("operations");
+  // WP1/WP3: viewable by an Operations/admin manager OR the task's assignee (any dept).
+  const p = await requireProfile();
   const db = supabaseAdmin();
 
   const { data: task } = await db
     .from("tasks")
-    .select("id, title, description, status, requires_evidence, due_date, estimate_hours, assigned_to")
+    .select("id, title, description, status, requires_evidence, due_date, estimate_hours, actual_hours, remaining_hours, blocker_reason, expected_completion, assigned_to")
     .eq("id", params.id)
     .eq("company_id", p.companyId)
     .maybeSingle();
   if (!task) notFound();
+
+  const isManager = p.isAdmin || p.department === "operations";
+  const isAssignee = !!task.assigned_to && task.assigned_to === p.userId;
+  if (!isManager && !isAssignee) notFound(); // not in your scope
 
   const [{ data: checkIns }, { data: evidence }, { data: employees }] = await Promise.all([
     db.from("task_check_ins").select("id, note, progress_pct, created_at").eq("task_id", task.id).eq("company_id", p.companyId).order("created_at", { ascending: false }),
@@ -64,20 +73,89 @@ export default async function TaskDetail({ params }: { params: { id: string } })
 
       {task.description && <div className="card"><p>{task.description}</p></div>}
 
-      <div className="card">
-        <div className="card-title">Assignment</div>
-        <form action={assignTask} className="row gap-1 wrap mt-2">
-          <input type="hidden" name="task_id" value={task.id} />
-          <select name="assigned_to" className="select" style={{ width: 200 }} defaultValue={task.assigned_to ?? ""}>
-            <option value="">Unassigned</option>
-            {(employees ?? []).map((e: any) => <option key={e.id} value={e.id}>{e.full_name || e.username}</option>)}
-          </select>
-          <input name="estimate_hours" className="input" style={{ width: 130 }} placeholder="Estimate (h)" inputMode="decimal" defaultValue={task.estimate_hours ?? ""} />
-          <button className="btn ghost sm" type="submit">Save</button>
-        </form>
-      </div>
+      {(isManager || isAssignee) && (
+        <div className="card">
+          <div className="card-title">Progress</div>
+          <p className="small muted mt-1">
+            {task.estimate_hours != null && <>Est: {task.estimate_hours}h · </>}
+            {task.actual_hours != null && <>Actual: {task.actual_hours}h · </>}
+            {task.remaining_hours != null && <>Remaining: {task.remaining_hours}h</>}
+            {task.expected_completion && <> · ETA {task.expected_completion}</>}
+          </p>
+          {task.blocker_reason && <p className="badge warn mt-1">Blocked: {task.blocker_reason}</p>}
 
-      {canOfferComplete && (
+          {status === "awaiting_estimate" && (
+            <div className="stack gap-2 mt-2">
+              <form action={submitEstimate} className="row gap-1 wrap">
+                <input type="hidden" name="task_id" value={task.id} />
+                <input name="hours" className="input" style={{ width: 120 }} placeholder="Estimate (h)" inputMode="decimal" />
+                <input name="expected_completion" className="input" type="date" style={{ width: 170 }} />
+                <button className="btn ghost sm" type="submit">Submit estimate</button>
+              </form>
+              <form action={declineTask} className="row gap-1 wrap">
+                <input type="hidden" name="task_id" value={task.id} />
+                <input name="reason" className="input" style={{ flex: 1, minWidth: 160 }} placeholder="Decline reason" />
+                <button className="btn ghost sm" type="submit">Decline</button>
+              </form>
+              {isManager && (
+                <form action={acceptEstimate}>
+                  <input type="hidden" name="task_id" value={task.id} />
+                  <button className="btn sm" type="submit">Accept estimate → schedule</button>
+                </form>
+              )}
+            </div>
+          )}
+
+          {status === "scheduled" && (
+            <form action={startTask} className="mt-2"><input type="hidden" name="task_id" value={task.id} /><button className="btn sm" type="submit">Start work</button></form>
+          )}
+
+          {status === "in_progress" && (
+            <div className="stack gap-2 mt-2">
+              <form action={logProgress} className="row gap-1 wrap">
+                <input type="hidden" name="task_id" value={task.id} />
+                <input name="hours" className="input" style={{ width: 140 }} placeholder="Actual hours" inputMode="decimal" />
+                <button className="btn ghost sm" type="submit">Log hours</button>
+              </form>
+              <form action={reportBlocker} className="row gap-1 wrap">
+                <input type="hidden" name="task_id" value={task.id} />
+                <input name="reason" className="input" style={{ flex: 1, minWidth: 160 }} placeholder="Blocker reason" />
+                <button className="btn ghost sm" type="submit">Report blocker</button>
+              </form>
+              <form action={submitForEvidence}><input type="hidden" name="task_id" value={task.id} /><button className="btn ghost sm" type="submit">Ready for evidence</button></form>
+            </div>
+          )}
+
+          {status === "blocked" && (
+            <form action={unblockTask} className="mt-2"><input type="hidden" name="task_id" value={task.id} /><button className="btn sm" type="submit">Unblock</button></form>
+          )}
+
+          {status === "awaiting_evidence" && (
+            <form action={requestVerification} className="mt-2"><input type="hidden" name="task_id" value={task.id} /><button className="btn sm" type="submit">Request verification</button></form>
+          )}
+
+          {isManager && status === "verification" && (
+            <form action={returnForCorrection} className="mt-2"><input type="hidden" name="task_id" value={task.id} /><button className="btn ghost sm" type="submit">Return for correction</button></form>
+          )}
+        </div>
+      )}
+
+      {isManager && (
+        <div className="card">
+          <div className="card-title">Assignment</div>
+          <form action={assignTask} className="row gap-1 wrap mt-2">
+            <input type="hidden" name="task_id" value={task.id} />
+            <select name="assigned_to" className="select" style={{ width: 200 }} defaultValue={task.assigned_to ?? ""}>
+              <option value="">Unassigned</option>
+              {(employees ?? []).map((e: any) => <option key={e.id} value={e.id}>{e.full_name || e.username}</option>)}
+            </select>
+            <input name="estimate_hours" className="input" style={{ width: 130 }} placeholder="Estimate (h)" inputMode="decimal" defaultValue={task.estimate_hours ?? ""} />
+            <button className="btn ghost sm" type="submit">Save</button>
+          </form>
+        </div>
+      )}
+
+      {isManager && canOfferComplete && (
         <div className="card">
           <div className="card-title">Verification</div>
           <p className="card-sub mt-1">

@@ -56,6 +56,10 @@ export interface AiRunRecord {
   validation_issues?: string[];
   confidence_overall: number | null;
   correlation_id: string;
+  // §WP5.3 — full observability trail (optional so existing callers are unaffected).
+  latency_ms?: number;
+  source_event_id?: string | null;
+  company_id?: string | null;
 }
 
 export interface CostLedger {
@@ -69,6 +73,8 @@ export interface ExtractionRequest {
   trustedContext?: Record<string, unknown>;
   correlationId: string;
   hard?: boolean; // route to the stronger model
+  sourceEventId?: string | null; // §WP5.3 — tie the run to its originating event
+  companyId?: string | null;
 }
 
 export type ExtractionResult =
@@ -101,12 +107,17 @@ export class AiGateway {
       output_tokens: 0,
       cost_usd: "0",
       correlation_id: req.correlationId,
+      source_event_id: req.sourceEventId ?? null,
+      company_id: req.companyId ?? null,
+      latency_ms: 0,
     };
 
+    const startedAt = Date.now();
     let resp: CompletionResponse;
     try {
       resp = await this.transport.complete({ model, system: EXTRACTION_SYSTEM_PROMPT, user, maxTokens });
     } catch (e) {
+      baseRun.latency_ms = Date.now() - startedAt;
       const run: AiRunRecord = { ...baseRun, validation_ok: false, confidence_overall: null };
       await this.ledger.record(run);
       return { ok: false, reason: "transport_error", run, issues: [String((e as Error).message)] };
@@ -117,6 +128,7 @@ export class AiGateway {
       input_tokens: resp.usage.input_tokens,
       output_tokens: resp.usage.output_tokens,
       cost_usd: resp.cost_usd,
+      latency_ms: Date.now() - startedAt,
     };
 
     const parsed = parseAiExtraction(safeJsonParse(resp.text));

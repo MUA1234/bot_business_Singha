@@ -124,3 +124,25 @@ export function sumMoney(values: Money[]): Money {
   if (values.length === 0) throw new Error("sumMoney requires at least one value");
   return values.reduce((acc, v) => acc.plus(v));
 }
+
+/**
+ * Parse a user/form money input into Money WITHOUT going through a JS float.
+ * Accepts a canonical decimal string (or a value that stringifies to one); returns
+ * null for empty/malformed input so callers can reject or treat as absent. Never use
+ * `Number(...)` on money — this is the safe entry point (Constitution invariant #11).
+ */
+export function parseMoneyInput(raw: unknown, currency: string): Money | null {
+  const s = String(raw ?? "").trim();
+  if (s === "" || !/^-?\d+(\.\d+)?$/.test(s)) return null;
+  try {
+    return Money.of(s, currency);
+  } catch {
+    return null;
+  }
+}
+
+/** Canonical line total = unit price × integer quantity, rounded to the currency. */
+export function lineTotal(unitPrice: Money, quantity: number): Money {
+  const q = Math.max(0, Math.trunc(quantity));
+  return unitPrice.times(q).round();
+}

@@ -7,6 +7,10 @@ import { writeAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notify";
 import { billPostingLines } from "@/accounting/posting-templates";
 import { checkDraftJournal } from "@/accounting/manual-entry";
+import { parseMoneyInput } from "@/lib/money";
+import { isSelfAction } from "@/modules/finance/expense-guards";
+import { resolveIdempotencyKey } from "@/lib/idempotency";
+import { claimIdempotencyKey } from "@/lib/idempotency-store";
 
 async function requireFinance() {
   const p = await requireProfile();
@@ -26,9 +30,10 @@ async function ensureEmployee(profileId: string, companyId: string, name: string
 /** Any employee submits an expense claim for themselves. */
 export async function submitExpense(formData: FormData): Promise<void> {
   const p = await requireProfile();
-  const amount = Math.max(0, Number(formData.get("amount") ?? 0) || 0);
+  const amountMoney = parseMoneyInput(formData.get("amount"), "LKR");
   const purpose = String(formData.get("purpose") ?? "").trim();
-  if (!(amount > 0) || !purpose) return;
+  if (!amountMoney || !amountMoney.isPositive() || !purpose) return;
+  const amount = amountMoney.toString(); // decimal string, never a JS float
 
   const employeeId = await ensureEmployee(p.userId, p.companyId, p.fullName ?? p.username);
   if (!employeeId) return;
@@ -38,10 +43,16 @@ export async function submitExpense(formData: FormData): Promise<void> {
   revalidatePath("/app/finance/expenses");
 }
 
+/** The profile (user) behind an employees row, if any. */
+async function claimantUserId(companyId: string, employeeId: string): Promise<string | null> {
+  const { data: emp } = await supabaseAdmin().from("employees").select("user_id").eq("id", employeeId).eq("company_id", companyId).maybeSingle();
+  return emp?.user_id ?? null;
+}
+
 /** Notify the profile behind an employees row, if any. */
 async function notifyEmployee(companyId: string, employeeId: string, title: string) {
-  const { data: emp } = await supabaseAdmin().from("employees").select("user_id").eq("id", employeeId).eq("company_id", companyId).maybeSingle();
-  if (emp?.user_id) await createNotification({ companyId, recipientId: emp.user_id, type: "expense_decided", title, link: "/app/me" });
+  const uid = await claimantUserId(companyId, employeeId);
+  if (uid) await createNotification({ companyId, recipientId: uid, type: "expense_decided", title, link: "/app/me" });
 }
 
 export async function decideExpense(formData: FormData): Promise<void> {
@@ -51,6 +62,8 @@ export async function decideExpense(formData: FormData): Promise<void> {
   if (!id || (decision !== "approved" && decision !== "rejected")) return;
   const { data: claim } = await supabaseAdmin().from("expense_claims").select("id, employee_id, status").eq("id", id).eq("company_id", p.companyId).maybeSingle();
   if (!claim || claim.status !== "submitted") return;
+  // §WP2.5 separation of duties — a user may not approve/reject their own claim.
+  if (isSelfAction(await claimantUserId(p.companyId, claim.employee_id), p.userId)) return;
   await supabaseAdmin().from("expense_claims").update({ status: decision }).eq("id", id).eq("company_id", p.companyId);
   await writeAudit({ companyId: p.companyId, actorId: p.userId, action: `expense_claim.${decision}`, entityType: "expense_claim", entityId: id });
   await notifyEmployee(p.companyId, claim.employee_id, `Your expense claim was ${decision}`);
@@ -69,6 +82,13 @@ export async function reimburseExpense(formData: FormData): Promise<void> {
 
   const { data: claim } = await db.from("expense_claims").select("id, employee_id, currency, amount, status").eq("id", id).eq("company_id", p.companyId).maybeSingle();
   if (!claim || claim.status !== "approved") return;
+  // §WP2.5 — do not reimburse your own claim.
+  if (isSelfAction(await claimantUserId(p.companyId, claim.employee_id), p.userId)) return;
+  // Prevent a duplicate reimbursement (already-recorded, or a retry of this action).
+  const { data: existing } = await db.from("reimbursements").select("id").eq("company_id", p.companyId).eq("expense_claim_id", id).maybeSingle();
+  if (existing) return;
+  const idemKey = resolveIdempotencyKey(String(formData.get("idem_token") ?? ""), ["reimburse_expense", id]);
+  if ((await claimIdempotencyKey(p.companyId, "reimburse_expense", idemKey, p.userId)) === "duplicate") return;
 
   const lines = billPostingLines(expenseCode, cashCode, String(claim.amount ?? 0), "Expense reimbursement");
   if (!checkDraftJournal(lines, claim.currency).ready) return;

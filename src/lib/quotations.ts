@@ -166,7 +166,8 @@ export async function priceQuotation(
           status: "priced",
           catalog_id: match.id,
         })
-        .eq("id", it.id);
+        .eq("id", it.id)
+        .eq("company_id", companyId);
     } else {
       // Ensure a single open confirmation for this item.
       const { data: existing } = await db
@@ -199,7 +200,8 @@ export async function refreshQuotationStatus(companyId: string, quotationId: str
   const { data: items } = await db
     .from("quotation_items")
     .select("unit_price, line_total, status")
-    .eq("quotation_id", quotationId);
+    .eq("quotation_id", quotationId)
+    .eq("company_id", companyId);
 
   const awaiting = (items ?? []).some((i: any) => i.status !== "priced" || i.unit_price == null);
   let subtotal = new Decimal(0);
@@ -212,7 +214,8 @@ export async function refreshQuotationStatus(companyId: string, quotationId: str
       total: subtotal.toFixed(2),
       status: awaiting ? "awaiting_price" : "ready",
     })
-    .eq("id", quotationId);
+    .eq("id", quotationId)
+    .eq("company_id", companyId);
 
   return awaiting;
 }
@@ -233,6 +236,7 @@ export async function tryFinalizeAndSend(
     .from("quotations")
     .select("id, quote_number, currency, total, status, public_token, order_id, company_id")
     .eq("id", quotationId)
+    .eq("company_id", companyId)
     .single();
   if (!quote) return { sent: false, reason: "not_found" };
   if (quote.status === "sent" || quote.status === "accepted") return { sent: false, reason: "already_sent" };
@@ -241,6 +245,7 @@ export async function tryFinalizeAndSend(
     .from("orders")
     .select("customer_phone, customer_name, conversation_id")
     .eq("id", quote.order_id)
+    .eq("company_id", companyId)
     .maybeSingle();
 
   const to = order?.customer_phone?.replace(/^\+/, "");
@@ -267,10 +272,10 @@ export async function tryFinalizeAndSend(
     }
   }
 
-  await db.from("quotations").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", quotationId);
-  await db.from("orders").update({ status: "quoted" }).eq("id", quote.order_id);
+  await db.from("quotations").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", quotationId).eq("company_id", companyId);
+  await db.from("orders").update({ status: "quoted" }).eq("id", quote.order_id).eq("company_id", companyId);
   if (order?.conversation_id)
-    await db.from("wa_conversations").update({ status: "quoted" }).eq("id", order.conversation_id);
+    await db.from("wa_conversations").update({ status: "quoted" }).eq("id", order.conversation_id).eq("company_id", companyId);
 
   return { sent: true };
 }
@@ -295,13 +300,15 @@ export async function resolvePriceConfirmation(input: {
     .from("quotation_items")
     .select("id, quantity, currency")
     .eq("id", conf.quotation_item_id)
+    .eq("company_id", input.companyId)
     .single();
 
   const line = new Decimal(input.resolvedPrice).times(item?.quantity || 1).toFixed(2);
   await db
     .from("quotation_items")
     .update({ unit_price: input.resolvedPrice, line_total: line, status: "priced" })
-    .eq("id", conf.quotation_item_id);
+    .eq("id", conf.quotation_item_id)
+    .eq("company_id", input.companyId);
 
   await db
     .from("price_confirmations")
@@ -311,7 +318,8 @@ export async function resolvePriceConfirmation(input: {
       resolved_by: input.userId,
       resolved_at: new Date().toISOString(),
     })
-    .eq("id", conf.id);
+    .eq("id", conf.id)
+    .eq("company_id", input.companyId);
 
   const result = await tryFinalizeAndSend(input.companyId, conf.quotation_id);
   return { finalized: result.sent };

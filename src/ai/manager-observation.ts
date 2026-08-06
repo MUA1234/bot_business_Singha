@@ -8,9 +8,12 @@
  * The model NEVER executes actions — it only observes and proposes. sourceEventId and
  * company scope are injected from trusted input, never taken from the model.
  */
-import { MODEL_ROUTES, type CompletionTransport } from "./gateway";
+import { randomUUID } from "node:crypto";
+import { MODEL_ROUTES, type CompletionTransport, type CostLedger, type AiRunRecord } from "./gateway";
 import { wrapUntrusted } from "./prompts";
 import { ManagementObservation } from "@/schemas/management";
+
+export const MANAGEMENT_PROMPT_VERSION = "mgmt-1.0" as const;
 
 const SYSTEM_PROMPT = `You are Singha's Senior AI Manager. You OBSERVE business updates and produce a single structured JSON ManagementObservation. You never execute actions, move money, or make commitments — you only analyse and propose.
 
@@ -36,29 +39,63 @@ export interface ManagerObservationInput {
   update: string; // untrusted business update text
   companyId: string; // trusted
   sourceEventId?: string; // trusted; defaults to "manual"
+  correlationId?: string; // trusted; ties this run across the pipeline
 }
 
 export type ManagerObservationResult =
-  | { ok: true; observation: import("@/schemas/management").ManagementObservation }
-  | { ok: false; reason: string };
+  | { ok: true; observation: import("@/schemas/management").ManagementObservation; run: AiRunRecord }
+  | { ok: false; reason: string; run: AiRunRecord };
 
+/**
+ * Run a manager observation THROUGH the cost ledger (§WP5.2): every call — including
+ * manual manager analysis — records model, prompt version, tokens, cost, latency,
+ * validation result, confidence, correlation id, source-event id and company id. The
+ * ledger is optional so existing callers keep working; pass one to persist the run.
+ */
 export async function runManagerObservation(
   transport: CompletionTransport,
   input: ManagerObservationInput,
+  ledger?: CostLedger,
 ): Promise<ManagerObservationResult> {
   const { model, maxTokens } = MODEL_ROUTES.management;
   const user = `Analyse this business update and return a ManagementObservation JSON only.\n\n${wrapUntrusted(input.update, "upd")}`;
 
+  const base: Omit<AiRunRecord, "validation_ok" | "confidence_overall"> = {
+    ai_run_id: `ai_${randomUUID()}`,
+    route: "management",
+    model,
+    prompt_version: MANAGEMENT_PROMPT_VERSION,
+    input_tokens: 0,
+    output_tokens: 0,
+    cost_usd: "0",
+    correlation_id: input.correlationId ?? `cor_${randomUUID().slice(0, 8)}`,
+    source_event_id: input.sourceEventId ?? "manual",
+    company_id: input.companyId,
+    latency_ms: 0,
+  };
+
+  const startedAt = Date.now();
   let text: string;
   try {
     const resp = await transport.complete({ model, system: SYSTEM_PROMPT, user, maxTokens });
     text = resp.text;
+    base.input_tokens = resp.usage.input_tokens;
+    base.output_tokens = resp.usage.output_tokens;
+    base.cost_usd = resp.cost_usd;
   } catch (e) {
-    return { ok: false, reason: `transport_error: ${(e as Error).message}` };
+    base.latency_ms = Date.now() - startedAt;
+    const run: AiRunRecord = { ...base, validation_ok: false, confidence_overall: null };
+    await ledger?.record(run);
+    return { ok: false, reason: `transport_error: ${(e as Error).message}`, run };
   }
+  base.latency_ms = Date.now() - startedAt;
 
   const raw = safeJson(text);
-  if (raw === null || typeof raw !== "object") return { ok: false, reason: "model did not return JSON" };
+  if (raw === null || typeof raw !== "object") {
+    const run: AiRunRecord = { ...base, validation_ok: false, confidence_overall: null };
+    await ledger?.record(run);
+    return { ok: false, reason: "model did not return JSON", run };
+  }
 
   // Inject trusted identity — never trust the model for scope.
   const merged = {
@@ -68,8 +105,15 @@ export async function runManagerObservation(
   };
 
   const parsed = ManagementObservation.safeParse(merged);
-  if (!parsed.success) return { ok: false, reason: `validation_failed: ${parsed.error.issues[0]?.message ?? "invalid"}` };
-  return { ok: true, observation: parsed.data };
+  if (!parsed.success) {
+    const run: AiRunRecord = { ...base, validation_ok: false, confidence_overall: null, validation_issues: [parsed.error.issues[0]?.message ?? "invalid"] };
+    await ledger?.record(run);
+    return { ok: false, reason: `validation_failed: ${parsed.error.issues[0]?.message ?? "invalid"}`, run };
+  }
+
+  const run: AiRunRecord = { ...base, validation_ok: true, confidence_overall: parsed.data.confidence };
+  await ledger?.record(run);
+  return { ok: true, observation: parsed.data, run };
 }
 
 function safeJson(text: string): unknown {

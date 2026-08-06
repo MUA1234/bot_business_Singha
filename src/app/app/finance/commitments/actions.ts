@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { writeAudit } from "@/lib/audit";
+import { parseMoneyInput } from "@/lib/money";
 
 async function requireFinance() {
   const p = await requireProfile();
@@ -15,7 +16,9 @@ export async function createCommitment(formData: FormData): Promise<void> {
   const p = await requireFinance();
   const description = String(formData.get("description") ?? "").trim();
   if (!description) return;
-  const amount = Math.max(0, Number(formData.get("amount") ?? 0) || 0);
+  const amountMoney = parseMoneyInput(formData.get("amount"), "LKR");
+  if (!amountMoney || amountMoney.isNegative()) return;
+  const amount = amountMoney.toString(); // decimal string, never a JS float
   const expected_settlement_date = String(formData.get("expected_settlement_date") ?? "").trim() || null;
   const counterparty = String(formData.get("counterparty") ?? "").trim() || null;
   const { error } = await supabaseAdmin().from("commitments").insert({ company_id: p.companyId, description, counterparty, currency: "LKR", amount, expected_settlement_date, status: "open" });
@@ -39,7 +42,9 @@ export async function createRecurring(formData: FormData): Promise<void> {
   const description = String(formData.get("description") ?? "").trim();
   const cadence = String(formData.get("cadence") ?? "monthly");
   if (!description || !["weekly", "monthly", "quarterly", "annual"].includes(cadence)) return;
-  const amount = Math.max(0, Number(formData.get("amount") ?? 0) || 0);
+  const amountMoney = parseMoneyInput(formData.get("amount"), "LKR");
+  if (!amountMoney || amountMoney.isNegative()) return;
+  const amount = amountMoney.toString(); // decimal string, never a JS float
   const next_due = String(formData.get("next_due") ?? "").trim() || null;
   const { error } = await supabaseAdmin().from("recurring_obligations").insert({ company_id: p.companyId, description, currency: "LKR", amount, cadence, next_due });
   if (error) return;

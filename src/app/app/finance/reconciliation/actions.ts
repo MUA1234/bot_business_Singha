@@ -6,6 +6,8 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { writeAudit } from "@/lib/audit";
 import { parseBankLines } from "@/modules/finance/bank-import";
 import { sha256 } from "@/lib/ids";
+import { parseMoneyInput } from "@/lib/money";
+import { validateReconciliation, type ReconTargetType } from "@/modules/finance/reconcile-validate";
 
 async function requireFinance() {
   const p = await requireProfile();
@@ -52,12 +54,39 @@ export async function confirmMatch(formData: FormData): Promise<void> {
   const bankTxnId = String(formData.get("bank_txn_id") ?? "");
   const targetType = String(formData.get("target_type") ?? "");
   const targetId = String(formData.get("target_id") ?? "");
-  const amount = Number(formData.get("amount") ?? 0);
-  if (!bankTxnId || !["payment", "receipt", "journal_line"].includes(targetType) || !targetId || !(amount > 0)) return;
+  const amountMoney = parseMoneyInput(formData.get("amount"), "LKR");
+  if (!bankTxnId || !["payment", "receipt", "journal_line"].includes(targetType) || !targetId || !amountMoney || !amountMoney.isPositive()) return;
+  const amount = amountMoney.toString(); // decimal string, never a JS float
 
   // Bank transaction must belong to the company and not already be matched.
-  const { data: txn } = await db.from("bank_transactions").select("id, status").eq("id", bankTxnId).eq("company_id", p.companyId).maybeSingle();
+  const { data: txn } = await db.from("bank_transactions").select("id, status, amount, currency, company_id").eq("id", bankTxnId).eq("company_id", p.companyId).maybeSingle();
   if (!txn || txn.status === "matched") return;
+
+  // §WP2.7 — validate the TARGET server-side; never trust the submitted id/amount.
+  const table = targetType === "payment" ? "payments" : targetType === "receipt" ? "receipts" : "journal_lines";
+  const { data: exists } = await db.from(table).select("id, company_id").eq("id", targetId).eq("company_id", p.companyId).maybeSingle();
+  if (!exists) return; // target missing or in another company → reject
+
+  // Best-effort richer target fields (currency/amount) for a fuller check.
+  let tCurrency: string | undefined, tAmount: string | undefined;
+  if (targetType !== "journal_line") {
+    const { data: rich } = await db.from(table).select("amount, currency").eq("id", targetId).eq("company_id", p.companyId).maybeSingle();
+    if (rich) {
+      tCurrency = (rich as any).currency ?? undefined;
+      tAmount = (rich as any).amount != null ? String((rich as any).amount) : undefined;
+    }
+  }
+
+  const check = validateReconciliation(
+    {
+      callerCompanyId: p.companyId,
+      bankTxn: { companyId: (txn as any).company_id, currency: (txn as any).currency, amount: String((txn as any).amount ?? "0") },
+      target: { type: targetType as ReconTargetType, companyId: (exists as any).company_id, currency: tCurrency, amount: tAmount },
+      matchAmount: amount,
+    },
+    { checkDirection: false }, // bank sign convention not yet trusted here
+  );
+  if (!check.ok) return; // invalid match → reject
 
   const { error } = await db.from("reconciliation_matches").insert({
     company_id: p.companyId, bank_transaction_id: bankTxnId, target_type: targetType, target_id: targetId,

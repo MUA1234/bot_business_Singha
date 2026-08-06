@@ -58,6 +58,10 @@ export default async function AdminHome() {
           <div className="card-title row gap-1"><Icon name="tag" size={17} /> Products &amp; Prices</div>
           <p className="card-sub">The prices the AI quoting engine uses.</p>
         </Link>
+        <Link href="/app/admin/outbox" className="card">
+          <div className="card-title row gap-1"><Icon name="send" size={17} /> Outbox &amp; dead letters</div>
+          <p className="card-sub">Outbound message delivery status; replay failures.</p>
+        </Link>
       </div>
     </div>
   );

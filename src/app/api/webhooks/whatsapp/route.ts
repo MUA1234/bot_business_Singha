@@ -18,6 +18,11 @@ import {
   verifyWhatsappSignature,
 } from "@/lib/whatsapp-signature";
 import { handleCustomerMessage } from "@/lib/order-intake";
+import { supabaseAdmin } from "@/lib/supabase/server";
+import { makeSupabaseSourceEventStore } from "@/db/source-event-store";
+import { inboundEventKey } from "@/events/outbox";
+import { sha256 } from "@/lib/ids";
+import { newCorrelationId, log } from "@/lib/log";
 
 export const runtime = "nodejs"; // needs node:crypto for signature verification
 export const maxDuration = 60; // allow time for the AI turn + reply
@@ -48,11 +53,29 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const results: string[] = [];
+  const store = makeSupabaseSourceEventStore(supabaseAdmin());
 
   // Handle each inbound customer text message inline (collect → quote/route → reply).
   // Per-message try/catch so one failure never fails the whole batch; dedup on the
   // provider message id makes any Meta redelivery a no-op.
   for (const msg of extractTextMessages(payload)) {
+    // §WP4.1 PERSIST-FIRST — store the raw event before processing so a downstream
+    // failure never loses it (Constitution: a failed process must not lose the event).
+    // Best-effort: a persistence hiccup must not break the live customer reply.
+    try {
+      await store.upsert({
+        source: "whatsapp",
+        provider_message_id: msg.id,
+        company_id: null,
+        raw_payload: msg as unknown as Record<string, unknown>,
+        content_hash: sha256(msg.text),
+        idempotency_key: inboundEventKey("whatsapp", msg.id),
+        correlation_id: newCorrelationId(),
+      });
+    } catch (e) {
+      log("error", "whatsapp source event persist failed", { event: "wa.persist_failed", error: (e as Error).message });
+    }
+
     try {
       const res = await handleCustomerMessage({
         from: msg.from,
@@ -61,7 +84,7 @@ export async function POST(req: Request): Promise<Response> {
       });
       results.push(res.status);
     } catch (e) {
-      console.error("[whatsapp] handleCustomerMessage failed:", (e as Error).message);
+      log("error", "handleCustomerMessage failed", { event: "wa.handle_failed", error: (e as Error).message });
       results.push("error");
     }
   }

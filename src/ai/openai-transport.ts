@@ -18,18 +18,7 @@
  */
 import { env } from "@/config/env";
 import type { CompletionRequest, CompletionResponse, CompletionTransport } from "./gateway";
-
-/**
- * USD price per 1M tokens, per model. Update alongside OpenAI's pricing page. Keeping
- * this here (not in the gateway) means the gateway stays provider-agnostic. If a model
- * id is unknown we record cost "0" rather than guessing — an explicit, auditable zero.
- * TODO(pricing): fill in gpt-5.6-sol input/output rates once confirmed on the pricing
- * page; until then the cost ledger records 0 for it (tokens are still recorded).
- */
-const PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
-  "gpt-4o-mini": { input: 0.15, output: 0.6 },
-  "gpt-4o": { input: 2.5, output: 10 },
-};
+import { computeCostUsd } from "./pricing";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 
@@ -40,14 +29,6 @@ export interface OpenAiTransportOptions {
   /** Abort the request after this many ms (default 30s). */
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
-}
-
-/** Compute cost as a fixed-precision decimal string (never a float in the ledger). */
-export function computeCostUsd(model: string, inputTokens: number, outputTokens: number): string {
-  const price = PRICE_PER_MTOK[model];
-  if (!price) return "0";
-  const cost = (inputTokens * price.input + outputTokens * price.output) / 1_000_000;
-  return cost.toFixed(6);
 }
 
 /**

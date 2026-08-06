@@ -82,7 +82,8 @@ export async function handleCustomerMessage(input: {
   await db
     .from("wa_conversations")
     .update({ last_inbound_at: new Date().toISOString() })
-    .eq("id", conversationId);
+    .eq("id", conversationId)
+    .eq("company_id", companyId);
 
   // Catalog names help the model name items consistently (never prices).
   const { data: catalog } = await db
@@ -161,7 +162,8 @@ export async function handleCustomerMessage(input: {
   await db
     .from("wa_conversations")
     .update({ state, status, customer_name: state.name ?? convo?.customer_name ?? null, updated_at: new Date().toISOString() })
-    .eq("id", conversationId);
+    .eq("id", conversationId)
+    .eq("company_id", companyId);
 
   // Send + log the reply.
   const sent = await sendWhatsAppText(from, reply);
