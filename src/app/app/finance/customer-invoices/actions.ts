@@ -4,8 +4,6 @@ import { revalidatePath } from "next/cache";
 import { requireFinanceAccess } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
-import { invoicePostingLines } from "@/accounting/posting-templates";
-import { checkDraftJournal } from "@/accounting/manual-entry";
 import { parseMoneyInput, lineTotal } from "@/lib/money";
 import { resolveIdempotencyKey } from "@/lib/idempotency";
 
@@ -65,26 +63,15 @@ export async function postInvoice(formData: FormData): Promise<void> {
   const incomeCode = String(formData.get("income_code") ?? "").trim();
   if (!id || !receivableCode || !incomeCode) return;
 
-  const { data: inv } = await db.from("customer_invoices")
-    .select("id, invoice_number, currency, total_amount, status, journal_id")
-    .eq("id", id).eq("company_id", p.companyId).maybeSingle();
-  if (!inv || inv.journal_id) return; // missing or already posted
-
-  const lines = invoicePostingLines(receivableCode, incomeCode, String(inv.total_amount ?? 0), `Invoice ${inv.invoice_number}`);
-  const check = checkDraftJournal(lines, inv.currency);
-  if (!check.ready) return;
-
-  const { data: journalId, error } = await db.rpc("post_manual_journal", {
-    p_company: p.companyId, p_date: new Date().toISOString().slice(0, 10),
-    p_currency: inv.currency, p_memo: `Customer invoice ${inv.invoice_number}`,
-    p_posted_by: p.userId,
-    p_lines: lines.map((l) => ({ account_code: l.account_code, debit: String(l.debit || "0"), credit: String(l.credit || "0"), description: l.description })),
-    p_idempotency_key: `invoice_post:${id}`, // §WP2 — a retry re-uses the same journal
+  // §WP-B: journal + invoice status + audit are ONE transaction inside the RPC (no
+  // post-then-separately-update). Idempotent + capability-enforced; audit is in-RPC.
+  const { error } = await db.rpc("post_customer_invoice", {
+    p_company: p.companyId, p_invoice: id,
+    p_receivable_code: receivableCode, p_income_code: incomeCode,
+    p_by: p.userId, p_date: new Date().toISOString().slice(0, 10),
+    p_idempotency_key: `invoice_post:${id}`,
   });
   if (error) return;
-
-  await db.from("customer_invoices").update({ journal_id: journalId, status: "issued" }).eq("id", id).eq("company_id", p.companyId);
-  await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "customer_invoice.posted", entityType: "customer_invoice", entityId: id, payload: { journalId } });
   revalidatePath(`/app/finance/customer-invoices/${id}`);
   revalidatePath("/app/finance/customer-invoices");
 }

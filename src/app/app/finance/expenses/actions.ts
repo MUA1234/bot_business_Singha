@@ -5,8 +5,6 @@ import { requireProfile, requireFinanceAccess } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notify";
-import { billPostingLines } from "@/accounting/posting-templates";
-import { checkDraftJournal } from "@/accounting/manual-entry";
 import { parseMoneyInput } from "@/lib/money";
 import { isSelfAction } from "@/modules/finance/expense-guards";
 
@@ -75,30 +73,17 @@ export async function reimburseExpense(formData: FormData): Promise<void> {
   const cashCode = String(formData.get("cash_code") ?? "").trim();
   if (!id || !expenseCode || !cashCode) return;
 
-  const { data: claim } = await db.from("expense_claims").select("id, employee_id, currency, amount, status").eq("id", id).eq("company_id", p.companyId).maybeSingle();
-  if (!claim || claim.status !== "approved") return;
-  // §WP2.5 — do not reimburse your own claim.
-  if (isSelfAction(await claimantUserId(p.companyId, claim.employee_id), p.userId)) return;
-  // Prevent a duplicate reimbursement (already-recorded, or a retry of this action).
-  // Idempotency is transactional: the journal carries a deterministic key (below), the
-  // reimbursements row has a unique paid-per-claim index, and the status guard above
-  // blocks a second reimburse — so no fragile pre-claim is needed.
-  const { data: existing } = await db.from("reimbursements").select("id").eq("company_id", p.companyId).eq("expense_claim_id", id).maybeSingle();
-  if (existing) return;
-
-  const lines = billPostingLines(expenseCode, cashCode, String(claim.amount ?? 0), "Expense reimbursement");
-  if (!checkDraftJournal(lines, claim.currency).ready) return;
-  const { data: journalId, error } = await db.rpc("post_manual_journal", {
-    p_company: p.companyId, p_date: new Date().toISOString().slice(0, 10), p_currency: claim.currency,
-    p_memo: "Expense reimbursement", p_posted_by: p.userId,
-    p_lines: lines.map((l) => ({ account_code: l.account_code, debit: String(l.debit || "0"), credit: String(l.credit || "0"), description: l.description })),
-    p_idempotency_key: `reimburse_post:${id}`, // §WP2 — a retry re-uses the same journal
+  // §WP-B: the whole reimbursement is ONE transaction inside the RPC — capability check,
+  // approved-status lifecycle, separation-of-duties (can't reimburse your own claim),
+  // journal + payment + reimbursement row + claim status + audit, all atomic and idempotent.
+  const { data: claim } = await db.from("expense_claims").select("employee_id").eq("id", id).eq("company_id", p.companyId).maybeSingle();
+  const { error } = await db.rpc("reimburse_expense_claim", {
+    p_company: p.companyId, p_claim: id,
+    p_expense_code: expenseCode, p_cash_code: cashCode,
+    p_by: p.userId, p_date: new Date().toISOString().slice(0, 10),
+    p_idempotency_key: `reimburse:${id}`,
   });
   if (error) return;
-
-  await db.from("reimbursements").insert({ company_id: p.companyId, expense_claim_id: id, employee_id: claim.employee_id, currency: claim.currency, amount: claim.amount, status: "paid" });
-  await db.from("expense_claims").update({ status: "reimbursed" }).eq("id", id).eq("company_id", p.companyId);
-  await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "expense_claim.reimbursed", entityType: "expense_claim", entityId: id, payload: { journalId } });
-  await notifyEmployee(p.companyId, claim.employee_id, "Your expense was reimbursed");
+  if (claim?.employee_id) await notifyEmployee(p.companyId, claim.employee_id, "Your expense was reimbursed");
   revalidatePath("/app/finance/expenses");
 }

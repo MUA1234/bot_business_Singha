@@ -131,7 +131,8 @@ describe.skipIf(!enabled)("WP A authority — adversarial, live, zero-persistenc
     // Fixtures for legitimate-action + FK-valid inserts.
     supplierA = (await client.query(`insert into suppliers (company_id, name, status) values ($1,'SupA','active') returning id`, [coA])).rows[0].id;
     customerA = (await client.query(`insert into customers (company_id, name, status) values ($1,'CusA','active') returning id`, [coA])).rows[0].id;
-    employeeA = (await client.query(`insert into employees (company_id, name, status) values ($1,'EmpA','active') returning id`, [coA])).rows[0].id;
+    // EmpA is uStaff's own employee record (0042 ties an expense claim to the authenticated employee).
+    employeeA = (await client.query(`insert into employees (company_id, user_id, name, status) values ($1,$2,'EmpA','active') returning id`, [coA, uStaff])).rows[0].id;
     // An approval request submitted BY the finance reviewer (for the SoD test).
     arSelf = (await client.query(`insert into approval_requests (company_id, status, approvals_required, submitted_by) values ($1,'pending',1,$2) returning id`, [coA, uReviewer])).rows[0].id;
   });

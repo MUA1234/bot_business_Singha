@@ -77,6 +77,8 @@ _Last reviewed: 2026-08-07 (Production Security & Reliability Gate)._
 | 0039 | accounting_rpc_hardening (WP B: reject anon, actor from auth.uid(), per-op capability, transactional idempotency + conflict-on-key-reuse, narrowed unique_violation, in-RPC audit) | ✅ applied to DB `gazjughejdzebathpscb` (owner-confirmed 2026-08-07) |
 | 0040 | durable_messaging (WP C: outbox lease + claim_outbox_batch FOR UPDATE SKIP LOCKED + lease recovery + dead-letter; wa_messages handled_at resume-safety) | ✅ applied to DB `gazjughejdzebathpscb` (owner-confirmed 2026-08-07) |
 | 0041 | ledger_integrity_report (WP E: read-only integrity probe for the health surface) | ✅ applied to DB `gazjughejdzebathpscb` (owner-confirmed 2026-08-07) |
+| 0042 | authority_tightening (review follow-up: self-service claims tied to the authenticated employee; capability-gate remaining financial subledger tables; payment_allocations service-only) | ❌ **not applied to any environment** (added 2026-08-07; verified on disposable Postgres) |
+| 0043 | transactional_finance (review follow-up: full-payload idempotency; transactional post_customer_invoice / post_supplier_bill / reimburse_expense_claim RPCs) | ❌ **not applied to any environment** (added 2026-08-07; verified on disposable Postgres) |
 
 ### Production Security & Reliability Gate migrations (0038–0041) — applied state
 

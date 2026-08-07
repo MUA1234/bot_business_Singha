@@ -31,5 +31,6 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   const result = await drainOutbox(supabaseAdmin());
-  return NextResponse.json(result, { status: result.ok ? 200 : 200 });
+  // Fail loud: a drain error returns 5xx so the scheduler/monitor sees it (not a false 200).
+  return NextResponse.json(result, { status: result.ok ? 200 : 500 });
 }

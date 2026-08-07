@@ -55,9 +55,11 @@ export async function drainOutbox(db: SupabaseClient, opts?: { batch?: number; l
     dead = 0;
 
   for (const row of claimed) {
-    // Only WhatsApp is wired; release any other channel back to the queue (don't hold the lease).
+    // Only WhatsApp is wired; release any other channel back to the queue (don't hold the
+    // lease). Fenced by lock_owner so we never touch a row another worker has reclaimed.
     if (row.channel !== "whatsapp") {
-      await db.from("message_outbox").update({ status: "pending", locked_at: null, lock_owner: null, lease_expires_at: null }).eq("id", row.id);
+      const { error: relErr } = await db.from("message_outbox").update({ status: "pending", locked_at: null, lock_owner: null, lease_expires_at: null }).eq("id", row.id).eq("lock_owner", owner);
+      if (relErr) log("error", "outbox release failed", { event: "outbox.release_failed", error: relErr.message });
       continue;
     }
 
@@ -86,7 +88,10 @@ export async function drainOutbox(db: SupabaseClient, opts?: { batch?: number; l
     } else {
       failed++;
     }
-    await db.from("message_outbox").update(update).eq("id", row.id);
+    // Fence the completion by lease owner: if another worker reclaimed an expired lease,
+    // this matches 0 rows and we never clobber its state. Surface DB errors (don't ignore).
+    const { error: upErr } = await db.from("message_outbox").update(update).eq("id", row.id).eq("lock_owner", owner);
+    if (upErr) log("error", "outbox completion update failed", { event: "outbox.complete_failed", id: row.id, error: upErr.message });
   }
 
   return { ok: true, considered: claimed.length, sent, failed, dead };

@@ -4,8 +4,6 @@ import { revalidatePath } from "next/cache";
 import { requireFinanceAccess } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
-import { billPostingLines } from "@/accounting/posting-templates";
-import { checkDraftJournal } from "@/accounting/manual-entry";
 import { parseMoneyInput, lineTotal } from "@/lib/money";
 import { resolveIdempotencyKey } from "@/lib/idempotency";
 
@@ -61,24 +59,14 @@ export async function postBill(formData: FormData): Promise<void> {
   const payableCode = String(formData.get("payable_code") ?? "").trim();
   if (!id || !expenseCode || !payableCode) return;
 
-  const { data: bill } = await db.from("supplier_bills")
-    .select("id, bill_number, currency, total_amount, journal_id")
-    .eq("id", id).eq("company_id", p.companyId).maybeSingle();
-  if (!bill || bill.journal_id) return;
-
-  const lines = billPostingLines(expenseCode, payableCode, String(bill.total_amount ?? 0), `Bill ${bill.bill_number}`);
-  if (!checkDraftJournal(lines, bill.currency).ready) return;
-
-  const { data: journalId, error } = await db.rpc("post_manual_journal", {
-    p_company: p.companyId, p_date: new Date().toISOString().slice(0, 10),
-    p_currency: bill.currency, p_memo: `Supplier bill ${bill.bill_number}`, p_posted_by: p.userId,
-    p_lines: lines.map((l) => ({ account_code: l.account_code, debit: String(l.debit || "0"), credit: String(l.credit || "0"), description: l.description })),
-    p_idempotency_key: `bill_post:${id}`, // §WP2 — a retry re-uses the same journal
+  // §WP-B: journal + bill status + audit are ONE transaction inside the RPC.
+  const { error } = await db.rpc("post_supplier_bill", {
+    p_company: p.companyId, p_bill: id,
+    p_expense_code: expenseCode, p_payable_code: payableCode,
+    p_by: p.userId, p_date: new Date().toISOString().slice(0, 10),
+    p_idempotency_key: `bill_post:${id}`,
   });
   if (error) return;
-
-  await db.from("supplier_bills").update({ journal_id: journalId, status: "approved" }).eq("id", id).eq("company_id", p.companyId);
-  await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "supplier_bill.posted", entityType: "supplier_bill", entityId: id, payload: { journalId } });
   revalidatePath(`/app/finance/supplier-bills/${id}`);
   revalidatePath("/app/finance/supplier-bills");
 }
