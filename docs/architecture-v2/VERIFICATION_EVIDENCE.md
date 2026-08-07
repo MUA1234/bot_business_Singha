@@ -1,6 +1,6 @@
 # Verification evidence — Production Security & Reliability Gate
 
-**Date:** 2026-08-07 · **Commit:** `<review-follow-up>` (see `git log` — includes 0042/0043) · **Node:** v24 (CI uses 20)
+**Date:** 2026-08-07 · **Commit:** `0d4a471` (review follow-up: 0042/0043) · **Node:** v24 (CI uses 20)
 **Database:** disposable local **PostgreSQL 16.14 (Homebrew)** — a throwaway cluster, NOT
 production — with the Supabase-compatibility shim (`tests/integration/helpers/supabase-shim.sql`)
 and **all 43 migrations (0001–0043)** applied via `npm run migrate`.
