@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, requireFinanceAccess } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notify";
@@ -9,14 +9,9 @@ import { billPostingLines } from "@/accounting/posting-templates";
 import { checkDraftJournal } from "@/accounting/manual-entry";
 import { parseMoneyInput } from "@/lib/money";
 import { isSelfAction } from "@/modules/finance/expense-guards";
-import { resolveIdempotencyKey } from "@/lib/idempotency";
-import { claimIdempotencyKey } from "@/lib/idempotency-store";
 
-async function requireFinance() {
-  const p = await requireProfile();
-  if (!p.isAdmin && p.department !== "finance") throw new Error("Not allowed");
-  return p;
-}
+// WP D: central capability gate. Deciding/reimbursing an expense is finance-desk authority.
+const requireFinance = () => requireFinanceAccess("finance.payment.record");
 
 /** Find-or-create the legacy employees row for a profile (interim identity bridge). */
 async function ensureEmployee(profileId: string, companyId: string, name: string): Promise<string | null> {
@@ -85,10 +80,11 @@ export async function reimburseExpense(formData: FormData): Promise<void> {
   // §WP2.5 — do not reimburse your own claim.
   if (isSelfAction(await claimantUserId(p.companyId, claim.employee_id), p.userId)) return;
   // Prevent a duplicate reimbursement (already-recorded, or a retry of this action).
+  // Idempotency is transactional: the journal carries a deterministic key (below), the
+  // reimbursements row has a unique paid-per-claim index, and the status guard above
+  // blocks a second reimburse — so no fragile pre-claim is needed.
   const { data: existing } = await db.from("reimbursements").select("id").eq("company_id", p.companyId).eq("expense_claim_id", id).maybeSingle();
   if (existing) return;
-  const idemKey = resolveIdempotencyKey(String(formData.get("idem_token") ?? ""), ["reimburse_expense", id]);
-  if ((await claimIdempotencyKey(p.companyId, "reimburse_expense", idemKey, p.userId)) === "duplicate") return;
 
   const lines = billPostingLines(expenseCode, cashCode, String(claim.amount ?? 0), "Expense reimbursement");
   if (!checkDraftJournal(lines, claim.currency).ready) return;

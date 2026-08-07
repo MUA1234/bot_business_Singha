@@ -62,3 +62,45 @@ export async function requireDepartment(department: string): Promise<SessionProf
   if (!p.isAdmin && p.department !== department) redirect(`/app/${p.department}`);
   return p;
 }
+
+/**
+ * WP D central capability resolution (staged identity cutover). Reads the MEMBERSHIP
+ * model as the source of truth. Returns:
+ *   - "granted"          — an active membership role grants the capability;
+ *   - "denied_suspended" — the user has membership(s) here but none active (suspended);
+ *   - "denied_no_cap"    — active membership, but no role grants the capability;
+ *   - "no_membership"    — no membership rows yet (legacy-only user).
+ * This replaces scattered `department === "finance"` string comparisons with one gate.
+ */
+export type CapabilityResult = "granted" | "denied_suspended" | "denied_no_cap" | "no_membership";
+
+export async function resolveCapability(userId: string, companyId: string, capability: string): Promise<CapabilityResult> {
+  const db = supabaseAdmin();
+  const { data: mems } = await db.from("memberships").select("id, status").eq("user_id", userId).eq("company_id", companyId);
+  if (!mems || mems.length === 0) return "no_membership";
+  const activeIds = mems.filter((m) => m.status === "active").map((m) => m.id);
+  if (activeIds.length === 0) return "denied_suspended";
+  const { data: roles } = await db.from("membership_roles").select("role_key").in("membership_id", activeIds);
+  const roleKeys = [...new Set((roles ?? []).map((r) => r.role_key))];
+  if (roleKeys.length > 0) {
+    const { data: perms } = await db.from("role_permissions").select("permission_key").in("role_key", roleKeys).eq("permission_key", capability).limit(1);
+    if ((perms?.length ?? 0) > 0) return "granted";
+  }
+  return "denied_no_cap";
+}
+
+/**
+ * Finance access gate for server actions (staged cutover). A membership capability GRANTS
+ * access; a suspended member is DENIED; otherwise we fall back to the legacy finance
+ * department / admin check so current users are never locked out during rollout. The DB
+ * RPCs (migration 0039) enforce the operation-specific capability authoritatively once
+ * RLS_WRITES is on — this app-layer gate is defence-in-depth and centralisation.
+ */
+export async function requireFinanceAccess(capability: string): Promise<SessionProfile> {
+  const p = await requireProfile();
+  const r = await resolveCapability(p.userId, p.companyId, capability);
+  if (r === "granted") return p;
+  if (r === "denied_suspended") throw new Error("Access suspended");
+  if (p.isAdmin || p.department === "finance") return p; // legacy compatibility during cutover
+  throw new Error("Not allowed");
+}

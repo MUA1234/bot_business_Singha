@@ -38,14 +38,17 @@ export async function handleCustomerMessage(input: {
   const companyId = input.companyId ?? DEFAULT_COMPANY_ID;
   const from = input.from.replace(/^\+/, "");
 
-  // Idempotency: if we've already logged this provider message, stop.
-  const { data: dup } = await db
+  // Idempotency + resume-safety (§WP-C): treat as a duplicate ONLY if a prior run fully
+  // HANDLED this message (reply sent). If a prior attempt crashed after logging the
+  // inbound row but before replying, handled_at is null → we resume and still reply.
+  const { data: prior } = await db
     .from("wa_messages")
-    .select("id")
+    .select("id, handled_at")
+    .eq("company_id", companyId)
     .eq("wa_message_id", input.waMessageId)
     .eq("direction", "inbound")
     .maybeSingle();
-  if (dup) return { status: "duplicate" };
+  if (prior?.handled_at) return { status: "duplicate" };
 
   // Load or create the conversation.
   const { data: convo } = await db
@@ -71,14 +74,26 @@ export async function handleCustomerMessage(input: {
     conversationId = created.id;
   }
 
-  // Log the inbound message.
-  await db.from("wa_messages").insert({
-    conversation_id: conversationId,
-    company_id: companyId,
-    direction: "inbound",
-    body: input.text,
-    wa_message_id: input.waMessageId,
-  });
+  // Log the inbound message (or reuse the row left by a crashed prior attempt).
+  let inboundId: string;
+  if (prior) {
+    inboundId = prior.id;
+  } else {
+    const { data: ins, error: insErr } = await db
+      .from("wa_messages")
+      .insert({ conversation_id: conversationId, company_id: companyId, direction: "inbound", body: input.text, wa_message_id: input.waMessageId })
+      .select("id")
+      .single();
+    if (insErr || !ins) {
+      // A concurrent delivery won the unique index — re-read; if already handled, stop.
+      const { data: race } = await db.from("wa_messages").select("id, handled_at").eq("company_id", companyId).eq("wa_message_id", input.waMessageId).eq("direction", "inbound").maybeSingle();
+      if (race?.handled_at) return { status: "duplicate" };
+      if (!race?.id) throw new Error(`inbound insert failed: ${insErr?.message}`);
+      inboundId = race.id;
+    } else {
+      inboundId = ins.id;
+    }
+  }
   await db
     .from("wa_conversations")
     .update({ last_inbound_at: new Date().toISOString() })
@@ -165,7 +180,8 @@ export async function handleCustomerMessage(input: {
     .eq("id", conversationId)
     .eq("company_id", companyId);
 
-  // Send + log the reply.
+  // Send + log the reply, THEN mark the inbound message handled. A crash before this point
+  // leaves handled_at null so the next delivery safely resumes — never a dropped reply.
   const sent = await sendWhatsAppText(from, reply);
   await db.from("wa_messages").insert({
     conversation_id: conversationId,
@@ -174,6 +190,7 @@ export async function handleCustomerMessage(input: {
     body: reply,
     wa_message_id: sent.messageId ?? null,
   });
+  await db.from("wa_messages").update({ handled_at: new Date().toISOString() }).eq("id", inboundId);
 
   return { status };
 }

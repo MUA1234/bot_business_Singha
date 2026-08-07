@@ -1,20 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireProfile } from "@/lib/auth";
+import { requireFinanceAccess } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { invoicePostingLines } from "@/accounting/posting-templates";
 import { checkDraftJournal } from "@/accounting/manual-entry";
 import { parseMoneyInput, lineTotal } from "@/lib/money";
 import { resolveIdempotencyKey } from "@/lib/idempotency";
-import { claimIdempotencyKey } from "@/lib/idempotency-store";
 
-async function requireFinance() {
-  const p = await requireProfile();
-  if (!p.isAdmin && p.department !== "finance") throw new Error("Not allowed");
-  return p;
-}
+// WP D: central capability gate (membership capability grants; legacy finance dept still
+// works during rollout; suspended members are denied). The DB enforces the specific
+// finance.* capability authoritatively once RLS_WRITES is on.
+const requireFinance = () => requireFinanceAccess("finance.invoice.create");
 
 function invNumber(): string {
   const d = new Date();
@@ -103,20 +101,20 @@ export async function settleInvoice(formData: FormData): Promise<void> {
   if (!id || !cashCode || !arCode || !amountMoney || !amountMoney.isPositive()) return;
   const amount = Number(amountMoney.toString()); // validated decimal; RPC arg stays numeric
 
-  // §WP2 idempotency: a retried settlement with the same params must not double-post.
+  // §WP-B idempotency is TRANSACTIONAL inside the RPC: the caller key is passed through,
+  // so a retry (or double-submit) returns the same journal and re-applies nothing, and a
+  // failed RPC never consumes the key. No fragile pre-claim. Audit is written in-RPC.
   const idemKey = resolveIdempotencyKey(String(formData.get("idem_token") ?? ""), [
     "settle_customer_invoice", id, amountMoney.toString(), new Date().toISOString().slice(0, 10),
   ]);
-  const claim = await claimIdempotencyKey(p.companyId, "settle_customer_invoice", idemKey, p.userId);
-  if (claim === "duplicate") return; // already recorded — no double receipt
 
   const { error } = await db.rpc("settle_customer_invoice", {
     p_company: p.companyId, p_invoice: id, p_amount: amount,
     p_cash_code: cashCode, p_ar_code: arCode, p_by: p.userId,
     p_date: new Date().toISOString().slice(0, 10),
+    p_idempotency_key: idemKey,
   });
   if (error) return;
-  await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "customer_invoice.receipt_recorded", entityType: "customer_invoice", entityId: id, payload: { amount } });
   revalidatePath(`/app/finance/customer-invoices/${id}`);
   revalidatePath("/app/finance/customer-invoices");
 }

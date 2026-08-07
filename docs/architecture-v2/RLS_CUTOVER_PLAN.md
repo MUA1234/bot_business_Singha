@@ -1,0 +1,66 @@
+# RLS / service-role cutover plan — WP D
+
+> Production Security & Reliability Gate, Work Package D items 6–9. Controlled migration
+> from legacy `profiles.department` / `is_admin` decisions + broad service-role access to
+> memberships, capabilities and authenticated RLS.
+
+## Feature-flag state per environment (WP D item 9)
+
+A code path behind an OFF flag is **not** an active implementation.
+
+| Flag | Local | CI | Staging | Production | Turn-on precondition |
+|---|---|---|---|---|---|
+| `RLS_READS` | off | off | **off** | **off** | Staging read UAT green for every role (matrix below). |
+| `RLS_WRITES` | off | off | **off** | **off** | WP A capability policies + adversarial tests green on staging **and** WP B RPC hardening tests green. |
+| `WHATSAPP_ASYNC` | off | off | **off** | **off** | WP C durable webhook + outbox live and validated on staging. |
+
+Default (all off) = **zero behaviour change**: reads/writes use the service-role client
+and the legacy department/admin checks, exactly as before this phase. Each flip is
+staged → owner-approved → monitored, and is independently reversible (flip back off).
+
+## Cutover order (must not be reordered)
+
+1. **Reads first.** Turn on `RLS_READS` in staging. Run the read UAT matrix for every
+   role. Fix any page that returns empty/denied for a legitimate role (usually a missing
+   read policy or a page still on `supabaseAdmin`). Only then production.
+2. **Writes second.** Turn on `RLS_WRITES` in staging **after** WP A adversarial tests
+   and WP B RPC concurrency/idempotency tests pass on staging. Run the write UAT matrix.
+3. **Async WhatsApp last.** Turn on `WHATSAPP_ASYNC` after WP C is validated on staging.
+4. **Legacy removal.** Only after reads+writes are proven on staging AND production has
+   run a monitored pilot: remove the legacy `has_company_access` union (already staged —
+   membership is authoritative once a membership row exists, see 0038) and retire the
+   `profiles.department` fallbacks in `requireFinanceAccess`.
+
+## Rollback
+
+Each flag flips back to `off` independently and immediately restores the prior path
+(service role + legacy checks). No migration is reverted to roll back a flag. The
+capability policies (0038) and RPC hardening (0039) are inert while the flags are off
+(service role bypasses RLS; the RPCs treat the service caller as the trusted worker path),
+so they can ship to production ahead of the flips with no behaviour change.
+
+## Role UAT matrix (WP D item — minimum roles)
+
+> Template to be **executed on staging** with `RLS_READS`/`RLS_WRITES` on. For each role,
+> verify: navigation loads; permitted reads return data; permitted actions succeed;
+> prohibited actions are denied; and a direct authenticated Supabase API call cannot
+> exceed the role (cross-company, missing capability, SoD). Record date + evidence.
+
+| Role | Nav/read | Permitted actions | Prohibited (must fail) | Direct-API probe |
+|---|---|---|---|---|
+| Owner / administrator | all | manage identity, approvals | post material journals autonomously | cross-company blocked |
+| Finance reviewer | finance | create invoice/bill, reconcile, approve | post/reverse journal | write another company blocked |
+| Accountant / poster | finance | post/reverse journal, settle, close period | approve own submitted request (SoD) | spoof actor id ignored |
+| Payment initiator | finance | record payment, request bank change | approve bank change (SoD) | exceed authority ceiling blocked |
+| Payment approver | finance | approve bank change | initiate the same bank change (SoD) | — |
+| Department manager | own dept | manage/assign tasks, procurement | edit supplier bills / approvals | finance tables denied |
+| Ordinary staff / assignee | own tasks | work assigned task, raise request, submit expense | create/post journal, edit bills | service-only tables denied |
+| Auditor read-only | read + export | export | any write | all writes denied |
+| Suspended member | none | none | everything | `has_company_access` false even with legacy row |
+| Delegated temporary manager | delegated scope | within delegation domain/date/amount | beyond delegation or delegator's own authority | ceiling enforced |
+| User from another company | own company only | own company only | anything in company B by known id | cross-company blocked |
+
+The adversarial DB proofs for the "must fail" / "direct-API probe" columns are automated
+in `tests/integration/authority-adversarial.test.ts` and `accounting-rpc-hardening.test.ts`
+(run against a non-production DB). The per-role UI navigation pass is the manual staging
+step recorded here when performed.

@@ -18,6 +18,9 @@ import { serviceClient } from "@/db/client";
 import { makeSupabaseConsumerStore, makeSupabaseCostLedger } from "@/db/consumer-store";
 import { processSourceEvent, type ConsumerDeps } from "./processing";
 import { handleCustomerMessage } from "@/lib/order-intake";
+import { supabaseAdmin } from "@/lib/supabase/server";
+import { drainOutbox } from "@/events/outbox-drain";
+import { log } from "@/lib/log";
 
 /** Build the live deps once per invocation (lazy — no client is created at import). */
 function liveDeps(): ConsumerDeps {
@@ -77,4 +80,71 @@ export const onCustomerWhatsAppMessage = inngest.createFunction(
   },
 );
 
-export const functions = [onSourceEventReceived, onCustomerWhatsAppMessage];
+// ─────────────────────────────────────────────────────────────────────────────
+// Scheduled work (WP C "Required schedules"). Inngest owns the cadence, so these run at
+// USEFUL operational frequencies without hitting Vercel Hobby's one-cron-per-day limit.
+// The once-daily Vercel heartbeat (vercel.json) remains only as a coarse fallback for
+// when the Inngest app is not connected.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Base URL for internal cron fan-out (Vercel injects VERCEL_URL at runtime). */
+function cronBaseUrl(): string {
+  if (process.env.APP_BASE_URL) return process.env.APP_BASE_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "http://localhost:3000";
+}
+/** Invoke an existing CRON_SECRET-protected internal job endpoint. */
+async function runCron(path: string): Promise<{ ok: boolean; status: number }> {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    log("error", "CRON_SECRET not configured — scheduled job skipped", { event: "inngest.cron_misconfigured", path });
+    return { ok: false, status: 0 };
+  }
+  const r = await fetch(`${cronBaseUrl()}${path}`, { headers: { authorization: `Bearer ${secret}` } });
+  return { ok: r.ok, status: r.status };
+}
+
+/** Frequent outbound delivery + expired-lease + dead-letter recovery sweep. */
+export const outboxSweep = inngest.createFunction(
+  { id: "outbox-sweep" },
+  { cron: "*/2 * * * *" },
+  async () => drainOutbox(supabaseAdmin()),
+);
+
+/** Task follow-up evaluation every 15 minutes. */
+export const taskFollowUpsSchedule = inngest.createFunction(
+  { id: "task-follow-ups" },
+  { cron: "*/15 * * * *" },
+  async () => runCron("/api/cron/follow-ups"),
+);
+
+/** AI manager monitoring every 10 minutes (its own cost/batch limits apply downstream). */
+export const aiMonitorSchedule = inngest.createFunction(
+  { id: "ai-manager-monitor" },
+  { cron: "*/10 * * * *" },
+  async () => runCron("/api/cron/ai-monitor"),
+);
+
+/** Management digest daily. */
+export const managementDigestSchedule = inngest.createFunction(
+  { id: "management-digest" },
+  { cron: "0 7 * * *" },
+  async () => runCron("/api/cron/daily-digest"),
+);
+
+/** Health + ledger-integrity check (WP E) every 30 minutes; logs criticals for alerting. */
+export const healthCheckSchedule = inngest.createFunction(
+  { id: "health-check" },
+  { cron: "*/30 * * * *" },
+  async () => runCron("/api/health"),
+);
+
+export const functions = [
+  onSourceEventReceived,
+  onCustomerWhatsAppMessage,
+  outboxSweep,
+  taskFollowUpsSchedule,
+  aiMonitorSchedule,
+  managementDigestSchedule,
+  healthCheckSchedule,
+];

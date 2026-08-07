@@ -19,28 +19,59 @@ export interface Alert {
   key: string;
   severity: AlertSeverity;
   message: string;
+  owner: string; // who is accountable for triaging this class of alert
+  runbook: string; // where to look / what to do
+  firstSeen?: string; // ISO — when this alert key was first observed (from a seen-map)
+  lastSeen?: string; // ISO — when it was last observed
 }
 
 const SEVERITY_RANK: Record<AlertSeverity, number> = { critical: 0, warning: 1, info: 2 };
 
+/** Static owner + runbook per alert key (§WP E.6). */
+const META: Record<string, { owner: string; runbook: string }> = {
+  accounting_integrity: { owner: "finance-oncall", runbook: "docs/architecture-v2/RUNBOOKS.md#ledger-imbalance" },
+  migration_mismatch: { owner: "platform-oncall", runbook: "docs/architecture-v2/MIGRATION_STATE.md" },
+  dead_letters: { owner: "platform-oncall", runbook: "docs/architecture-v2/RUNBOOKS.md#dead-letters" },
+  failed_events: { owner: "platform-oncall", runbook: "docs/architecture-v2/RUNBOOKS.md#failed-events" },
+  outbox_failed: { owner: "platform-oncall", runbook: "docs/architecture-v2/RUNBOOKS.md#outbox" },
+  ai_failures: { owner: "platform-oncall", runbook: "docs/architecture-v2/RUNBOOKS.md#ai-gateway" },
+};
+const meta = (key: string) => META[key] ?? { owner: "platform-oncall", runbook: "docs/architecture-v2/RUNBOOKS.md" };
+
 export function buildAlerts(s: AlertSignals): Alert[] {
-  const alerts: Alert[] = [];
+  const raw: Omit<Alert, "owner" | "runbook">[] = [];
 
   if (s.accountingIntegrityBreaches > 0)
-    alerts.push({ key: "accounting_integrity", severity: "critical", message: `${s.accountingIntegrityBreaches} accounting integrity exception(s) — ledger may be unbalanced` });
+    raw.push({ key: "accounting_integrity", severity: "critical", message: `${s.accountingIntegrityBreaches} accounting integrity exception(s) — ledger may be unbalanced` });
   if (s.migrationMismatch)
-    alerts.push({ key: "migration_mismatch", severity: "critical", message: "Database migration mismatch — code expects a migration that is not applied" });
+    raw.push({ key: "migration_mismatch", severity: "critical", message: "Database migration mismatch — code expects a migration that is not applied" });
   if (s.deadLetters > 0)
-    alerts.push({ key: "dead_letters", severity: "critical", message: `${s.deadLetters} dead-letter event(s) need triage/replay` });
+    raw.push({ key: "dead_letters", severity: "critical", message: `${s.deadLetters} dead-letter event(s) need triage/replay` });
   if (s.failedEvents > 0)
-    alerts.push({ key: "failed_events", severity: "warning", message: `${s.failedEvents} source event(s) failed processing` });
+    raw.push({ key: "failed_events", severity: "warning", message: `${s.failedEvents} source event(s) failed processing` });
   if (s.outboxFailed > 0)
-    alerts.push({ key: "outbox_failed", severity: "warning", message: `${s.outboxFailed} outbound message(s) failed to send` });
+    raw.push({ key: "outbox_failed", severity: "warning", message: `${s.outboxFailed} outbound message(s) failed to send` });
   if (s.repeatedAiFailures > 0)
-    alerts.push({ key: "ai_failures", severity: "warning", message: `${s.repeatedAiFailures} repeated AI failure(s) — check the gateway/model access` });
+    raw.push({ key: "ai_failures", severity: "warning", message: `${s.repeatedAiFailures} repeated AI failure(s) — check the gateway/model access` });
 
-  // Ranked most-severe first; stable within a severity by insertion order.
-  return alerts.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
+  // Attach owner+runbook and rank most-severe first (stable within a severity).
+  return raw
+    .map((a) => ({ ...a, ...meta(a.key) }))
+    .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
+}
+
+/**
+ * Stamp first/last-seen from a persisted seen-map (§WP E.6). `seen[key].firstSeen` is
+ * preserved across observations; lastSeen is refreshed to `now`. Pure — the caller owns
+ * persistence of the returned map.
+ */
+export function stampSeen(
+  alerts: Alert[],
+  seen: Record<string, { firstSeen: string }>,
+  now: Date = new Date(),
+): Alert[] {
+  const nowIso = now.toISOString();
+  return alerts.map((a) => ({ ...a, firstSeen: seen[a.key]?.firstSeen ?? nowIso, lastSeen: nowIso }));
 }
 
 /** Highest severity present, or null when there is nothing to report. */

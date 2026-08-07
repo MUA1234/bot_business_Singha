@@ -22,9 +22,14 @@ const settle = (amount: number) =>
 
 describe.skipIf(!enabled)("settlement concurrency — live, two connections", () => {
   beforeAll(async () => {
+    // Production safety guard: these tests COMMIT then delete rows — never run them
+    // against the production database host.
+    if (process.env.PRODUCTION_DB_HOST && URL.includes(process.env.PRODUCTION_DB_HOST)) {
+      throw new Error("refusing to run write/commit integration tests against the production database host");
+    }
     const { default: pg } = await import("pg" as string);
     const mk = async () => {
-      const c = new pg.Client({ connectionString: URL, ssl: { rejectUnauthorized: false } });
+      const c = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } });
       await c.connect();
       return c;
     };

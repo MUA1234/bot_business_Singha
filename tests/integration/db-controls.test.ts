@@ -39,7 +39,7 @@ async function expectReject(sql: string, params: unknown[] = []): Promise<boolea
 describe.skipIf(!enabled)("DB-enforced controls — live, zero-persistence", () => {
   beforeAll(async () => {
     const { default: pg } = await import("pg" as string);
-    client = new pg.Client({ connectionString: URL, ssl: { rejectUnauthorized: false } });
+    client = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } });
     await client.connect();
     await client.query("begin");
     const co = async (n: string) => (await client.query(`insert into companies (name, base_currency) values ($1,'LKR') returning id`, [n])).rows[0].id;

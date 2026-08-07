@@ -33,6 +33,8 @@ const securityHeaders = [
 
 const nextConfig = {
   reactStrictMode: true,
+  // Run src/instrumentation.ts on server boot (production config fail-fast, §11).
+  experimental: { instrumentationHook: true },
   // Don't advertise the framework/version to attackers.
   poweredByHeader: false,
   // Linting runs in CI (.github/workflows/ci.yml), not during the Vercel build —

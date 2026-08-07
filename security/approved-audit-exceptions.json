@@ -1,0 +1,23 @@
+{
+  "_comment": "WP F.7 — reviewed, temporarily-accepted production dependency vulnerabilities. audit-check.mjs FAILS CI if a high/critical appears that is NOT listed here, or if a listed exception is past its review_by date. Fix or re-review before the date.",
+  "accepted": [
+    {
+      "module": "next",
+      "advisories": "Multiple Next.js 14.2.x advisories (DoS via Server Components/Server Actions/Image Optimization; SSRF via rewrites/WebSocket upgrades; cache poisoning; middleware redirect issues).",
+      "severity": "high",
+      "exploitability": "Low in this app: no untrusted image-optimization sources; Server Actions are auth-gated; deployed on Vercel which mitigates several cache/middleware vectors at the edge; no custom server. The fix requires next@16 (a major upgrade to React 19 / App Router changes) which is out of scope for this security-hardening phase.",
+      "compensating_control": "Vercel platform mitigations + auth/capability gating on all Server Actions + no attacker-controlled image domains. Planned remediation: schedule the Next 15/16 upgrade as its own reviewed PR.",
+      "owner": "platform-oncall",
+      "review_by": "2026-11-07"
+    },
+    {
+      "module": "postcss",
+      "advisories": "postcss <=8.5.22 (XSS via unescaped </style>; arbitrary .map file read via attacker-controlled sourceMappingURL).",
+      "severity": "high",
+      "exploitability": "Build-time only. postcss is pinned transitively by next; it processes our OWN first-party CSS at build, not attacker-controlled input. No runtime exposure. npm's fix graph only offers it via next@16.",
+      "compensating_control": "First-party CSS only; no untrusted stylesheet input at build. Cleared together with the Next upgrade.",
+      "owner": "platform-oncall",
+      "review_by": "2026-11-07"
+    }
+  ]
+}

@@ -8,7 +8,7 @@
 > This file is the single place to track applied-state. Update it whenever a migration
 > is run against any environment, and cite who confirmed it and when.
 
-_Last reviewed: 2026-08-06 (WP0)._
+_Last reviewed: 2026-08-07 (Production Security & Reliability Gate)._
 
 ## Migration source of truth
 
@@ -73,6 +73,26 @@ _Last reviewed: 2026-08-06 (WP0)._
 | 0035 | posting_hardening (WP2: RPCs SECURITY DEFINER + company guard + caller-idempotency + atomic fail-closed audit + REVOKE/GRANT) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
 | 0036 | approval_write_rls (WP1: company-scoped write policies for approval_requests/approval_actions) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-06) |
 | 0037 | settlement_row_locks (WP2: FOR UPDATE on settle/reverse source rows — concurrency-safe) | ✅ applied to staging DB `gazjughejdzebathpscb` (2026-08-07) |
+| 0038 | capability_authority (Sec&Rel Gate WP A: domain-qualified capabilities, least-privilege role map, suspension-safe has_company_access, delegation-aware has_capability + authority ceilings, capability-gated write RLS, service-only lockdown, approval SoD) | ✅ applied to DB `gazjughejdzebathpscb` (owner-confirmed 2026-08-07) |
+| 0039 | accounting_rpc_hardening (WP B: reject anon, actor from auth.uid(), per-op capability, transactional idempotency + conflict-on-key-reuse, narrowed unique_violation, in-RPC audit) | ✅ applied to DB `gazjughejdzebathpscb` (owner-confirmed 2026-08-07) |
+| 0040 | durable_messaging (WP C: outbox lease + claim_outbox_batch FOR UPDATE SKIP LOCKED + lease recovery + dead-letter; wa_messages handled_at resume-safety) | ✅ applied to DB `gazjughejdzebathpscb` (owner-confirmed 2026-08-07) |
+| 0041 | ledger_integrity_report (WP E: read-only integrity probe for the health surface) | ✅ applied to DB `gazjughejdzebathpscb` (owner-confirmed 2026-08-07) |
+
+### Production Security & Reliability Gate migrations (0038–0041) — applied state
+
+| Environment | 0038–0041 |
+|---|---|
+| **Local** | Not applied (no local DB provisioned). |
+| **CI** | Applied to a **disposable Postgres per run** (service container + `tests/integration/helpers/supabase-shim.sql`), then the integration/RLS/concurrency suite runs. Ephemeral — torn down each run. |
+| **Staging** | **Not applied.** No confirmed non-production staging project. Prerequisite before flipping `RLS_READS`/`RLS_WRITES`/`WHATSAPP_ASYNC` (see `RLS_CUTOVER_PLAN.md`). |
+| **Production** | **Not applied.** Owner-only, with approval (invariant #16). These migrations are inert while the flags are OFF (service role bypasses RLS; RPCs treat the service caller as the trusted path), so they can ship ahead of any flag flip with no behaviour change. |
+
+> These four migrations were authored offline and **not** run by the development process.
+> The **owner applied them via the Supabase SQL editor on 2026-08-07** (combined file
+> `RUN_0038-0041_security_reliability_gate.sql`). They remain **inert** until the feature
+> flags are turned on (service role bypasses RLS; RPCs treat the service caller as the
+> trusted path), so applying them was a zero-behaviour-change step. Still verified by
+> `migration-lint` (sequential 0001–0041) and, in CI, against the disposable Postgres.
 
 ### Basis for the "reported applied, unverified" status (0014–0022)
 

@@ -25,7 +25,9 @@ const mode = process.argv[2] ?? "apply";
 const files = readdirSync(DIR).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort();
 const version = (f) => f.slice(0, 4);
 
-const c = new pg.Client({ connectionString: URL, ssl: { rejectUnauthorized: false } });
+// Local/CI Postgres (service container) does not speak SSL; hosted Supabase does.
+const LOCAL = /localhost|127\.0\.0\.1/.test(URL) || process.env.PGSSL === "disable";
+const c = new pg.Client({ connectionString: URL, ssl: LOCAL ? false : { rejectUnauthorized: false } });
 await c.connect();
 await c.query(`create table if not exists schema_migrations (version text primary key, filename text not null, applied_at timestamptz not null default now())`);
 

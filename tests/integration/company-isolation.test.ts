@@ -44,7 +44,7 @@ async function asSuperuser() {
 describe.skipIf(!enabled)("company isolation — live RLS, zero-persistence", () => {
   beforeAll(async () => {
     const { default: pg } = await import("pg" as string);
-    client = new pg.Client({ connectionString: URL, ssl: { rejectUnauthorized: false } });
+    client = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } });
     await client.connect();
     await client.query("begin");
     const co = async (name: string) => (await client.query(`insert into companies (name, base_currency) values ($1,'LKR') returning id`, [name])).rows[0].id;

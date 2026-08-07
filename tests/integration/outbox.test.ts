@@ -31,7 +31,7 @@ const ins = `insert into message_outbox (company_id, channel, recipient, body, i
 describe.skipIf(!enabled)("outbox idempotency — live, zero-persistence", () => {
   beforeAll(async () => {
     const { default: pg } = await import("pg" as string);
-    client = new pg.Client({ connectionString: URL, ssl: { rejectUnauthorized: false } });
+    client = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } });
     await client.connect();
     await client.query("begin");
     company = (await client.query(`insert into companies (name, base_currency) values ('wp_ob','LKR') returning id`)).rows[0].id;

@@ -46,7 +46,7 @@ const L = (code: string, debit: number, credit: number) => ({ account_code: code
 describe.skipIf(!enabled)("accounting posting controls — live, zero-persistence", () => {
   beforeAll(async () => {
     const { default: pg } = await import("pg" as string);
-    client = new pg.Client({ connectionString: URL, ssl: { rejectUnauthorized: false } });
+    client = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } });
     await client.connect();
     await client.query("begin");
     company = (await client.query(`insert into companies (name, base_currency) values ('wp_acc','LKR') returning id`)).rows[0].id;

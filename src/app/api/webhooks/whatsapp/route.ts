@@ -59,16 +59,16 @@ export async function POST(req: Request): Promise<Response> {
     return new Response("bad json", { status: 400 });
   }
 
-  const results: string[] = [];
   const store = makeSupabaseSourceEventStore(supabaseAdmin());
+  const messages = extractTextMessages(payload);
+  // Statuses / non-text events: nothing to persist — acknowledge so Meta stops retrying.
+  if (messages.length === 0) return NextResponse.json({ ok: true, processed: [] });
 
-  // Handle each inbound customer text message inline (collect → quote/route → reply).
-  // Per-message try/catch so one failure never fails the whole batch; dedup on the
-  // provider message id makes any Meta redelivery a no-op.
-  for (const msg of extractTextMessages(payload)) {
-    // §WP4.1 PERSIST-FIRST — store the raw event before processing so a downstream
-    // failure never loses it (Constitution: a failed process must not lose the event).
-    // Best-effort: a persistence hiccup must not break the live customer reply.
+  // §WP-C PERSIST-FIRST. Store every raw event durably BEFORE any processing. If ANY
+  // persist fails we return a RETRYABLE 503 and do NOT acknowledge — Meta redelivers,
+  // and the provider-message unique key makes a re-persist idempotent, so nothing is
+  // ever lost or duplicated. A 200 is only ever returned after durable acceptance.
+  for (const msg of messages) {
     try {
       await store.upsert({
         source: "whatsapp",
@@ -81,30 +81,38 @@ export async function POST(req: Request): Promise<Response> {
       });
     } catch (e) {
       log("error", "whatsapp source event persist failed", { event: "wa.persist_failed", error: (e as Error).message });
-    }
-
-    if (ASYNC_MODE) {
-      // §WP4: enqueue a durable worker; NO AI call or outbound send in the request.
-      // Idempotency (wa_message_id) is enforced by the Inngest function.
-      try {
-        await inngest.send({ name: WHATSAPP_INBOUND_EVENT, data: { from: msg.from, text: msg.text, wa_message_id: msg.id } });
-        results.push("enqueued");
-      } catch (e) {
-        log("error", "whatsapp enqueue failed", { event: "wa.enqueue_failed", error: (e as Error).message });
-        results.push("enqueue_error");
-      }
-    } else {
-      try {
-        const res = await handleCustomerMessage({ from: msg.from, text: msg.text, waMessageId: msg.id });
-        results.push(res.status);
-      } catch (e) {
-        log("error", "handleCustomerMessage failed", { event: "wa.handle_failed", error: (e as Error).message });
-        results.push("error");
-      }
+      return new Response("persist failed — retry", { status: 503 });
     }
   }
 
-  // Always 200 promptly so Meta doesn't hammer retries for a message we've recorded.
+  if (ASYNC_MODE) {
+    // §WP-C: enqueue a durable worker; NO AI call or outbound send in the request. If the
+    // enqueue fails we return 503 — the persisted event is recoverable and provider dedup
+    // prevents a duplicate on redelivery. Idempotency (wa_message_id) is enforced downstream.
+    for (const msg of messages) {
+      try {
+        await inngest.send({ name: WHATSAPP_INBOUND_EVENT, data: { from: msg.from, text: msg.text, wa_message_id: msg.id } });
+      } catch (e) {
+        log("error", "whatsapp enqueue failed", { event: "wa.enqueue_failed", error: (e as Error).message });
+        return new Response("enqueue failed — retry", { status: 503 });
+      }
+    }
+    return NextResponse.json({ ok: true, enqueued: messages.length });
+  }
+
+  // Synchronous mode (default): the event is already durably persisted, so a per-message
+  // handler failure never loses it — reply is best-effort and resume-safe (handled_at),
+  // and a Meta redelivery is a dedup no-op. Acknowledge 200 after durable persistence.
+  const results: string[] = [];
+  for (const msg of messages) {
+    try {
+      const res = await handleCustomerMessage({ from: msg.from, text: msg.text, waMessageId: msg.id });
+      results.push(res.status);
+    } catch (e) {
+      log("error", "handleCustomerMessage failed", { event: "wa.handle_failed", error: (e as Error).message });
+      results.push("error");
+    }
+  }
   return NextResponse.json({ ok: true, processed: results });
 }
 

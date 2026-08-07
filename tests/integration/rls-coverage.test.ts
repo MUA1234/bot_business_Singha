@@ -25,7 +25,7 @@ let client: any;
 describe.skipIf(!enabled)("RLS coverage on company-scoped tables — live, read-only", () => {
   beforeAll(async () => {
     const { default: pg } = await import("pg" as string);
-    client = new pg.Client({ connectionString: URL, ssl: { rejectUnauthorized: false } });
+    client = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } });
     await client.connect();
   });
   afterAll(async () => {

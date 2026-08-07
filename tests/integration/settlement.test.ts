@@ -53,7 +53,7 @@ const L = (code: string, debit: number, credit: number) => ({ account_code: code
 describe.skipIf(!enabled)("settlement + reversal — live, zero-persistence", () => {
   beforeAll(async () => {
     const { default: pg } = await import("pg" as string);
-    client = new pg.Client({ connectionString: URL, ssl: { rejectUnauthorized: false } });
+    client = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } });
     await client.connect();
     await client.query("begin");
     company = (await client.query(`insert into companies (name, base_currency) values ('wp_set','LKR') returning id`)).rows[0].id;
@@ -111,10 +111,15 @@ describe.skipIf(!enabled)("settlement + reversal — live, zero-persistence", ()
     expect(rev).toBeTruthy();
     const orig = await q(`select status from journal_entries where id=$1`, [j]);
     expect(orig.rows[0].status).toBe("reversed");
-    // reversing again (now 'reversed', not 'posted') is rejected
+    // reversing again with the SAME key is idempotent — returns the same reversal, never a 2nd
+    const rev2 = (await q(`select public.reverse_journal($1,$2,$3,'2026-07-16') as id`, [company, j, poster])).rows[0].id;
+    expect(rev2).toBe(rev);
+    const n = await q(`select count(*)::int c from journal_entries where company_id=$1 and reversal_of_journal_id=$2`, [company, j]);
+    expect(n.rows[0].c).toBe(1); // exactly one reversal journal
+    // reversing with a DIFFERENT key is rejected (already reversed)
     let threw = false;
     try {
-      await q(`select public.reverse_journal($1,$2,$3,'2026-07-16')`, [company, j, poster]);
+      await q(`select public.reverse_journal($1,$2,$3,'2026-07-16','other-key')`, [company, j, poster]);
     } catch {
       threw = true;
     }

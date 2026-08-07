@@ -1,5 +1,9 @@
-# Non-interactive CI (Architecture V2 change plan §13.1; Constitution §13).
-# Runs on every push and PR. No secrets required for these steps.
+# CI — Production Security & Reliability Gate (WP F).
+# Two required jobs:
+#   verify   — static + unit + build + dependency-audit gate (no database).
+#   db-tests — a DISPOSABLE Postgres per run (+ Supabase-compat shim) with migrations
+#              applied and ALL integration/RLS/concurrency tests. It FAILS LOUD if the
+#              test database is not configured — it never silently skips.
 name: CI
 
 on:
@@ -12,7 +16,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -23,37 +26,62 @@ jobs:
 
       - name: Secret scan
         run: npm run secret-scan
-
+      - name: Migration lint (naming, ordering, gaps, duplicates)
+        run: npm run migration-lint
       - name: Type check
         run: npm run typecheck
-
       - name: Lint
-        # ESLint is declared in package.json + lockfile; runs from `npm ci`.
         run: npm run lint
-
       - name: Unit tests
         run: npm test
-
       - name: Production build
         run: npm run build
         env:
-          # Build must not require real secrets. Placeholder public values keep
-          # Next/Supabase client construction happy; nothing connects at build time.
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: build-placeholder-anon-key
+      - name: Dependency audit gate (approved-exception validation)
+        run: npm run audit-check
 
-      - name: Migration lint (naming, ordering, gaps, duplicates)
-        run: npm run migration-lint
+  db-tests:
+    runs-on: ubuntu-latest
+    # A throwaway Postgres per CI run — never a shared/production database.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: singha_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      # The disposable service DB. SSL is off (local); the pg clients honour this.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/singha_test
+      PGSSL: disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
 
-      - name: Migrate the test database (apply pending migrations)
-        # Runs only when a non-prod test database is configured (repo secret).
-        if: ${{ secrets.TEST_DATABASE_URL != '' }}
+      - name: Install (from lockfile)
+        run: npm ci
+
+      # Fail LOUD (never skip) if a required test DB is not configured.
+      - name: Require a test database
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL is not configured — the required database-test job cannot run."
+            exit 1
+          fi
+
+      - name: Install Supabase-compatibility shim (roles + auth.uid + grants)
+        run: node scripts/apply-sql.mjs tests/integration/helpers/supabase-shim.sql
+
+      - name: Apply migrations to the disposable database
         run: npm run migrate
-        env:
-          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
 
-      - name: Company-isolation / RLS integration tests
-        if: ${{ secrets.TEST_DATABASE_URL != '' }}
+      - name: Integration / RLS / capability / concurrency tests
         run: npm run test:integration
-        env:
-          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}

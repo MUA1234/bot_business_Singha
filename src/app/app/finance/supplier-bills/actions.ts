@@ -1,20 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireProfile } from "@/lib/auth";
+import { requireFinanceAccess } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { billPostingLines } from "@/accounting/posting-templates";
 import { checkDraftJournal } from "@/accounting/manual-entry";
 import { parseMoneyInput, lineTotal } from "@/lib/money";
 import { resolveIdempotencyKey } from "@/lib/idempotency";
-import { claimIdempotencyKey } from "@/lib/idempotency-store";
 
-async function requireFinance() {
-  const p = await requireProfile();
-  if (!p.isAdmin && p.department !== "finance") throw new Error("Not allowed");
-  return p;
-}
+// WP D: central capability gate (see customer-invoices/actions.ts). DB enforces the
+// specific finance.bill.* / finance.payment.record capability when RLS_WRITES is on.
+const requireFinance = () => requireFinanceAccess("finance.bill.create");
 
 function billNumber(): string {
   const d = new Date();
@@ -98,20 +95,20 @@ export async function settleBill(formData: FormData): Promise<void> {
   if (!id || !apCode || !cashCode || !amountMoney || !amountMoney.isPositive()) return;
   const amount = Number(amountMoney.toString()); // validated decimal; RPC arg stays numeric
 
-  // §WP2 idempotency: a retried payment with the same params must not double-post.
+  // §WP-B idempotency is TRANSACTIONAL inside the RPC (caller key passed through). A
+  // retry returns the same journal and re-applies nothing; a failed RPC never consumes
+  // the key. Audit is written in-RPC.
   const idemKey = resolveIdempotencyKey(String(formData.get("idem_token") ?? ""), [
     "settle_supplier_bill", id, amountMoney.toString(), new Date().toISOString().slice(0, 10),
   ]);
-  const claim = await claimIdempotencyKey(p.companyId, "settle_supplier_bill", idemKey, p.userId);
-  if (claim === "duplicate") return; // already recorded — no double payment
 
   const { error } = await db.rpc("settle_supplier_bill", {
     p_company: p.companyId, p_bill: id, p_amount: amount,
     p_ap_code: apCode, p_cash_code: cashCode, p_by: p.userId,
     p_date: new Date().toISOString().slice(0, 10),
+    p_idempotency_key: idemKey,
   });
   if (error) return;
-  await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "supplier_bill.payment_recorded", entityType: "supplier_bill", entityId: id, payload: { amount } });
   revalidatePath(`/app/finance/supplier-bills/${id}`);
   revalidatePath("/app/finance/supplier-bills");
 }
