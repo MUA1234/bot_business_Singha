@@ -16,6 +16,15 @@ high/critical finding. `npm audit fix --force` is never used (it pulls a Next.js
 
 - `brace-expansion` (high) — fixed 2026-08-07 via non-breaking `npm audit fix` (lockfile only).
 
+## Scope: production dependencies only (per brief §14)
+
+The gate runs `npm audit --omit=dev`. A **raw** `npm audit` (dev included) also reports
+findings in the **test/lint toolchain** — e.g. `vitest`/`vite`, `glob`,
+`eslint-config-next`, `@next/eslint-plugin-next`. Those packages are **devDependencies**;
+they are **not shipped to production**, so they are out of scope for this gate. They can be
+bumped in routine maintenance (some need a `vitest`/Next major), but they do not block a
+production pilot. Note: `inngest` has **no** advisories — it is not a finding.
+
 ## Currently accepted exceptions (review by 2026-11-07)
 
 | Module | Severity | Why accepted | Compensating control |

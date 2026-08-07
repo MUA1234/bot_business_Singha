@@ -20,6 +20,14 @@ grant anon, authenticated, service_role to current_user;
 
 create schema if not exists auth;
 
+-- Minimal stand-in for Supabase's managed auth.users table (FK target for profiles etc.).
+-- Only `id` is needed by the migrations; the integration tests use public.users/memberships.
+create table if not exists auth.users (
+  id uuid primary key default gen_random_uuid(),
+  email text,
+  created_at timestamptz not null default now()
+);
+
 -- auth.uid(): the 'sub' claim as uuid, or null when there is no JWT / no sub.
 create or replace function auth.uid() returns uuid
   language sql stable
