@@ -1,11 +1,18 @@
 # Verification evidence — Production Security & Reliability Gate
 
-**Date:** 2026-08-07 · **Commit:** `bf8a7c6` (+ shim `auth.users` fix) · **Node:** v24 (CI uses 20)
+**Date:** 2026-08-07 · **Commit:** `6264707` (shim `auth.users` fix committed) · **Node:** v24 (CI uses 20)
 **Database:** disposable local **PostgreSQL 16.14 (Homebrew)** — a throwaway cluster, NOT
 production — with the Supabase-compatibility shim (`tests/integration/helpers/supabase-shim.sql`)
 and **all 41 migrations (0001–0041)** applied via `npm run migrate`.
 
 This is the evidence for the "Database/RLS tests: Not run" gap: the suite is now **run and green**.
+
+**Clean-checkout reproducible:** run from a clean working tree at commit `6264707`
+(`git status` clean) — fresh DB → shim → `npm run migrate` (41 applied) →
+`npm run test:integration` → **15 files / 63 tests passed**. The `auth.users` shim fix and
+the dependency-audit note are committed, so any clean checkout of `6264707` reproduces this
+(no locally-modified working tree required). `npm run audit-check` passes with only the
+documented `next`/`postcss` exceptions — `inngest` has no advisory (it is not a finding).
 
 ## Offline gate
 
