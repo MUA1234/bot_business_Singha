@@ -32,6 +32,7 @@ export interface DrainResult {
   sent: number;
   failed: number;
   dead: number;
+  errors: number; // completion/release updates that did not durably affect exactly one row
 }
 
 export async function drainOutbox(db: SupabaseClient, opts?: { batch?: number; leaseSeconds?: number }): Promise<DrainResult> {
@@ -46,20 +47,34 @@ export async function drainOutbox(db: SupabaseClient, opts?: { batch?: number; l
   });
   if (error) {
     log("error", "outbox claim failed", { event: "outbox.claim_failed", error: error.message });
-    return { ok: false, considered: 0, sent: 0, failed: 0, dead: 0 };
+    return { ok: false, considered: 0, sent: 0, failed: 0, dead: 0, errors: 1 };
   }
 
   const claimed = (data ?? []) as ClaimedRow[];
   let sent = 0,
     failed = 0,
-    dead = 0;
+    dead = 0,
+    errors = 0;
+
+  /** Fenced update: succeeds only if it durably affects EXACTLY ONE row we still own. */
+  const fencedUpdate = async (update: Record<string, unknown>, id: string): Promise<boolean> => {
+    const { data: rows, error: upErr } = await db.from("message_outbox").update(update).eq("id", id).eq("lock_owner", owner).select("id");
+    if (upErr) {
+      log("error", "outbox update failed", { event: "outbox.update_failed", id, error: upErr.message });
+      return false;
+    }
+    if ((rows?.length ?? 0) !== 1) {
+      // Zero rows → the lease was reclaimed by another worker (or the row moved). Not durable.
+      log("error", "outbox update affected no owned row", { event: "outbox.lease_lost", id });
+      return false;
+    }
+    return true;
+  };
 
   for (const row of claimed) {
-    // Only WhatsApp is wired; release any other channel back to the queue (don't hold the
-    // lease). Fenced by lock_owner so we never touch a row another worker has reclaimed.
+    // Only WhatsApp is wired; release any other channel back to the queue (don't hold the lease).
     if (row.channel !== "whatsapp") {
-      const { error: relErr } = await db.from("message_outbox").update({ status: "pending", locked_at: null, lock_owner: null, lease_expires_at: null }).eq("id", row.id).eq("lock_owner", owner);
-      if (relErr) log("error", "outbox release failed", { event: "outbox.release_failed", error: relErr.message });
+      if (!(await fencedUpdate({ status: "pending", locked_at: null, lock_owner: null, lease_expires_at: null }, row.id))) errors++;
       continue;
     }
 
@@ -73,7 +88,6 @@ export async function drainOutbox(db: SupabaseClient, opts?: { batch?: number; l
       attempts: patch.attempts,
       next_retry_at: patch.next_retry_at,
       last_error: patch.last_error,
-      // Release the lease on every terminal outcome.
       locked_at: null,
       lock_owner: null,
       lease_expires_at: null,
@@ -81,18 +95,20 @@ export async function drainOutbox(db: SupabaseClient, opts?: { batch?: number; l
     if (patch.status === "sent") {
       update.sent_at = new Date().toISOString();
       update.provider_message_id = res.messageId ?? null;
-      sent++;
     } else if (patch.status === "dead") {
       update.dead_at = new Date().toISOString();
-      dead++;
-    } else {
-      failed++;
     }
-    // Fence the completion by lease owner: if another worker reclaimed an expired lease,
-    // this matches 0 rows and we never clobber its state. Surface DB errors (don't ignore).
-    const { error: upErr } = await db.from("message_outbox").update(update).eq("id", row.id).eq("lock_owner", owner);
-    if (upErr) log("error", "outbox completion update failed", { event: "outbox.complete_failed", id: row.id, error: upErr.message });
+    // Count the outcome ONLY after the completion is durably recorded (truthful counters).
+    if (await fencedUpdate(update, row.id)) {
+      if (patch.status === "sent") sent++;
+      else if (patch.status === "dead") dead++;
+      else failed++;
+    } else {
+      // Provider send may have succeeded but the DB completion did not persist → the row
+      // stays 'processing' and its lease will be recovered; report at-least-once honestly.
+      errors++;
+    }
   }
 
-  return { ok: true, considered: claimed.length, sent, failed, dead };
+  return { ok: errors === 0, considered: claimed.length, sent, failed, dead, errors };
 }

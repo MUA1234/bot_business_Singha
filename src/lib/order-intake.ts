@@ -13,10 +13,9 @@
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { makeOpenAiTransport } from "@/ai/openai-transport";
 import { runQuotationTurn } from "@/ai/quotation";
-import {
-  sendWhatsAppText,
-  withPendingFooter,
-} from "@/lib/whatsapp";
+import { withPendingFooter } from "@/lib/whatsapp";
+import { enqueueOutbox } from "@/lib/outbox-enqueue";
+import { drainOutbox } from "@/events/outbox-drain";
 import { createQuotationFromItems, tryFinalizeAndSend } from "@/lib/quotations";
 import { DEFAULT_COMPANY_ID } from "@/lib/constants";
 
@@ -180,17 +179,16 @@ export async function handleCustomerMessage(input: {
     .eq("id", conversationId)
     .eq("company_id", companyId);
 
-  // Send + log the reply, THEN mark the inbound message handled. A crash before this point
-  // leaves handled_at null so the next delivery safely resumes — never a dropped reply.
-  const sent = await sendWhatsAppText(from, reply);
+  // §WP5: ENQUEUE the reply to the durable outbox (dedup on the inbound provider id) rather
+  // than sending directly — a transport/provider failure can never lose or double-send it.
+  // A best-effort inline drain delivers it promptly; the outbox sweep is the recovery path.
+  // Delivery is at-least-once (the outbox idempotency key makes a redelivery a no-op).
+  await enqueueOutbox({ channel: "whatsapp", companyId, recipient: from, body: reply, dedupeKey: `wa_reply:${input.waMessageId}` });
   await db.from("wa_messages").insert({
-    conversation_id: conversationId,
-    company_id: companyId,
-    direction: "outbound",
-    body: reply,
-    wa_message_id: sent.messageId ?? null,
+    conversation_id: conversationId, company_id: companyId, direction: "outbound", body: reply, wa_message_id: null,
   });
   await db.from("wa_messages").update({ handled_at: new Date().toISOString() }).eq("id", inboundId);
+  try { await drainOutbox(db); } catch { /* sweep will recover */ }
 
   return { status };
 }

@@ -13,7 +13,8 @@
 import Decimal from "decimal.js";
 import { randomBytes } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { sendWhatsAppText } from "@/lib/whatsapp";
+import { enqueueOutbox } from "@/lib/outbox-enqueue";
+import { drainOutbox } from "@/events/outbox-drain";
 import { env } from "@/config/env";
 
 export interface DraftItem {
@@ -257,19 +258,20 @@ export async function tryFinalizeAndSend(
     `Total: ${total}\n\nView / download your quotation:\n${link}\n\n` +
     `Reply here if you'd like to proceed or have any questions.`;
 
-  let messageId: string | undefined;
   if (to) {
-    const res = await sendWhatsAppText(to, body);
-    messageId = res.messageId;
+    // §WP5: enqueue the quotation message to the durable outbox (dedup on the quotation id),
+    // not a direct send — provider failures can't lose/duplicate it. Best-effort inline drain.
+    await enqueueOutbox({ channel: "whatsapp", companyId, recipient: to, body, dedupeKey: `quotation:${quotationId}` });
     if (order?.conversation_id) {
       await db.from("wa_messages").insert({
         conversation_id: order.conversation_id,
         company_id: companyId,
         direction: "outbound",
         body,
-        wa_message_id: messageId ?? null,
+        wa_message_id: null,
       });
     }
+    try { await drainOutbox(db); } catch { /* sweep will recover */ }
   }
 
   await db.from("quotations").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", quotationId).eq("company_id", companyId);
