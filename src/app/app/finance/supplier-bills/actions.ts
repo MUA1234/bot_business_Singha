@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireFinanceAccess } from "@/lib/auth";
-import { supabaseWriteClient } from "@/lib/supabase/read";
+import { requireFinanceAccess, requireCapabilityStrict, type SessionProfile } from "@/lib/auth";
+import { supabaseWriteClient, supabaseRpcClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { parseMoneyInput, lineTotal } from "@/lib/money";
 import { resolveIdempotencyKey } from "@/lib/idempotency";
@@ -52,15 +52,16 @@ export async function createBill(formData: FormData): Promise<void> {
 }
 
 export async function postBill(formData: FormData): Promise<void> {
-  const p = await requireFinance();
-  const db = supabaseWriteClient();
   const id = String(formData.get("bill_id") ?? "");
   const expenseCode = String(formData.get("expense_code") ?? "").trim();
   const payableCode = String(formData.get("payable_code") ?? "").trim();
   if (!id || !expenseCode || !payableCode) return;
+  // §WP2 STRICT: posting a bill requires finance.bill.post (no department fallback).
+  let p: SessionProfile;
+  try { p = await requireCapabilityStrict("finance.bill.post"); } catch { return; }
 
-  // §WP-B: journal + bill status + audit are ONE transaction inside the RPC.
-  const { error } = await db.rpc("post_supplier_bill", {
+  // §WP2: authenticated RPC client so the DB enforces finance.bill.post + records the actor.
+  const { error } = await supabaseRpcClient().rpc("post_supplier_bill", {
     p_company: p.companyId, p_bill: id,
     p_expense_code: expenseCode, p_payable_code: payableCode,
     p_by: p.userId, p_date: new Date().toISOString().slice(0, 10),
@@ -74,23 +75,21 @@ export async function postBill(formData: FormData): Promise<void> {
 /** Record a payment against a bill (Dr AP, Cr Cash). RECORDING ONLY — not a bank
  *  transfer. Atomic via the settle_supplier_bill RPC. */
 export async function settleBill(formData: FormData): Promise<void> {
-  const p = await requireFinance();
-  const db = supabaseWriteClient();
   const id = String(formData.get("bill_id") ?? "");
   const amountMoney = parseMoneyInput(formData.get("amount"), "LKR");
   const apCode = String(formData.get("ap_code") ?? "").trim();
   const cashCode = String(formData.get("cash_code") ?? "").trim();
   if (!id || !apCode || !cashCode || !amountMoney || !amountMoney.isPositive()) return;
+  // §WP2 STRICT: recording a supplier payment requires finance.payment.record.
+  let p: SessionProfile;
+  try { p = await requireCapabilityStrict("finance.payment.record"); } catch { return; }
   const amount = Number(amountMoney.toString()); // validated decimal; RPC arg stays numeric
 
-  // §WP-B idempotency is TRANSACTIONAL inside the RPC (caller key passed through). A
-  // retry returns the same journal and re-applies nothing; a failed RPC never consumes
-  // the key. Audit is written in-RPC.
   const idemKey = resolveIdempotencyKey(String(formData.get("idem_token") ?? ""), [
     "settle_supplier_bill", id, amountMoney.toString(), new Date().toISOString().slice(0, 10),
   ]);
 
-  const { error } = await db.rpc("settle_supplier_bill", {
+  const { error } = await supabaseRpcClient().rpc("settle_supplier_bill", {
     p_company: p.companyId, p_bill: id, p_amount: amount,
     p_ap_code: apCode, p_cash_code: cashCode, p_by: p.userId,
     p_date: new Date().toISOString().slice(0, 10),

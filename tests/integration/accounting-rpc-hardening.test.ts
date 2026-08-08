@@ -71,8 +71,8 @@ async function mkBill(total: number): Promise<string> {
     )
   ).rows[0].id;
 }
-const settleCI = (inv: string, amt: number, key: string | null) =>
-  `select public.settle_customer_invoice('${company}','${inv}',${amt},'1000','1100','${uAcct}','2026-07-15'${key === null ? "" : `,'${key}'`}) as v`;
+const settleCI = (inv: string, amt: number, key: string | null, by?: string) =>
+  `select public.settle_customer_invoice('${company}','${inv}',${amt},'1000','1100','${by ?? uAcct}','2026-07-15'${key === null ? "" : `,'${key}'`}) as v`;
 
 describe.skipIf(!enabled)("WP B accounting RPC hardening — live, zero-persistence", () => {
   beforeAll(async () => {
@@ -156,23 +156,27 @@ describe.skipIf(!enabled)("WP B accounting RPC hardening — live, zero-persiste
   it("authenticated caller without the finance capability is rejected; accountant succeeds", async () => {
     const inv = await mkInvoice(500);
     await asUser(uStaff);
-    const staff = await call(settleCI(inv, 100, "C1"));
+    const staff = await call(settleCI(inv, 100, "C1", uStaff));
     await asUser(uAcct);
-    const acct = await call(settleCI(inv, 100, "C2"));
+    const acct = await call(settleCI(inv, 100, "C2", uAcct));
     await asWorker();
     expect(staff.ok).toBe(false);
     expect(staff.error).toMatch(/capability finance\.receipt\.record/i);
     expect(acct.ok).toBe(true);
   });
 
-  it("the actor cannot be spoofed — posted_by is auth.uid(), not p_by", async () => {
+  it("the actor cannot be spoofed — a mismatched p_by is rejected; a matching one posts as auth.uid()", async () => {
     const inv = await mkInvoice(500);
     await asUser(uAcct);
-    // p_by is set to uStaff, but the authenticated actor is uAcct.
-    const r = await call(`select public.settle_customer_invoice('${company}','${inv}',100,'1000','1100','${uStaff}','2026-07-15','SPOOF') as v`);
+    // p_by = uStaff but the authenticated actor is uAcct → rejected (WP2.3).
+    const spoof = await call(`select public.settle_customer_invoice('${company}','${inv}',100,'1000','1100','${uStaff}','2026-07-15','SPOOF') as v`);
+    // p_by = uAcct (matches) → succeeds, actor derived from auth.uid().
+    const ok = await call(`select public.settle_customer_invoice('${company}','${inv}',100,'1000','1100','${uAcct}','2026-07-15','SPOOFOK') as v`);
     await asWorker();
-    expect(r.ok).toBe(true);
-    const j = await q(`select posted_by from journal_entries where id=$1`, [r.value]);
+    expect(spoof.ok).toBe(false);
+    expect(spoof.error).toMatch(/actor mismatch/i);
+    expect(ok.ok).toBe(true);
+    const j = await q(`select posted_by from journal_entries where id=$1`, [ok.value]);
     expect(j.rows[0].posted_by).toBe(uAcct);
   });
 

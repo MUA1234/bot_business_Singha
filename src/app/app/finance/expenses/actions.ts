@@ -1,15 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireProfile, requireFinanceAccess } from "@/lib/auth";
-import { supabaseWriteClient } from "@/lib/supabase/read";
+import { requireProfile, requireCapabilityStrict } from "@/lib/auth";
+import { supabaseWriteClient, supabaseRpcClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notify";
 import { parseMoneyInput } from "@/lib/money";
 import { isSelfAction } from "@/modules/finance/expense-guards";
 
-// WP D: central capability gate. Deciding/reimbursing an expense is finance-desk authority.
-const requireFinance = () => requireFinanceAccess("finance.payment.record");
+// §WP2 STRICT: deciding/reimbursing an expense requires finance.payment.record — no
+// department fallback (these are payment decisions). The DB RPC re-checks the capability.
+const requireFinance = () => requireCapabilityStrict("finance.payment.record");
 
 /** Find-or-create the legacy employees row for a profile (interim identity bridge). */
 async function ensureEmployee(profileId: string, companyId: string, name: string): Promise<string | null> {
@@ -77,7 +78,8 @@ export async function reimburseExpense(formData: FormData): Promise<void> {
   // approved-status lifecycle, separation-of-duties (can't reimburse your own claim),
   // journal + payment + reimbursement row + claim status + audit, all atomic and idempotent.
   const { data: claim } = await db.from("expense_claims").select("employee_id").eq("id", id).eq("company_id", p.companyId).maybeSingle();
-  const { error } = await db.rpc("reimburse_expense_claim", {
+  // §WP2: authenticated RPC client so the DB enforces finance.payment.record + SoD + records the actor.
+  const { error } = await supabaseRpcClient().rpc("reimburse_expense_claim", {
     p_company: p.companyId, p_claim: id,
     p_expense_code: expenseCode, p_cash_code: cashCode,
     p_by: p.userId, p_date: new Date().toISOString().slice(0, 10),

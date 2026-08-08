@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireFinanceAccess } from "@/lib/auth";
-import { supabaseWriteClient } from "@/lib/supabase/read";
+import { requireFinanceAccess, requireCapabilityStrict, type SessionProfile } from "@/lib/auth";
+import { supabaseWriteClient, supabaseRpcClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { parseMoneyInput, lineTotal } from "@/lib/money";
 import { resolveIdempotencyKey } from "@/lib/idempotency";
@@ -56,16 +56,17 @@ export async function createInvoice(formData: FormData): Promise<void> {
 
 /** Post the invoice to the ledger: Dr receivable, Cr income (atomic RPC). */
 export async function postInvoice(formData: FormData): Promise<void> {
-  const p = await requireFinance();
-  const db = supabaseWriteClient();
   const id = String(formData.get("invoice_id") ?? "");
   const receivableCode = String(formData.get("receivable_code") ?? "").trim();
   const incomeCode = String(formData.get("income_code") ?? "").trim();
   if (!id || !receivableCode || !incomeCode) return;
+  // §WP2 STRICT: posting requires finance.invoice.post (no department fallback).
+  let p: SessionProfile;
+  try { p = await requireCapabilityStrict("finance.invoice.post"); } catch { return; }
 
-  // §WP-B: journal + invoice status + audit are ONE transaction inside the RPC (no
-  // post-then-separately-update). Idempotent + capability-enforced; audit is in-RPC.
-  const { error } = await db.rpc("post_customer_invoice", {
+  // §WP2: authenticated RPC client — auth.uid() is populated even with RLS_WRITES off, so
+  // the DB enforces finance.invoice.post and records the real actor. One transaction.
+  const { error } = await supabaseRpcClient().rpc("post_customer_invoice", {
     p_company: p.companyId, p_invoice: id,
     p_receivable_code: receivableCode, p_income_code: incomeCode,
     p_by: p.userId, p_date: new Date().toISOString().slice(0, 10),
@@ -79,23 +80,23 @@ export async function postInvoice(formData: FormData): Promise<void> {
 /** Record a receipt against an invoice (Dr Cash, Cr AR). RECORDING ONLY — not a bank
  *  transfer. Atomic via the settle_customer_invoice RPC. */
 export async function settleInvoice(formData: FormData): Promise<void> {
-  const p = await requireFinance();
-  const db = supabaseWriteClient();
   const id = String(formData.get("invoice_id") ?? "");
   const amountMoney = parseMoneyInput(formData.get("amount"), "LKR");
   const cashCode = String(formData.get("cash_code") ?? "").trim();
   const arCode = String(formData.get("ar_code") ?? "").trim();
   if (!id || !cashCode || !arCode || !amountMoney || !amountMoney.isPositive()) return;
+  // §WP2 STRICT: recording a receipt requires finance.receipt.record.
+  let p: SessionProfile;
+  try { p = await requireCapabilityStrict("finance.receipt.record"); } catch { return; }
   const amount = Number(amountMoney.toString()); // validated decimal; RPC arg stays numeric
 
-  // §WP-B idempotency is TRANSACTIONAL inside the RPC: the caller key is passed through,
-  // so a retry (or double-submit) returns the same journal and re-applies nothing, and a
-  // failed RPC never consumes the key. No fragile pre-claim. Audit is written in-RPC.
+  // Transactional idempotency inside the RPC (caller key passed through). Authenticated
+  // RPC client so the DB enforces the capability and records the real actor.
   const idemKey = resolveIdempotencyKey(String(formData.get("idem_token") ?? ""), [
     "settle_customer_invoice", id, amountMoney.toString(), new Date().toISOString().slice(0, 10),
   ]);
 
-  const { error } = await db.rpc("settle_customer_invoice", {
+  const { error } = await supabaseRpcClient().rpc("settle_customer_invoice", {
     p_company: p.companyId, p_invoice: id, p_amount: amount,
     p_cash_code: cashCode, p_ar_code: arCode, p_by: p.userId,
     p_date: new Date().toISOString().slice(0, 10),

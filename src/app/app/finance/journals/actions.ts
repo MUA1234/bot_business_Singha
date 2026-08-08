@@ -2,8 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireFinanceAccess, type SessionProfile } from "@/lib/auth";
-import { supabaseWriteClient } from "@/lib/supabase/read";
+import { requireCapabilityStrict, type SessionProfile } from "@/lib/auth";
+import { supabaseRpcClient } from "@/lib/supabase/read";
 import { checkDraftJournal, type DraftLine } from "@/accounting/manual-entry";
 import { resolveIdempotencyKey } from "@/lib/idempotency";
 
@@ -13,9 +13,10 @@ export interface JournalState {
 
 /** Post a balanced manual journal atomically via the DB RPC (§8.2). */
 export async function postJournal(_prev: JournalState, formData: FormData): Promise<JournalState> {
+  // §WP2 STRICT: posting a manual journal requires finance.journal.post (no dept fallback).
   let p: SessionProfile;
-  try { p = await requireFinanceAccess("finance.journal.post"); }
-  catch { return { error: "Only finance may post journals." }; }
+  try { p = await requireCapabilityStrict("finance.journal.post"); }
+  catch { return { error: "You do not have journal-posting authority." }; }
 
   const date = String(formData.get("date") ?? "").trim() || new Date().toISOString().slice(0, 10);
   const currency = (String(formData.get("currency") ?? "LKR").trim() || "LKR").toUpperCase().slice(0, 3);
@@ -40,7 +41,7 @@ export async function postJournal(_prev: JournalState, formData: FormData): Prom
   const idemKey = resolveIdempotencyKey(String(formData.get("idem_token") ?? ""), [
     "post_manual_journal", date, currency, memo ?? "", JSON.stringify(payload),
   ]);
-  const { error } = await supabaseWriteClient().rpc("post_manual_journal", {
+  const { error } = await supabaseRpcClient().rpc("post_manual_journal", {
     p_company: p.companyId,
     p_date: date,
     p_currency: currency,
@@ -58,13 +59,14 @@ export async function postJournal(_prev: JournalState, formData: FormData): Prom
 /** Reverse a posted journal (§8.1). Posts a mirror entry and marks the original
  *  reversed — corrections never edit a posted journal. Atomic via reverse_journal RPC. */
 export async function reverseJournal(formData: FormData): Promise<void> {
-  let p: SessionProfile;
-  try { p = await requireFinanceAccess("finance.journal.reverse"); }
-  catch { return; }
   const id = String(formData.get("journal_id") ?? "");
   if (!id) return;
+  // §WP2 STRICT: reversing a journal requires finance.journal.reverse.
+  let p: SessionProfile;
+  try { p = await requireCapabilityStrict("finance.journal.reverse"); }
+  catch { return; }
 
-  const { error } = await supabaseWriteClient().rpc("reverse_journal", {
+  const { error } = await supabaseRpcClient().rpc("reverse_journal", {
     p_company: p.companyId, p_journal: id, p_by: p.userId, p_date: new Date().toISOString().slice(0, 10),
     p_idempotency_key: `reverse:${id}`,
   });

@@ -104,3 +104,17 @@ export async function requireFinanceAccess(capability: string): Promise<SessionP
   if (p.isAdmin || p.department === "finance") return p; // legacy compatibility during cutover
   throw new Error("Not allowed");
 }
+
+/**
+ * §WP2 STRICT gate for posting / payment / approval decisions: the membership capability
+ * is REQUIRED — there is NO legacy department/admin fallback. A finance_reviewer who can
+ * create a draft therefore cannot post. This mirrors the database RPC's own capability
+ * check (defence in depth); the DB remains the final authority.
+ */
+export async function requireCapabilityStrict(capability: string): Promise<SessionProfile> {
+  const p = await requireProfile();
+  const r = await resolveCapability(p.userId, p.companyId, capability);
+  if (r === "granted") return p;
+  if (r === "denied_suspended") throw new Error("Access suspended");
+  throw new Error(`Missing capability: ${capability}`);
+}

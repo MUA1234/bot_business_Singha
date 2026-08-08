@@ -39,3 +39,15 @@ export function rlsWritesEnabled(): boolean {
 export function supabaseWriteClient(): SupabaseClient {
   return rlsWritesEnabled() ? supabaseServer() : supabaseAdmin();
 }
+
+/**
+ * §WP2 — the client for CAPABILITY-ENFORCED FINANCIAL RPCs (post/settle/reverse/
+ * reimburse/approve). ALWAYS the authenticated client, regardless of RLS_WRITES, so
+ * `auth.uid()` is populated inside the SECURITY DEFINER RPC and it enforces the caller's
+ * database capability + records the real actor. The RPC still performs its controlled
+ * internal writes as the definer, so it works even while general RLS_WRITES is off.
+ * NEVER routes a user-initiated financial RPC through the service role.
+ */
+export function supabaseRpcClient(): SupabaseClient {
+  return supabaseServer();
+}
