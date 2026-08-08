@@ -116,6 +116,8 @@ describe.skipIf(!enabled)("WP A authority — adversarial, live, zero-persistenc
 
     // Approver amount ceiling: LKR 1000 for the 'payment' domain.
     await client.query(`insert into authority_rules (membership_id, company_id, domain, max_amount, currency) values ($1,$2,'payment',1000,'LKR')`, [mApprover, coA]);
+    // Delegator (accountant) needs explicit finance authority for a delegation to confer any (deny-by-default, 0046).
+    await client.query(`insert into authority_rules (membership_id, company_id, domain, is_unlimited) values ($1,$2,'finance',true)`, [mAcct, coA]);
 
     // Delegations (all in company A).
     const delFinTo = (await client.query(`select id from memberships where user_id=$1 and company_id=$2`, [uDelFin, coA])).rows[0].id;
@@ -170,18 +172,18 @@ describe.skipIf(!enabled)("WP A authority — adversarial, live, zero-persistenc
     expect(await canDo(uStaff, `insert into approval_actions (approval_request_id, company_id, actor_user_id, action) values ($1,$2,$3,'approve')`, [arSelf, coA, uStaff])).toBe(false);
   });
 
-  it("a submitter cannot approve their own request; a different approver can", async () => {
-    // finance_reviewer holds 'approve' but is the maker of arSelf → denied by SoD.
-    expect(await canDo(uReviewer, `insert into approval_actions (approval_request_id, company_id, actor_user_id, action) values ($1,$2,$3,'approve')`, [arSelf, coA, uReviewer])).toBe(false);
+  it("a submitter cannot approve their own request; a different approver can (decide_approval RPC)", async () => {
+    // finance_reviewer holds 'approve' but is the maker of arSelf → denied by SoD in the RPC.
+    expect(await canDo(uReviewer, `select public.decide_approval($1,$2,'approve')`, [coA, arSelf])).toBe(false);
     // owner_management holds 'approve' and is NOT the maker → allowed.
-    expect(await canDo(uOwner, `insert into approval_actions (approval_request_id, company_id, actor_user_id, action) values ($1,$2,$3,'approve')`, [arSelf, coA, uOwner])).toBe(true);
+    expect(await canDo(uOwner, `select public.decide_approval($1,$2,'approve')`, [coA, arSelf])).toBe(true);
   });
 
   it("an approver cannot exceed their amount ceiling", async () => {
     expect(await boolVal(uApprover, `select public.within_authority($1,'payment',500) as v`, [coA])).toBe(true);
     expect(await boolVal(uApprover, `select public.within_authority($1,'payment',5000) as v`, [coA])).toBe(false);
-    // A user with no rule for the domain is unlimited (null ceiling).
-    expect(await boolVal(uStaff, `select public.within_authority($1,'payment',999999) as v`, [coA])).toBe(true);
+    // Deny-by-default (0046): a user with NO rule for a money domain has NO authority.
+    expect(await boolVal(uStaff, `select public.within_authority($1,'payment',10) as v`, [coA])).toBe(false);
   });
 
   it("a user cannot change another company's data with a known id", async () => {

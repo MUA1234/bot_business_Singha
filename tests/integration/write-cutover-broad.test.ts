@@ -86,12 +86,16 @@ describe.skipIf(!enabled)("broad write cutover — capability-gated, live, zero-
     expect(await canInsertAs(uNoCap, `insert into suppliers (company_id, name) values ($1,'S')`, [companyA])).toBe(false);
   });
 
-  it("approval workflow tables are append-only with an insert policy (SoD in the policy)", async () => {
+  it("approval workflow tables are append-only; actions are RPC-only", async () => {
+    // approval_requests: makers create directly (insert policy), append-only (no upd/del).
+    const reqIns = (await client.query(`select count(*)::int n from pg_policies where tablename='approval_requests' and cmd='INSERT'`)).rows[0].n;
+    expect(reqIns, "approval_requests insert policy").toBeGreaterThanOrEqual(1);
+    // approval_actions: RPC-only (decide_approval) — no direct write policy at all (0046).
     for (const t of ["approval_requests", "approval_actions"]) {
-      const ins = (await client.query(`select count(*)::int n from pg_policies where tablename=$1 and cmd='INSERT'`, [t])).rows[0].n;
       const mut = (await client.query(`select count(*)::int n from pg_policies where tablename=$1 and cmd in ('UPDATE','DELETE')`, [t])).rows[0].n;
-      expect(ins, `${t} insert policy`).toBeGreaterThanOrEqual(1);
       expect(mut, `${t} must be append-only (no update/delete policy)`).toBe(0);
     }
+    const actIns = (await client.query(`select count(*)::int n from pg_policies where tablename='approval_actions' and cmd='INSERT'`)).rows[0].n;
+    expect(actIns, "approval_actions is RPC-only (no direct insert policy)").toBe(0);
   });
 });
