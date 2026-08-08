@@ -6,6 +6,7 @@ import { supabaseWriteClient, supabaseRpcClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { parseMoneyInput, lineTotal } from "@/lib/money";
 import { resolveIdempotencyKey } from "@/lib/idempotency";
+import { log, newCorrelationId } from "@/lib/log";
 
 // WP D: central capability gate (membership capability grants; legacy finance dept still
 // works during rollout; suspended members are denied). The DB enforces the specific
@@ -72,7 +73,10 @@ export async function postInvoice(formData: FormData): Promise<void> {
     p_by: p.userId, p_date: new Date().toISOString().slice(0, 10),
     p_idempotency_key: `invoice_post:${id}`,
   });
-  if (error) return;
+  if (error) {
+    log("error", "post_customer_invoice failed", { event: "finance.invoice_post_failed", correlationId: newCorrelationId(), companyId: p.companyId, entityId: id, error: error.message });
+    return;
+  }
   revalidatePath(`/app/finance/customer-invoices/${id}`);
   revalidatePath("/app/finance/customer-invoices");
 }
@@ -102,7 +106,10 @@ export async function settleInvoice(formData: FormData): Promise<void> {
     p_date: new Date().toISOString().slice(0, 10),
     p_idempotency_key: idemKey,
   });
-  if (error) return;
+  if (error) {
+    log("error", "settle_customer_invoice failed", { event: "finance.receipt_failed", correlationId: newCorrelationId(), companyId: p.companyId, entityId: id, error: error.message });
+    return;
+  }
   revalidatePath(`/app/finance/customer-invoices/${id}`);
   revalidatePath("/app/finance/customer-invoices");
 }

@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { log, newCorrelationId } from "@/lib/log";
 import { revalidatePath } from "next/cache";
 import { requireCapabilityStrict, type SessionProfile } from "@/lib/auth";
 import { supabaseRpcClient } from "@/lib/supabase/read";
@@ -70,7 +71,7 @@ export async function reverseJournal(formData: FormData): Promise<void> {
     p_company: p.companyId, p_journal: id, p_by: p.userId, p_date: new Date().toISOString().slice(0, 10),
     p_idempotency_key: `reverse:${id}`,
   });
-  if (error) return;
+  if (error) { log("error", "finance action failed", { event: "finance.action_failed", correlationId: newCorrelationId(), companyId: p.companyId, error: error.message }); return; }
   revalidatePath("/app/finance/journals");
   revalidatePath(`/app/finance/journals/${id}`);
 }

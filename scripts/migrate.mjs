@@ -32,7 +32,10 @@ await c.connect();
 await c.query(`create table if not exists schema_migrations (version text primary key, filename text not null, applied_at timestamptz not null default now())`);
 
 const applied = new Set((await c.query("select version from schema_migrations")).rows.map((r) => r.version));
-const pending = files.filter((f) => !applied.has(version(f)));
+// MIGRATE_UPTO=NNNN applies only migrations up to and including that version (for
+// upgrade-path testing: stage an older schema, seed data, then migrate the rest).
+const upto = process.env.MIGRATE_UPTO;
+const pending = files.filter((f) => !applied.has(version(f)) && (!upto || version(f) <= upto));
 
 if (mode === "--status") {
   console.log(`applied: ${applied.size}  pending: ${pending.length}`);

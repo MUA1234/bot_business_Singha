@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { log, newCorrelationId } from "@/lib/log";
 import { requireFinanceAccess, requireCapabilityStrict, type SessionProfile } from "@/lib/auth";
 import { supabaseWriteClient, supabaseRpcClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
@@ -67,7 +68,7 @@ export async function postBill(formData: FormData): Promise<void> {
     p_by: p.userId, p_date: new Date().toISOString().slice(0, 10),
     p_idempotency_key: `bill_post:${id}`,
   });
-  if (error) return;
+  if (error) { log("error", "finance action failed", { event: "finance.action_failed", correlationId: newCorrelationId(), companyId: p.companyId, error: error.message }); return; }
   revalidatePath(`/app/finance/supplier-bills/${id}`);
   revalidatePath("/app/finance/supplier-bills");
 }
@@ -95,7 +96,7 @@ export async function settleBill(formData: FormData): Promise<void> {
     p_date: new Date().toISOString().slice(0, 10),
     p_idempotency_key: idemKey,
   });
-  if (error) return;
+  if (error) { log("error", "finance action failed", { event: "finance.action_failed", correlationId: newCorrelationId(), companyId: p.companyId, error: error.message }); return; }
   revalidatePath(`/app/finance/supplier-bills/${id}`);
   revalidatePath("/app/finance/supplier-bills");
 }

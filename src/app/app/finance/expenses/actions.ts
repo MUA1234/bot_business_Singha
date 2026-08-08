@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { log, newCorrelationId } from "@/lib/log";
 import { requireProfile, requireCapabilityStrict } from "@/lib/auth";
 import { supabaseWriteClient, supabaseRpcClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
@@ -85,7 +86,7 @@ export async function reimburseExpense(formData: FormData): Promise<void> {
     p_by: p.userId, p_date: new Date().toISOString().slice(0, 10),
     p_idempotency_key: `reimburse:${id}`,
   });
-  if (error) return;
+  if (error) { log("error", "finance action failed", { event: "finance.action_failed", correlationId: newCorrelationId(), companyId: p.companyId, error: error.message }); return; }
   if (claim?.employee_id) await notifyEmployee(p.companyId, claim.employee_id, "Your expense was reimbursed");
   revalidatePath("/app/finance/expenses");
 }

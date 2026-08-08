@@ -41,6 +41,10 @@ DEFINER posting RPCs are the sole accounting source of truth. **QuickBooks is NO
 Default OFF = **zero behaviour change**: reads/writes use the service-role client and the
 legacy department/admin checks. See `docs/architecture-v2/RLS_CUTOVER_PLAN.md`.
 
+## Correction phase — migrations 0044–0047 (CLAUDE_CORRECTION_BRIEF_0044)
+
+Implemented + verified on a disposable Postgres 16 (incl. an upgrade path from a 0043 DB with legacy data): posting via authenticated RPC + strict capabilities; canonical SHA-256 idempotency with safe legacy upgrade; invoice/bill lifecycle; supplier bank-detail maker-checker RPCs; deny-by-default authority + transactional approval RPC; complete RLS write-policy matrix with a coverage test; nanoid patched. Migrations 0044–0047 are NOT yet applied to any hosted DB (owner action). See `VERIFICATION_EVIDENCE.md` + `RLS_WRITE_POLICY_MATRIX.md`.
+
 ## Production Security & Reliability Gate — status by work package
 
 - **WP A — DB authority & capability RLS** — implemented (not verified in staging).
@@ -98,25 +102,26 @@ legacy department/admin checks. See `docs/architecture-v2/RLS_CUTOVER_PLAN.md`.
 
 Commands run and results:
 - `npm run secret-scan` → **pass** (no tracked secrets).
-- `npm run migration-lint` → **pass** (41 migrations, sequential 0001–0041).
+- `npm run migration-lint` → **pass** (47 migrations, sequential 0001–0047).
 - `npm run typecheck` → **pass**.
 - `npm run lint` → **pass** (pre-existing `<img>` warnings only).
-- `npm test` → **371 passing** (74 files).
+- `npm test` → **374 passing** (74 files) + 22 integration files / 89 tests on disposable Postgres 16.
 - `npm run build` → **pass** (placeholder public env).
 - `npm run audit-check` → **pass** (2 high findings, both approved exceptions: next, postcss).
 
-**Not run locally (reported honestly):**
-- `DATABASE_URL=… npm run test:integration` — **not run**: no non-production Postgres is
-  available locally and production must not be used. These tests (existing suite + the new
-  `authority-adversarial`, `accounting-rpc-hardening`, `rpc-concurrency`, `outbox-claim`)
-  run in CI's `db-tests` job against a disposable Postgres. Status there: **not yet
-  observed** (CI must run on push).
-- Migrations 0038–0041 have **not** been applied to any hosted DB (see `MIGRATION_STATE.md`).
+**Database tests (now run):**
+- `DATABASE_URL=<disposable Postgres 16> npm run test:integration` → **22 files / 89 tests pass**,
+  including adversarial RLS, accounting-RPC hardening, canonical idempotency + lifecycle,
+  bank maker-checker, approval authority, RLS-matrix coverage, and two-connection concurrency
+  (settlement, reversal, invoice post, bank approval). Verified from a clean checkout AND via
+  the 0043→0047 upgrade path with legacy data. The same suite runs in CI's `db-tests` job.
+- Migrations **0038–0043** were applied by the owner to the live DB; **0044–0047** are NOT yet
+  applied to any hosted DB (owner action — see `MIGRATION_STATE.md`).
 
 ## Reconciliation with MIGRATION_STATE.md
 
 `MIGRATION_STATE.md` is the authority on applied-state. 0001–0013 confirmed applied to
-production (owner, 2026-08-05); 0014–0022 reported-applied-unverified; 0023–0037 applied to
+production (owner, 2026-08-05); 0014–0022 reported-applied-unverified; 0023–0043 applied by owner to
 the DB `gazjughejdzebathpscb`; **0038–0041 not applied to any environment**. No statement
 here asserts a migration is applied merely because its file exists.
 

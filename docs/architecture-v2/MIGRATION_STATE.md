@@ -79,6 +79,18 @@ _Last reviewed: 2026-08-07 (Production Security & Reliability Gate)._
 | 0041 | ledger_integrity_report (WP E: read-only integrity probe for the health surface) | ✅ applied to DB `gazjughejdzebathpscb` (owner-confirmed 2026-08-07) |
 | 0042 | authority_tightening (review follow-up: self-service claims tied to the authenticated employee; capability-gate remaining financial subledger tables; payment_allocations service-only) | ❌ **not applied to any environment** (added 2026-08-07; verified on disposable Postgres) |
 | 0043 | transactional_finance (review follow-up: full-payload idempotency; transactional post_customer_invoice / post_supplier_bill / reimburse_expense_claim RPCs) | ❌ **not applied to any environment** (added 2026-08-07; verified on disposable Postgres) |
+| 0044 | canonical_idempotency_and_lifecycle (correction WP3/WP4: SHA-256 canonical fingerprint binding operation+source+date+currency+memo+lines; legacy null-hash upgrade; reimbursement source binding; invoice/bill lifecycle; actor from auth.uid + p_by mismatch reject + system actor_type) | ❌ **not applied to any environment** (added 2026-08-08; verified on disposable Postgres incl. upgrade-path from 0043) |
+| 0045 | bank_change_maker_checker (correction WP6: request/decision RPCs; supplier_bank_detail_changes RPC-only; maker<>checker; no bank numbers in audit) | ❌ **not applied to any environment** (added 2026-08-08; verified on disposable Postgres) |
+| 0046 | authority_and_approvals (correction WP7: authority_rules.is_unlimited; deny-by-default within_authority; decide_approval RPC; approval_actions RPC-only) | ❌ **not applied to any environment** (added 2026-08-08; verified on disposable Postgres) |
+| 0047 | rls_write_matrix (correction WP8: capability-gate remaining sensitive finance/bank/planning/inventory/fleet/identity tables; operations.fleet.manage) | ❌ **not applied to any environment** (added 2026-08-08; verified on disposable Postgres) |
+
+> **Correction-phase note (0044–0047):** authored 2026-08-08, **not** applied to any hosted
+> DB. Verified on a disposable local **PostgreSQL 16** (Supabase-compat shim) from a clean
+> database AND via an **upgrade path** (staged at 0043 with legacy data — null-hash journal,
+> unposted invoice, pending approval/outbox/bank-change — then migrated 0044→0047 cleanly;
+> the legacy null-hash journal's identical retry returns the same journal and upgrades its
+> fingerprint). Note 0038–0043 were previously applied by the owner to DB `gazjughejdzebathpscb`;
+> 0044–0047 are pending owner application (with approval) via `RUN_*`/`npm run migrate`.
 
 ### Production Security & Reliability Gate migrations (0038–0041) — applied state
 

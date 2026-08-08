@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { log, newCorrelationId } from "@/lib/log";
 import { requireCapabilityStrict, type SessionProfile } from "@/lib/auth";
 import { supabaseRpcClient } from "@/lib/supabase/read";
 
@@ -19,7 +20,7 @@ export async function requestBankChange(formData: FormData): Promise<void> {
     p_company: p.companyId, p_supplier: supplierId,
     p_new_name: newName, p_new_number: newNumber, p_by: p.userId,
   });
-  if (error) return;
+  if (error) { log("error", "finance action failed", { event: "finance.action_failed", correlationId: newCorrelationId(), companyId: p.companyId, error: error.message }); return; }
   revalidatePath("/app/finance/supplier-bank-changes");
 }
 
@@ -37,6 +38,6 @@ export async function decideBankChange(formData: FormData): Promise<void> {
     p_company: p.companyId, p_change: id, p_decision: decision, p_by: p.userId,
     p_note: String(formData.get("note") ?? "").trim() || null,
   });
-  if (error) return;
+  if (error) { log("error", "finance action failed", { event: "finance.action_failed", correlationId: newCorrelationId(), companyId: p.companyId, error: error.message }); return; }
   revalidatePath("/app/finance/supplier-bank-changes");
 }
