@@ -1,33 +1,13 @@
--- ============================================================================
 -- RUN-ONCE COMBINED MIGRATION — Correction phase (pending migrations 0042 -> 0047)
--- Generated 2026-08-08 from the canonical files in src/db/migrations/.
---
--- Your live DB already has 0001-0041 (message_outbox lease columns + audit_events
--- .idempotency_key confirm 0039-0041; journal_entries has no payload_hash/idem_fingerprint
--- and authority_rules has no is_unlimited, so 0042-0047 are pending).
---
--- SAFE TO RUN: forward-only, additive, IDEMPOTENT (drop policy if exists / create or
--- replace / add column if not exists), wrapped in ONE transaction (all-or-nothing). If any
--- of 0042-0047 were already applied, re-running them is a no-op. Order matters and is
--- preserved (0043 adds journal_entries.payload_hash which 0044 requires; 0044 defines the
--- versioned internal poster that 0045/0046 use). INERT until the RLS_WRITES/etc flags are
--- turned on (service role bypasses RLS; RPCs treat the service caller as the trusted path).
---
--- HOW TO RUN: paste this whole file into the Supabase SQL editor and Run.
--- Recommended: run against a NON-PRODUCTION copy first (see MIGRATION_STATE.md).
--- ============================================================================
+-- Regenerated 2026-08-08. Idempotent, single transaction. Fingerprint
+-- functions use search_path public,extensions so pgcrypto digest() resolves on Supabase.
+-- Paste into the Supabase SQL editor and Run. Assumes 0001-0041 already applied.
 
 begin;
 
-create table if not exists schema_migrations (
-  version text primary key,
-  filename text not null,
-  applied_at timestamptz not null default now()
-);
+create table if not exists schema_migrations (version text primary key, filename text not null, applied_at timestamptz not null default now());
 
--- ============================================================================
--- 0042_authority_tightening.sql
--- ============================================================================
+-- ===== 0042_authority_tightening.sql =====
 -- 0042_authority_tightening.sql
 -- Production Security & Reliability Gate — WP A follow-up (review findings).
 --   1. Self-service rows are tied to the AUTHENTICATED person: an expense claim's
@@ -109,9 +89,7 @@ begin
 end $$;
 
 
--- ============================================================================
--- 0043_transactional_finance.sql
--- ============================================================================
+-- ===== 0043_transactional_finance.sql =====
 -- 0043_transactional_finance.sql
 -- Production Security & Reliability Gate — WP B follow-up (review findings).
 --   1. FULL-PAYLOAD idempotency: a reused key with the same total but DIFFERENT lines is a
@@ -326,9 +304,7 @@ begin
 end $$;
 
 
--- ============================================================================
--- 0044_canonical_idempotency_and_lifecycle.sql
--- ============================================================================
+-- ===== 0044_canonical_idempotency_and_lifecycle.sql =====
 -- 0044_canonical_idempotency_and_lifecycle.sql
 -- Correction phase — WP3 (canonical idempotency), WP4 (document lifecycle) and the SQL
 -- half of WP2 (actor from auth.uid, reject p_by mismatch, system-actor path).
@@ -400,7 +376,7 @@ $$;
 create or replace function public._fp_full(
   p_operation text, p_company uuid, p_source_type text, p_source_id uuid,
   p_date date, p_currency text, p_memo text, p_lines jsonb
-) returns text language sql immutable set search_path = public as $$
+) returns text language sql immutable set search_path = public, extensions as $$  -- 'extensions' for pgcrypto digest() on Supabase
   select 'v2:' || encode(digest(
     coalesce(p_operation,'') || '|' || p_company::text || '|' ||
     coalesce(p_source_type,'') || '|' || coalesce(p_source_id::text,'') || '|' ||
@@ -412,7 +388,7 @@ $$;
 -- Reconstructable subset (no operation/source) — used to compare a LEGACY journal.
 create or replace function public._fp_recon(
   p_date date, p_currency text, p_memo text, p_lines jsonb
-) returns text language sql immutable set search_path = public as $$
+) returns text language sql immutable set search_path = public, extensions as $$  -- 'extensions' for pgcrypto digest() on Supabase
   select encode(digest(
     p_date::text || '|' || upper(coalesce(p_currency,'')) || '|' ||
     coalesce(btrim(p_memo),'') || '|' || public._fp_lines(p_lines),
@@ -743,9 +719,7 @@ begin
 end $$;
 
 
--- ============================================================================
--- 0045_bank_change_maker_checker.sql
--- ============================================================================
+-- ===== 0045_bank_change_maker_checker.sql =====
 -- 0045_bank_change_maker_checker.sql
 -- Correction phase — WP6. Supplier bank-detail changes become genuine maker-checker:
 --   * Direct authenticated INSERT/UPDATE/DELETE of supplier_bank_detail_changes is
@@ -852,9 +826,7 @@ begin
 end $$;
 
 
--- ============================================================================
--- 0046_authority_and_approvals.sql
--- ============================================================================
+-- ===== 0046_authority_and_approvals.sql =====
 -- 0046_authority_and_approvals.sql
 -- Correction phase — WP7. Deny-by-default financial authority + a transactional approval RPC.
 --   * authority_rules gains is_unlimited (explicit, owner-set) — unlimited is NEVER inferred
@@ -1004,9 +976,7 @@ begin
 end $$;
 
 
--- ============================================================================
--- 0047_rls_write_matrix.sql
--- ============================================================================
+-- ===== 0047_rls_write_matrix.sql =====
 -- 0047_rls_write_matrix.sql
 -- Correction phase — WP8. Replace the remaining broad company-member write policies on
 -- SENSITIVE tables (finance/bank/reconciliation/planning/commitments/inventory/fleet/
@@ -1068,13 +1038,6 @@ begin
 end $$;
 
 
-insert into schema_migrations (version, filename) values
-  ('0042','0042_authority_tightening.sql'),
-  ('0043','0043_transactional_finance.sql'),
-  ('0044','0044_canonical_idempotency_and_lifecycle.sql'),
-  ('0045','0045_bank_change_maker_checker.sql'),
-  ('0046','0046_authority_and_approvals.sql'),
-  ('0047','0047_rls_write_matrix.sql')
-on conflict (version) do nothing;
+insert into schema_migrations (version, filename) values ('0042','0042_authority_tightening.sql'),('0043','0043_transactional_finance.sql'),('0044','0044_canonical_idempotency_and_lifecycle.sql'),('0045','0045_bank_change_maker_checker.sql'),('0046','0046_authority_and_approvals.sql'),('0047','0047_rls_write_matrix.sql') on conflict (version) do nothing;
 
 commit;

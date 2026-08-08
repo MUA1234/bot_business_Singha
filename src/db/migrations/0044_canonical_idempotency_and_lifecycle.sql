@@ -69,7 +69,7 @@ $$;
 create or replace function public._fp_full(
   p_operation text, p_company uuid, p_source_type text, p_source_id uuid,
   p_date date, p_currency text, p_memo text, p_lines jsonb
-) returns text language sql immutable set search_path = public as $$
+) returns text language sql immutable set search_path = public, extensions as $$  -- 'extensions' for pgcrypto digest() on Supabase
   select 'v2:' || encode(digest(
     coalesce(p_operation,'') || '|' || p_company::text || '|' ||
     coalesce(p_source_type,'') || '|' || coalesce(p_source_id::text,'') || '|' ||
@@ -81,7 +81,7 @@ $$;
 -- Reconstructable subset (no operation/source) — used to compare a LEGACY journal.
 create or replace function public._fp_recon(
   p_date date, p_currency text, p_memo text, p_lines jsonb
-) returns text language sql immutable set search_path = public as $$
+) returns text language sql immutable set search_path = public, extensions as $$  -- 'extensions' for pgcrypto digest() on Supabase
   select encode(digest(
     p_date::text || '|' || upper(coalesce(p_currency,'')) || '|' ||
     coalesce(btrim(p_memo),'') || '|' || public._fp_lines(p_lines),

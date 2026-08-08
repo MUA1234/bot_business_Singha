@@ -5,7 +5,11 @@
 -- auth.role() reading request.jwt.claims, and the default grants Supabase gives its roles.
 -- NEVER apply this to a real Supabase project (those objects already exist there).
 
-create extension if not exists pgcrypto;
+-- Mirror Supabase: pgcrypto lives in the `extensions` schema (not public), so digest()
+-- is only reachable via a search_path that includes it — this makes the harness catch the
+-- "function digest does not exist" class of bug. gen_random_uuid stays core (pg_catalog).
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 -- Auth roles (service_role bypasses RLS, like Supabase; authenticated is subject to RLS).
 do $$
