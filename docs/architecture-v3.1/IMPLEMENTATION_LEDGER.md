@@ -73,6 +73,16 @@ Toolchain: Node v22.22.2, npm 10.9.7. Run from a clean checkout of the branch af
 files. All flags are default OFF with no other state. The `AGENTS.md`/`CLAUDE.md` edits are additive
 (18 insertions, 0 deletions).
 
+### CI history (PR #3)
+
+- **Run #16 (`pull_request`, commit `6e3f9aa`)** — both `verify` and `db-tests` reported `failure`
+  after ~2s with **no runner assigned** (`runner_id: 0`, empty steps, logs HTTP 404). That is a
+  GitHub Actions **startup/infrastructure failure before any step ran**, not a workflow or code
+  failure: the workflow file is unchanged from the 15 previously-green runs on `main`, and this
+  slice's additive docs/TS/tests cannot fail before `actions/checkout`. The re-run API is not
+  available to this integration (`403 Resource not accessible by integration`), so CI was
+  re-triggered by pushing a follow-up commit.
+
 ## Deferred (dependency-ordered) — see `01_V3_1_EXECUTION_SPEC.md` §5
 
 1. **`0048+` correction prerequisite (WP10–WP18)** — blocking for all finance/RLS/outbox-dependent
