@@ -1,9 +1,12 @@
 /**
- * WP1 write isolation — live against real Postgres, ZERO-PERSISTENCE. Proves migration
- * 0034's company-scoped write policies: as an authenticated user, a write into your OWN
- * company succeeds, but a write into ANOTHER company is blocked by RLS (with check /
- * using), so a cross-company write is impossible at the database — the backstop for the
- * write-path cutover.
+ * WP1 write isolation — live against real Postgres, ZERO-PERSISTENCE. Proves company
+ * write isolation: as an authorised user, a write into your OWN company succeeds, but a
+ * write into ANOTHER company is blocked by RLS (with check / using), so a cross-company
+ * write is impossible at the database — the backstop for the write-path cutover.
+ *
+ * NB: `leads` is capability-gated as of migration 0048 (WP10 — sales.pipeline.manage), so
+ * `userA` is granted a role that holds it; the property under test (own-company allowed,
+ * cross-company blocked) is unchanged.
  *
  * Skipped unless `DATABASE_URL` is set.  Run:  DATABASE_URL=… npm run test:integration
  */
@@ -45,7 +48,9 @@ describe.skipIf(!enabled)("write isolation — live RLS, zero-persistence", () =
     companyA = await co("wp_wr_A");
     companyB = await co("wp_wr_B");
     userA = (await client.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(),'wp_wr_uA',true) returning id`)).rows[0].id;
-    await client.query(`insert into memberships (company_id, user_id, status) values ($1,$2,'active')`, [companyA, userA]);
+    const mA = (await client.query(`insert into memberships (company_id, user_id, status) values ($1,$2,'active') returning id`, [companyA, userA])).rows[0].id;
+    // owner_management holds sales.pipeline.manage (the capability that gates `leads` writes since 0048).
+    await client.query(`insert into membership_roles (membership_id, company_id, role_key) values ($1,$2,'owner_management')`, [mA, companyA]);
     leadInB = (await client.query(`insert into leads (company_id, name) values ($1,'B-lead') returning id`, [companyB])).rows[0].id;
   });
 
