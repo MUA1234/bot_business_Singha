@@ -140,14 +140,14 @@ upgrade is one-time. `idempotency-lifecycle` legacy seed updated to add lines wh
 | Gate | Result |
 |---|---|
 | `npm run secret-scan` | pass |
-| `npm run migration-lint` | pass — 48 migrations, sequential 0001–0048 |
+| `npm run migration-lint` | pass — 50 migrations, sequential 0001–0050 |
 | `npm run typecheck` | pass |
 | `npm run lint` | pass (pre-existing `<img>` warnings only) |
 | `npm test` (unit) | pass — 374 |
 | `npm run audit-check` | pass (2 approved exceptions) |
 | `npm run build` | pass |
-| `npm run test:integration` — **upgrade path** (0047→0048 on legacy data) | pass — 24 files / **101** tests (+12) |
-| `npm run test:integration` — **fresh DB** (0001→0048 from scratch) | pass — 24 files / 101 tests |
+| `npm run test:integration` — **upgrade path** (0049→0050 on legacy data) | pass — **26 files / 116 tests** |
+| `npm run test:integration` — **fresh DB** (0001→0050 from scratch) | pass — **26 files / 116 tests** |
 
 Toolchain: Node v22.22.2, npm 10.9.7, PostgreSQL 16.13. No hosted migration applied; no feature flag
 enabled.
