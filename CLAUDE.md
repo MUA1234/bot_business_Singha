@@ -16,13 +16,16 @@
 >
 > **V3.1 program (added 2026-08):** A V3.1 senior-management-intelligence evolution is scoped in
 > `docs/architecture-v3.1/` (`00_BASELINE_ASSESSMENT.md`, `01_V3_1_EXECUTION_SPEC.md`,
-> `IMPLEMENTATION_LEDGER.md`). Its **compatibility foundation only** is implemented so far — a
-> default-OFF feature-flag registry (`src/config/flags.ts`) and canonical proposal contracts
-> (`src/schemas/v3_1/*`), consumed by no runtime path (additive, zero behaviour change). The
-> `0048+` security/accounting correction (pack WP10–WP18) is **not yet implemented** and is a
-> **blocking prerequisite** for any V3.1 finance/RLS/outbox cutover. NOTE: the verified unit-test
-> count is now **374 (75 files)** — the "195 (46 files)" figure above is stale; see
-> `docs/architecture-v3.1/00_BASELINE_ASSESSMENT.md` §4.
+> `IMPLEMENTATION_LEDGER.md`). Its compatibility foundation (default-OFF flags `src/config/flags.ts`
+> + proposal contracts `src/schemas/v3_1/*`) plus the **`0048+` security/accounting correction (pack
+> WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0058** — and verified on a
+> disposable PostgreSQL 16 (fresh + upgrade). They are the **blocking prerequisite** for any V3.1
+> finance/RLS/outbox cutover and are **NOT merged, NOT deployed, hosted DB NOT migrated, all flags
+> OFF**. The first external review returned **CHANGES REQUESTED**; the fixes (WP12/WP15/WP11,
+> migrations 0056–0058) are on `feature/v3-1-phase-1-external-review-fixes` and **await the SECOND
+> external review** — do not begin V3.1 Phase 2 until it is approved. Verified counts: **unit 405 (78
+> files); integration 33 files / 173 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md`
+> and `PHASE1_CORRECTIONS_LEDGER.md`. (The "195 (46 files)" and "374 (75 files)" figures above are stale.)
 >
 > **Superseded-document rule:** A coding agent MUST NOT rely on any instruction that
 > conflicts with the document precedence below. Where a document is marked superseded

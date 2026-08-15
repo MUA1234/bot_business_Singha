@@ -5,6 +5,13 @@
 > with failing-before/passing-after tests, verified on a disposable PostgreSQL 16 (fresh **and**
 > `0047→0048+` upgrade path). `RLS_READS` / `RLS_WRITES` / `WHATSAPP_ASYNC` stay OFF. No hosted action.
 
+> **Phase 1 status: CHANGES REQUESTED → corrected, awaiting the SECOND external review.** The first
+> external review found blocking defects in WP12, WP15 and WP11 plus a branch-integration problem.
+> They are fixed in the **external-review increment** (migrations **0056–0058**) on the integration
+> branch `feature/v3-1-phase-1-external-review-fixes` (PR #3 foundation + stack PRs #4–#12 +
+> corrections A–D). **WP11, WP12 and WP15 are NOT re-marked "done" until the second review approves
+> them.** See the external-review section below and `PHASE1_CONSOLIDATION_REPORT.md`.
+
 ## Status
 
 | WP | Correction | Status |
@@ -19,9 +26,42 @@
 | **WP17** | Explicit system-actor path (no human `p_by` on the worker path) | **✅ done — migration 0049** |
 | **WP18** | Reconcile migration-state / verification docs | **✅ done — docs** |
 
-> Note: **all Phase-1 work packages (WP10–WP18) are done.** The Phase-1 consolidation report is
-> `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` (final evidence, stamped with the final
-> commit SHA). **Mandatory STOP for external review** before the V3.1 runtime phases (2–10).
+> Note: the eight WP migrations (0048–0055) landed in the first pass; the **second external review**
+> must approve the corrections below before WP11/WP12/WP15 are considered done. The Phase-1
+> consolidation report is `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` (final evidence,
+> stamped with the content commit SHA). **Mandatory STOP** before the V3.1 runtime phases (2–10).
+
+## External-review corrections (increment on `feature/v3-1-phase-1-external-review-fixes`)
+
+The first external review returned **CHANGES REQUESTED**. Corrections, each a forward migration with
+failing-before (vs reviewed tip `509685b`) / passing-after adversarial tests:
+
+- **B — WP15 source binding (migration 0056).** The existing-journal path of
+  `post_customer_invoice`/`post_supplier_bill` validated only company + key + lifecycle, so a retry
+  with a changed date/account, or a second document reusing the first's key + journal link, returned
+  a false idempotent success. Now the source invariants are checked on both paths and the linked
+  journal is returned only when the recomputed **canonical fingerprint** (operation/company/source/
+  date/currency/memo/derived-lines) matches the stored journal's (v3/v2/legacy-NULL) and the journal
+  is the document's own. Tests: `wp15-source-binding.test.ts` (6; 5 fail on 0055).
+- **C — WP11 fail-closed + domain capabilities (migration 0057).** Authority (capability +
+  amount/currency/scope) is now enforced for **reject** as well as approve; a missing/cross-company
+  event, NULL amount/currency, or unknown domain **fails closed**; a duplicate actor action is a
+  conflict on a different action (no state/audit change) and idempotent on the same; audit is written
+  only for a persisted action; delegation joins require from/to memberships in `p_company`
+  (defence-in-depth over the existing composite FKs). The generic `approve` capability is replaced by
+  a deterministic, fail-closed **domain→capability whitelist** (`finance.approve.payment/expense/
+  sales/purchase`, catalogue + role map). Tests: `wp11-approval-failclose.test.ts` (6; 5 fail on 0055).
+- **A — WP12 truthful delivery end-to-end (migration 0058 + code).** `tryFinalizeAndSend` now reads
+  the current state before any refresh (terminal states never regress; `queued` is never re-priced or
+  re-enqueued), handles every `enqueueOutbox` result (`enqueued`/`duplicate`/`unavailable`), and
+  reports drain failures instead of swallowing them; message history is written **atomically on
+  durable send** (with the provider id) by the completion RPC — never pre-completion; `order-intake`
+  marks the conversation `quoted` only on `res.sent`. Tests: `wp12-finalize-truthful.test.ts` (9,
+  real function via a fake client) + a completion history assertion in `wp12-quotation-delivery.test.ts`.
+- **D — documentation reconciliation.** This ledger, `PHASE1_CONSOLIDATION_REPORT.md`,
+  `MIGRATION_STATE.md`, `CLAUDE.md` and `CURRENT_IMPLEMENTATION_STATUS.md` agree on the counts,
+  latest migration (0058), Phase-1 = changes-requested-until-re-review, hosted = not applied, flags
+  OFF, and the WP11 domain-capability status.
 
 ## WP10 — done (migration 0048)
 
@@ -340,14 +380,17 @@ confirmation required rather than inferred from files, local tests, or any deplo
 | Gate | Result |
 |---|---|
 | `npm run secret-scan` | pass |
-| `npm run migration-lint` | pass — 55 migrations, sequential 0001–0055 |
+| `npm run migration-lint` | pass — **58 migrations, sequential 0001–0058** |
 | `npm run typecheck` | pass |
-| `npm run lint` | pass (pre-existing `<img>` warnings only) |
-| `npm test` (unit) | pass — 374 |
+| `npm run lint` | pass (0 errors; pre-existing `<img>` warnings only) |
+| `npm test` (unit) | pass — **405** |
 | `npm run audit-check` | pass (2 approved exceptions) |
 | `npm run build` | pass |
-| `npm run test:integration` — **upgrade path** (0054→0055 on prior schema) | pass — **31 files / 161 tests** |
-| `npm run test:integration` — **fresh DB** (0001→0055 from scratch) | pass — **31 files / 161 tests** |
+| `npm run test:integration` — **fresh DB** (0001→0058 from scratch) | pass — **33 files / 173 tests** |
+| `npm run test:integration` — **upgrade path** (0055 + legacy data → 0056→0058) | pass — **33 files / 173 tests** (a legacy-0052-posted invoice's exact retry still returns its journal under 0056) |
+
+_Numbers above are the **external-review increment** (integration branch, migrations 0048–0058). The
+first-pass figures (0055, 31 files / 161 tests, unit 374) are superseded._
 
 Toolchain: Node v22.22.2, npm 10.9.7, PostgreSQL 16.13. No hosted migration applied; no feature flag
 enabled.

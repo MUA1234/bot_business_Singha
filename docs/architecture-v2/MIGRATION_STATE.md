@@ -22,7 +22,7 @@ _Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, W
 ## Migration source of truth
 
 - **Canonical migrations:** `src/db/migrations/0001_*.sql` … `0055_*.sql` (forward-only,
-  sequential; `migration-lint` confirms 0001–0055, no gaps). This directory is the **one**
+  sequential; `migration-lint` confirms 0001–0058, no gaps). This directory is the **one**
   migration source of truth.
 - **⚠️ Divergence risk (flag for WP6):** duplicate/aggregate runnable copies exist and
   can drift from canonical migrations. They must not be treated as authoritative:
@@ -101,6 +101,9 @@ _Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, W
 | 0053 | wp16_reimbursement_reuse_validation (Phase 1 WP16: full source-bound payload validation on reimbursement/payment reuse) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
 | 0054 | wp11_approval_scope_currency_delegation (Phase 1 WP11: authority_rules/delegations scope + is_company_wide; within_authority_for_event; strict currency; delegation ⊆ delegator) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
 | 0055 | wp12_truthful_delivery_state (Phase 1 WP12: outbox source metadata; quotations `queued` state; fenced `complete_outbox_and_advance` RPC; at-least-once) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16, fresh + upgrade) |
+| 0056 | wp15_source_binding_fingerprint (external-review B: invoice/bill existing-journal path recomputes the canonical fingerprint — a matching key alone is not proof of source binding) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16, fresh + upgrade) |
+| 0057 | wp11_approval_failclose_domain_caps (external-review C: fail-closed approvals incl. reject; deterministic domain→capability whitelist; duplicate-action conflict; delegation company-consistency) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
+| 0058 | wp12_message_history_on_completion (external-review A: outbound wa_messages written atomically on durable send only, with the provider id) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16, fresh + upgrade) |
 
 > **Correction-phase note (0044–0047):** authored 2026-08-08, **not** applied to any hosted
 > DB. Verified on a disposable local **PostgreSQL 16** (Supabase-compat shim) from a clean

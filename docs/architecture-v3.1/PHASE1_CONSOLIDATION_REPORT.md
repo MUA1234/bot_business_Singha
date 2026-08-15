@@ -1,24 +1,30 @@
 # Phase 1 — 0048+ Security/Accounting Corrections — Consolidation Report
 
-> Blocking prerequisite for the V3.1 program. This report is the **final verification evidence** for
-> the correction phase (work packages WP10–WP18, migrations **0048–0055**). It is stamped with the
-> final commit SHA and the exact database version. Per-WP detail is in
-> `docs/architecture-v3.1/PHASE1_CORRECTIONS_LEDGER.md`; authoritative applied-state is in
-> `docs/architecture-v2/MIGRATION_STATE.md`.
+> Blocking prerequisite for the V3.1 program. This report is the verification evidence for the
+> correction phase (work packages WP10–WP18) **as revised after the first external review** —
+> migrations **0048–0058**. Per-WP detail is in `docs/architecture-v3.1/PHASE1_CORRECTIONS_LEDGER.md`;
+> authoritative applied-state is in `docs/architecture-v2/MIGRATION_STATE.md`.
 >
-> **STOP AFTER THIS REPORT.** The correction phase requires external review before the V3.1 runtime
-> phases (2–10) begin. Nothing here is merged, deployed, or flag-enabled.
+> **Phase 1 verdict: CHANGES REQUESTED → corrected; awaiting the SECOND external review.** The first
+> review found blocking defects in WP12, WP15 and WP11 plus a branch-integration problem; all are
+> fixed in this increment. **WP11, WP12 and WP15 are not "done" until the second review approves.**
+>
+> **STOP AFTER THIS REPORT.** Nothing here is merged, deployed, or flag-enabled. Do not begin V3.1
+> Phase 2 until the owner supplies an explicit second-review approval.
 
-## 1. Final commit & branch
+## 1. Branch & commit
 
-- **Branch:** `feature/v3-1-phase-1-wp18-migration-state-docs` (tip of the stacked correction chain).
-- **Phase content commit SHA:** `6603646c3b89dff5d46240be7ca69211cb9804c7` — the commit carrying all
-  WP10–WP18 code, migrations and docs. This SHA-stamp itself lands as the immediately following
-  commit on the branch tip (a commit cannot embed its own hash), so the branch tip = this stamp
-  commit, and its parent is the content commit named here.
+- **Integration branch:** `feature/v3-1-phase-1-external-review-fixes`, opened as **one new draft PR
+  against `main`** — it integrates, preserving history: (1) PR #3 compatibility foundation
+  (`3224d08`), (2) the Phase-1 stack PRs #4–#12 via tip `509685b`, (3) the external-review
+  corrections A–D.
+- **Content commit SHA:** `__FINAL_SHA__` — the commit carrying corrections A–D. (A commit cannot
+  embed its own hash; this SHA is stamped by the immediately following commit on the branch tip, so
+  the tip = the stamp commit and its parent is the content commit named here.)
+- **Reviewed baseline:** tip `509685b`, content `6603646` (the first-pass Phase-1 stack).
 - **Working tree:** clean at stamp time (`git status --porcelain` empty).
-- **Stack (each a controlled draft PR, review/merge in order):**
-  PR #4 WP10 → #5 WP17 → #6 WP13 → #7 WP14 → #8 WP15 → #9 WP16 → #10 WP11 → #11 WP12 → (WP18 docs) → `main`.
+- **Existing draft PRs #4–#12 remain open and unmerged** (not closed); this integration PR supersedes
+  them for review.
 
 ## 2. Migrations & files added/changed
 
@@ -32,6 +38,9 @@
 | 0053 | WP16 | Reimbursement/payment reuse: full source-bound payload validation |
 | 0054 | WP11 | Approval authority: scope columns + `is_company_wide`; `within_authority_for_event`; strict currency; delegation ⊆ delegator |
 | 0055 | WP12 | Truthful delivery: outbox source metadata; quotation `queued` state; fenced `complete_outbox_and_advance` RPC; at-least-once |
+| 0056 | WP15 (review B) | Existing-journal path recomputes the canonical fingerprint (source binding); a matching key alone is not proof |
+| 0057 | WP11 (review C) | Fail-closed approvals incl. reject; deterministic domain→capability whitelist; duplicate-action conflict; delegation company-consistency |
+| 0058 | WP12 (review A) | Outbound message history written atomically on durable send only (provider id); no pre-completion history |
 
 Application code changed (WP12): `src/lib/quotations.ts` (`tryFinalizeAndSend` → `queued`, propagate
 `DrainResult`), `src/events/outbox-drain.ts` (complete `sent` via the fenced RPC), `src/events/outbox.ts`
@@ -47,17 +56,17 @@ tests added under `tests/integration/wp1*.test.ts`; `outbox-drain` unit test upd
 | WP17 | Explicit system-actor trust boundary | **complete** (0049) |
 | WP13 | Posted-journal immutability allowlist | **complete** (0050) |
 | WP14 | Canonical-JSON idempotency fingerprints | **complete** (0051) |
-| WP15 | Invoice/bill document invariants | **complete** (0052) |
+| WP15 | Invoice/bill document invariants + **source binding** | **corrected** (0052 + **0056**) — awaiting re-review |
 | WP16 | Reimbursement/payment reuse validation | **complete** (0053) |
-| WP11 | Approval scope + currency + delegation bounds | **complete** (0054) — see partial note |
-| WP12 | Truthful quotation/order delivery state | **complete** (0055) |
+| WP11 | Approval scope/currency/delegation + **fail-closed + domain caps** | **corrected** (0054 + **0057**) — awaiting re-review |
+| WP12 | Truthful quotation/order delivery state (**end-to-end**) | **corrected** (0055 + **0058** + code) — awaiting re-review |
 | WP18 | Migration-state / verification reconciliation | **complete** (docs) |
 
-**WP11 partial note (honest).** The substantive authority controls (organisational scope, strict
-currency, whole-event ceiling, delegation-⊆-delegator) are implemented and tested. Requirement #8 —
-replacing the generic `approve` capability with a domain-specific approval capability — is
-**deliberately deferred**: it is an owner-gated change to the permission catalogue/role map, which
-CLAUDE.md forbids doing autonomously. Tracked as a follow-up.
+**WP11 domain-capability (review C #5, now IMPLEMENTED).** The generic `approve` capability is
+replaced by a deterministic, fail-closed domain→capability whitelist (`finance.approve.payment/
+expense/sales/purchase`) — catalogue + role map + a pure mapping function; no AI/free-text chooses
+the capability. This permission-catalogue change was **explicitly authorised by the owner for this
+correction increment** (code only; not enabled in any hosted environment).
 
 ## 4. Verification commands & results (this session)
 
@@ -66,10 +75,10 @@ Static & application gates:
 | Command | Result |
 |---|---|
 | `npm run secret-scan` | pass — no tracked secrets |
-| `npm run migration-lint` | pass — 55 migrations, sequential 0001–0055 |
+| `npm run migration-lint` | pass — **58 migrations, sequential 0001–0058** |
 | `npm run typecheck` | pass |
-| `npm run lint` | pass (pre-existing `<img>` warnings only) |
-| `npm test` (unit) | pass — **374** |
+| `npm run lint` | pass (0 errors; pre-existing `<img>` warnings only) |
+| `npm test` (unit) | pass — **405** |
 | `npm run audit-check` | pass — 2 approved exceptions (next, postcss) |
 | `npm run build` | pass |
 
@@ -77,8 +86,12 @@ Database gates (disposable PostgreSQL 16 + Supabase-compat shim):
 
 | Path | Result |
 |---|---|
-| Fresh DB — `npm run migrate` `0001→0055` then `npm run test:integration` | pass — **31 files / 161 tests** |
-| Upgrade path — staged at prior migration + representative legacy data, then `0055` applied | pass — **31 files / 161 tests** |
+| Fresh DB — `npm run migrate` `0001→0058` then `npm run test:integration` | pass — **33 files / 173 tests** |
+| Upgrade path — staged at `0055` + representative legacy data (incl. an invoice posted under the old 0052 poster), then `0056→0058` applied | pass — **33 files / 173 tests**; the legacy invoice's exact retry still returns its journal under 0056 |
+
+Each external-review adversarial test was confirmed to **fail against the reviewed tip `509685b`**
+and pass after the correction (WP15 source-binding 5/6 fail; WP11 fail-closed 5/6 fail; WP12
+finalize state-machine exercised via the real function with a fake client).
 
 Adversarial & concurrency coverage is included in the 161 integration tests: RLS write-gating
 (WP10), system-actor boundary (WP17), posted-journal immutability (WP13), fingerprint collision
@@ -125,10 +138,14 @@ new columns/functions, so the pre-migration schema cannot run the test at all �
 
 - **No hosted migration was applied** by this development process, in this phase or any prior one.
 - **No feature flag was enabled.** `RLS_READS`, `RLS_WRITES`, `WHATSAPP_ASYNC` remain **OFF**; the
-  0048–0055 migrations are inert at runtime while they are off.
+  0048–0058 migrations are inert at runtime while they are off.
 - **No accounting history was edited or deleted;** posting functions were replaced only.
-- **No permissions/approval capabilities were changed** (WP11 #8 deferred).
-- Nothing is **merged** or **deployed**; every work package lands as a **draft** PR for review.
+- **The permission catalogue gained domain-specific approval capabilities** (WP11 review C #5) —
+  **code only, owner-authorised for this increment, not enabled in any hosted environment.**
+- Nothing is **merged** or **deployed**; the corrections land as **one new draft integration PR**
+  against `main`; the existing draft PRs #4–#12 remain open and unmerged.
+- **GitHub Actions did not run** (the account's runner fails to start on every run); all evidence is
+  from a disposable local PostgreSQL 16. No CI-pass is claimed.
 
 _Phase status: **verified on disposable PostgreSQL 16; not fully verified on hosted infrastructure**
 (no staging/production application, no CI run). Awaiting external review — STOP._
