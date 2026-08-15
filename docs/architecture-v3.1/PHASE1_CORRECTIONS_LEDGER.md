@@ -11,17 +11,17 @@
 |---|---|---|
 | **WP10** | Remove broad company-member writes on commercially sensitive tables | **✅ done — migration 0048** |
 | **WP11** | Approval authority: org scope + currency + delegation bounds | **✅ done — migration 0054** |
-| WP12 | Truthful quotation/order delivery state | ⏳ next |
+| **WP12** | Truthful quotation/order delivery state | **✅ done — migration 0055** |
 | **WP13** | Posted-journal immutability allowlist | **✅ done — migration 0050** |
 | **WP14** | Canonical-JSON idempotency fingerprints (escape/collision-safe) | **✅ done — migration 0051** |
 | **WP15** | Invoice/bill document invariants (require lines; verify existing journal) | **✅ done — migration 0052** |
 | **WP16** | Reimbursement/payment reuse — full payload validation | **✅ done — migration 0053** |
 | **WP17** | Explicit system-actor path (no human `p_by` on the worker path) | **✅ done — migration 0049** |
-| WP18 | Reconcile migration-state / verification docs | ⏳ pending |
+| WP18 | Reconcile migration-state / verification docs | ⏳ next |
 
-> Note: WP10, WP11, WP13, WP14, WP15, WP16 and WP17 are done. Remaining, in the owner's stated
-> order: **WP12** (truthful quotation/order delivery state) → **WP18** (documentation reconciliation,
-> the Phase-1 tail), then the Phase-1 consolidation report and a mandatory STOP for external review.
+> Note: WP10, WP11, WP12, WP13, WP14, WP15, WP16 and WP17 are done. Only **WP18** (documentation
+> reconciliation, the Phase-1 tail) remains, then the Phase-1 consolidation report and a mandatory
+> STOP for external review.
 
 ## WP10 — done (migration 0048)
 
@@ -273,19 +273,57 @@ cannot run (the scope columns/function do not exist) — the enforced behaviour 
 `approval-authority.test.ts` updated: its company-wide approvers now carry an explicit
 `is_company_wide=true` + currency, matching the new secure model.
 
+## WP12 — done (migration 0055)
+
+**Problem.** `tryFinalizeAndSend()` enqueued a WhatsApp message, ran a best-effort inline outbox
+drain, and then **immediately** marked the quotation `sent`, the order `quoted` and the conversation
+`quoted`, returning `{ sent: true }` **even when the provider send or the durable completion had
+failed**. The commercial document lied about delivery, and the `DrainResult` was swallowed.
+
+**Fix (`src/db/migrations/0055_wp12_truthful_delivery_state.sql` + TS).**
+
+- `message_outbox` gains `source_type` / `source_id` / `message_purpose` (no secrets) so a completed
+  send advances the exact linked document. `quotations.status` gains an explicit **`queued`** state
+  (`draft → awaiting_price → ready → queued → sent`).
+- **`complete_outbox_and_advance(outbox_id, lease_owner, provider_message_id)`** — a fenced,
+  service-only RPC that **atomically**: verifies the outbox id + lease owner (only a `processing`
+  row this worker owns), records the provider message id, flips the outbox row to `sent`, advances
+  the linked quotation → `sent` / order → `quoted` / conversation → `quoted` (company-scoped, so a
+  cross-company source id can never be linked/advanced; terminal order/conversation states are never
+  regressed), and writes a non-sensitive audit event. Returns TRUE only when exactly one owned row
+  was completed; a zero-row / wrong-lease / duplicate call returns FALSE and advances nothing.
+- `tryFinalizeAndSend` now marks the quotation **`queued`** on enqueue (tagging the outbox with its
+  source), **propagates the `DrainResult`**, and returns `sent` only if the quotation actually
+  reached `sent`. `drainOutbox` completes a `sent` row through the RPC. Delivery is documented
+  **at-least-once** — a provider-success / DB-failure window can still cause a retry; a lease does
+  **not** make duplicate external delivery impossible. `delivered` (a future state) may only come
+  from a verified provider callback.
+
+**Tests.** `tests/integration/wp12-quotation-delivery.test.ts` (9) — a quotation stays `queued`
+until completion (a provider failure never advances it); provider success + fenced completion marks
+quotation `sent` / order `quoted` / conversation `quoted` + provider id + audit; a wrong-lease or
+zero-row completion returns false and advances nothing; the same row completes **at most once**
+(no double-advance); an expired lease reclaimed by a new owner completes truthfully while the old
+owner cannot; a retry does not create a second outbox row (unique dedupe key); a failed/dead message
+stays visible for operator recovery; a **cross-company** source id marks its own outbox sent but
+never advances the other company's quotation; and a **second concurrent** completion **blocks** on
+the row lock (two connections). The `outbox-drain` unit test now asserts the RPC-based completion.
+Against the pre-0055 schema the suite fails (`quotations_status_check` rejects `queued`; the RPC does
+not exist) — the truthful model is new.
+
 ## Verification (disposable PostgreSQL 16, this session)
 
 | Gate | Result |
 |---|---|
 | `npm run secret-scan` | pass |
-| `npm run migration-lint` | pass — 54 migrations, sequential 0001–0054 |
+| `npm run migration-lint` | pass — 55 migrations, sequential 0001–0055 |
 | `npm run typecheck` | pass |
 | `npm run lint` | pass (pre-existing `<img>` warnings only) |
 | `npm test` (unit) | pass — 374 |
 | `npm run audit-check` | pass (2 approved exceptions) |
 | `npm run build` | pass |
-| `npm run test:integration` — **upgrade path** (0053→0054 on prior schema) | pass — **30 files / 152 tests** |
-| `npm run test:integration` — **fresh DB** (0001→0054 from scratch) | pass — **30 files / 152 tests** |
+| `npm run test:integration` — **upgrade path** (0054→0055 on prior schema) | pass — **31 files / 161 tests** |
+| `npm run test:integration` — **fresh DB** (0001→0055 from scratch) | pass — **31 files / 161 tests** |
 
 Toolchain: Node v22.22.2, npm 10.9.7, PostgreSQL 16.13. No hosted migration applied; no feature flag
 enabled.

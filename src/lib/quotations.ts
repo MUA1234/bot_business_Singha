@@ -14,7 +14,7 @@ import Decimal from "decimal.js";
 import { randomBytes } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { enqueueOutbox } from "@/lib/outbox-enqueue";
-import { drainOutbox } from "@/events/outbox-drain";
+import { drainOutbox, type DrainResult } from "@/events/outbox-drain";
 import { env } from "@/config/env";
 
 export interface DraftItem {
@@ -223,12 +223,19 @@ export async function refreshQuotationStatus(companyId: string, quotationId: str
 
 /**
  * If the quotation is fully priced, finalize and WhatsApp it to the customer.
- * Idempotent-ish: won't resend a quotation already marked sent.
+ *
+ * WP12 — truthful delivery state. Enqueueing marks the quotation `queued`, NOT `sent`. The
+ * quotation only becomes `sent` when the durable outbox row is completed by the fenced
+ * `complete_outbox_and_advance` RPC (the inline drain here, or the scheduled sweep). Delivery is
+ * AT-LEAST-ONCE: a provider-success / DB-failure window can still cause a retry, so a lease does
+ * not make duplicate external delivery impossible. The returned `sent` reflects the quotation's
+ * real state after the inline drain; the `DrainResult` is propagated, never swallowed.
+ * Idempotent: a repeated finalise re-uses the same outbox row (dedupe key) and never resends.
  */
 export async function tryFinalizeAndSend(
   companyId: string,
   quotationId: string,
-): Promise<{ sent: boolean; reason?: string }> {
+): Promise<{ sent: boolean; status?: string; reason?: string; drain?: DrainResult }> {
   const db = supabaseAdmin();
   const awaiting = await refreshQuotationStatus(companyId, quotationId);
   if (awaiting) return { sent: false, reason: "awaiting_price" };
@@ -258,28 +265,50 @@ export async function tryFinalizeAndSend(
     `Total: ${total}\n\nView / download your quotation:\n${link}\n\n` +
     `Reply here if you'd like to proceed or have any questions.`;
 
-  if (to) {
-    // §WP5: enqueue the quotation message to the durable outbox (dedup on the quotation id),
-    // not a direct send — provider failures can't lose/duplicate it. Best-effort inline drain.
-    await enqueueOutbox({ channel: "whatsapp", companyId, recipient: to, body, dedupeKey: `quotation:${quotationId}` });
-    if (order?.conversation_id) {
-      await db.from("wa_messages").insert({
-        conversation_id: order.conversation_id,
-        company_id: companyId,
-        direction: "outbound",
-        body,
-        wa_message_id: null,
-      });
-    }
-    try { await drainOutbox(db); } catch { /* sweep will recover */ }
+  if (!to) {
+    // No deliverable phone → nothing can be queued; leave the quotation `ready` (truthful).
+    return { sent: false, status: quote.status, reason: "no_recipient" };
   }
 
-  await db.from("quotations").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", quotationId).eq("company_id", companyId);
-  await db.from("orders").update({ status: "quoted" }).eq("id", quote.order_id).eq("company_id", companyId);
-  if (order?.conversation_id)
-    await db.from("wa_conversations").update({ status: "quoted" }).eq("id", order.conversation_id).eq("company_id", companyId);
+  // Enqueue to the durable outbox, TAGGED with its source document so the fenced completion can
+  // advance the exact quotation. Dedup on the quotation id → a retry/concurrent finalise no-ops.
+  await enqueueOutbox({
+    channel: "whatsapp",
+    companyId,
+    recipient: to,
+    body,
+    dedupeKey: `quotation:${quotationId}`,
+    sourceType: "quotation",
+    sourceId: quotationId,
+    messagePurpose: "quotation",
+  });
+  if (order?.conversation_id) {
+    await db.from("wa_messages").insert({
+      conversation_id: order.conversation_id,
+      company_id: companyId,
+      direction: "outbound",
+      body,
+      wa_message_id: null,
+    });
+  }
+  // Mark QUEUED, not sent. `sent` (+ order `quoted` + conversation `quoted`) is set only by the
+  // fenced RPC when the outbox row is durably completed. Never regress an already sent/accepted quote.
+  await db.from("quotations").update({ status: "queued" }).eq("id", quotationId).eq("company_id", companyId).in("status", ["ready", "queued"]);
 
-  return { sent: true };
+  // Best-effort inline drain — the completion advances the document truthfully. Propagate the
+  // result rather than swallowing it and claiming `sent: true`.
+  let drain: DrainResult | undefined;
+  try { drain = await drainOutbox(db); } catch { /* the scheduled sweep will recover */ }
+
+  // Truthful state: `sent` iff the outbox row was durably completed and advanced the quotation.
+  const { data: after } = await db
+    .from("quotations")
+    .select("status")
+    .eq("id", quotationId)
+    .eq("company_id", companyId)
+    .single();
+  const status = after?.status ?? "queued";
+  return { sent: status === "sent", status, drain };
 }
 
 /** Resolve a price confirmation from a dashboard, then finalize if ready. */
