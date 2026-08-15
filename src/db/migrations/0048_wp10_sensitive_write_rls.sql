@@ -29,11 +29,16 @@ on conflict (key) do nothing;
 -- 2) Role -> capability map (least privilege; documented per role).
 --    * system_administrator: ALL new capabilities (brief §WP10.4).
 --    * owner_management: senior business management — holds the business-management set.
---    * project_manager: documents & objectives for the work they run.
---    * NO other role (accountant, finance_reviewer, payment_*, auditor_readonly,
---      staff_submitter) receives any of these — an ordinary staff member therefore
---      cannot change a price, an issued quotation, an approval policy, org structure,
---      or WhatsApp history.
+--    * EVERY other role — project_manager, accountant, finance_reviewer, payment_*,
+--      auditor_readonly, staff_submitter — receives NONE of these. An ordinary staff
+--      member therefore cannot change a price, an issued quotation, an approval policy,
+--      org structure, or WhatsApp history.
+--    * project_manager is intentionally NOT granted documents.manage /
+--      operations.objective.manage: those capabilities are company-wide as defined here,
+--      so granting them to a project manager would misrepresent company-wide authority as
+--      project-scoped. Real project-scoped authorisation does not yet exist; until it does
+--      this stays deny-by-default (a later WP can add scoped capabilities + a scope-aware
+--      check and grant them to project_manager then).
 insert into role_permissions (role_key, permission_key) values
   ('system_administrator','sales.catalog.manage'),
   ('system_administrator','sales.quotation.manage'),
@@ -52,9 +57,7 @@ insert into role_permissions (role_key, permission_key) values
   ('owner_management','governance.approval_policy.manage'),
   ('owner_management','documents.manage'),
   ('owner_management','admin.organisation.manage'),
-  ('owner_management','operations.objective.manage'),
-  ('project_manager','documents.manage'),
-  ('project_manager','operations.objective.manage')
+  ('owner_management','operations.objective.manage')
 on conflict (role_key, permission_key) do nothing;
 
 -- 3) Capability-gate the sensitive tables: drop the generic company-member write

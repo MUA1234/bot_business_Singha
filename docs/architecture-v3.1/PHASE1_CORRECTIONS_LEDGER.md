@@ -38,9 +38,12 @@ a violation of system invariant #2.
 - Added 9 least-privilege domain capabilities (`sales.catalog.manage`, `sales.quotation.manage`,
   `sales.order.manage`, `sales.pipeline.manage`, `marketing.campaign.manage`,
   `governance.approval_policy.manage`, `documents.manage`, `admin.organisation.manage`,
-  `operations.objective.manage`) with a documented role map (system_administrator: all;
-  owner_management: business-management set; project_manager: documents + objectives; no
-  finance/audit/payment/staff role receives any).
+  `operations.objective.manage`) with a **deny-by-default** role map: `system_administrator` gets
+  all; `owner_management` gets the (genuinely company-wide) business-management set; **every other
+  role gets none** — including `project_manager`. project_manager is intentionally excluded: these
+  capabilities are company-wide as defined here, so granting them to a project manager would
+  misrepresent company-wide authority as project-scoped, and no project-scoped authorisation exists
+  yet. Scoped capabilities + a scope-aware check are deferred to a later WP.
 - Capability-gated 18 tables (`has_capability(company_id, …)` insert/update/delete), dropping the
   generic `has_company_access` writes.
 - Made `wa_conversations`, `wa_messages`, `notifications` **service_only** — dropped member write
@@ -53,10 +56,13 @@ client (bypasses RLS). These policies become the live gate only at the future, o
 
 **Tests.**
 
-- `tests/integration/wp10-sensitive-write.test.ts` (6 tests) — adversarial: owner_management (with
-  the capability) can insert; an ordinary staff member and a role-less member cannot change prices,
-  quotations, approval policies, org structure or objectives; WhatsApp history + notifications reject
-  every authenticated write; cross-company writes are rejected; a suspended membership loses access.
+- `tests/integration/wp10-sensitive-write.test.ts` (9 tests) — adversarial across **INSERT, UPDATE
+  and DELETE**: owner_management (with the capability) can insert/update/delete; an ordinary staff
+  member, a role-less member and a suspended membership cannot change prices, quotations, approval
+  policies, org structure or objectives; WhatsApp history + notifications reject every authenticated
+  insert/update/delete; cross-company writes are rejected. UPDATE/DELETE are exercised on
+  membership-readable tables (divisions/objectives/approval_policies) so the row-count difference
+  isolates the write (capability) gate from the legacy department-based read policy.
 - `tests/integration/wp10-classification-policies.test.ts` (3 tests) — classification ↔ enforcement:
   no table remains `company_member`; every `capability` table gates on `has_capability` with no
   generic company-member write; `service_only`/`rpc_only` tables grant `authenticated` no I/U/D.
@@ -77,8 +83,8 @@ client (bypasses RLS). These policies become the live gate only at the future, o
 | `npm test` (unit) | pass — 374 |
 | `npm run audit-check` | pass (2 approved exceptions) |
 | `npm run build` | pass |
-| `npm run test:integration` — **upgrade path** (0047→0048 on legacy data) | pass — 24 files / **98** tests (+9) |
-| `npm run test:integration` — **fresh DB** (0001→0048 from scratch) | pass |
+| `npm run test:integration` — **upgrade path** (0047→0048 on legacy data) | pass — 24 files / **101** tests (+12) |
+| `npm run test:integration` — **fresh DB** (0001→0048 from scratch) | pass — 24 files / 101 tests |
 
 Toolchain: Node v22.22.2, npm 10.9.7, PostgreSQL 16.13. No hosted migration applied; no feature flag
 enabled.
