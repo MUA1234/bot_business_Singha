@@ -15,12 +15,14 @@
 | **WP13** | Posted-journal immutability allowlist | **✅ done — migration 0050** |
 | **WP14** | Canonical-JSON idempotency fingerprints (escape/collision-safe) | **✅ done — migration 0051** |
 | **WP15** | Invoice/bill document invariants (require lines; verify existing journal) | **✅ done — migration 0052** |
-| WP16 | Reimbursement/payment reuse — full payload validation | ⏳ next |
+| **WP16** | Reimbursement/payment reuse — full payload validation | **✅ done — migration 0053** |
 | **WP17** | Explicit system-actor path (no human `p_by` on the worker path) | **✅ done — migration 0049** |
 | WP18 | Reconcile migration-state / verification docs | ⏳ pending |
 
-> Note: WP16 is **partially** present in migration 0044 already, with the precise gap the brief
-> describes. It is a genuine follow-on correction, tracked above. (WP13, WP14, WP15 and WP17 are done.)
+> Note: WP10, WP13, WP14, WP15, WP16 and WP17 are done. Remaining, in the owner's stated order:
+> **WP11** (approval-authority org-scope/currency/delegation bounds) → **WP12** (truthful
+> quotation/order delivery state) → **WP18** (documentation reconciliation, the Phase-1 tail),
+> then the Phase-1 consolidation report and a mandatory STOP for external review.
 
 ## WP10 — done (migration 0048)
 
@@ -189,19 +191,54 @@ the valid posts — pass on both). Existing invoice/bill seeds in `transactional
 `idempotency-lifecycle`, `posting-authority` and `finance-concurrency` now add a matching source
 line so their headers satisfy the invariant.
 
+## WP16 — done (migration 0053)
+
+**Problem.** `reimburse_expense_claim` (0044) validated reuse only partially:
+
+1. the **already-reimbursed** branch returned the prior journal from an arbitrary
+   `reimbursements → payments` join **without** confirming the reimbursement, payment, claim and
+   journal form one consistent, source-bound chain — a corrupt/partial chain, or a claim merely
+   **marked** `reimbursed` with no payment at all, was returned as success, and the supplied
+   date/key/accounts were ignored;
+2. the **payment-reuse** check compared only `party_id`, `amount`, `currency` and `direction` — not
+   `party_type`, payment date, status, method, or the **journal binding** — so a key reused with a
+   different payment date/method/status, or a stray payment attached to a different journal, slipped
+   through as "the same payment".
+
+**Fix (`src/db/migrations/0053_wp16_reimbursement_reuse_validation.sql`).** `CREATE OR REPLACE`
+(same signature, so existing grants hold; no data change). On **any** reuse the full material
+payload is validated — company (scope), source claim, `party_type = 'employee'`, party id, amount,
+currency, direction, payment date, journal id, status, method, and the **effective idempotency
+key** — and the source-bound journal is re-derived through `_journal_post_internal`, which binds
+company, source claim, date, currency and lines under this key (WP14) and so supplies the canonical
+source fingerprint. The prior result is returned **only** when the whole chain is consistent;
+otherwise a conflict is raised. The capability gate, approved-only lifecycle, and
+separation-of-duties (human maker ≠ claimant) are unchanged.
+
+**Tests.** `tests/integration/wp16-reimbursement-reuse.test.ts` (8) — a valid identical retry
+returns the original journal (exactly one payment/reimbursement); the same key cannot reimburse a
+second claim; an already-reimbursed claim whose payment chain was altered in **any** material field
+(date, method, currency, direction, status, amount, party) is refused; an altered reimbursement row
+is refused; a claim **marked** reimbursed with no chain is refused (not returned as success); a
+stray pre-existing payment bound to a different journal is refused on the fresh path; a human cannot
+reimburse their own claim (authenticated path); and a **second concurrent** reimbursement **blocks**
+on the claim `FOR UPDATE` lock (two live connections) — so exactly one payment, reimbursement and
+journal result. Against the pre-fix schema (0052) the **4 full-payload/chain tests fail**; the
+valid-retry, cross-claim, SoD and concurrency cases pass on both.
+
 ## Verification (disposable PostgreSQL 16, this session)
 
 | Gate | Result |
 |---|---|
 | `npm run secret-scan` | pass |
-| `npm run migration-lint` | pass — 52 migrations, sequential 0001–0052 |
+| `npm run migration-lint` | pass — 53 migrations, sequential 0001–0053 |
 | `npm run typecheck` | pass |
 | `npm run lint` | pass (pre-existing `<img>` warnings only) |
 | `npm test` (unit) | pass — 374 |
 | `npm run audit-check` | pass (2 approved exceptions) |
 | `npm run build` | pass |
-| `npm run test:integration` — **upgrade path** (0051→0052 on prior schema) | pass — **28 files / 134 tests** |
-| `npm run test:integration` — **fresh DB** (0001→0052 from scratch) | pass — **28 files / 134 tests** |
+| `npm run test:integration` — **upgrade path** (0052→0053 on prior schema) | pass — **29 files / 142 tests** |
+| `npm run test:integration` — **fresh DB** (0001→0053 from scratch) | pass — **29 files / 142 tests** |
 
 Toolchain: Node v22.22.2, npm 10.9.7, PostgreSQL 16.13. No hosted migration applied; no feature flag
 enabled.
