@@ -4,10 +4,16 @@ _Rewritten 2026-08-07 directly from the codebase and observed test/build results
 appending to prior text. This file describes **reality**; where it disagrees with older
 narrative docs, this file and the code win._
 
-**Current phase:** Production Security & Reliability Gate —
-`SINGHA_CLAUDE_PRODUCTION_SECURITY_RELIABILITY_BRIEF.md` (work packages A–F).
-Prior phase (Production Control Foundation, WP0–WP6, migrations 0023–0037) is the baseline
-this phase hardens.
+**Current phase:** **Phase 1 — 0048+ Security/Accounting Corrections** (work packages WP10–WP18,
+migrations **0048–0055**). Status: **implemented in stacked draft PRs (#4–#11), verified on a
+disposable PostgreSQL 16 (fresh + upgrade), not merged, not deployed, hosted DB not migrated, all
+feature flags OFF.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` (final evidence, the
+mandatory external-review STOP) and `PHASE1_CORRECTIONS_LEDGER.md` (per-WP detail). Authoritative
+applied-state: `docs/architecture-v2/MIGRATION_STATE.md`.
+
+Prior phases: Production Security & Reliability Gate
+(`SINGHA_CLAUDE_PRODUCTION_SECURITY_RELIABILITY_BRIEF.md`, WP A–F, migrations 0038–0047) and the
+Production Control Foundation (WP0–WP6, migrations 0023–0037) are the baseline this phase corrects.
 
 ## How to read status (evidence-based — no percentages)
 

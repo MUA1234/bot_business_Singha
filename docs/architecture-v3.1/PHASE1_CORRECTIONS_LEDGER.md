@@ -17,11 +17,11 @@
 | **WP15** | Invoice/bill document invariants (require lines; verify existing journal) | **✅ done — migration 0052** |
 | **WP16** | Reimbursement/payment reuse — full payload validation | **✅ done — migration 0053** |
 | **WP17** | Explicit system-actor path (no human `p_by` on the worker path) | **✅ done — migration 0049** |
-| WP18 | Reconcile migration-state / verification docs | ⏳ next |
+| **WP18** | Reconcile migration-state / verification docs | **✅ done — docs** |
 
-> Note: WP10, WP11, WP12, WP13, WP14, WP15, WP16 and WP17 are done. Only **WP18** (documentation
-> reconciliation, the Phase-1 tail) remains, then the Phase-1 consolidation report and a mandatory
-> STOP for external review.
+> Note: **all Phase-1 work packages (WP10–WP18) are done.** The Phase-1 consolidation report is
+> `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` (final evidence, stamped with the final
+> commit SHA). **Mandatory STOP for external review** before the V3.1 runtime phases (2–10).
 
 ## WP10 — done (migration 0048)
 
@@ -310,6 +310,30 @@ never advances the other company's quotation; and a **second concurrent** comple
 the row lock (two connections). The `outbox-drain` unit test now asserts the RPC-based completion.
 Against the pre-0055 schema the suite fails (`quotations_status_check` rejects `queued`; the RPC does
 not exist) — the truthful model is new.
+
+## WP18 — done (documentation)
+
+**Problem.** The migration-state docs contradicted one another about whether `0038–0043` were
+applied to the hosted database, and the verification evidence was stamped at an earlier correction
+commit while later fixes had landed.
+
+**Fix (no migration).**
+
+- `docs/architecture-v2/MIGRATION_STATE.md` is reaffirmed as **the** authoritative applied-state
+  record: the five states — *file exists*, *tested on disposable DB*, *applied to staging*, *applied
+  to production*, *feature flag enabled* — are tracked separately and never conflated; a per-migration
+  table now covers `0048–0055`, plus an explicit five-state grid for the correction phase. The
+  `0038–0043` contradiction is **reconciled**: `0038–0041` were owner-applied 2026-08-07; everything
+  from `0042` onward is **"owner confirmation required"** (dev-verified on disposable PG only). The
+  migration **runner** (`npm run migrate` + `schema_migrations`) is the source of execution; the
+  combined `RUN_*.sql` files are non-authoritative.
+- `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` is the **final verification evidence** for
+  the phase (stamped with the final commit SHA + PostgreSQL 16.13; fresh + upgrade counts; the §8
+  required final response). `VERIFICATION_EVIDENCE.md` and `CURRENT_IMPLEMENTATION_STATUS.md` point
+  to it.
+
+**No hosted ledger was queried** (owner authorisation not given); hosted state is recorded as owner
+confirmation required rather than inferred from files, local tests, or any deployment.
 
 ## Verification (disposable PostgreSQL 16, this session)
 

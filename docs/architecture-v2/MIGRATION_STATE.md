@@ -8,12 +8,22 @@
 > This file is the single place to track applied-state. Update it whenever a migration
 > is run against any environment, and cite who confirmed it and when.
 
-_Last reviewed: 2026-08-07 (Production Security & Reliability Gate)._
+_Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, WP18)._
+
+> **WP18 authority note.** This file is **the** authoritative migration-state document. The five
+> states below are tracked **separately** and never conflated — in particular, *file exists* and
+> *tested on a disposable database* never imply *applied to staging/production*. Execution is the
+> migration **runner** (`npm run migrate`, `schema_migrations` ledger); the combined `RUN_*.sql`
+> files are non-authoritative aids. Hosted (staging/production) state is asserted **only** from an
+> owner confirmation with a date; where none exists it is recorded **"owner confirmation required."**
+> This development process has **not** applied any migration to a hosted database and has **not**
+> enabled any feature flag.
 
 ## Migration source of truth
 
-- **Canonical migrations:** `src/db/migrations/0001_*.sql` … `0022_*.sql` (forward-only,
-  sequential). This directory is the **one** migration source of truth.
+- **Canonical migrations:** `src/db/migrations/0001_*.sql` … `0055_*.sql` (forward-only,
+  sequential; `migration-lint` confirms 0001–0055, no gaps). This directory is the **one**
+  migration source of truth.
 - **⚠️ Divergence risk (flag for WP6):** duplicate/aggregate runnable copies exist and
   can drift from canonical migrations. They must not be treated as authoritative:
   - `docs/architecture-v2/RUN_0014_*.sql` … `RUN_0022_*.sql`
@@ -83,14 +93,53 @@ _Last reviewed: 2026-08-07 (Production Security & Reliability Gate)._
 | 0045 | bank_change_maker_checker (correction WP6: request/decision RPCs; supplier_bank_detail_changes RPC-only; maker<>checker; no bank numbers in audit) | ❌ **not applied to any environment** (added 2026-08-08; verified on disposable Postgres) |
 | 0046 | authority_and_approvals (correction WP7: authority_rules.is_unlimited; deny-by-default within_authority; decide_approval RPC; approval_actions RPC-only) | ❌ **not applied to any environment** (added 2026-08-08; verified on disposable Postgres) |
 | 0047 | rls_write_matrix (correction WP8: capability-gate remaining sensitive finance/bank/planning/inventory/fleet/identity tables; operations.fleet.manage) | ❌ **not applied to any environment** (added 2026-08-08; verified on disposable Postgres) |
+| 0048 | wp10_sensitive_write_rls (Phase 1 WP10: remove broad company-member writes; capability-gate 18 commercially-sensitive tables; WhatsApp/notifications service-only) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16, fresh + upgrade) |
+| 0049 | wp17_system_actor (Phase 1 WP17: `_resolve_actor` — system path only via service_role JWT; reject missing/malformed/anon/unknown; EXECUTE revoked from PUBLIC) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
+| 0050 | wp13_posted_journal_immutability (Phase 1 WP13: allowlist whole-row posted-journal immutability; posted lines immutable to INSERT too) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
+| 0051 | wp14_canonical_json_fingerprint (Phase 1 WP14: versioned canonical-JSON SHA-256 fingerprint `v3:`; v2/legacy-NULL compatibility) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
+| 0052 | wp15_invoice_bill_invariants (Phase 1 WP15: require source lines, positive header, header = line total; verify an existing journal is this document's) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
+| 0053 | wp16_reimbursement_reuse_validation (Phase 1 WP16: full source-bound payload validation on reimbursement/payment reuse) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
+| 0054 | wp11_approval_scope_currency_delegation (Phase 1 WP11: authority_rules/delegations scope + is_company_wide; within_authority_for_event; strict currency; delegation ⊆ delegator) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
+| 0055 | wp12_truthful_delivery_state (Phase 1 WP12: outbox source metadata; quotations `queued` state; fenced `complete_outbox_and_advance` RPC; at-least-once) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16, fresh + upgrade) |
 
 > **Correction-phase note (0044–0047):** authored 2026-08-08, **not** applied to any hosted
 > DB. Verified on a disposable local **PostgreSQL 16** (Supabase-compat shim) from a clean
 > database AND via an **upgrade path** (staged at 0043 with legacy data — null-hash journal,
 > unposted invoice, pending approval/outbox/bank-change — then migrated 0044→0047 cleanly;
 > the legacy null-hash journal's identical retry returns the same journal and upgrades its
-> fingerprint). Note 0038–0043 were previously applied by the owner to DB `gazjughejdzebathpscb`;
-> 0044–0047 are pending owner application (with approval) via `RUN_*`/`npm run migrate`.
+> fingerprint). 0044–0047 are pending owner application (with approval) via `npm run migrate`.
+>
+> **Reconciliation (WP18 — resolves the 0038–0043 contradiction).** The hosted record is:
+> **0038–0041** were owner-applied to DB `gazjughejdzebathpscb` on **2026-08-07** (owner
+> confirmation on record, combined file `RUN_0038-0041_*.sql`). **0042 and 0043 onward were NOT
+> applied to any hosted database** — the per-migration rows above are authoritative; the earlier
+> prose that grouped "0038–0043 … applied by the owner" over-reached and is void. Everything from
+> **0042 through 0055** has hosted state **"owner confirmation required"** (dev-process verified on
+> disposable PostgreSQL 16 only).
+
+### Phase 1 correction migrations (0048–0055) — the five states, kept separate (WP18)
+
+Each state is tracked independently; none implies another. "Applied to staging/production" is
+asserted only from a dated owner confirmation — there is none, so it is **owner confirmation
+required**. All three flags remain **OFF**, so these migrations are inert at runtime (the service
+role bypasses RLS and the RPCs treat the service caller as the trusted path).
+
+| Migration | File exists | Tested on disposable DB (PG 16, fresh + upgrade) | Applied to staging | Applied to production | Feature flag enabled |
+|---|:---:|:---:|:---:|:---:|:---:|
+| 0048 wp10 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a — `RLS_WRITES` OFF |
+| 0049 wp17 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0050 wp13 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0051 wp14 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0052 wp15 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0053 wp16 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0054 wp11 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0055 wp12 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a — `WHATSAPP_ASYNC` OFF |
+
+> Legend: **File exists** = the `.sql` is committed. **Tested on disposable DB** = applied and its
+> adversarial + concurrency suite passed on an ephemeral PostgreSQL 16 with the Supabase-compat
+> shim, both fresh (`0001→NNNN`) and via the upgrade path. **Applied to staging/production** =
+> a dated owner confirmation against that live database exists. **Feature flag enabled** = the
+> relevant `RLS_READS` / `RLS_WRITES` / `WHATSAPP_ASYNC` flag is ON in that environment.
 
 ### Production Security & Reliability Gate migrations (0038–0041) — applied state
 
