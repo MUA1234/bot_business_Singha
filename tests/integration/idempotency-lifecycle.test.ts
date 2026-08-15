@@ -49,11 +49,13 @@ describe.skipIf(!enabled)("idempotency + lifecycle (0044) — live, zero-persist
   afterAll(async () => { if (client) { await client.query("rollback").catch(() => {}); await client.end().catch(() => {}); } });
 
   it("legacy null-fingerprint row: identical retry upgrades safely; different lines conflict", async () => {
-    // Simulate a pre-0044 journal (idem_fingerprint NULL) with a known key + lines.
+    // Simulate a pre-0044 journal (idem_fingerprint NULL) with a known key + lines. Seed as
+    // draft, add lines, then flip to posted — WP13/0050 forbids inserting lines into a posted journal.
     const jid = (await q(
       `insert into journal_entries (company_id, posting_date, currency, memo, status, correlation_id, idempotency_key, total_debit, total_credit, posted_at, posted_by)
-       values ($1,'2026-07-15','LKR','legacy','posted','corr_leg','LEG1',100,100, now(), $2) returning id`, [co, uAcct])).rows[0].id;
+       values ($1,'2026-07-15','LKR','legacy','draft','corr_leg','LEG1',100,100, now(), $2) returning id`, [co, uAcct])).rows[0].id;
     await q(`insert into journal_lines (journal_id, company_id, account_code, debit, credit, description, line_no) values ($1,$2,'1000',100,0,null,1),($1,$2,'4000',0,100,null,2)`, [jid, co]);
+    await q(`update journal_entries set status='posted' where id=$1`, [jid]);
     // Identical retry (same date/currency/memo/lines) → returns the SAME journal + upgrades.
     const same = await call(pmj("2026-07-15", "LKR", "legacy", LINES_A, "LEG1"));
     expect(same.ok).toBe(true);

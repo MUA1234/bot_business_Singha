@@ -12,18 +12,17 @@
 | **WP10** | Remove broad company-member writes on commercially sensitive tables | **✅ done — migration 0048** |
 | WP11 | Approval authority: org scope + currency + delegation bounds | ⏳ next |
 | WP12 | Truthful quotation/order delivery state | ⏳ pending |
-| WP13 | Posted-journal immutability allowlist | ⏳ pending |
+| **WP13** | Posted-journal immutability allowlist | **✅ done — migration 0050** |
 | WP14 | Canonical-JSON idempotency fingerprints (escape/collision-safe) | ⏳ pending |
 | WP15 | Invoice/bill document invariants (require lines; verify existing journal) | ⏳ pending |
 | WP16 | Reimbursement/payment reuse — full payload validation | ⏳ pending |
 | **WP17** | Explicit system-actor path (no human `p_by` on the worker path) | **✅ done — migration 0049** |
 | WP18 | Reconcile migration-state / verification docs | ⏳ pending |
 
-> Note: WP13–WP17 are **partially** present in migration 0044 already, each with the precise gap the
+> Note: WP14–WP16 are **partially** present in migration 0044 already, each with the precise gap the
 > brief describes (e.g. WP14's `_fp_lines` still concatenates with unescaped `,`/`;` delimiters;
 > WP15 only compares header-vs-line totals `when v_line_total > 0`, so a header-only invoice can
-> still post; WP13's `block_posted_mutation` uses subset comparisons, not an allowlist). These are
-> genuine follow-on corrections, tracked above.
+> still post). These are genuine follow-on corrections, tracked above. (WP13 and WP17 are done.)
 
 ## WP10 — done (migration 0048)
 
@@ -106,6 +105,35 @@ authenticated **matching** `p_by` → user; authenticated **mismatch** rejected;
 (`accounting-posting`, `settlement`, `idempotency-lifecycle`, `posting-hardening`, the concurrency
 suites, `accounting-rpc-hardening`, `transactional-finance`, `posting-authority`) now present a
 `service_role` claim — matching how the real Supabase service-role client is seen by the database.
+
+## WP13 — done (migration 0050)
+
+**Problem.** `block_posted_mutation()` (0044) compared only a **subset** of columns for its allowed
+transitions, so a privileged/definer path could change unrelated posted fields (`period_id`,
+`exchange_rate`, `source_event_id`, `approval_request_id`, `correlation_id`, `idempotency_key`,
+`posted_at`, `created_by`, …) while satisfying the subset check. Separately, the posted-lines guard
+fired only on UPDATE/DELETE, so a service-role caller could **INSERT** an extra line into an
+already-posted journal (unbalancing it).
+
+**Fix (`src/db/migrations/0050_wp13_posted_journal_immutability.sql`).**
+
+- **Allowlist whole-row header immutability:** each allowed transition names exactly the column(s)
+  it may change and requires every other column identical (`to_jsonb(new) - allowed =
+  to_jsonb(old) - allowed`). The three transitions are unchanged in intent — (A) reverse the
+  original (`status → reversed`); (B) link a reversing entry (`reversal_of_journal_id` NULL→set,
+  once); (C) one-time legacy fingerprint upgrade (`idem_fingerprint` NULL→set; a set fingerprint can
+  never be replaced).
+- **Posted lines immutable to INSERT too:** `block_posted_line_mutation` now fires on INSERT as well
+  and rejects any line write whose parent journal is posted. Because the poster previously inserted
+  the journal already 'posted' and then added lines, `_journal_post_internal` is restructured to
+  insert as **draft**, add lines (parent not posted → allowed), then flip to **posted**. Net posting
+  behaviour is unchanged except a posted journal's `version` is 2; no code or test depends on it.
+
+**Tests.** `tests/integration/wp13-journal-immutability.test.ts` (5) — posted delete blocked; ten
+header mutations blocked (incl. `exchange_rate`/`correlation_id`/`idempotency_key`/`source_event_id`/
+`posted_at`/`created_by` that the old subset trigger permitted); posted lines cannot be
+updated/deleted/**inserted**; the reversal transition still works end-to-end; the legacy fingerprint
+upgrade is one-time. `idempotency-lifecycle` legacy seed updated to add lines while draft.
 
 ## Verification (disposable PostgreSQL 16, this session)
 
