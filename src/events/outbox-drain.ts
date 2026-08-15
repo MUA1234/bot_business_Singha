@@ -83,6 +83,31 @@ export async function drainOutbox(db: SupabaseClient, opts?: { batch?: number; l
       : await sendWhatsAppText(row.recipient, row.body);
 
     const patch = planAfterAttempt({ attempts: row.attempts }, res.ok ? { ok: true } : { ok: false, error: res.reason ?? "send_failed" });
+
+    if (patch.status === "sent") {
+      // WP12: flip the outbox row to `sent` AND advance the linked commercial document
+      // (quotation → sent / order → quoted / conversation → quoted) ATOMICALLY, via the fenced,
+      // service-only RPC that verifies this worker's lease owner. Count sent ONLY when it durably
+      // completes exactly one owned row.
+      const { data: done, error: rpcErr } = await db.rpc("complete_outbox_and_advance", {
+        p_outbox_id: row.id,
+        p_lease_owner: owner,
+        p_provider_message_id: res.messageId ?? null,
+      });
+      if (!rpcErr && done === true) {
+        sent++;
+      } else {
+        // Provider send may have succeeded but the DB completion did not persist → the row stays
+        // 'processing' and its lease will be recovered by a later claim. At-least-once, reported
+        // honestly (the send is NOT counted, so no over-claim of delivery).
+        if (rpcErr) log("error", "outbox complete rpc failed", { event: "outbox.complete_failed", id: row.id, error: rpcErr.message });
+        else log("error", "outbox complete affected no owned row", { event: "outbox.lease_lost", id: row.id });
+        errors++;
+      }
+      continue;
+    }
+
+    // failed / dead: record the outcome under the same lease fence (no document advance).
     const update: Record<string, unknown> = {
       status: patch.status,
       attempts: patch.attempts,
@@ -92,20 +117,11 @@ export async function drainOutbox(db: SupabaseClient, opts?: { batch?: number; l
       lock_owner: null,
       lease_expires_at: null,
     };
-    if (patch.status === "sent") {
-      update.sent_at = new Date().toISOString();
-      update.provider_message_id = res.messageId ?? null;
-    } else if (patch.status === "dead") {
-      update.dead_at = new Date().toISOString();
-    }
-    // Count the outcome ONLY after the completion is durably recorded (truthful counters).
+    if (patch.status === "dead") update.dead_at = new Date().toISOString();
     if (await fencedUpdate(update, row.id)) {
-      if (patch.status === "sent") sent++;
-      else if (patch.status === "dead") dead++;
+      if (patch.status === "dead") dead++;
       else failed++;
     } else {
-      // Provider send may have succeeded but the DB completion did not persist → the row
-      // stays 'processing' and its lease will be recovered; report at-least-once honestly.
       errors++;
     }
   }

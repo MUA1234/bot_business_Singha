@@ -16,7 +16,7 @@
 | **self_service** | A member inserts a row **for themselves**; a capability holder updates/decides. | insert bound to `auth.uid()` + capability upd/del (0042) |
 | **capability** | Operation-specific capability for insert/update/delete. | `has_capability(company_id, <cap>)` (0038/0042/0047) |
 | **identity** | `admin.identity.manage` only. | 0038 |
-| **company_member** | Any active company member may write — deliberate for lower-sensitivity operational/CRM data. | `has_company_access(company_id)` (0034) |
+| **company_member** | _(retired by migration 0048 / correction WP10 — no table uses this class any more; the class definition is kept only for historical policy reference)._ | `has_company_access(company_id)` (0034) |
 
 ## Capability mapping (sensitive tables)
 
@@ -32,6 +32,15 @@
 | Fleet | drivers, fuel_logs, maintenance_records, licences | `operations.fleet.manage` |
 | Legal | legal_matters, contracts | `legal.matter.manage` / `legal.contract.manage` |
 | HR / identity | employees, profiles, memberships & identity tables | `hr.staff.manage` / `admin.identity.manage` |
+| Sales (0048/WP10) | product_catalog | `sales.catalog.manage` |
+| | quotations, quotation_items, price_confirmations | `sales.quotation.manage` |
+| | orders | `sales.order.manage` |
+| | leads, opportunities | `sales.pipeline.manage` |
+| Marketing (0048/WP10) | campaigns, audiences | `marketing.campaign.manage` |
+| Governance (0048/WP10) | approval_policies | `governance.approval_policy.manage` |
+| Documents (0048/WP10) | documents | `documents.manage` |
+| Organisation (0048/WP10) | divisions, branches, departments, sites, projects, cost_centres | `admin.organisation.manage` |
+| Operations (0048/WP10) | objectives | `operations.objective.manage` |
 | Self-service | expense_claims, leave_requests | member inserts own; `finance.payment.record` / `hr.staff.manage` to decide |
 
 ## RPC-only / maker-checker
@@ -40,12 +49,31 @@
 - `approval_actions` — `decide_approval` (0046); `approval_requests` is append-only (maker submits).
 - Ledger (`journal_entries`/`journal_lines`), `payments`, `payment_allocations` — accounting RPCs only.
 
-## company_member (deliberate, lower sensitivity)
+## company_member — retired (correction WP10, migration 0048)
 
-leads, opportunities, orders, quotations(+items), price_confirmations, product_catalog, campaigns,
-audiences, objectives, notifications, documents, approval_policies, and the org hierarchy
-(divisions, branches, departments, sites, projects, cost_centres). These carry no direct
-financial authority; company-scoped write is the intended rule and is reviewed here.
+Previously these tables were writable by **any** active company member via
+`has_company_access(company_id)`: leads, opportunities, orders, quotations(+items),
+price_confirmations, product_catalog, campaigns, audiences, objectives, notifications,
+documents, approval_policies, and the org hierarchy (divisions, branches, departments, sites,
+projects, cost_centres). This let an ordinary staff member change a product price, alter an
+issued quotation, edit an approval policy, restructure the organisation, or forge WhatsApp
+history — a violation of system invariant #2 ("a member must not gain write access merely by
+belonging to the company").
+
+Migration `0048` removed the class:
+
+- **capability** (see the Sales/Marketing/Governance/Documents/Organisation/Operations rows
+  above): product_catalog, quotations(+items), price_confirmations, orders, leads,
+  opportunities, campaigns, audiences, approval_policies, documents, objectives, and the org
+  hierarchy — each gated by an operation-specific `has_capability(company_id, …)` policy.
+- **service_only**: `wa_conversations`, `wa_messages` (WhatsApp history) and `notifications`
+  (worker-generated) — no authenticated write at all; `INSERT/UPDATE/DELETE` revoked from
+  `authenticated`, written only by the service-role worker.
+
+Enforcement ↔ classification is proven by `tests/integration/wp10-classification-policies.test.ts`
+and the operation-level adversarial cases in `tests/integration/wp10-sensitive-write.test.ts`.
+Because `RLS_WRITES` is still off, this is a backstop that becomes the live gate at the staged
+cutover — no runtime behaviour changed.
 
 ## Notes / limits
 

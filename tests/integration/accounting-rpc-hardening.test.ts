@@ -43,7 +43,7 @@ async function asAnon() {
 }
 async function asWorker() {
   await client.query("reset role");
-  await client.query(`select set_config('request.jwt.claims', '', true)`);
+  await client.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
 }
 async function call(sql: string, params: unknown[] = []): Promise<{ ok: boolean; value?: string; error?: string }> {
   try {
@@ -186,7 +186,7 @@ describe.skipIf(!enabled)("WP B accounting RPC hardening — live, zero-persiste
     const r = await call(settleCI(inv, 100, "ANON"));
     await asWorker();
     expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/anonymous/i);
+    expect(r.error).toMatch(/not permitted|access denied/i); // WP17/0049: anon role rejected fail-closed
   });
 
   it("a closed accounting period is rejected", async () => {

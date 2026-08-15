@@ -39,6 +39,12 @@ describe.skipIf(!enabled)("RLS write-policy matrix coverage — live, read-only"
       "payments", "journal_entries", "customer_invoices", "supplier_bills", "bank_transactions",
       "cash_accounts", "cash_counts", "inventory_items", "stock_movements", "contracts", "legal_matters",
       "employees", "supplier_bank_detail_changes", "approval_actions", "reimbursements", "drivers",
+      // WP10 (migration 0048): commercially sensitive tables must never fall back to
+      // generic company-member write.
+      "product_catalog", "quotations", "quotation_items", "price_confirmations", "orders",
+      "leads", "opportunities", "campaigns", "audiences", "approval_policies", "documents",
+      "objectives", "divisions", "branches", "departments", "sites", "projects", "cost_centres",
+      "wa_conversations", "wa_messages", "notifications",
     ];
     for (const t of mustBeTightened) {
       expect(classified[t], `${t} must be tightened, not company_member`).toBeDefined();

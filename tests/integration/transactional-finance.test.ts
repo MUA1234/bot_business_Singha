@@ -27,7 +27,7 @@ async function asUser(u: string) {
   await client.query("set local role authenticated");
   await client.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: u, role: "authenticated" })]);
 }
-async function asWorker() { await client.query("reset role"); await client.query(`select set_config('request.jwt.claims','',true)`); }
+async function asWorker() { await client.query("reset role"); await client.query(`select set_config('request.jwt.claims','{"role":"service_role"}',true)`); }
 async function call(sql: string, params: unknown[] = []): Promise<{ ok: boolean; value?: string; error?: string }> {
   try { const r = await q(sql, params); return { ok: true, value: r.rows[0]?.v }; }
   catch (e) { return { ok: false, error: (e as Error).message }; }
@@ -36,7 +36,9 @@ async function canDo(u: string, sql: string, params: unknown[] = []): Promise<bo
   await asUser(u); let ok = true; try { await q(sql, params); } catch { ok = false; } await asWorker(); return ok;
 }
 async function mkInvoice(total: number): Promise<string> {
-  return (await q(`insert into customer_invoices (company_id, customer_id, invoice_number, currency, issue_date, total_amount, amount_settled, status) values ($1,$2,$3,'LKR','2026-07-01',${total},0,'draft') returning id`, [co, customer, "INV-" + Math.random().toString(36).slice(2, 9)])).rows[0].id;
+  const id = (await q(`insert into customer_invoices (company_id, customer_id, invoice_number, currency, issue_date, total_amount, amount_settled, status) values ($1,$2,$3,'LKR','2026-07-01',${total},0,'draft') returning id`, [co, customer, "INV-" + Math.random().toString(36).slice(2, 9)])).rows[0].id;
+  await q(`insert into customer_invoice_lines (invoice_id, company_id, description, unit_price, amount) values ($1,$2,'x',${total},${total})`, [id, co]); // WP15: header == line total
+  return id;
 }
 async function mkClaim(amount: number, status: string, emp: string): Promise<string> {
   return (await q(`insert into expense_claims (company_id, employee_id, currency, amount, purpose, status) values ($1,$2,'LKR',${amount},'x',$3) returning id`, [co, emp, status])).rows[0].id;
@@ -116,9 +118,16 @@ describe.skipIf(!enabled)("transactional finance (0042/0043) — live, zero-pers
     const life = await call(`select public.reimburse_expense_claim('${co}','${submitted}','5000','1000','${uAcct}','2026-07-15','rl') as v`);
     expect(life.ok).toBe(false); expect(life.error).toMatch(/approved/i);
 
-    // SoD: the claimant cannot reimburse their own claim (worker path with p_by = claimant user)
+    // SoD: a human cannot reimburse THEIR OWN claim — enforced on the AUTHENTICATED path, the
+    // only path with a human maker. After migration 0049 (WP17) the worker/service path records
+    // NO human actor (p_by is ignored), so it cannot represent self-dealing; the control lives on
+    // the user path. uAcct is an accountant (holds finance.payment.record) AND the claimant here.
     const own = await mkClaim(50, "approved", empSelf);
-    const sod = await call(`select public.reimburse_expense_claim('${co}','${own}','5000','1000','${uEmp}','2026-07-15','rs') as v`);
+    const empAcct = (await q(`insert into employees (company_id, user_id, name, status) values ($1,$2,'Emp Acct','active') returning id`, [co, uAcct])).rows[0].id;
+    const ownAcct = await mkClaim(50, "approved", empAcct);
+    await asUser(uAcct);
+    const sod = await call(`select public.reimburse_expense_claim('${co}','${ownAcct}','5000','1000','${uAcct}','2026-07-15','rs') as v`);
+    await asWorker();
     expect(sod.ok).toBe(false); expect(sod.error).toMatch(/own expense claim/i);
 
     // A different actor reimburses; then it is idempotent and the claim is closed.

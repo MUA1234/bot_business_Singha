@@ -50,8 +50,10 @@ describe.skipIf(!enabled)("WP7 approval authority — live, zero-persistence", (
     const mUnl = await mkMem(uUnlimited, "owner_management"); // has 'approve'
     const mCeil = await mkMem(uCeiling, "owner_management");
     await mkMem(uNone, "owner_management");
-    await client.query(`insert into authority_rules (membership_id, company_id, domain, is_unlimited) values ($1,$2,'payment',true)`, [mUnl, co]);
-    await client.query(`insert into authority_rules (membership_id, company_id, domain, max_amount, currency) values ($1,$2,'payment',1000,'LKR')`, [mCeil, co]);
+    // WP11 (0054): company-wide authority is now EXPLICIT (is_company_wide) and currency is strict
+    // (a NULL currency no longer means "all currencies"). These no-allocation events need company-wide.
+    await client.query(`insert into authority_rules (membership_id, company_id, domain, is_unlimited, currency, is_company_wide) values ($1,$2,'payment',true,'LKR',true)`, [mUnl, co]);
+    await client.query(`insert into authority_rules (membership_id, company_id, domain, max_amount, currency, is_company_wide) values ($1,$2,'payment',1000,'LKR',true)`, [mCeil, co]);
   });
   afterAll(async () => { if (client) { await client.query("rollback").catch(() => {}); await client.end().catch(() => {}); } });
 
@@ -59,7 +61,7 @@ describe.skipIf(!enabled)("WP7 approval authority — live, zero-persistence", (
     const r = await mkRequest(500, "LKR", uMaker);
     const res = await decide(uNone, r);
     expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/exceeds your approval authority/i);
+    expect(res.error).toMatch(/approval authority/i);
   });
 
   it("explicit unlimited authority → approved", async () => {
@@ -82,7 +84,7 @@ describe.skipIf(!enabled)("WP7 approval authority — live, zero-persistence", (
     const r = await mkRequest(500, "USD", uMaker); // ceiling rule is LKR only
     const res = await decide(uCeiling, r);
     expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/exceeds your approval authority/i);
+    expect(res.error).toMatch(/approval authority/i);
   });
 
   it("maker cannot approve their own request", async () => {

@@ -28,7 +28,9 @@ async function mkClaim(amount: number): Promise<string> {
   return (await q(`insert into expense_claims (company_id, employee_id, currency, amount, purpose, status) values ($1,$2,'LKR',${amount},'x','approved') returning id`, [co, empX])).rows[0].id;
 }
 async function mkInvoice(status: string): Promise<string> {
-  return (await q(`insert into customer_invoices (company_id, customer_id, invoice_number, currency, issue_date, total_amount, amount_settled, status) values ($1,$2,$3,'LKR','2026-07-01',100,0,$4) returning id`, [co, customer, "INV-" + Math.random().toString(36).slice(2, 9), status])).rows[0].id;
+  const id = (await q(`insert into customer_invoices (company_id, customer_id, invoice_number, currency, issue_date, total_amount, amount_settled, status) values ($1,$2,$3,'LKR','2026-07-01',100,0,$4) returning id`, [co, customer, "INV-" + Math.random().toString(36).slice(2, 9), status])).rows[0].id;
+  await q(`insert into customer_invoice_lines (invoice_id, company_id, description, unit_price, amount) values ($1,$2,'x',100,100)`, [id, co]); // WP15: header == line total
+  return id;
 }
 
 describe.skipIf(!enabled)("idempotency + lifecycle (0044) — live, zero-persistence", () => {
@@ -37,6 +39,8 @@ describe.skipIf(!enabled)("idempotency + lifecycle (0044) — live, zero-persist
     client = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } });
     await client.connect();
     await client.query("begin");
+    // Posting RPCs run on the service path; present a service_role JWT (WP17/0049).
+    await client.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
     co = (await client.query(`insert into companies (name, base_currency) values ('wp_il','LKR') returning id`)).rows[0].id;
     await client.query(`insert into chart_of_accounts (company_id, code, name, type) values ($1,'1000','Cash','asset'),($1,'1100','AR','asset'),($1,'2000','AP','liability'),($1,'4000','Sales','income'),($1,'5000','Expense','expense')`, [co]);
     customer = (await client.query(`insert into customers (company_id, name, status) values ($1,'C','active') returning id`, [co])).rows[0].id;
@@ -47,11 +51,13 @@ describe.skipIf(!enabled)("idempotency + lifecycle (0044) — live, zero-persist
   afterAll(async () => { if (client) { await client.query("rollback").catch(() => {}); await client.end().catch(() => {}); } });
 
   it("legacy null-fingerprint row: identical retry upgrades safely; different lines conflict", async () => {
-    // Simulate a pre-0044 journal (idem_fingerprint NULL) with a known key + lines.
+    // Simulate a pre-0044 journal (idem_fingerprint NULL) with a known key + lines. Seed as
+    // draft, add lines, then flip to posted — WP13/0050 forbids inserting lines into a posted journal.
     const jid = (await q(
       `insert into journal_entries (company_id, posting_date, currency, memo, status, correlation_id, idempotency_key, total_debit, total_credit, posted_at, posted_by)
-       values ($1,'2026-07-15','LKR','legacy','posted','corr_leg','LEG1',100,100, now(), $2) returning id`, [co, uAcct])).rows[0].id;
+       values ($1,'2026-07-15','LKR','legacy','draft','corr_leg','LEG1',100,100, now(), $2) returning id`, [co, uAcct])).rows[0].id;
     await q(`insert into journal_lines (journal_id, company_id, account_code, debit, credit, description, line_no) values ($1,$2,'1000',100,0,null,1),($1,$2,'4000',0,100,null,2)`, [jid, co]);
+    await q(`update journal_entries set status='posted' where id=$1`, [jid]);
     // Identical retry (same date/currency/memo/lines) → returns the SAME journal + upgrades.
     const same = await call(pmj("2026-07-15", "LKR", "legacy", LINES_A, "LEG1"));
     expect(same.ok).toBe(true);

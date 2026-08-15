@@ -18,8 +18,10 @@ let co: string, inv: string, change: string, poster: string, checker: string;
 
 async function blocksOnLock(hold: string, holdParams: unknown[], contend: string, contendParams: unknown[]): Promise<boolean> {
   await c1.query("begin");
+  await c1.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
   await c1.query(hold, holdParams);
   await c2.query("begin");
+  await c2.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
   await c2.query("set local statement_timeout = '1500ms'");
   let blocked = false;
   try { await c2.query(contend, contendParams); } catch (e) { blocked = /statement timeout|canceling statement/i.test((e as Error).message); }
@@ -39,6 +41,7 @@ describe.skipIf(!enabled)("finance concurrency — live, two connections", () =>
     checker = (await setup.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(),'fc_c',true) returning id`)).rows[0].id;
     const cust = (await setup.query(`insert into customers (company_id, name, status) values ($1,'C','active') returning id`, [co])).rows[0].id;
     inv = (await setup.query(`insert into customer_invoices (company_id, customer_id, invoice_number, currency, issue_date, total_amount, amount_settled, status) values ($1,$2,'INV-FC','LKR','2026-07-01',100,0,'draft') returning id`, [co, cust])).rows[0].id;
+    await setup.query(`insert into customer_invoice_lines (invoice_id, company_id, description, unit_price, amount) values ($1,$2,'x',100,100)`, [inv, co]); // WP15: header == line total so the post proceeds to the FOR UPDATE lock
     const sup = (await setup.query(`insert into suppliers (company_id, name, status) values ($1,'S','active') returning id`, [co])).rows[0].id;
     change = (await setup.query(`insert into supplier_bank_detail_changes (company_id, supplier_id, new_account_number, requested_by, status) values ($1,$2,'7777',$3,'pending') returning id`, [co, sup, poster])).rows[0].id;
     c1 = await mk(); c2 = await mk();

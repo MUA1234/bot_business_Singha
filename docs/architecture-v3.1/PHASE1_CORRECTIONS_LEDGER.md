@@ -1,0 +1,353 @@
+# Phase 1 — 0048+ Security/Accounting Corrections (WP10–WP18) — Ledger
+
+> Blocking prerequisite for the V3.1 program (pack `00A_SECURITY_CORRECTION_PREREQUISITE_0048.md`).
+> This ledger tracks the correction phase. Each work package lands as a forward migration `0048+`
+> with failing-before/passing-after tests, verified on a disposable PostgreSQL 16 (fresh **and**
+> `0047→0048+` upgrade path). `RLS_READS` / `RLS_WRITES` / `WHATSAPP_ASYNC` stay OFF. No hosted action.
+
+## Status
+
+| WP | Correction | Status |
+|---|---|---|
+| **WP10** | Remove broad company-member writes on commercially sensitive tables | **✅ done — migration 0048** |
+| **WP11** | Approval authority: org scope + currency + delegation bounds | **✅ done — migration 0054** |
+| **WP12** | Truthful quotation/order delivery state | **✅ done — migration 0055** |
+| **WP13** | Posted-journal immutability allowlist | **✅ done — migration 0050** |
+| **WP14** | Canonical-JSON idempotency fingerprints (escape/collision-safe) | **✅ done — migration 0051** |
+| **WP15** | Invoice/bill document invariants (require lines; verify existing journal) | **✅ done — migration 0052** |
+| **WP16** | Reimbursement/payment reuse — full payload validation | **✅ done — migration 0053** |
+| **WP17** | Explicit system-actor path (no human `p_by` on the worker path) | **✅ done — migration 0049** |
+| **WP18** | Reconcile migration-state / verification docs | **✅ done — docs** |
+
+> Note: **all Phase-1 work packages (WP10–WP18) are done.** The Phase-1 consolidation report is
+> `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` (final evidence, stamped with the final
+> commit SHA). **Mandatory STOP for external review** before the V3.1 runtime phases (2–10).
+
+## WP10 — done (migration 0048)
+
+**Problem.** `security/rls-classification.json` classified 21 commercially sensitive tables as
+`company_member`, so the generic policies from migration 0034 let **any active company member**
+insert/update/delete them. An ordinary staff member could change a product price, alter an issued
+quotation, edit an approval policy, restructure the organisation, or forge WhatsApp history —
+a violation of system invariant #2.
+
+**Fix (`src/db/migrations/0048_wp10_sensitive_write_rls.sql`).**
+
+- Added 9 least-privilege domain capabilities (`sales.catalog.manage`, `sales.quotation.manage`,
+  `sales.order.manage`, `sales.pipeline.manage`, `marketing.campaign.manage`,
+  `governance.approval_policy.manage`, `documents.manage`, `admin.organisation.manage`,
+  `operations.objective.manage`) with a **deny-by-default** role map: `system_administrator` gets
+  all; `owner_management` gets the (genuinely company-wide) business-management set; **every other
+  role gets none** — including `project_manager`. project_manager is intentionally excluded: these
+  capabilities are company-wide as defined here, so granting them to a project manager would
+  misrepresent company-wide authority as project-scoped, and no project-scoped authorisation exists
+  yet. Scoped capabilities + a scope-aware check are deferred to a later WP.
+- Capability-gated 18 tables (`has_capability(company_id, …)` insert/update/delete), dropping the
+  generic `has_company_access` writes.
+- Made `wa_conversations`, `wa_messages`, `notifications` **service_only** — dropped member write
+  policies and `REVOKE INSERT/UPDATE/DELETE … FROM authenticated` (read left intact).
+- Updated `security/rls-classification.json` (no table is `company_member` any more) and
+  `docs/architecture-v2/RLS_WRITE_POLICY_MATRIX.md`.
+
+**Behaviour change: none at runtime.** `RLS_WRITES` is OFF, so app writes use the service-role
+client (bypasses RLS). These policies become the live gate only at the future, owner-gated cutover.
+
+**Tests.**
+
+- `tests/integration/wp10-sensitive-write.test.ts` (9 tests) — adversarial across **INSERT, UPDATE
+  and DELETE**: owner_management (with the capability) can insert/update/delete; an ordinary staff
+  member, a role-less member and a suspended membership cannot change prices, quotations, approval
+  policies, org structure or objectives; WhatsApp history + notifications reject every authenticated
+  insert/update/delete; cross-company writes are rejected. UPDATE/DELETE are exercised on
+  membership-readable tables (divisions/objectives/approval_policies) so the row-count difference
+  isolates the write (capability) gate from the legacy department-based read policy.
+- `tests/integration/wp10-classification-policies.test.ts` (3 tests) — classification ↔ enforcement:
+  no table remains `company_member`; every `capability` table gates on `has_capability` with no
+  generic company-member write; `service_only`/`rpc_only` tables grant `authenticated` no I/U/D.
+- `tests/integration/rls-matrix-coverage.test.ts` — extended `mustBeTightened` with the 21 tables so
+  a regression to company-member write fails.
+- `tests/integration/write-isolation.test.ts` — updated: `leads` is now capability-gated, so the
+  isolation actor holds `sales.pipeline.manage`; the property under test (own-company allowed,
+  cross-company blocked) is unchanged.
+
+## WP17 — done (migration 0049)
+
+**Problem.** `_resolve_actor(p_by)` recorded a caller-supplied `p_by` as the actor whenever
+`auth.uid()` was null — treating **any** "no JWT" caller as a trusted worker. That is a weak trust
+boundary: missing/malformed claims, or an unknown role, silently obtained the system path, and a
+worker could stamp an **arbitrary human identity** into the ledger (`posted_by`) and audit trail
+(`actor_id`) while tagging it `actor_type = 'system'`.
+
+**Fix (`src/db/migrations/0049_wp17_system_actor.sql`).** The system path is reachable **only** by an
+explicit `service_role` JWT; everything else is rejected fail-closed:
+
+- `role = 'service_role'` → `actor_type = 'system'`, `actor_id = NULL`, caller-supplied `p_by` **ignored**;
+- `role = 'authenticated'` → must carry a subject (`sub`); actor = `sub`; a mismatched `p_by` rejected;
+- **missing claims**, **malformed claims**, `anon`, or any **unknown/absent role** → rejected.
+
+`EXECUTE` on `_resolve_actor` is **revoked from `PUBLIC`** (only the SECURITY DEFINER posting RPCs,
+running as their definer, call it). The authenticated-user posting path is unchanged. Every posting
+RPC derives its actor from this function, so the boundary applies uniformly.
+
+**Consequence handled.** Reimbursement's separation-of-duties self-check (`claimant != actor`) is a
+**human** control; a service/worker call has no human maker, so it cannot self-deal. The
+`transactional-finance` test now proves self-reimbursement is blocked on the **authenticated** path
+(the only path with a human actor), not via the worker path that previously relied on the
+now-removed `p_by` impersonation.
+
+**Tests.** `tests/integration/wp17-system-actor.test.ts` (10) — explicit `service_role` → null system
+actor; a service_role `p_by` ignored; **missing** claims rejected; **malformed** claims rejected;
+authenticated **without a subject** rejected; **anon** rejected; **unknown role** rejected;
+authenticated **matching** `p_by` → user; authenticated **mismatch** rejected; and an end-to-end
+`service_role` `post_manual_journal` records `posted_by = NULL` + audit `actor_type='system'`,
+`actor_id = NULL`, traceable idempotency key. The service-path callers across the existing suite
+(`accounting-posting`, `settlement`, `idempotency-lifecycle`, `posting-hardening`, the concurrency
+suites, `accounting-rpc-hardening`, `transactional-finance`, `posting-authority`) now present a
+`service_role` claim — matching how the real Supabase service-role client is seen by the database.
+
+## WP13 — done (migration 0050)
+
+**Problem.** `block_posted_mutation()` (0044) compared only a **subset** of columns for its allowed
+transitions, so a privileged/definer path could change unrelated posted fields (`period_id`,
+`exchange_rate`, `source_event_id`, `approval_request_id`, `correlation_id`, `idempotency_key`,
+`posted_at`, `created_by`, …) while satisfying the subset check. Separately, the posted-lines guard
+fired only on UPDATE/DELETE, so a service-role caller could **INSERT** an extra line into an
+already-posted journal (unbalancing it).
+
+**Fix (`src/db/migrations/0050_wp13_posted_journal_immutability.sql`).**
+
+- **Allowlist whole-row header immutability:** each allowed transition names exactly the column(s)
+  it may change and requires every other column identical (`to_jsonb(new) - allowed =
+  to_jsonb(old) - allowed`). The three transitions are unchanged in intent — (A) reverse the
+  original (`status → reversed`); (B) link a reversing entry (`reversal_of_journal_id` NULL→set,
+  once); (C) one-time legacy fingerprint upgrade (`idem_fingerprint` NULL→set; a set fingerprint can
+  never be replaced).
+- **Posted lines immutable to INSERT too:** `block_posted_line_mutation` now fires on INSERT as well
+  and rejects any line write whose parent journal is posted. Because the poster previously inserted
+  the journal already 'posted' and then added lines, `_journal_post_internal` is restructured to
+  insert as **draft**, add lines (parent not posted → allowed), then flip to **posted**. Net posting
+  behaviour is unchanged except a posted journal's `version` is 2; no code or test depends on it.
+
+**Tests.** `tests/integration/wp13-journal-immutability.test.ts` (5) — posted delete blocked; ten
+header mutations blocked (incl. `exchange_rate`/`correlation_id`/`idempotency_key`/`source_event_id`/
+`posted_at`/`created_by` that the old subset trigger permitted); posted lines cannot be
+updated/deleted/**inserted**; the reversal transition still works end-to-end; the legacy fingerprint
+upgrade is one-time. `idempotency-lifecycle` legacy seed updated to add lines while draft.
+
+## WP14 — done (migration 0051)
+
+**Problem.** `_fp_lines()` (0044) concatenated `account_code,debit,credit,description` with `,`/`;`
+delimiters **without escaping**, so a delimiter inside a description/memo could make two distinct
+payloads serialise to the same canonical string → one idempotency fingerprint (silent wrong-reuse).
+
+**Fix (`src/db/migrations/0051_wp14_canonical_json_fingerprint.sql`).** The fingerprint is now a
+**versioned canonical JSONB** object hashed with SHA-256 (`v3:` prefix). Each line is a JSON object
+(never delimiter-joined) — JSON strings are unambiguously quoted, so no field can bleed into another.
+Line order is documented **insignificant** (normalized line objects sorted before aggregation).
+Compatibility, without reinterpreting stored data: a `v3:` fingerprint compares to the new v3; a
+`v2:` fingerprint compares via the original `_fp_full` and is **never replaced** (WP13 immutability);
+a legacy `NULL` reconstructs via `_fp_recon` and upgrades once to v3. `_fp_full`/`_fp_recon` retained.
+
+**Tests.** `tests/integration/wp14-canonical-fingerprint.test.ts` (7) — a crafted delimiter collision
+that `_fp_lines` (old) hashes identically is distinguished by `_fp_lines_v3`; same payload →
+idempotent; reordered lines → same journal; a changed description on the same key → conflict (not
+silent reuse); different date/currency → conflict; an existing v2 fingerprint is compared with v2 and
+left unchanged (different payload conflicts); a legacy NULL reconstructs, matches, and upgrades to v3.
+
+## WP15 — done (migration 0052)
+
+**Problem.** `post_customer_invoice` / `post_supplier_bill` (0044) had two gaps:
+
+1. the header-vs-line total check ran only `when v_line_total > 0`, so a positive **header** with
+   **no detail lines** (line total 0) posted a journal that had **no source lines** — a document
+   with nothing behind it still hit the ledger. A negative source line was likewise not rejected
+   (the journal was built from the header total, ignoring a `-100` line).
+2. an existing `journal_id` was returned as "idempotent success" **before** confirming the linked
+   journal is actually *this* document's journal — a mismatched, cross-company, or missing link
+   was blindly returned (attaching/leaking an unrelated journal and masking a corrupt lifecycle).
+
+**Fix (`src/db/migrations/0052_wp15_invoice_bill_invariants.sql`).** `CREATE OR REPLACE` of both
+RPCs (no data change):
+
+- A new post requires **≥ 1 source line**, a **positive header**, **header = line total**
+  (unconditional — no longer gated on `v_line_total > 0`), and **no negative line amount**;
+  journal + document update + audit remain one transaction, and nothing is marked issued/approved
+  if any invariant fails.
+- The idempotent return happens **only after** verifying the linked journal exists **in this
+  company**, its `idempotency_key` equals **this document's** posting key, and the document
+  lifecycle is consistent (invoice `issued` / bill `approved`); otherwise it is refused
+  (`missing or cross-company`, `binding mismatch`, or `lifecycle inconsistent`).
+
+**Tests.** `tests/integration/wp15-invoice-bill-invariants.test.ts` (11) — header-only invoice and
+bill refused (no journal, document stays draft); non-positive header refused; negative line refused;
+header≠line-total refused for invoice **and** bill; a valid invoice posts once and is idempotent; a
+valid bill posts and moves to `approved`; and the three journal-binding guards — a journal that
+belongs to another document (`binding mismatch`), a journal in another company
+(`missing or cross-company`), and a right-key journal with an inconsistent lifecycle
+(`lifecycle inconsistent`) — are each refused rather than returned. Against the pre-fix schema
+(0051) **7 of the 11 fail** (the four already-caught cases — mismatched *positive* line totals and
+the valid posts — pass on both). Existing invoice/bill seeds in `transactional-finance`,
+`idempotency-lifecycle`, `posting-authority` and `finance-concurrency` now add a matching source
+line so their headers satisfy the invariant.
+
+## WP16 — done (migration 0053)
+
+**Problem.** `reimburse_expense_claim` (0044) validated reuse only partially:
+
+1. the **already-reimbursed** branch returned the prior journal from an arbitrary
+   `reimbursements → payments` join **without** confirming the reimbursement, payment, claim and
+   journal form one consistent, source-bound chain — a corrupt/partial chain, or a claim merely
+   **marked** `reimbursed` with no payment at all, was returned as success, and the supplied
+   date/key/accounts were ignored;
+2. the **payment-reuse** check compared only `party_id`, `amount`, `currency` and `direction` — not
+   `party_type`, payment date, status, method, or the **journal binding** — so a key reused with a
+   different payment date/method/status, or a stray payment attached to a different journal, slipped
+   through as "the same payment".
+
+**Fix (`src/db/migrations/0053_wp16_reimbursement_reuse_validation.sql`).** `CREATE OR REPLACE`
+(same signature, so existing grants hold; no data change). On **any** reuse the full material
+payload is validated — company (scope), source claim, `party_type = 'employee'`, party id, amount,
+currency, direction, payment date, journal id, status, method, and the **effective idempotency
+key** — and the source-bound journal is re-derived through `_journal_post_internal`, which binds
+company, source claim, date, currency and lines under this key (WP14) and so supplies the canonical
+source fingerprint. The prior result is returned **only** when the whole chain is consistent;
+otherwise a conflict is raised. The capability gate, approved-only lifecycle, and
+separation-of-duties (human maker ≠ claimant) are unchanged.
+
+**Tests.** `tests/integration/wp16-reimbursement-reuse.test.ts` (8) — a valid identical retry
+returns the original journal (exactly one payment/reimbursement); the same key cannot reimburse a
+second claim; an already-reimbursed claim whose payment chain was altered in **any** material field
+(date, method, currency, direction, status, amount, party) is refused; an altered reimbursement row
+is refused; a claim **marked** reimbursed with no chain is refused (not returned as success); a
+stray pre-existing payment bound to a different journal is refused on the fresh path; a human cannot
+reimburse their own claim (authenticated path); and a **second concurrent** reimbursement **blocks**
+on the claim `FOR UPDATE` lock (two live connections) — so exactly one payment, reimbursement and
+journal result. Against the pre-fix schema (0052) the **4 full-payload/chain tests fail**; the
+valid-retry, cross-claim, SoD and concurrency cases pass on both.
+
+## WP11 — done (migration 0054)
+
+**Problem.** `decide_approval` / `within_authority` (0046) checked capability, maker-checker,
+lifecycle, amount, currency and domain, but:
+
+1. it did **not** enforce **organisational scope** — a division/project/site/cost-centre-restricted
+   approver could approve an event allocated to a scope they do not control, an event could be
+   **split** across allocations to dodge scope, and the amount ceiling was not clearly compared to
+   the **whole** event; and
+2. the delegated-authority branch checked the **delegation's** currency but **not the delegator's
+   own** `authority_rules.currency` against the event — a currency-restricted delegator could confer
+   effective authority in another currency (Problem #2).
+
+**Fix (`src/db/migrations/0054_wp11_approval_scope_currency_delegation.sql`).** Additive schema +
+a new event-aware authority function (no data reinterpretation):
+
+- `authority_rules` and `delegations` gain an explicit **`is_company_wide`** flag and
+  `division_id` / `project_id` / `site_id` / `cost_centre_id` scope columns. Existing rows default
+  to `is_company_wide = false` with NULL scope — they authorise **nothing** until an owner
+  explicitly scopes them (**no silent widening** to company-wide).
+- **`within_authority_for_event(company, financial_event)`** (deny-by-default) evaluates, for
+  `auth.uid()`: active membership; domain; **strict** event currency (a NULL rule/delegation
+  currency is **not** a wildcard); the **whole-event** amount vs the ceiling (splitting cannot
+  bypass it); **every** allocation within an authorised scope (via `_scope_covers`); explicit
+  **company-wide** authority when the event has no allocations; and a delegation bounded by its
+  validity window, amount, currency **and** by being a **subset** of the delegator's own
+  currency-matched, sufficient, active authority. `decide_approval` now authorises a financial
+  event through this function.
+- **Deliberately deferred:** requirement #8 (replacing the generic `approve` capability with a
+  domain-specific approval capability) is an owner-gated change to the permission catalogue/role
+  map; CLAUDE.md forbids autonomously changing permissions/approvals. The `approve` capability
+  remains the gate; the substantive amount/currency/scope/delegation authority is now enforced by
+  `within_authority_for_event`. Recorded as a follow-up.
+
+**Tests.** `tests/integration/wp11-approval-scope-authority.test.ts` (10) — no rule and unscoped
+non-company-wide both denied; explicit company-wide approves within domain/amount/currency; each
+scope dimension (division/project/site/cost-centre) enforced (A approves A, not B); a mixed-scope
+event denied if any allocation is outside authority; splitting cannot bypass the whole-event
+ceiling; strict currency (LKR cannot approve USD); a delegation is bounded by the delegator's
+currency, scope and the lower of the two ceilings; expired delegation, suspended delegator and
+suspended delegate denied; `decide_approval` end-to-end (company-wide approves, out-of-scope denies,
+maker-checker holds); and a second concurrent final approval **blocks** on the request `FOR UPDATE`
+lock (two connections). A **Problem #2 witness** shows the retained old `within_authority` accepts a
+currency the delegator lacks while the new function denies it. Against the pre-0054 schema the suite
+cannot run (the scope columns/function do not exist) — the enforced behaviour is entirely new.
+`approval-authority.test.ts` updated: its company-wide approvers now carry an explicit
+`is_company_wide=true` + currency, matching the new secure model.
+
+## WP12 — done (migration 0055)
+
+**Problem.** `tryFinalizeAndSend()` enqueued a WhatsApp message, ran a best-effort inline outbox
+drain, and then **immediately** marked the quotation `sent`, the order `quoted` and the conversation
+`quoted`, returning `{ sent: true }` **even when the provider send or the durable completion had
+failed**. The commercial document lied about delivery, and the `DrainResult` was swallowed.
+
+**Fix (`src/db/migrations/0055_wp12_truthful_delivery_state.sql` + TS).**
+
+- `message_outbox` gains `source_type` / `source_id` / `message_purpose` (no secrets) so a completed
+  send advances the exact linked document. `quotations.status` gains an explicit **`queued`** state
+  (`draft → awaiting_price → ready → queued → sent`).
+- **`complete_outbox_and_advance(outbox_id, lease_owner, provider_message_id)`** — a fenced,
+  service-only RPC that **atomically**: verifies the outbox id + lease owner (only a `processing`
+  row this worker owns), records the provider message id, flips the outbox row to `sent`, advances
+  the linked quotation → `sent` / order → `quoted` / conversation → `quoted` (company-scoped, so a
+  cross-company source id can never be linked/advanced; terminal order/conversation states are never
+  regressed), and writes a non-sensitive audit event. Returns TRUE only when exactly one owned row
+  was completed; a zero-row / wrong-lease / duplicate call returns FALSE and advances nothing.
+- `tryFinalizeAndSend` now marks the quotation **`queued`** on enqueue (tagging the outbox with its
+  source), **propagates the `DrainResult`**, and returns `sent` only if the quotation actually
+  reached `sent`. `drainOutbox` completes a `sent` row through the RPC. Delivery is documented
+  **at-least-once** — a provider-success / DB-failure window can still cause a retry; a lease does
+  **not** make duplicate external delivery impossible. `delivered` (a future state) may only come
+  from a verified provider callback.
+
+**Tests.** `tests/integration/wp12-quotation-delivery.test.ts` (9) — a quotation stays `queued`
+until completion (a provider failure never advances it); provider success + fenced completion marks
+quotation `sent` / order `quoted` / conversation `quoted` + provider id + audit; a wrong-lease or
+zero-row completion returns false and advances nothing; the same row completes **at most once**
+(no double-advance); an expired lease reclaimed by a new owner completes truthfully while the old
+owner cannot; a retry does not create a second outbox row (unique dedupe key); a failed/dead message
+stays visible for operator recovery; a **cross-company** source id marks its own outbox sent but
+never advances the other company's quotation; and a **second concurrent** completion **blocks** on
+the row lock (two connections). The `outbox-drain` unit test now asserts the RPC-based completion.
+Against the pre-0055 schema the suite fails (`quotations_status_check` rejects `queued`; the RPC does
+not exist) — the truthful model is new.
+
+## WP18 — done (documentation)
+
+**Problem.** The migration-state docs contradicted one another about whether `0038–0043` were
+applied to the hosted database, and the verification evidence was stamped at an earlier correction
+commit while later fixes had landed.
+
+**Fix (no migration).**
+
+- `docs/architecture-v2/MIGRATION_STATE.md` is reaffirmed as **the** authoritative applied-state
+  record: the five states — *file exists*, *tested on disposable DB*, *applied to staging*, *applied
+  to production*, *feature flag enabled* — are tracked separately and never conflated; a per-migration
+  table now covers `0048–0055`, plus an explicit five-state grid for the correction phase. The
+  `0038–0043` contradiction is **reconciled**: `0038–0041` were owner-applied 2026-08-07; everything
+  from `0042` onward is **"owner confirmation required"** (dev-verified on disposable PG only). The
+  migration **runner** (`npm run migrate` + `schema_migrations`) is the source of execution; the
+  combined `RUN_*.sql` files are non-authoritative.
+- `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` is the **final verification evidence** for
+  the phase (stamped with the final commit SHA + PostgreSQL 16.13; fresh + upgrade counts; the §8
+  required final response). `VERIFICATION_EVIDENCE.md` and `CURRENT_IMPLEMENTATION_STATUS.md` point
+  to it.
+
+**No hosted ledger was queried** (owner authorisation not given); hosted state is recorded as owner
+confirmation required rather than inferred from files, local tests, or any deployment.
+
+## Verification (disposable PostgreSQL 16, this session)
+
+| Gate | Result |
+|---|---|
+| `npm run secret-scan` | pass |
+| `npm run migration-lint` | pass — 55 migrations, sequential 0001–0055 |
+| `npm run typecheck` | pass |
+| `npm run lint` | pass (pre-existing `<img>` warnings only) |
+| `npm test` (unit) | pass — 374 |
+| `npm run audit-check` | pass (2 approved exceptions) |
+| `npm run build` | pass |
+| `npm run test:integration` — **upgrade path** (0054→0055 on prior schema) | pass — **31 files / 161 tests** |
+| `npm run test:integration` — **fresh DB** (0001→0055 from scratch) | pass — **31 files / 161 tests** |
+
+Toolchain: Node v22.22.2, npm 10.9.7, PostgreSQL 16.13. No hosted migration applied; no feature flag
+enabled.
