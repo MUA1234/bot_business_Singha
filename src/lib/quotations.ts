@@ -237,9 +237,9 @@ export async function tryFinalizeAndSend(
   quotationId: string,
 ): Promise<{ sent: boolean; status?: string; reason?: string; drain?: DrainResult }> {
   const db = supabaseAdmin();
-  const awaiting = await refreshQuotationStatus(companyId, quotationId);
-  if (awaiting) return { sent: false, reason: "awaiting_price" };
 
+  // Read the CURRENT state FIRST — before any price refresh — so the legal state machine is honoured
+  // (draft → awaiting_price → ready → queued → sent; accepted/rejected terminal).
   const { data: quote } = await db
     .from("quotations")
     .select("id, quote_number, currency, total, status, public_token, order_id, company_id")
@@ -247,7 +247,20 @@ export async function tryFinalizeAndSend(
     .eq("company_id", companyId)
     .single();
   if (!quote) return { sent: false, reason: "not_found" };
-  if (quote.status === "sent" || quote.status === "accepted") return { sent: false, reason: "already_sent" };
+
+  // Terminal states never mutate and never (re)send.
+  if (quote.status === "sent" || quote.status === "accepted" || quote.status === "rejected") {
+    return { sent: quote.status === "sent", status: quote.status, reason: "terminal" };
+  }
+
+  // Refresh pricing ONLY for pre-queue states; a `queued` quotation is never re-priced or reset.
+  let curStatus = quote.status as string;
+  if (curStatus !== "queued") {
+    const awaiting = await refreshQuotationStatus(companyId, quotationId);
+    if (awaiting) return { sent: false, status: "awaiting_price", reason: "awaiting_price" };
+    curStatus = "ready";
+  }
+  // curStatus is now 'ready' (fresh) or 'queued' (already enqueued once).
 
   const { data: order } = await db
     .from("orders")
@@ -255,8 +268,12 @@ export async function tryFinalizeAndSend(
     .eq("id", quote.order_id)
     .eq("company_id", companyId)
     .maybeSingle();
-
   const to = order?.customer_phone?.replace(/^\+/, "");
+  if (!to) {
+    // No deliverable phone → nothing can be queued; leave the quotation retryable (truthful).
+    return { sent: false, status: curStatus, reason: "no_recipient" };
+  }
+
   const link = quoteUrl(quote.public_token);
   const total = `${quote.currency} ${Number(quote.total).toLocaleString()}`;
   const body =
@@ -264,51 +281,46 @@ export async function tryFinalizeAndSend(
     `Here is your quotation ${quote.quote_number} from Singha.\n\n` +
     `Total: ${total}\n\nView / download your quotation:\n${link}\n\n` +
     `Reply here if you'd like to proceed or have any questions.`;
+  const dedupeKey = `quotation:${quotationId}`;
 
-  if (!to) {
-    // No deliverable phone → nothing can be queued; leave the quotation `ready` (truthful).
-    return { sent: false, status: quote.status, reason: "no_recipient" };
+  // Enqueue EXACTLY once, tagged with its source so the fenced completion advances the right
+  // quotation. If already `queued`, do NOT enqueue or add history again — reconcile the existing
+  // company-scoped row by draining. Handle every enqueue result explicitly.
+  let enq: "enqueued" | "duplicate" | "unavailable";
+  if (curStatus === "queued") {
+    enq = "duplicate";
+  } else {
+    enq = await enqueueOutbox({ channel: "whatsapp", companyId, recipient: to, body, dedupeKey, sourceType: "quotation", sourceId: quotationId, messagePurpose: "quotation" });
   }
 
-  // Enqueue to the durable outbox, TAGGED with its source document so the fenced completion can
-  // advance the exact quotation. Dedup on the quotation id → a retry/concurrent finalise no-ops.
-  await enqueueOutbox({
-    channel: "whatsapp",
-    companyId,
-    recipient: to,
-    body,
-    dedupeKey: `quotation:${quotationId}`,
-    sourceType: "quotation",
-    sourceId: quotationId,
-    messagePurpose: "quotation",
-  });
-  if (order?.conversation_id) {
-    await db.from("wa_messages").insert({
-      conversation_id: order.conversation_id,
-      company_id: companyId,
-      direction: "outbound",
-      body,
-      wa_message_id: null,
-    });
+  if (enq === "unavailable") {
+    // No durable outbox record was written → keep the quotation retryable (leave it 'ready'); never
+    // claim `queued` or `sent`. The caller / scheduled sweep can retry.
+    return { sent: false, status: curStatus, reason: "enqueue_unavailable" };
   }
-  // Mark QUEUED, not sent. `sent` (+ order `quoted` + conversation `quoted`) is set only by the
-  // fenced RPC when the outbox row is durably completed. Never regress an already sent/accepted quote.
-  await db.from("quotations").update({ status: "queued" }).eq("id", quotationId).eq("company_id", companyId).in("status", ["ready", "queued"]);
 
-  // Best-effort inline drain — the completion advances the document truthfully. Propagate the
-  // result rather than swallowing it and claiming `sent: true`.
+  // On a FRESH enqueue, transition ready → queued (idempotent guard; never touches a terminal quote).
+  // NO message history is written here: the fenced completion RPC writes the outbound record — with
+  // the provider message id — only on durable send, so history never shows a queued item as sent.
+  if (enq === "enqueued") {
+    await db.from("quotations").update({ status: "queued" }).eq("id", quotationId).eq("company_id", companyId).eq("status", "ready");
+  }
+
+  // Best-effort inline drain; a failure is REPORTED (never swallowed into a false success). Delivery
+  // is at-least-once — a provider-success / DB-failure window can still cause a retry.
   let drain: DrainResult | undefined;
-  try { drain = await drainOutbox(db); } catch { /* the scheduled sweep will recover */ }
+  let drainFailed = false;
+  try { drain = await drainOutbox(db); } catch { drainFailed = true; }
 
-  // Truthful state: `sent` iff the outbox row was durably completed and advanced the quotation.
+  // Truthful final state: `sent` iff the durable completion advanced the quotation to `sent`.
   const { data: after } = await db
     .from("quotations")
     .select("status")
     .eq("id", quotationId)
     .eq("company_id", companyId)
     .single();
-  const status = after?.status ?? "queued";
-  return { sent: status === "sent", status, drain };
+  const status = after?.status ?? curStatus;
+  return { sent: status === "sent", status, drain, ...(drainFailed && status !== "sent" ? { reason: "drain_failed" } : {}) };
 }
 
 /** Resolve a price confirmation from a dashboard, then finalize if ready. */

@@ -63,6 +63,8 @@ describe.skipIf(!enabled)("WP12 truthful quotation delivery — live, zero-persi
 
   it("provider success + fenced completion marks quotation `sent`, order `quoted`, conversation `quoted`", async () => {
     const { conv, ord, quo, ob } = await mkChain(co, { owner: "w1" });
+    // No outbound message history exists while the send is only queued/processing (WP12 correction A).
+    expect((await q(`select count(*)::int c from wa_messages where conversation_id=$1 and direction='outbound'`, [conv])).rows[0].c).toBe(0);
     expect(await complete(ob, "w1", "wamid.OK")).toBe(true);
     expect(await statusOf("quotations", quo)).toBe("sent");
     expect(await statusOf("orders", ord)).toBe("quoted");
@@ -72,6 +74,10 @@ describe.skipIf(!enabled)("WP12 truthful quotation delivery — live, zero-persi
     expect(obRow.provider_message_id).toBe("wamid.OK");
     expect(obRow.sent_at).not.toBeNull();
     expect((await q(`select count(*)::int c from audit_events where entity_type='quotation' and entity_id=$1 and action='quotation.sent'`, [quo])).rows[0].c).toBe(1);
+    // Exactly ONE outbound history record is created — on durable send — carrying the provider id.
+    const hist = await q(`select body, wa_message_id from wa_messages where conversation_id=$1 and direction='outbound'`, [conv]);
+    expect(hist.rows).toHaveLength(1);
+    expect(hist.rows[0].wa_message_id).toBe("wamid.OK");
   });
 
   it("a wrong-lease (or zero-row) completion returns false and advances nothing", async () => {
