@@ -10,8 +10,8 @@
 | WP | Correction | Status |
 |---|---|---|
 | **WP10** | Remove broad company-member writes on commercially sensitive tables | **✅ done — migration 0048** |
-| WP11 | Approval authority: org scope + currency + delegation bounds | ⏳ next |
-| WP12 | Truthful quotation/order delivery state | ⏳ pending |
+| **WP11** | Approval authority: org scope + currency + delegation bounds | **✅ done — migration 0054** |
+| WP12 | Truthful quotation/order delivery state | ⏳ next |
 | **WP13** | Posted-journal immutability allowlist | **✅ done — migration 0050** |
 | **WP14** | Canonical-JSON idempotency fingerprints (escape/collision-safe) | **✅ done — migration 0051** |
 | **WP15** | Invoice/bill document invariants (require lines; verify existing journal) | **✅ done — migration 0052** |
@@ -19,10 +19,9 @@
 | **WP17** | Explicit system-actor path (no human `p_by` on the worker path) | **✅ done — migration 0049** |
 | WP18 | Reconcile migration-state / verification docs | ⏳ pending |
 
-> Note: WP10, WP13, WP14, WP15, WP16 and WP17 are done. Remaining, in the owner's stated order:
-> **WP11** (approval-authority org-scope/currency/delegation bounds) → **WP12** (truthful
-> quotation/order delivery state) → **WP18** (documentation reconciliation, the Phase-1 tail),
-> then the Phase-1 consolidation report and a mandatory STOP for external review.
+> Note: WP10, WP11, WP13, WP14, WP15, WP16 and WP17 are done. Remaining, in the owner's stated
+> order: **WP12** (truthful quotation/order delivery state) → **WP18** (documentation reconciliation,
+> the Phase-1 tail), then the Phase-1 consolidation report and a mandatory STOP for external review.
 
 ## WP10 — done (migration 0048)
 
@@ -226,19 +225,67 @@ on the claim `FOR UPDATE` lock (two live connections) — so exactly one payment
 journal result. Against the pre-fix schema (0052) the **4 full-payload/chain tests fail**; the
 valid-retry, cross-claim, SoD and concurrency cases pass on both.
 
+## WP11 — done (migration 0054)
+
+**Problem.** `decide_approval` / `within_authority` (0046) checked capability, maker-checker,
+lifecycle, amount, currency and domain, but:
+
+1. it did **not** enforce **organisational scope** — a division/project/site/cost-centre-restricted
+   approver could approve an event allocated to a scope they do not control, an event could be
+   **split** across allocations to dodge scope, and the amount ceiling was not clearly compared to
+   the **whole** event; and
+2. the delegated-authority branch checked the **delegation's** currency but **not the delegator's
+   own** `authority_rules.currency` against the event — a currency-restricted delegator could confer
+   effective authority in another currency (Problem #2).
+
+**Fix (`src/db/migrations/0054_wp11_approval_scope_currency_delegation.sql`).** Additive schema +
+a new event-aware authority function (no data reinterpretation):
+
+- `authority_rules` and `delegations` gain an explicit **`is_company_wide`** flag and
+  `division_id` / `project_id` / `site_id` / `cost_centre_id` scope columns. Existing rows default
+  to `is_company_wide = false` with NULL scope — they authorise **nothing** until an owner
+  explicitly scopes them (**no silent widening** to company-wide).
+- **`within_authority_for_event(company, financial_event)`** (deny-by-default) evaluates, for
+  `auth.uid()`: active membership; domain; **strict** event currency (a NULL rule/delegation
+  currency is **not** a wildcard); the **whole-event** amount vs the ceiling (splitting cannot
+  bypass it); **every** allocation within an authorised scope (via `_scope_covers`); explicit
+  **company-wide** authority when the event has no allocations; and a delegation bounded by its
+  validity window, amount, currency **and** by being a **subset** of the delegator's own
+  currency-matched, sufficient, active authority. `decide_approval` now authorises a financial
+  event through this function.
+- **Deliberately deferred:** requirement #8 (replacing the generic `approve` capability with a
+  domain-specific approval capability) is an owner-gated change to the permission catalogue/role
+  map; CLAUDE.md forbids autonomously changing permissions/approvals. The `approve` capability
+  remains the gate; the substantive amount/currency/scope/delegation authority is now enforced by
+  `within_authority_for_event`. Recorded as a follow-up.
+
+**Tests.** `tests/integration/wp11-approval-scope-authority.test.ts` (10) — no rule and unscoped
+non-company-wide both denied; explicit company-wide approves within domain/amount/currency; each
+scope dimension (division/project/site/cost-centre) enforced (A approves A, not B); a mixed-scope
+event denied if any allocation is outside authority; splitting cannot bypass the whole-event
+ceiling; strict currency (LKR cannot approve USD); a delegation is bounded by the delegator's
+currency, scope and the lower of the two ceilings; expired delegation, suspended delegator and
+suspended delegate denied; `decide_approval` end-to-end (company-wide approves, out-of-scope denies,
+maker-checker holds); and a second concurrent final approval **blocks** on the request `FOR UPDATE`
+lock (two connections). A **Problem #2 witness** shows the retained old `within_authority` accepts a
+currency the delegator lacks while the new function denies it. Against the pre-0054 schema the suite
+cannot run (the scope columns/function do not exist) — the enforced behaviour is entirely new.
+`approval-authority.test.ts` updated: its company-wide approvers now carry an explicit
+`is_company_wide=true` + currency, matching the new secure model.
+
 ## Verification (disposable PostgreSQL 16, this session)
 
 | Gate | Result |
 |---|---|
 | `npm run secret-scan` | pass |
-| `npm run migration-lint` | pass — 53 migrations, sequential 0001–0053 |
+| `npm run migration-lint` | pass — 54 migrations, sequential 0001–0054 |
 | `npm run typecheck` | pass |
 | `npm run lint` | pass (pre-existing `<img>` warnings only) |
 | `npm test` (unit) | pass — 374 |
 | `npm run audit-check` | pass (2 approved exceptions) |
 | `npm run build` | pass |
-| `npm run test:integration` — **upgrade path** (0052→0053 on prior schema) | pass — **29 files / 142 tests** |
-| `npm run test:integration` — **fresh DB** (0001→0053 from scratch) | pass — **29 files / 142 tests** |
+| `npm run test:integration` — **upgrade path** (0053→0054 on prior schema) | pass — **30 files / 152 tests** |
+| `npm run test:integration` — **fresh DB** (0001→0054 from scratch) | pass — **30 files / 152 tests** |
 
 Toolchain: Node v22.22.2, npm 10.9.7, PostgreSQL 16.13. No hosted migration applied; no feature flag
 enabled.
