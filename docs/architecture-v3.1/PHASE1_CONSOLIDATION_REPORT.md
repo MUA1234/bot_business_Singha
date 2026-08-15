@@ -18,7 +18,7 @@
   against `main`** — it integrates, preserving history: (1) PR #3 compatibility foundation
   (`3224d08`), (2) the Phase-1 stack PRs #4–#12 via tip `509685b`, (3) the external-review
   corrections A–D.
-- **Content commit SHA:** `__FINAL_SHA__` — the commit carrying corrections A–D. (A commit cannot
+- **Content commit SHA:** `fd25be1a33fee432f3bf98b6f5ad53d8f66dc04c` — the commit carrying corrections A–D. (A commit cannot
   embed its own hash; this SHA is stamped by the immediately following commit on the branch tip, so
   the tip = the stamp commit and its parent is the content commit named here.)
 - **Reviewed baseline:** tip `509685b`, content `6603646` (the first-pass Phase-1 stack).
@@ -93,16 +93,13 @@ Each external-review adversarial test was confirmed to **fail against the review
 and pass after the correction (WP15 source-binding 5/6 fail; WP11 fail-closed 5/6 fail; WP12
 finalize state-machine exercised via the real function with a fake client).
 
-Adversarial & concurrency coverage is included in the 161 integration tests: RLS write-gating
+Adversarial & concurrency coverage is included in the 173 integration tests: RLS write-gating
 (WP10), system-actor boundary (WP17), posted-journal immutability (WP13), fingerprint collision
-(WP14), invoice/bill invariants (WP15), reimbursement chain (WP16), approval scope/currency/
-delegation + a two-connection approval race (WP11), and the outbox completion fence + a two-connection
-completion race + cross-company isolation (WP12). Every forced-failure case asserts **no partial
-financial state** (journal/payment/reimbursement/quotation left unchanged).
-
-Each new migration's adversarial test was also confirmed to **fail against the immediately prior
-schema** (failing-before / passing-after), except where the change is purely additive (WP11/WP12 add
-new columns/functions, so the pre-migration schema cannot run the test at all — recorded as such).
+(WP14), invoice/bill invariants + source binding (WP15), reimbursement chain (WP16), approval
+scope/currency/delegation + fail-closed/domain-caps + a two-connection approval race (WP11), and the
+outbox completion fence + a two-connection completion race + cross-company isolation (WP12). Every
+forced-failure case asserts **no partial financial state** (journal/payment/reimbursement/quotation
+left unchanged).
 
 ## 5. Toolchain & database version
 
@@ -113,7 +110,7 @@ new columns/functions, so the pre-migration schema cannot run the test at all �
 ## 6. Owner action required
 
 1. **External review** of this correction phase (the mandatory STOP) before V3.1 phases 2–10.
-2. **Hosted application (staging first):** apply `0048–0055` via `npm run migrate` against a staging
+2. **Hosted application (staging first):** apply `0048–0058` via `npm run migrate` against a staging
    database, run the integration suite there, then production — **owner-gated**. Until then,
    `MIGRATION_STATE.md` records hosted state for `0042–0055` as **owner confirmation required**.
 3. **WP11 #8 decision:** approve (or not) the domain-specific approval-capability split (a permission
