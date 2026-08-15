@@ -116,9 +116,16 @@ describe.skipIf(!enabled)("transactional finance (0042/0043) — live, zero-pers
     const life = await call(`select public.reimburse_expense_claim('${co}','${submitted}','5000','1000','${uAcct}','2026-07-15','rl') as v`);
     expect(life.ok).toBe(false); expect(life.error).toMatch(/approved/i);
 
-    // SoD: the claimant cannot reimburse their own claim (worker path with p_by = claimant user)
+    // SoD: a human cannot reimburse THEIR OWN claim — enforced on the AUTHENTICATED path, the
+    // only path with a human maker. After migration 0049 (WP17) the worker/service path records
+    // NO human actor (p_by is ignored), so it cannot represent self-dealing; the control lives on
+    // the user path. uAcct is an accountant (holds finance.payment.record) AND the claimant here.
     const own = await mkClaim(50, "approved", empSelf);
-    const sod = await call(`select public.reimburse_expense_claim('${co}','${own}','5000','1000','${uEmp}','2026-07-15','rs') as v`);
+    const empAcct = (await q(`insert into employees (company_id, user_id, name, status) values ($1,$2,'Emp Acct','active') returning id`, [co, uAcct])).rows[0].id;
+    const ownAcct = await mkClaim(50, "approved", empAcct);
+    await asUser(uAcct);
+    const sod = await call(`select public.reimburse_expense_claim('${co}','${ownAcct}','5000','1000','${uAcct}','2026-07-15','rs') as v`);
+    await asWorker();
     expect(sod.ok).toBe(false); expect(sod.error).toMatch(/own expense claim/i);
 
     // A different actor reimburses; then it is idempotent and the claim is closed.

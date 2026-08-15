@@ -16,7 +16,7 @@
 | WP14 | Canonical-JSON idempotency fingerprints (escape/collision-safe) | ⏳ pending |
 | WP15 | Invoice/bill document invariants (require lines; verify existing journal) | ⏳ pending |
 | WP16 | Reimbursement/payment reuse — full payload validation | ⏳ pending |
-| WP17 | Explicit system-actor path (no human `p_by` on the worker path) | ⏳ pending |
+| **WP17** | Explicit system-actor path (no human `p_by` on the worker path) | **✅ done — migration 0049** |
 | WP18 | Reconcile migration-state / verification docs | ⏳ pending |
 
 > Note: WP13–WP17 are **partially** present in migration 0044 already, each with the precise gap the
@@ -71,6 +71,29 @@ client (bypasses RLS). These policies become the live gate only at the future, o
 - `tests/integration/write-isolation.test.ts` — updated: `leads` is now capability-gated, so the
   isolation actor holds `sales.pipeline.manage`; the property under test (own-company allowed,
   cross-company blocked) is unchanged.
+
+## WP17 — done (migration 0049)
+
+**Problem.** `_resolve_actor(p_by)` recorded a caller-supplied `p_by` as the actor when `auth.uid()`
+is null (the service/worker path). A background worker could stamp an **arbitrary human identity**
+into the ledger (`posted_by`) and audit trail (`actor_id`) while tagging it `actor_type = 'system'`.
+
+**Fix (`src/db/migrations/0049_wp17_system_actor.sql`).** On the service/worker path, `p_by` is
+**ignored**; the actor is recorded as `NULL` with `actor_type = 'system'` (traceability via the audit
+row's idempotency key/correlation). The authenticated-user path is unchanged (actor from `auth.uid()`;
+mismatched `p_by` still rejected); anonymous callers still rejected. Every posting RPC derives its
+actor from this function, so the fix applies uniformly.
+
+**Consequence handled.** Reimbursement's separation-of-duties self-check (`claimant != actor`) is a
+**human** control; a service/worker call has no human maker, so it cannot self-deal. The
+`transactional-finance` test now proves self-reimbursement is blocked on the **authenticated** path
+(the only path with a human actor), not via the worker path that previously relied on the
+now-removed `p_by` impersonation.
+
+**Tests.** `tests/integration/wp17-system-actor.test.ts` (4) — service path ignores `p_by` → null
+system actor; anonymous rejected; authenticated matching → user / mismatch rejected; an end-to-end
+service-path `post_manual_journal` records `posted_by = NULL` and an audit row with
+`actor_type = 'system'`, `actor_id = NULL`, and a traceable idempotency key.
 
 ## Verification (disposable PostgreSQL 16, this session)
 
