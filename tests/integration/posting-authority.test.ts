@@ -33,10 +33,14 @@ async function callAs(u: string, sql: string): Promise<{ ok: boolean; error?: st
   await asSuper(); return r;
 }
 async function mkInvoice(): Promise<string> {
-  return (await q(`insert into customer_invoices (company_id, customer_id, invoice_number, currency, issue_date, total_amount, amount_settled, status) values ($1,$2,$3,'LKR','2026-07-01',100,0,'draft') returning id`, [co, customer, "INV-" + Math.random().toString(36).slice(2, 9)])).rows[0].id;
+  const id = (await q(`insert into customer_invoices (company_id, customer_id, invoice_number, currency, issue_date, total_amount, amount_settled, status) values ($1,$2,$3,'LKR','2026-07-01',100,0,'draft') returning id`, [co, customer, "INV-" + Math.random().toString(36).slice(2, 9)])).rows[0].id;
+  await q(`insert into customer_invoice_lines (invoice_id, company_id, description, unit_price, amount) values ($1,$2,'x',100,100)`, [id, co]); // WP15: header == line total
+  return id;
 }
 async function mkBill(): Promise<string> {
-  return (await q(`insert into supplier_bills (company_id, supplier_id, bill_number, currency, issue_date, total_amount, amount_settled, status) values ($1,$2,$3,'LKR','2026-07-01',100,0,'draft') returning id`, [co, supplier, "BILL-" + Math.random().toString(36).slice(2, 9)])).rows[0].id;
+  const id = (await q(`insert into supplier_bills (company_id, supplier_id, bill_number, currency, issue_date, total_amount, amount_settled, status) values ($1,$2,$3,'LKR','2026-07-01',100,0,'draft') returning id`, [co, supplier, "BILL-" + Math.random().toString(36).slice(2, 9)])).rows[0].id;
+  await q(`insert into supplier_bill_lines (bill_id, company_id, description, unit_price, amount) values ($1,$2,'x',100,100)`, [id, co]); // WP15: header == line total
+  return id;
 }
 
 describe.skipIf(!enabled)("WP2 posting authority — live, zero-persistence", () => {

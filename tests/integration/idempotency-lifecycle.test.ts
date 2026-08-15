@@ -28,7 +28,9 @@ async function mkClaim(amount: number): Promise<string> {
   return (await q(`insert into expense_claims (company_id, employee_id, currency, amount, purpose, status) values ($1,$2,'LKR',${amount},'x','approved') returning id`, [co, empX])).rows[0].id;
 }
 async function mkInvoice(status: string): Promise<string> {
-  return (await q(`insert into customer_invoices (company_id, customer_id, invoice_number, currency, issue_date, total_amount, amount_settled, status) values ($1,$2,$3,'LKR','2026-07-01',100,0,$4) returning id`, [co, customer, "INV-" + Math.random().toString(36).slice(2, 9), status])).rows[0].id;
+  const id = (await q(`insert into customer_invoices (company_id, customer_id, invoice_number, currency, issue_date, total_amount, amount_settled, status) values ($1,$2,$3,'LKR','2026-07-01',100,0,$4) returning id`, [co, customer, "INV-" + Math.random().toString(36).slice(2, 9), status])).rows[0].id;
+  await q(`insert into customer_invoice_lines (invoice_id, company_id, description, unit_price, amount) values ($1,$2,'x',100,100)`, [id, co]); // WP15: header == line total
+  return id;
 }
 
 describe.skipIf(!enabled)("idempotency + lifecycle (0044) — live, zero-persistence", () => {

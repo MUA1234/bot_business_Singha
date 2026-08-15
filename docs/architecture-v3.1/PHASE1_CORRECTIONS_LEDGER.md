@@ -14,15 +14,13 @@
 | WP12 | Truthful quotation/order delivery state | ⏳ pending |
 | **WP13** | Posted-journal immutability allowlist | **✅ done — migration 0050** |
 | **WP14** | Canonical-JSON idempotency fingerprints (escape/collision-safe) | **✅ done — migration 0051** |
-| WP15 | Invoice/bill document invariants (require lines; verify existing journal) | ⏳ pending |
-| WP16 | Reimbursement/payment reuse — full payload validation | ⏳ pending |
+| **WP15** | Invoice/bill document invariants (require lines; verify existing journal) | **✅ done — migration 0052** |
+| WP16 | Reimbursement/payment reuse — full payload validation | ⏳ next |
 | **WP17** | Explicit system-actor path (no human `p_by` on the worker path) | **✅ done — migration 0049** |
 | WP18 | Reconcile migration-state / verification docs | ⏳ pending |
 
-> Note: WP15–WP16 are **partially** present in migration 0044 already, each with the precise gap the
-> brief describes (e.g. WP15 only compares header-vs-line totals `when v_line_total > 0`, so a
-> header-only invoice can still post). These are genuine follow-on corrections, tracked above.
-> (WP13, WP14 and WP17 are done.)
+> Note: WP16 is **partially** present in migration 0044 already, with the precise gap the brief
+> describes. It is a genuine follow-on correction, tracked above. (WP13, WP14, WP15 and WP17 are done.)
 
 ## WP10 — done (migration 0048)
 
@@ -155,19 +153,55 @@ idempotent; reordered lines → same journal; a changed description on the same 
 silent reuse); different date/currency → conflict; an existing v2 fingerprint is compared with v2 and
 left unchanged (different payload conflicts); a legacy NULL reconstructs, matches, and upgrades to v3.
 
+## WP15 — done (migration 0052)
+
+**Problem.** `post_customer_invoice` / `post_supplier_bill` (0044) had two gaps:
+
+1. the header-vs-line total check ran only `when v_line_total > 0`, so a positive **header** with
+   **no detail lines** (line total 0) posted a journal that had **no source lines** — a document
+   with nothing behind it still hit the ledger. A negative source line was likewise not rejected
+   (the journal was built from the header total, ignoring a `-100` line).
+2. an existing `journal_id` was returned as "idempotent success" **before** confirming the linked
+   journal is actually *this* document's journal — a mismatched, cross-company, or missing link
+   was blindly returned (attaching/leaking an unrelated journal and masking a corrupt lifecycle).
+
+**Fix (`src/db/migrations/0052_wp15_invoice_bill_invariants.sql`).** `CREATE OR REPLACE` of both
+RPCs (no data change):
+
+- A new post requires **≥ 1 source line**, a **positive header**, **header = line total**
+  (unconditional — no longer gated on `v_line_total > 0`), and **no negative line amount**;
+  journal + document update + audit remain one transaction, and nothing is marked issued/approved
+  if any invariant fails.
+- The idempotent return happens **only after** verifying the linked journal exists **in this
+  company**, its `idempotency_key` equals **this document's** posting key, and the document
+  lifecycle is consistent (invoice `issued` / bill `approved`); otherwise it is refused
+  (`missing or cross-company`, `binding mismatch`, or `lifecycle inconsistent`).
+
+**Tests.** `tests/integration/wp15-invoice-bill-invariants.test.ts` (11) — header-only invoice and
+bill refused (no journal, document stays draft); non-positive header refused; negative line refused;
+header≠line-total refused for invoice **and** bill; a valid invoice posts once and is idempotent; a
+valid bill posts and moves to `approved`; and the three journal-binding guards — a journal that
+belongs to another document (`binding mismatch`), a journal in another company
+(`missing or cross-company`), and a right-key journal with an inconsistent lifecycle
+(`lifecycle inconsistent`) — are each refused rather than returned. Against the pre-fix schema
+(0051) **7 of the 11 fail** (the four already-caught cases — mismatched *positive* line totals and
+the valid posts — pass on both). Existing invoice/bill seeds in `transactional-finance`,
+`idempotency-lifecycle`, `posting-authority` and `finance-concurrency` now add a matching source
+line so their headers satisfy the invariant.
+
 ## Verification (disposable PostgreSQL 16, this session)
 
 | Gate | Result |
 |---|---|
 | `npm run secret-scan` | pass |
-| `npm run migration-lint` | pass — 51 migrations, sequential 0001–0051 |
+| `npm run migration-lint` | pass — 52 migrations, sequential 0001–0052 |
 | `npm run typecheck` | pass |
 | `npm run lint` | pass (pre-existing `<img>` warnings only) |
 | `npm test` (unit) | pass — 374 |
 | `npm run audit-check` | pass (2 approved exceptions) |
 | `npm run build` | pass |
-| `npm run test:integration` — **upgrade path** (0050→0051 on legacy data) | pass — **27 files / 123 tests** |
-| `npm run test:integration` — **fresh DB** (0001→0051 from scratch) | pass — **27 files / 123 tests** |
+| `npm run test:integration` — **upgrade path** (0051→0052 on prior schema) | pass — **28 files / 134 tests** |
+| `npm run test:integration` — **fresh DB** (0001→0052 from scratch) | pass — **28 files / 134 tests** |
 
 Toolchain: Node v22.22.2, npm 10.9.7, PostgreSQL 16.13. No hosted migration applied; no feature flag
 enabled.
