@@ -13,16 +13,16 @@
 | WP11 | Approval authority: org scope + currency + delegation bounds | ⏳ next |
 | WP12 | Truthful quotation/order delivery state | ⏳ pending |
 | **WP13** | Posted-journal immutability allowlist | **✅ done — migration 0050** |
-| WP14 | Canonical-JSON idempotency fingerprints (escape/collision-safe) | ⏳ pending |
+| **WP14** | Canonical-JSON idempotency fingerprints (escape/collision-safe) | **✅ done — migration 0051** |
 | WP15 | Invoice/bill document invariants (require lines; verify existing journal) | ⏳ pending |
 | WP16 | Reimbursement/payment reuse — full payload validation | ⏳ pending |
 | **WP17** | Explicit system-actor path (no human `p_by` on the worker path) | **✅ done — migration 0049** |
 | WP18 | Reconcile migration-state / verification docs | ⏳ pending |
 
-> Note: WP14–WP16 are **partially** present in migration 0044 already, each with the precise gap the
-> brief describes (e.g. WP14's `_fp_lines` still concatenates with unescaped `,`/`;` delimiters;
-> WP15 only compares header-vs-line totals `when v_line_total > 0`, so a header-only invoice can
-> still post). These are genuine follow-on corrections, tracked above. (WP13 and WP17 are done.)
+> Note: WP15–WP16 are **partially** present in migration 0044 already, each with the precise gap the
+> brief describes (e.g. WP15 only compares header-vs-line totals `when v_line_total > 0`, so a
+> header-only invoice can still post). These are genuine follow-on corrections, tracked above.
+> (WP13, WP14 and WP17 are done.)
 
 ## WP10 — done (migration 0048)
 
@@ -135,19 +135,39 @@ header mutations blocked (incl. `exchange_rate`/`correlation_id`/`idempotency_ke
 updated/deleted/**inserted**; the reversal transition still works end-to-end; the legacy fingerprint
 upgrade is one-time. `idempotency-lifecycle` legacy seed updated to add lines while draft.
 
+## WP14 — done (migration 0051)
+
+**Problem.** `_fp_lines()` (0044) concatenated `account_code,debit,credit,description` with `,`/`;`
+delimiters **without escaping**, so a delimiter inside a description/memo could make two distinct
+payloads serialise to the same canonical string → one idempotency fingerprint (silent wrong-reuse).
+
+**Fix (`src/db/migrations/0051_wp14_canonical_json_fingerprint.sql`).** The fingerprint is now a
+**versioned canonical JSONB** object hashed with SHA-256 (`v3:` prefix). Each line is a JSON object
+(never delimiter-joined) — JSON strings are unambiguously quoted, so no field can bleed into another.
+Line order is documented **insignificant** (normalized line objects sorted before aggregation).
+Compatibility, without reinterpreting stored data: a `v3:` fingerprint compares to the new v3; a
+`v2:` fingerprint compares via the original `_fp_full` and is **never replaced** (WP13 immutability);
+a legacy `NULL` reconstructs via `_fp_recon` and upgrades once to v3. `_fp_full`/`_fp_recon` retained.
+
+**Tests.** `tests/integration/wp14-canonical-fingerprint.test.ts` (7) — a crafted delimiter collision
+that `_fp_lines` (old) hashes identically is distinguished by `_fp_lines_v3`; same payload →
+idempotent; reordered lines → same journal; a changed description on the same key → conflict (not
+silent reuse); different date/currency → conflict; an existing v2 fingerprint is compared with v2 and
+left unchanged (different payload conflicts); a legacy NULL reconstructs, matches, and upgrades to v3.
+
 ## Verification (disposable PostgreSQL 16, this session)
 
 | Gate | Result |
 |---|---|
 | `npm run secret-scan` | pass |
-| `npm run migration-lint` | pass — 50 migrations, sequential 0001–0050 |
+| `npm run migration-lint` | pass — 51 migrations, sequential 0001–0051 |
 | `npm run typecheck` | pass |
 | `npm run lint` | pass (pre-existing `<img>` warnings only) |
 | `npm test` (unit) | pass — 374 |
 | `npm run audit-check` | pass (2 approved exceptions) |
 | `npm run build` | pass |
-| `npm run test:integration` — **upgrade path** (0049→0050 on legacy data) | pass — **26 files / 116 tests** |
-| `npm run test:integration` — **fresh DB** (0001→0050 from scratch) | pass — **26 files / 116 tests** |
+| `npm run test:integration` — **upgrade path** (0050→0051 on legacy data) | pass — **27 files / 123 tests** |
+| `npm run test:integration` — **fresh DB** (0001→0051 from scratch) | pass — **27 files / 123 tests** |
 
 Toolchain: Node v22.22.2, npm 10.9.7, PostgreSQL 16.13. No hosted migration applied; no feature flag
 enabled.
