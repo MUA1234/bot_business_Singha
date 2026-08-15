@@ -3,6 +3,14 @@
 This repository is governed by `CLAUDE.md` and the documents under `docs/`.
 Any AI coding agent (Claude Code, Codex, or other) must follow the same rules.
 
+> **V3.1 program (added 2026-08).** A V3.1 senior-management-intelligence evolution is scoped in
+> `docs/architecture-v3.1/`. Only its compatibility foundation is built so far: a default-OFF
+> feature-flag registry (`src/config/flags.ts`) and canonical proposal contracts
+> (`src/schemas/v3_1/*`) — additive, consumed by no runtime path, zero behaviour change. The
+> `0048+` security/accounting correction (pack WP10–WP18) is **not yet implemented** and is a
+> **blocking prerequisite** for any V3.1 finance/RLS/outbox cutover. Start with
+> `docs/architecture-v3.1/00_BASELINE_ASSESSMENT.md`.
+
 ## Start here, every session
 
 1. Read `CLAUDE.md`.
