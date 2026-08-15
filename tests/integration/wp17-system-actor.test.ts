@@ -1,11 +1,15 @@
 /**
- * WP17 — explicit system-actor path. Live against real Postgres, ZERO-PERSISTENCE.
+ * WP17 — explicit, trust-bounded system-actor path. Live Postgres, ZERO-PERSISTENCE.
  *
- * Proves migration 0049: a service/worker call (no JWT) can no longer stamp an arbitrary
- * human identity into the ledger or the audit trail. `_resolve_actor` ignores a
- * caller-supplied `p_by` on the service path and records a NULL human actor tagged
- * `actor_type = 'system'`; the authenticated path still derives the actor from `auth.uid()`
- * and rejects a mismatched `p_by`; anonymous callers are rejected.
+ * Proves migration 0049: the system path is reachable ONLY by an explicit `service_role`
+ * JWT. Everything else is rejected fail-closed. A service call records no human actor
+ * (actor_id NULL, actor_type='system') and ignores any caller-supplied `p_by`, so a worker
+ * can never stamp a human identity into the ledger/audit trail. The authenticated-user path
+ * still derives the actor from the JWT subject and rejects a mismatched `p_by`.
+ *
+ * `_resolve_actor` EXECUTE is revoked from PUBLIC; these tests call it as the DB owner
+ * (superuser) with different simulated JWT claims. Unexpected errors are NOT swallowed —
+ * every rejection is asserted against a specific message.
  *
  * Skipped unless DATABASE_URL is set.  Run:  DATABASE_URL=… npm run test:integration
  */
@@ -30,8 +34,13 @@ async function q(sql: string, params: unknown[] = []) {
     throw e;
   }
 }
-async function setClaims(obj: Record<string, unknown> | null) {
-  await client.query(`select set_config('request.jwt.claims', $1, true)`, [obj ? JSON.stringify(obj) : ""]);
+/** Set request.jwt.claims to a RAW string (so we can simulate missing / malformed / any role). */
+async function setClaims(raw: string) {
+  await client.query(`select set_config('request.jwt.claims', $1, true)`, [raw]);
+}
+async function resolve(pBy: string | null): Promise<{ v_actor: string | null; v_type: string }> {
+  const r = await q(`select v_actor, v_type from _resolve_actor($1)`, [pBy]);
+  return r.rows[0];
 }
 
 describe.skipIf(!enabled)("WP17 system-actor path — live, zero-persistence", () => {
@@ -52,48 +61,67 @@ describe.skipIf(!enabled)("WP17 system-actor path — live, zero-persistence", (
     }
   });
 
-  it("service path: _resolve_actor ignores a caller-supplied human p_by → null system actor", async () => {
-    await setClaims(null); // no JWT → service/worker path
-    const r = await q(`select v_actor, v_type from _resolve_actor($1)`, [human]);
-    expect(r.rows[0].v_actor).toBeNull(); // the human id was NOT recorded
-    expect(r.rows[0].v_type).toBe("system");
+  it("1. explicit service_role → null system actor", async () => {
+    await setClaims(`{"role":"service_role"}`);
+    expect(await resolve(null)).toEqual({ v_actor: null, v_type: "system" });
   });
 
-  it("anonymous caller is rejected", async () => {
-    await setClaims({ role: "anon" });
-    await expect(q(`select v_actor from _resolve_actor(null)`)).rejects.toThrow(/anonymous/i);
-    await setClaims(null);
+  it("2. service_role: a caller-supplied human p_by is ignored", async () => {
+    await setClaims(`{"role":"service_role"}`);
+    expect(await resolve(human)).toEqual({ v_actor: null, v_type: "system" }); // NOT the human
   });
 
-  it("authenticated user: matching p_by resolves to auth.uid(); a mismatched p_by is rejected", async () => {
-    await setClaims({ sub: human, role: "authenticated" });
-    const ok = await q(`select v_actor, v_type from _resolve_actor($1)`, [human]);
-    expect(ok.rows[0].v_actor).toBe(human);
-    expect(ok.rows[0].v_type).toBe("user");
-    await expect(q(`select v_actor from _resolve_actor($1)`, [OTHER])).rejects.toThrow(/actor mismatch/i);
-    await setClaims(null);
+  it("3. missing JWT claims → rejected", async () => {
+    await setClaims("");
+    await expect(resolve(null)).rejects.toThrow(/missing JWT claims/i);
   });
 
-  it("service-path journal post records actor_type=system with NO human actor id (traceable via idempotency key)", async () => {
-    await setClaims(null); // service/worker path
+  it("3b. malformed JWT claims → rejected", async () => {
+    await setClaims("{not json");
+    await expect(resolve(null)).rejects.toThrow(/malformed JWT claims/i);
+  });
+
+  it("4. authenticated role without a subject → rejected", async () => {
+    await setClaims(`{"role":"authenticated"}`);
+    await expect(resolve(null)).rejects.toThrow(/without a subject/i);
+  });
+
+  it("5. anonymous role → rejected", async () => {
+    await setClaims(`{"role":"anon"}`);
+    await expect(resolve(null)).rejects.toThrow(/not permitted/i);
+  });
+
+  it("6. unknown role → rejected", async () => {
+    await setClaims(`{"role":"wizard"}`);
+    await expect(resolve(null)).rejects.toThrow(/not permitted/i);
+  });
+
+  it("7. authenticated with a matching p_by → resolves to the subject", async () => {
+    await setClaims(JSON.stringify({ role: "authenticated", sub: human }));
+    expect(await resolve(human)).toEqual({ v_actor: human, v_type: "user" });
+  });
+
+  it("8. authenticated with a mismatched p_by → rejected", async () => {
+    await setClaims(JSON.stringify({ role: "authenticated", sub: human }));
+    await expect(resolve(OTHER)).rejects.toThrow(/actor mismatch/i);
+  });
+
+  it("9. end-to-end: a service_role journal post records NO human actor", async () => {
+    await setClaims(`{"role":"service_role"}`);
     const lines = JSON.stringify([
       { account_code: "1000", debit: "100", credit: "0", description: "x" },
       { account_code: "4000", debit: "0", credit: "100", description: "x" },
     ]);
+    // p_by is a real human uuid; it must be ignored on the service path.
     const jid = (
       await q(`select public.post_manual_journal($1::uuid,'2026-07-15','LKR','wp17',$2::uuid,$3::jsonb,'wp17-key') as id`, [company, human, lines])
     ).rows[0].id;
-
     const je = await q(`select posted_by from journal_entries where id=$1`, [jid]);
-    expect(je.rows[0].posted_by).toBeNull(); // ledger not attributed to the passed human
-
-    const au = await q(
-      `select actor_type, actor_id, idempotency_key from audit_events where entity_id::text=$1 and action='journal.posted'`,
-      [jid],
-    );
+    expect(je.rows[0].posted_by).toBeNull();
+    const au = await q(`select actor_type, actor_id, idempotency_key from audit_events where entity_id::text=$1 and action='journal.posted'`, [jid]);
     expect(au.rows.length).toBe(1);
     expect(au.rows[0].actor_type).toBe("system");
-    expect(au.rows[0].actor_id).toBeNull(); // NOT falsely attributed to the human
-    expect(au.rows[0].idempotency_key).toBe("wp17-key"); // correlation for traceability
+    expect(au.rows[0].actor_id).toBeNull();
+    expect(au.rows[0].idempotency_key).toBe("wp17-key");
   });
 });

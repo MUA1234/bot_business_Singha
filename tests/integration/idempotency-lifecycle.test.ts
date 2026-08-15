@@ -37,6 +37,8 @@ describe.skipIf(!enabled)("idempotency + lifecycle (0044) — live, zero-persist
     client = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } });
     await client.connect();
     await client.query("begin");
+    // Posting RPCs run on the service path; present a service_role JWT (WP17/0049).
+    await client.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
     co = (await client.query(`insert into companies (name, base_currency) values ('wp_il','LKR') returning id`)).rows[0].id;
     await client.query(`insert into chart_of_accounts (company_id, code, name, type) values ($1,'1000','Cash','asset'),($1,'1100','AR','asset'),($1,'2000','AP','liability'),($1,'4000','Sales','income'),($1,'5000','Expense','expense')`, [co]);
     customer = (await client.query(`insert into customers (company_id, name, status) values ($1,'C','active') returning id`, [co])).rows[0].id;

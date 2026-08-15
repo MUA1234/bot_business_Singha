@@ -23,7 +23,7 @@ async function asUser(u: string) {
   await client.query("set local role authenticated");
   await client.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: u, role: "authenticated" })]);
 }
-async function asSuper() { await client.query("reset role"); await client.query(`select set_config('request.jwt.claims','',true)`); }
+async function asSuper() { await client.query("reset role"); await client.query(`select set_config('request.jwt.claims','{"role":"service_role"}',true)`); }
 async function canDo(u: string, sql: string, params: unknown[] = []): Promise<boolean> {
   await asUser(u); let ok = true; try { await q(sql, params); } catch { ok = false; } await asSuper(); return ok;
 }

@@ -70,10 +70,12 @@ describe.skipIf(!enabled)("settlement concurrency — live, two connections", ()
   it("a second concurrent settlement BLOCKS on the FOR UPDATE lock", async () => {
     // #1 begins a settlement and holds the invoice row lock (not committed).
     await c1.query("begin");
+    await c1.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
     await c1.query(settle(100), [company, invoice, poster]);
 
     // #2 tries the same invoice with a short statement timeout — it must block, then time out.
     await c2.query("begin");
+    await c2.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
     await c2.query("set local statement_timeout = '1500ms'");
     let blocked = false;
     try {

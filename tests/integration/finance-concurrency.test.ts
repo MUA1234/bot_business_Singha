@@ -18,8 +18,10 @@ let co: string, inv: string, change: string, poster: string, checker: string;
 
 async function blocksOnLock(hold: string, holdParams: unknown[], contend: string, contendParams: unknown[]): Promise<boolean> {
   await c1.query("begin");
+  await c1.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
   await c1.query(hold, holdParams);
   await c2.query("begin");
+  await c2.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
   await c2.query("set local statement_timeout = '1500ms'");
   let blocked = false;
   try { await c2.query(contend, contendParams); } catch (e) { blocked = /statement timeout|canceling statement/i.test((e as Error).message); }

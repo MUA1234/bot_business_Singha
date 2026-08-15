@@ -27,7 +27,7 @@ async function asUser(u: string) {
   await client.query("set local role authenticated");
   await client.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: u, role: "authenticated" })]);
 }
-async function asWorker() { await client.query("reset role"); await client.query(`select set_config('request.jwt.claims','',true)`); }
+async function asWorker() { await client.query("reset role"); await client.query(`select set_config('request.jwt.claims','{"role":"service_role"}',true)`); }
 async function call(sql: string, params: unknown[] = []): Promise<{ ok: boolean; value?: string; error?: string }> {
   try { const r = await q(sql, params); return { ok: true, value: r.rows[0]?.v }; }
   catch (e) { return { ok: false, error: (e as Error).message }; }

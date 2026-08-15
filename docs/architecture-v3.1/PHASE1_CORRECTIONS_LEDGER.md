@@ -74,15 +74,22 @@ client (bypasses RLS). These policies become the live gate only at the future, o
 
 ## WP17 — done (migration 0049)
 
-**Problem.** `_resolve_actor(p_by)` recorded a caller-supplied `p_by` as the actor when `auth.uid()`
-is null (the service/worker path). A background worker could stamp an **arbitrary human identity**
-into the ledger (`posted_by`) and audit trail (`actor_id`) while tagging it `actor_type = 'system'`.
+**Problem.** `_resolve_actor(p_by)` recorded a caller-supplied `p_by` as the actor whenever
+`auth.uid()` was null — treating **any** "no JWT" caller as a trusted worker. That is a weak trust
+boundary: missing/malformed claims, or an unknown role, silently obtained the system path, and a
+worker could stamp an **arbitrary human identity** into the ledger (`posted_by`) and audit trail
+(`actor_id`) while tagging it `actor_type = 'system'`.
 
-**Fix (`src/db/migrations/0049_wp17_system_actor.sql`).** On the service/worker path, `p_by` is
-**ignored**; the actor is recorded as `NULL` with `actor_type = 'system'` (traceability via the audit
-row's idempotency key/correlation). The authenticated-user path is unchanged (actor from `auth.uid()`;
-mismatched `p_by` still rejected); anonymous callers still rejected. Every posting RPC derives its
-actor from this function, so the fix applies uniformly.
+**Fix (`src/db/migrations/0049_wp17_system_actor.sql`).** The system path is reachable **only** by an
+explicit `service_role` JWT; everything else is rejected fail-closed:
+
+- `role = 'service_role'` → `actor_type = 'system'`, `actor_id = NULL`, caller-supplied `p_by` **ignored**;
+- `role = 'authenticated'` → must carry a subject (`sub`); actor = `sub`; a mismatched `p_by` rejected;
+- **missing claims**, **malformed claims**, `anon`, or any **unknown/absent role** → rejected.
+
+`EXECUTE` on `_resolve_actor` is **revoked from `PUBLIC`** (only the SECURITY DEFINER posting RPCs,
+running as their definer, call it). The authenticated-user posting path is unchanged. Every posting
+RPC derives its actor from this function, so the boundary applies uniformly.
 
 **Consequence handled.** Reimbursement's separation-of-duties self-check (`claimant != actor`) is a
 **human** control; a service/worker call has no human maker, so it cannot self-deal. The
@@ -90,10 +97,15 @@ actor from this function, so the fix applies uniformly.
 (the only path with a human actor), not via the worker path that previously relied on the
 now-removed `p_by` impersonation.
 
-**Tests.** `tests/integration/wp17-system-actor.test.ts` (4) — service path ignores `p_by` → null
-system actor; anonymous rejected; authenticated matching → user / mismatch rejected; an end-to-end
-service-path `post_manual_journal` records `posted_by = NULL` and an audit row with
-`actor_type = 'system'`, `actor_id = NULL`, and a traceable idempotency key.
+**Tests.** `tests/integration/wp17-system-actor.test.ts` (10) — explicit `service_role` → null system
+actor; a service_role `p_by` ignored; **missing** claims rejected; **malformed** claims rejected;
+authenticated **without a subject** rejected; **anon** rejected; **unknown role** rejected;
+authenticated **matching** `p_by` → user; authenticated **mismatch** rejected; and an end-to-end
+`service_role` `post_manual_journal` records `posted_by = NULL` + audit `actor_type='system'`,
+`actor_id = NULL`, traceable idempotency key. The service-path callers across the existing suite
+(`accounting-posting`, `settlement`, `idempotency-lifecycle`, `posting-hardening`, the concurrency
+suites, `accounting-rpc-hardening`, `transactional-finance`, `posting-authority`) now present a
+`service_role` claim — matching how the real Supabase service-role client is seen by the database.
 
 ## Verification (disposable PostgreSQL 16, this session)
 
