@@ -12,7 +12,10 @@
 ## 1. Final commit & branch
 
 - **Branch:** `feature/v3-1-phase-1-wp18-migration-state-docs` (tip of the stacked correction chain).
-- **Final commit SHA:** `4eb9c995dc8476abdfcbb201c994d5fabf9d97a2`
+- **Phase content commit SHA:** `6603646c3b89dff5d46240be7ca69211cb9804c7` — the commit carrying all
+  WP10–WP18 code, migrations and docs. This SHA-stamp itself lands as the immediately following
+  commit on the branch tip (a commit cannot embed its own hash), so the branch tip = this stamp
+  commit, and its parent is the content commit named here.
 - **Working tree:** clean at stamp time (`git status --porcelain` empty).
 - **Stack (each a controlled draft PR, review/merge in order):**
   PR #4 WP10 → #5 WP17 → #6 WP13 → #7 WP14 → #8 WP15 → #9 WP16 → #10 WP11 → #11 WP12 → (WP18 docs) → `main`.
