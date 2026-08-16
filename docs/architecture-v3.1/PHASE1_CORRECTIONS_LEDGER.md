@@ -5,12 +5,14 @@
 > with failing-before/passing-after tests, verified on a disposable PostgreSQL 16 (fresh **and**
 > `0047→0048+` upgrade path). `RLS_READS` / `RLS_WRITES` / `WHATSAPP_ASYNC` stay OFF. No hosted action.
 
-> **Phase 1 status: CHANGES REQUESTED → corrected, awaiting the SECOND external review.** The first
-> external review found blocking defects in WP12, WP15 and WP11 plus a branch-integration problem.
-> They are fixed in the **external-review increment** (migrations **0056–0058**) on the integration
-> branch `feature/v3-1-phase-1-external-review-fixes` (PR #3 foundation + stack PRs #4–#12 +
-> corrections A–D). **WP11, WP12 and WP15 are NOT re-marked "done" until the second review approves
-> them.** See the external-review section below and `PHASE1_CONSOLIDATION_REPORT.md`.
+> **Phase 1 status: CHANGES REQUESTED (twice) → corrected, awaiting the FINAL external review.** The
+> first review found blocking defects in WP12/WP15/WP11 + a branch-integration problem (fixed:
+> migrations **0056–0058**). The second review asked for deeper WP12 outbox-state reconciliation,
+> WP11 composite DB constraints + money fail-close, WP15 function-privilege, and doc/deployment
+> accuracy (fixed: migrations **0059–0060** + WP12 code + docs). All on the integration branch
+> `feature/v3-1-phase-1-external-review-fixes` (PR #3 foundation + stack PRs #4–#12 + both correction
+> rounds). **WP11, WP12 and WP15 are NOT re-marked "done" until a review approves them.** See the
+> external-review section below and `PHASE1_CONSOLIDATION_REPORT.md`.
 
 ## Status
 
@@ -293,11 +295,12 @@ a new event-aware authority function (no data reinterpretation):
   validity window, amount, currency **and** by being a **subset** of the delegator's own
   currency-matched, sufficient, active authority. `decide_approval` now authorises a financial
   event through this function.
-- **Deliberately deferred:** requirement #8 (replacing the generic `approve` capability with a
-  domain-specific approval capability) is an owner-gated change to the permission catalogue/role
-  map; CLAUDE.md forbids autonomously changing permissions/approvals. The `approve` capability
-  remains the gate; the substantive amount/currency/scope/delegation authority is now enforced by
-  `within_authority_for_event`. Recorded as a follow-up.
+- **Requirement #8 — now IMPLEMENTED** (external-review correction C, migration 0057). The generic
+  `approve` capability is replaced for financial-event decisions by a deterministic, fail-closed
+  **domain→capability whitelist** (`finance.approve.payment/expense/sales/purchase`; catalogue + role
+  map + the pure `_approval_capability` mapping; no AI chooses the capability). The permission-catalogue
+  change was **explicitly owner-authorised for the correction increment** (code only; not enabled in
+  any hosted environment). (This supersedes the first-pass note that deferred #8.)
 
 **Tests.** `tests/integration/wp11-approval-scope-authority.test.ts` (10) — no rule and unscoped
 non-company-wide both denied; explicit company-wide approves within domain/amount/currency; each
@@ -380,17 +383,18 @@ confirmation required rather than inferred from files, local tests, or any deplo
 | Gate | Result |
 |---|---|
 | `npm run secret-scan` | pass |
-| `npm run migration-lint` | pass — **58 migrations, sequential 0001–0058** |
+| `npm run migration-lint` | pass — **60 migrations, sequential 0001–0060** |
 | `npm run typecheck` | pass |
 | `npm run lint` | pass (0 errors; pre-existing `<img>` warnings only) |
-| `npm test` (unit) | pass — **405** |
+| `npm test` (unit) | pass — **410** |
 | `npm run audit-check` | pass (2 approved exceptions) |
 | `npm run build` | pass |
-| `npm run test:integration` — **fresh DB** (0001→0058 from scratch) | pass — **33 files / 173 tests** |
-| `npm run test:integration` — **upgrade path** (0055 + legacy data → 0056→0058) | pass — **33 files / 173 tests** (a legacy-0052-posted invoice's exact retry still returns its journal under 0056) |
+| `npm run test:integration` — **fresh DB** (0001→0060 from scratch) | pass — **34 files / 180 tests** |
+| `npm run test:integration` — **upgrade path** (0058 + legacy data → 0059→0060) | pass — **34 files / 180 tests** (composite FKs apply to new rows over legacy data) |
 
-_Numbers above are the **external-review increment** (integration branch, migrations 0048–0058). The
-first-pass figures (0055, 31 files / 161 tests, unit 374) are superseded._
+_Numbers above are the **second-review increment** (integration branch, migrations 0048–0060). The
+first-review figures (0058, 33 files / 173 tests, unit 405) and first-pass figures (0055, unit 374)
+are superseded._
 
 Toolchain: Node v22.22.2, npm 10.9.7, PostgreSQL 16.13. No hosted migration applied; no feature flag
 enabled.

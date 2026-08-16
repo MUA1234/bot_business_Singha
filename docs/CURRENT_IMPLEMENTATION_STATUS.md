@@ -5,15 +5,16 @@ appending to prior text. This file describes **reality**; where it disagrees wit
 narrative docs, this file and the code win._
 
 **Current phase:** **Phase 1 — 0048+ Security/Accounting Corrections** (WP10–WP18), migrations
-**0048–0058**. Status: **implemented and verified on a disposable PostgreSQL 16 (fresh + upgrade);
-CHANGES REQUESTED by the first external review, corrected, and AWAITING THE SECOND REVIEW.** Not
-merged, not deployed, hosted DB not migrated, all feature flags OFF. The corrections (WP12/WP15/WP11,
-migrations 0056–0058) live on the integration branch `feature/v3-1-phase-1-external-review-fixes`
-(PR #3 foundation + stack PRs #4–#12 + corrections A–D, one new draft PR against `main`). Verified
-counts: **unit 405 (78 files); integration 33 files / 173 tests.** See
-`docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and `PHASE1_CORRECTIONS_LEDGER.md`;
-authoritative applied-state: `docs/architecture-v2/MIGRATION_STATE.md`. **Do not begin V3.1 Phase 2
-until the owner approves the second review.**
+**0048–0060**. Status: **implemented and verified on a disposable PostgreSQL 16 (fresh + upgrade);
+CHANGES REQUESTED by two external reviews, corrected, and AWAITING THE FINAL REVIEW.** Not merged,
+not deployed, hosted DB not migrated, all feature flags OFF. The corrections (first review: migrations
+0056–0058; second review: WP12 outbox reconciliation + WP11 composite FKs/money fail-close + WP15
+function-privilege, migrations 0059–0060) live on the integration branch
+`feature/v3-1-phase-1-external-review-fixes` (PR #3 foundation + stack PRs #4–#12 + both correction
+rounds, one draft PR against `main`). Verified counts: **unit 410 (78 files); integration 34 files /
+180 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
+`PHASE1_CORRECTIONS_LEDGER.md`; authoritative applied-state: `docs/architecture-v2/MIGRATION_STATE.md`.
+**Do not begin V3.1 Phase 2 until the owner approves the final review.**
 
 Prior phases: Production Security & Reliability Gate
 (`SINGHA_CLAUDE_PRODUCTION_SECURITY_RELIABILITY_BRIEF.md`, WP A–F, migrations 0038–0047) and the

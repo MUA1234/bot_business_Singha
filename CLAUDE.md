@@ -18,14 +18,16 @@
 > `docs/architecture-v3.1/` (`00_BASELINE_ASSESSMENT.md`, `01_V3_1_EXECUTION_SPEC.md`,
 > `IMPLEMENTATION_LEDGER.md`). Its compatibility foundation (default-OFF flags `src/config/flags.ts`
 > + proposal contracts `src/schemas/v3_1/*`) plus the **`0048+` security/accounting correction (pack
-> WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0058** — and verified on a
+> WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0060** — and verified on a
 > disposable PostgreSQL 16 (fresh + upgrade). They are the **blocking prerequisite** for any V3.1
 > finance/RLS/outbox cutover and are **NOT merged, NOT deployed, hosted DB NOT migrated, all flags
-> OFF**. The first external review returned **CHANGES REQUESTED**; the fixes (WP12/WP15/WP11,
-> migrations 0056–0058) are on `feature/v3-1-phase-1-external-review-fixes` and **await the SECOND
-> external review** — do not begin V3.1 Phase 2 until it is approved. Verified counts: **unit 405 (78
-> files); integration 33 files / 173 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md`
-> and `PHASE1_CORRECTIONS_LEDGER.md`. (The "195 (46 files)" and "374 (75 files)" figures above are stale.)
+> OFF**. Two external reviews returned **CHANGES REQUESTED**; both are fixed (first review:
+> migrations 0056–0058; second review: WP12 outbox reconciliation + WP11 composite FKs/money
+> fail-close + WP15 function-privilege, migrations 0059–0060) on
+> `feature/v3-1-phase-1-external-review-fixes`, now **awaiting the FINAL external review** — do not
+> begin V3.1 Phase 2 until it is approved. Verified counts: **unit 410 (78 files); integration 34
+> files / 180 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
+> `PHASE1_CORRECTIONS_LEDGER.md`. (The "195 (46 files)" and "374 (75 files)" figures above are stale.)
 >
 > **Superseded-document rule:** A coding agent MUST NOT rely on any instruction that
 > conflicts with the document precedence below. Where a document is marked superseded

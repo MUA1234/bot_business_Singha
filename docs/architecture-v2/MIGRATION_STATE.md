@@ -22,7 +22,7 @@ _Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, W
 ## Migration source of truth
 
 - **Canonical migrations:** `src/db/migrations/0001_*.sql` … `0055_*.sql` (forward-only,
-  sequential; `migration-lint` confirms 0001–0058, no gaps). This directory is the **one**
+  sequential; `migration-lint` confirms 0001–0060, no gaps). This directory is the **one**
   migration source of truth.
 - **⚠️ Divergence risk (flag for WP6):** duplicate/aggregate runnable copies exist and
   can drift from canonical migrations. They must not be treated as authoritative:
@@ -104,6 +104,8 @@ _Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, W
 | 0056 | wp15_source_binding_fingerprint (external-review B: invoice/bill existing-journal path recomputes the canonical fingerprint — a matching key alone is not proof of source binding) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16, fresh + upgrade) |
 | 0057 | wp11_approval_failclose_domain_caps (external-review C: fail-closed approvals incl. reject; deterministic domain→capability whitelist; duplicate-action conflict; delegation company-consistency) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
 | 0058 | wp12_message_history_on_completion (external-review A: outbound wa_messages written atomically on durable send only, with the provider id) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16, fresh + upgrade) |
+| 0059 | wp15_fp_matches_privilege (2nd review: REVOKE _journal_fp_matches EXECUTE from PUBLIC/anon/authenticated) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
+| 0060 | wp11_composite_fk_money_failclose (2nd review: composite company-consistency FKs NOT VALID + preflight; decide_approval fails closed on non-positive/non-finite amount, invalid currency, invalid approvals_required) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16, fresh + upgrade; **VALIDATE the two NOT VALID FKs after the documented preflight on staging**) |
 
 > **Correction-phase note (0044–0047):** authored 2026-08-08, **not** applied to any hosted
 > DB. Verified on a disposable local **PostgreSQL 16** (Supabase-compat shim) from a clean
