@@ -30,13 +30,14 @@
   against `main`** — it integrates, preserving history: (1) PR #3 compatibility foundation
   (`3224d08`), (2) the Phase-1 stack PRs #4–#12 via tip `509685b`, (3) the external-review
   corrections A–D.
-- **Content commit SHA (final/third review):** `8d9ae353408e77121814815d46b7a78863c963ed` — the commit
-  carrying the final-review corrections (migration **0061** + WP11/WP12 code + docs). (A commit cannot
-  embed its own hash; this SHA is stamped by the immediately following commit on the branch tip, so the
-  tip = the stamp commit and its parent is the content commit named here.)
-- **Prior content commits:** second review `0eeceae` (migrations 0059/0060 + WP12 code + docs);
-  first review `fd25be1` (migrations 0056–0058). **Reviewed baseline:** tip `509685b`, content
-  `6603646` (the first-pass Phase-1 stack).
+- **Content commit SHA (fourth/security-boundary review):** `146a0e38ee97062c6bbaf5efba0a1b1c2d857cea`
+  — the commit carrying the security-boundary corrections (migration **0062** + WP12 code + prepared
+  hosted artifacts + docs). (A commit cannot embed its own hash; this SHA is stamped by the immediately
+  following commit on the branch tip, so the tip = the stamp commit and its parent is the content commit
+  named here.)
+- **Prior content commits:** third review `8d9ae35` (migration 0061 + WP11/WP12 code + docs); second
+  review `0eeceae` (migrations 0059/0060 + WP12 code + docs); first review `fd25be1` (migrations
+  0056–0058). **Reviewed baseline:** tip `509685b`, content `6603646` (the first-pass Phase-1 stack).
 - **Working tree:** clean at stamp time (`git status --porcelain` empty).
 - **Existing draft PRs #4–#12 remain open and unmerged** (not closed); this integration PR supersedes
   them for review.
