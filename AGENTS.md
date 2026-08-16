@@ -8,9 +8,9 @@ Any AI coding agent (Claude Code, Codex, or other) must follow the same rules.
 > (`src/config/flags.ts`) and canonical proposal contracts (`src/schemas/v3_1/*`) — is additive,
 > consumed by no runtime path (this foundation specifically is zero behaviour change). The
 > `0048+` security/accounting correction (pack WP10–WP18) — a **blocking prerequisite** for any V3.1
-> finance/RLS/outbox cutover — is now **IMPLEMENTED as a controlled draft PR** (migrations **0048–0065**,
+> finance/RLS/outbox cutover — is now **IMPLEMENTED as a controlled draft PR** (migrations **0048–0066**,
 > integration branch `feature/v3-1-phase-1-external-review-fixes`), verified on a disposable PostgreSQL
-> 16 (fresh + upgrade), **NOT merged, NOT deployed, hosted DB NOT migrated**, after seven external
+> 16 (fresh + upgrade), **NOT merged, NOT deployed, hosted DB NOT migrated**, after eight external
 > reviews (all CHANGES REQUESTED → corrected; awaiting the final review). It is **not** uniformly
 > "inert while flags OFF" — the un-migrated hosted DB is the containment, not the flags. The sixth
 > review added migration **0064**: the privileged delivery transitions
@@ -23,7 +23,19 @@ Any AI coding agent (Claude Code, Codex, or other) must follow the same rules.
 > drained), and a direct-**INSERT** boundary lets a non-trusted writer create a quotation only in the
 > initial state (`draft`, `sent_at` null) — enforced by a **positive owner allowlist** (not a role-name
 > denylist), so a bespoke custom role is refused both the fabricating INSERT and the privileged UPDATE.
-> Because the already-hosted 0038–0041 functions may be
+> The eighth review added migration **0066**: `_is_quotation_delivery_owner()` is now **signature-exact**
+> (exact 9-arg `enqueue_quotation_outbox` identity + a migration-time fail-closed assertion that the three
+> delivery functions exist, are all SECURITY DEFINER, share ONE owner unreachable by anon/authenticated/
+> service_role); a BEFORE DELETE trigger refuses a non-trusted delete of a queued/terminal quotation or one
+> with any outbox history (closing the claim-then-delete race); and once queued, the quotation and its
+> `quotation_items` are a **frozen snapshot** (non-trusted writers may make only a `sent→accepted/rejected`
+> decision). The eighth review's own security pass additionally hardened a `search_path`/`pg_temp`
+> relation-shadowing class (every 0066 function schema-qualifies relations + pins
+> `search_path = pg_catalog, public, pg_temp`; the WP12 delivery RPCs re-pinned via ALTER FUNCTION), froze
+> the delivered `message_outbox` content against `service_role`, and added TRUNCATE/DELETE guards — with a
+> full-codebase search_path audit of other-domain SECURITY DEFINER functions noted as a systemic follow-up
+> out of WP12 scope. Note the `message_outbox` service-only DML boundary originated in migration **0038**
+> (not 0048). Because the already-hosted 0038–0041 functions may be
 > `authenticated`-executable, a read-only privilege check + a self-verifying, owner-approval-required
 > emergency REVOKE hotfix are **prepared but not executed**
 > (`docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`). See

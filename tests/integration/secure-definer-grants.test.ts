@@ -45,6 +45,10 @@ const SERVICE_ONLY_REQUIRED = [...SERVICE_ONLY].filter((s) => s !== "_journal_po
 // evaluate in the CALLER's role, and the authenticated write-path RPCs (fail-closed internally). Each
 // classified by its exact signature — NOT by name — so a new overload of any of these must be re-approved.
 const AUTHENTICATED_OK = new Set([
+  // Self-gating read helper (0066): returns a quotation status enum ONLY to a caller who already holds
+  // sales.quotation.manage in that company (or the service worker), so the quotation_items freeze trigger
+  // can read the parent status even when the department-scoped read policy would hide it — no cross-company leak.
+  "_quotation_status_for_guard(uuid,uuid)",
   "authority_ceiling(uuid,text)",
   "has_capability(uuid,text)",
   "has_company_access(uuid)",

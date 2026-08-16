@@ -19,12 +19,12 @@
 > `docs/architecture-v3.1/` (`00_BASELINE_ASSESSMENT.md`, `01_V3_1_EXECUTION_SPEC.md`,
 > `IMPLEMENTATION_LEDGER.md`). Its compatibility foundation (default-OFF flags `src/config/flags.ts`
 > + proposal contracts `src/schemas/v3_1/*`) plus the **`0048+` security/accounting correction (pack
-> WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0065** — and verified on a
+> WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0066** — and verified on a
 > disposable PostgreSQL 16 (fresh + upgrade). They are the **blocking prerequisite** for any V3.1
 > finance/RLS/outbox cutover and are **NOT merged, NOT deployed, hosted DB NOT migrated, all flags
 > OFF**. (Note: "hosted DB NOT migrated" — not the flags — is what keeps these off the live system;
 > the WP12 delivery path runs with `WHATSAPP_ASYNC` OFF and `decide_approval`/FKs/catalogue enforce for
-> any caller once migrated, so they are **not** uniformly "inert while flags OFF".) Seven external
+> any caller once migrated, so they are **not** uniformly "inert while flags OFF".) Eight external
 > reviews returned **CHANGES REQUESTED**; all are fixed (first: migrations 0056–0058; second: WP12
 > outbox reconciliation + WP11 composite FKs/money fail-close + WP15 function-privilege, 0059–0060;
 > third: concurrency-safe `refreshQuotationStatus`, sent-outbox reconcile-or-fail-closed,
@@ -45,11 +45,28 @@
 > and (b) a direct-**INSERT** lifecycle boundary — a non-trusted writer may create a quotation only in the
 > initial state (`status=draft`, `sent_at` null); the trusted-writer signal is a **positive owner
 > allowlist** derived from the delivery functions' OWNER (NOT a role-name denylist), so a bespoke custom
-> role is refused both the fabricating INSERT and the privileged UPDATE — see
+> role is refused both the fabricating INSERT and the privileged UPDATE; eighth: migration **0066** closes
+> the residual WP12 boundary gaps — (a) the trusted-owner check `_is_quotation_delivery_owner()` is now
+> **signature-exact** (resolves the owner from the exact 9-arg `enqueue_quotation_outbox` identity, with a
+> migration-time fail-closed assertion that the three delivery functions exist, are all SECURITY DEFINER,
+> share ONE owner, and are unreachable by anon/authenticated/service_role — a like-named overload cannot
+> flip it); (b) a BEFORE DELETE trigger refuses a non-trusted delete of a quotation that is queued/terminal
+> OR has any outbox delivery history (closing the claim-then-delete race); (c) once queued, the quotation
+> and its `quotation_items` are a **frozen snapshot** — a non-trusted writer may change nothing but a pure
+> `sent→accepted`/`sent→rejected` decision (draft/awaiting_price/ready editing stays functional); (d) the
+> eighth review's own adversarial security pass surfaced a `search_path`/`pg_temp` relation-shadowing class
+> (a caller with default TEMP could `CREATE TEMP TABLE pg_proc`/`quotations`/`message_outbox` to shadow the
+> real tables inside a trigger/function) — every 0066 function now schema-qualifies its relations and pins
+> `search_path = pg_catalog, public, pg_temp` (pg_temp LAST), the WP12 delivery RPCs are re-pinned the same
+> way, the delivered `message_outbox` content (recipient/body/template/source) is frozen against
+> `service_role` while delivery-state stays worker-mutable, and non-trusted `TRUNCATE`/`DELETE` of the
+> delivery row is refused; and (e) a doc correction that the `message_outbox` service-only DML boundary
+> originated in migration **0038**, not 0048 (a full-codebase search_path audit of OTHER-domain SECURITY
+> DEFINER functions is a noted systemic follow-up, out of this WP12 review's scope) — see
 > `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`) on
 > `feature/v3-1-phase-1-external-review-fixes`, now **awaiting the FINAL external review** — do not
-> begin V3.1 Phase 2 until it is approved. Verified counts: **unit 419 (79 files); integration 38
-> files / 267 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
+> begin V3.1 Phase 2 until it is approved. Verified counts: **unit 419 (79 files); integration 39
+> files / 297 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
 > `PHASE1_CORRECTIONS_LEDGER.md`.
 >
 > **Superseded-document rule:** A coding agent MUST NOT rely on any instruction that

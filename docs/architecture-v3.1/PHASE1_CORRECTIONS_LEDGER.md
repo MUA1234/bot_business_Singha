@@ -5,7 +5,10 @@
 > with failing-before/passing-after tests, verified on a disposable PostgreSQL 16 (fresh **and**
 > `0047→0048+` upgrade path). `RLS_READS` / `RLS_WRITES` / `WHATSAPP_ASYNC` stay OFF. No hosted action.
 
-> **Phase 1 status: CHANGES REQUESTED (six times) → corrected, awaiting the FINAL external review.**
+> **Phase 1 status: CHANGES REQUESTED (eight times) → corrected, awaiting the FINAL external review.**
+> (This summary block enumerates through the fourth review; reviews five–eight are detailed in the
+> per-review sections below — fifth **0063**, sixth **0064**, seventh **0065**, eighth **0066** — and in
+> `PHASE1_CONSOLIDATION_REPORT.md`.)
 > The first review found blocking defects in WP12/WP15/WP11 + a branch-integration problem (fixed:
 > migrations **0056–0058**). The second review asked for deeper WP12 outbox-state reconciliation,
 > WP11 composite DB constraints + money fail-close, WP15 function-privilege, and doc/deployment
@@ -36,10 +39,10 @@
 | **WP17** | Explicit system-actor path (no human `p_by` on the worker path) | **✅ done — migration 0049** |
 | **WP18** | Reconcile migration-state / verification docs | **✅ done — docs** |
 
-> Note: the eight WP migrations (0048–0055) landed in the first pass; the **second external review**
-> must approve the corrections below before WP11/WP12/WP15 are considered done. The Phase-1
-> consolidation report is `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` (final evidence,
-> stamped with the content commit SHA). **Mandatory STOP** before the V3.1 runtime phases (2–10).
+> Note: the eight WP migrations (0048–0055) landed in the first pass; the **FINAL external review**
+> must approve the corrections below (through migration **0066**) before WP11/WP12/WP15 are considered
+> done. The Phase-1 consolidation report is `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` (final
+> evidence, stamped with the content commit SHA). **Mandatory STOP** before the V3.1 runtime phases (2–10).
 
 ## External-review corrections (increment on `feature/v3-1-phase-1-external-review-fixes`)
 
@@ -556,23 +559,85 @@ bespoke **custom role** are all refused a direct INSERT of any non-`draft` statu
 the custom role — which a denylist would miss — is refused the privileged UPDATE and the `sent_at` mutation;
 legal transitions still work).
 
+## Eighth external review — migration 0066 (signature-exact owner + delete boundary + frozen snapshot)
+
+CHANGES REQUESTED, bounded — the residual WP12 boundary gaps. Do not merge; do not begin Phase 2; do not
+migrate hosted / deploy / enable flags / run the hosted scripts against hosted. All closed:
+
+1. **Signature-exact trusted-owner check.** 0065's `_is_quotation_delivery_owner()` matched
+   `enqueue_quotation_outbox` by `proname` + `LIMIT 1` — not signature-exact, so a future overload with a
+   different owner could have been selected. It now resolves the owner from the EXACT 9-arg regprocedure
+   identity `enqueue_quotation_outbox(uuid,uuid,text,text,text,numeric,text,text,text)`, and a
+   migration-time DO block **fails closed** unless the three exact delivery functions
+   (`enqueue_quotation_outbox` / `complete_outbox_and_advance` / `reconcile_quotation_from_outbox`) all
+   exist, are all SECURITY DEFINER, share ONE owner, and that owner is neither an API role nor
+   `SET ROLE`-reachable by anon/authenticated/service_role (`pg_has_role(..., 'MEMBER')`). A fake
+   `enqueue_quotation_outbox(int)` overload owned by another role cannot change the decision (proven).
+
+2. **Claim-then-DELETE race.** 0065 prevents a stale row from being newly claimed, but a worker could
+   claim a `queued` row (→ processing), then a non-trusted writer deletes the quotation, then the worker
+   sends a body whose quotation no longer exists. A BEFORE DELETE trigger now refuses a non-trusted delete
+   of a quotation whose status is queued/sent/accepted/rejected OR that has ANY quotation-linked outbox row
+   (pending/processing/failed/sent/dead). A draft/awaiting_price quotation with no outbox history stays
+   deletable; the trusted owner keeps a maintenance override. Statement-level BEFORE TRUNCATE guards on
+   `quotations`/`quotation_items` close the TRUNCATE bypass (service_role holds TRUNCATE, which skips
+   row-level triggers).
+
+3. **Frozen queued snapshot.** Once queued, the customer-facing content must not change while the outbox
+   message is live. For non-trusted writers, a quotation in queued/sent/accepted/rejected is immutable
+   except a pure `sent→accepted`/`sent→rejected` decision (the whole-row BEFORE UPDATE trigger now fires on
+   every column, not just status/sent_at); its `quotation_items` cannot be inserted/updated/deleted either.
+   The item triggers read the parent status through a **self-gating** SECURITY DEFINER helper
+   (`_quotation_status_for_guard`) so an RLS-invisible parent cannot bypass the freeze, while the helper
+   returns a status only to a caller who already holds `sales.quotation.manage` in that company (or the
+   service worker) — never a cross-company oracle. Additionally the delivered `message_outbox` row has its
+   CONTENT (recipient/body/template/source/key) frozen against `service_role` while delivery-state stays
+   worker-mutable, and a non-trusted DELETE of a delivery row is refused (anti-stranding). Pre-queue
+   editing/repricing stays functional.
+
+4. **`search_path`/`pg_temp` hardening (from the eighth review's own adversarial security pass).** A caller
+   with the default PUBLIC TEMP privilege could `CREATE TEMP TABLE pg_proc`/`quotations`/`message_outbox` to
+   shadow the real tables (pg_temp is searched for relations before `pg_catalog`/`public` unless listed
+   later) inside a trigger/function — forging the owner check or hiding rows (verified exploitable → fixed).
+   Every 0066 function schema-qualifies its relations AND pins `search_path = pg_catalog, public, pg_temp`;
+   the WP12 delivery RPCs are re-pinned via ALTER FUNCTION; the TRUNCATE guard covers `message_outbox` too.
+   **Documented residual:** the same pattern exists in OTHER-domain SECURITY DEFINER functions (accounting/
+   approval); a full-codebase search_path audit is a recommended systemic follow-up, OUT of this WP12
+   review's bounded scope.
+
+5. **Doc correction.** The `message_outbox` service-only DML boundary originated in migration **0038**
+   (`0038_capability_authority.sql` §6), not 0048; 0065's AUDIT NOTE said 0048. 0065 is not rewritten — the
+   0066 AUDIT NOTE and the docs carry the correction.
+
+Tests: `tests/integration/wp12-snapshot-boundary.test.ts` (30 — REAL roles + a bespoke custom role +
+a GENUINE two-connection race): the fake-overload owner check; DELETE refused for queued/terminal/
+outbox-history quotations across authenticated/service_role/custom; a draft-with-no-outbox stays deletable;
+the owner maintenance override; the frozen-column list (notes/total/public_token/quote_number/currency);
+`sent→accepted` status-only allowed but `sent→accepted`+field refused; sent_at fabrication still blocked;
+pre-queue repricing works; `quotation_items` INSERT/UPDATE/DELETE frozen on a queued parent but editable on
+a draft; a two-connection test where conn A (service_role worker) claims + commits, conn B cannot delete or
+mutate the quotation / its items, and the worker still completes `queued→sent`; **pg_temp relation shadowing
+cannot forge the owner check or hide outbox history**; and **message_outbox content is frozen to service_role
+while delivery-state stays mutable**. Independent adversarial-security + regression subagent reviews were run
+and their findings incorporated in one correction loop.
+
 ## Verification (disposable PostgreSQL 16, this session)
 
 | Gate | Result |
 |---|---|
 | `npm run secret-scan` | pass |
-| `npm run migration-lint` | pass — **65 migrations, sequential 0001–0065** |
+| `npm run migration-lint` | pass — **66 migrations, sequential 0001–0066** |
 | `npm run typecheck` | pass |
 | `npm run lint` | pass (0 errors; pre-existing `<img>` warnings only) |
 | `npm test` (unit) | pass — **419 (79 files)** |
 | `npm run audit-check` | pass (2 approved exceptions) |
 | `npm run build` | pass |
-| `npm run test:integration` — **fresh DB** (0001→0065 from scratch) | pass — **38 files / 267 tests** (incl. the new 0065 claim-boundary suite, the 0065 INSERT-boundary + custom-role suite, the 0064 delivery-boundary authenticated + service-role suite, the 0063 atomic-enqueue two-connection races, and the 0062 signature-exact allowlist + 42501 suite) |
-| `npm run test:integration` — **upgrade path** (0058 + legacy data → 0059→0065) | pass — **38 files / 267 tests**; the 0062 lockdown holds, a stale `ready` quotation row is unclaimable, a direct service-role/custom-role `ready→queued` is refused, and a legacy `ready` quotation is atomically enqueued on the upgraded DB |
-| hosted hotfix (0041-staged disposable DB) | exposure before (`exposed=t`) → locked after (`still_exposed=0`, COMMIT); simulated residual → RAISE + ROLLBACK (grant did not persist) |
+| `npm run test:integration` — **fresh DB** (0001→0066 from scratch) | pass — **39 files / 297 tests** (incl. the new 0066 snapshot-boundary suite — signature-exact owner check vs a fake overload, DELETE boundary, frozen quotation + quotation_items, a genuine two-connection claim-vs-delete/mutate race — the 0065 claim + INSERT-boundary suites, the 0064 delivery-boundary suite, the 0063 atomic-enqueue two-connection races, and the 0062 signature-exact allowlist + 42501 suite) |
+| `npm run test:integration` — **upgrade path** (0058 + legacy data → 0059→0066) | pass — **39 files / 297 tests**; the 0062 lockdown holds, a stale `ready` quotation row is unclaimable, a direct service-role/custom-role `ready→queued` is refused, a queued quotation is frozen and undeletable, and a legacy `ready` quotation is atomically enqueued on the upgraded DB |
+| hosted hotfix (0041-staged disposable DB) | exposure before (`exposed=t`, 3 functions) → locked after (`still_exposed=0`, COMMIT); simulated residual → RAISE + ROLLBACK (grant did not persist) |
 
-_Numbers above are the **seventh review increment** (integration branch, migrations 0048–0065).
-Earlier rounds — sixth (0064, 37 files / 224 tests, unit 419); fifth (0063, 36 files / 207 tests, unit
+_Numbers above are the **eighth review increment** (integration branch, migrations 0048–0066).
+Earlier rounds — seventh (0065, 38 files / 267 tests, unit 419); sixth (0064, 37 files / 224 tests, unit 419); fifth (0063, 36 files / 207 tests, unit
 419); fourth (0062, 35 files / 190 tests, unit 426); third (0061, 34 files / 182 tests, unit 420); second
 (0060, 34 files / 180 tests, unit 410); first (0058, 33 files / 173 tests, unit 405); first pass (0055,
 unit 374) — are superseded. **GitHub Actions obtained no runner on any run**; all evidence is local

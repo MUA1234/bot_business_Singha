@@ -5,8 +5,8 @@ appending to prior text. This file describes **reality**; where it disagrees wit
 narrative docs, this file and the code win._
 
 **Current phase:** **Phase 1 — 0048+ Security/Accounting Corrections** (WP10–WP18), migrations
-**0048–0065**. Status: **implemented and verified on a disposable PostgreSQL 16 (fresh + upgrade);
-CHANGES REQUESTED by seven external reviews, corrected, and AWAITING THE FINAL REVIEW.** Not merged,
+**0048–0066**. Status: **implemented and verified on a disposable PostgreSQL 16 (fresh + upgrade);
+CHANGES REQUESTED by eight external reviews, corrected, and AWAITING THE FINAL REVIEW.** Not merged,
 not deployed, **hosted DB not migrated** (this — not any flag — is what keeps the changes off the live
 system), all feature flags OFF. The corrections (first review: migrations 0056–0058; second review:
 WP12 outbox reconciliation + WP11 composite FKs/money fail-close + WP15 function-privilege, migrations
@@ -36,11 +36,20 @@ claimable ONLY when its linked quotation is committed `queued`, so a stale `read
 their retry/lease/SKIP-LOCKED eligibility), and a direct-**INSERT** lifecycle boundary lets a
 non-trusted writer create a quotation only in the initial state (`draft`, `sent_at` null) — enforced by
 a **positive owner allowlist** derived from the delivery functions' OWNER, NOT a role-name denylist, so
-a bespoke custom role is refused both the fabricating INSERT and the privileged UPDATE — see
-`docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`) live on the
+a bespoke custom role is refused both the fabricating INSERT and the privileged UPDATE; eighth review:
+**migration 0066** closes the residual WP12 boundary gaps — (a) `_is_quotation_delivery_owner()` is
+**signature-exact** (resolves the owner from the exact 9-arg `enqueue_quotation_outbox` identity, with a
+migration-time fail-closed assertion that the three delivery functions exist, are all SECURITY DEFINER,
+share ONE owner, and are unreachable by anon/authenticated/service_role — a like-named overload cannot
+flip it); (b) a BEFORE DELETE trigger refuses a non-trusted delete of a quotation that is queued/terminal
+OR has any outbox delivery history (closing the claim-then-delete race); (c) once queued, the quotation
+and its `quotation_items` are a **frozen snapshot** for non-trusted writers (only a `sent→accepted`/
+`sent→rejected` decision is permitted; pre-queue editing/repricing stays functional); and (d) a doc
+correction that the `message_outbox` service-only DML boundary originated in migration **0038**, not 0048
+— see `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`) live on the
 integration branch `feature/v3-1-phase-1-external-review-fixes` (PR #3 foundation + stack PRs #4–#12 +
-all seven correction rounds, one draft PR against `main`). Verified counts: **unit 419 (79 files);
-integration 38 files / 267 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md`
+all eight correction rounds, one draft PR against `main`). Verified counts: **unit 419 (79 files);
+integration 39 files / 297 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md`
 and `PHASE1_CORRECTIONS_LEDGER.md`; authoritative applied-state: `docs/architecture-v2/MIGRATION_STATE.md`.
 **Do not begin V3.1 Phase 2 until the owner approves the final review.**
 
@@ -154,9 +163,9 @@ Implemented + verified on a disposable Postgres 16 (incl. an upgrade path from a
 > any run (the account's runner provisioning fails at startup — systemic, pre-existing), so there is
 > **no CI-pass**; the disposable local PostgreSQL 16 is the CI substitute for all database evidence.
 
-Commands run and results (integration branch, migrations 0001–0065):
+Commands run and results (integration branch, migrations 0001–0066):
 - `npm run secret-scan` → **pass** (no tracked secrets).
-- `npm run migration-lint` → **pass** (65 migrations, sequential 0001–0065).
+- `npm run migration-lint` → **pass** (66 migrations, sequential 0001–0066).
 - `npm run typecheck` → **pass**.
 - `npm run lint` → **pass** (pre-existing `<img>` warnings only).
 - `npm test` (unit) → **419 passing (79 files)**.
@@ -164,26 +173,27 @@ Commands run and results (integration branch, migrations 0001–0065):
 - `npm run audit-check` → **pass** (2 high findings, both approved exceptions: next, postcss).
 
 **Database tests (disposable PostgreSQL 16 + Supabase-compat shim — run locally, NOT in CI):**
-- Fresh `0001→0065` then `npm run test:integration` → **38 files / 267 tests pass**, including the new
-  0065 claim-boundary suite (a stale `ready` quotation's outbox row is NOT claimable by the service-role
-  drain and stays `pending`; a row becomes claimable only after exact recovery advances `ready→queued`;
-  malformed/cross-company/missing-source quotation rows are unclaimable; ordinary non-quotation rows and
-  retry/lease eligibility are preserved), the 0065 INSERT-boundary + custom-role suite (authenticated,
-  service_role AND a bespoke custom role are all refused a direct INSERT of any non-`draft` status or a
-  non-null `sent_at`, and a custom role — which a role-name denylist would have missed — is refused the
-  privileged `ready→queued`/`ready→sent` UPDATE), the 0064 delivery-boundary suite (authenticated AND
-  service-role direct `ready→queued`/`ready→sent` refused with 42501 RPC-only, proven not to be an RLS
-  zero-match; exact-payload recovery vs stale-payload `inconsistent`), the 0063 atomic-quotation-enqueue
-  two-connection races, the 0062 SECURITY DEFINER **signature-exact** allowlist + `42501` adversarial
-  privilege tests, and the WP11/WP12 adversarial + concurrency + currency suites.
-- Upgrade path (staged at `0058` + company-consistent legacy data → `0059→0065`) → **38 files / 267
-  tests pass**; the 0062 lockdown holds, a direct service-role `ready→queued` is refused on the upgraded
-  DB, and a legacy `ready` quotation is atomically enqueued
+- Fresh `0001→0066` then `npm run test:integration` → **39 files / 297 tests pass**, including the new
+  0066 snapshot-boundary suite (signature-exact owner check resists a fake `enqueue_quotation_outbox(int)`
+  overload owned by another role; authenticated/service_role/custom cannot delete a queued/terminal
+  quotation or one with outbox history; a draft with no outbox stays deletable; a queued quotation and its
+  `quotation_items` are frozen — notes/total/public_token/quote_number/currency changes refused, items
+  can't be inserted/updated/deleted; `sent→accepted` status-only allowed; a GENUINE two-connection
+  claim-then-delete/mutate race), the 0065 claim-boundary suite (a stale `ready` outbox row is unclaimable
+  by the service-role drain, claimable only after exact recovery advances `ready→queued`), the 0065
+  INSERT-boundary + custom-role suite, the 0064 delivery-boundary suite (authenticated AND service-role
+  direct `ready→queued`/`ready→sent` refused 42501 RPC-only; exact-payload recovery vs stale `inconsistent`),
+  the 0063 atomic-quotation-enqueue two-connection races, the 0062 SECURITY DEFINER **signature-exact**
+  allowlist + `42501` adversarial privilege tests, and the WP11/WP12 adversarial + concurrency + currency suites.
+- Upgrade path (staged at `0058` + company-consistent legacy data → `0059→0066`) → **39 files / 297
+  tests pass**; the 0062 lockdown holds, a stale `ready` quotation row is unclaimable, a direct
+  service-role/custom-role `ready→queued` is refused, a queued quotation is frozen and undeletable, and a
+  legacy `ready` quotation is atomically enqueued
   (ready→queued) on the upgraded DB. These suites are wired into CI's `db-tests` job, but **GitHub
   Actions obtained no runner**, so they were executed locally, not in CI.
 - Hosted applied-state: the single authoritative statement is in "Reconciliation with MIGRATION_STATE.md"
   below and `MIGRATION_STATE.md` (0038–0041 owner-reported applied 2026-08-07, unverified by this
-  process; 0042–0065 owner confirmation required).
+  process; 0042–0066 owner confirmation required).
 
 ## Reconciliation with MIGRATION_STATE.md
 
@@ -196,7 +206,7 @@ process** (no hosted access) — this is the single authoritative statement; ear
 only from PUBLIC, their SECURITY DEFINER functions (`claim_outbox_batch`, `ledger_integrity_report`,
 legacy `_journal_post_internal`) may be `authenticated`-executable on the hosted DB — mitigation
 prepared but **not executed** (`docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`); migration
-0062 fixes it once applied. **0042–0065: owner confirmation required** (dev-verified on disposable
+0062 fixes it once applied. **0042–0066: owner confirmation required** (dev-verified on disposable
 PostgreSQL 16 only; not applied to any hosted environment). No statement here asserts a migration is
 applied merely because its file exists.
 
