@@ -5,7 +5,7 @@
 > with failing-before/passing-after tests, verified on a disposable PostgreSQL 16 (fresh **and**
 > `0047→0048+` upgrade path). `RLS_READS` / `RLS_WRITES` / `WHATSAPP_ASYNC` stay OFF. No hosted action.
 
-> **Phase 1 status: CHANGES REQUESTED (five times) → corrected, awaiting the FINAL external review.**
+> **Phase 1 status: CHANGES REQUESTED (six times) → corrected, awaiting the FINAL external review.**
 > The first review found blocking defects in WP12/WP15/WP11 + a branch-integration problem (fixed:
 > migrations **0056–0058**). The second review asked for deeper WP12 outbox-state reconciliation,
 > WP11 composite DB constraints + money fail-close, WP15 function-privilege, and doc/deployment
@@ -450,14 +450,14 @@ flags. Three items, all addressed:
    (Decimal → string). Unit tests: each race (queued/sent/accepted/rejected before the guarded update)
    creates no outbox row / no delivery, and a stale/zero total sends the newly-calculated total.
 3. **Hosted 0038–0041 — prepared, NOT executed.** `docs/architecture-v2/hosted_secdef_privilege_check.sql`
-   (read-only), `hosted_secdef_emergency_revoke.sql` (owner-approved break-glass) and
+   (read-only), `hosted_secdef_emergency_revoke.sql` (owner-approval-required break-glass) and
    `HOSTED_SECDEF_PRIVILEGE_HOTFIX.md` (evidence: a 0041-staged disposable DB shows the legacy
    `_journal_post_internal`, `claim_outbox_batch` and `ledger_integrity_report` are
    `authenticated`-executable before the hotfix and locked after). Docs reconciled (one 0038–0041 hosted
    statement; 0042–0062 separate; GitHub Actions obtained no runner; Vercel Preview vs no prod; stale
    195/current-state wording removed).
 
-## Fifth (final) external review — migration 0063 (atomic enqueue + lifecycle) + code + docs
+## Fifth external review — migration 0063 (atomic enqueue + lifecycle) + code + docs
 
 CHANGES REQUESTED, bounded. Do not merge; do not begin Phase 2; do not migrate hosted / deploy / enable
 flags / run the hosted scripts against hosted. Four items, all addressed:
@@ -488,26 +488,53 @@ flags / run the hosted scripts against hosted. Four items, all addressed:
    automatic Vercel Preview ≠ production; counts from actual runs; the "end-to-end concurrency-safe"
    claim now attributed to the atomic RPC (0063), not the fourth review's re-read.
 
+## Sixth (final) external review — migration 0064 (delivery-transition boundary + exact-payload recovery)
+
+CHANGES REQUESTED, bounded — two WP12 database-integrity gaps. Do not merge; do not begin Phase 2; do
+not migrate hosted / deploy / enable flags / run the hosted scripts against hosted. Both addressed:
+
+1. **Privileged delivery transitions are RPC-ONLY (migration 0064).** The 0063 lifecycle trigger still
+   permitted a DIRECT table `ready→queued` / `ready→sent`, so a permitted table writer (an authenticated
+   user with `sales.quotation.manage`, or `service_role`) could create a queued quotation with no outbox
+   row, or mark one sent without provider completion. The SECURITY INVOKER trigger now allows those
+   transitions (and `queued→sent`) only when `current_user` is NOT a PostgREST API role — i.e. inside a
+   SECURITY DEFINER delivery RPC (`current_user` = owner) or a trusted DB admin — refusing a direct
+   authenticated/`service_role` UPDATE with SQLSTATE 42501. Non-spoofable: the API roles cannot `SET ROLE`
+   to the owner, the trigger is not SECURITY DEFINER, and `current_user` is not a JWT/header/GUC.
+   `complete_outbox_and_advance` / `reconcile_quotation_from_outbox` still recover `queued→sent` /
+   `ready→sent` (owner-run) and stay service-role-only; no replacement required.
+2. **Exact-payload recovery guard.** `enqueue_quotation_outbox`'s `ready` + existing-row path now returns
+   `inconsistent` (leaving the quotation `ready`, creating/queuing/draining nothing) unless the existing
+   row matches on company/source type/source id/idempotency key/channel/recipient/body/message purpose —
+   so a stale/legacy row (e.g. old total 100 after repricing to 120) is never queued or drained. An
+   already-`queued` quotation's original snapshot stays authoritative.
+
+Tests: `tests/integration/wp12-delivery-boundary.test.ts` — REAL roles (a control proves RLS permits the
+capability user; authenticated AND service-role direct `ready→queued`/`ready→sent` refused 42501, proven
+to be the trigger not an RLS zero-match; RPC + completion succeed; reconcile only with a matching sent
+row; `queued→accepted/rejected` blocked; `sent→accepted` allowed; re-pricing works; exact-payload vs
+stale-payload recovery through the production RPC).
+
 ## Verification (disposable PostgreSQL 16, this session)
 
 | Gate | Result |
 |---|---|
 | `npm run secret-scan` | pass |
-| `npm run migration-lint` | pass — **63 migrations, sequential 0001–0063** |
+| `npm run migration-lint` | pass — **64 migrations, sequential 0001–0064** |
 | `npm run typecheck` | pass |
 | `npm run lint` | pass (0 errors; pre-existing `<img>` warnings only) |
 | `npm test` (unit) | pass — **419 (79 files)** |
 | `npm run audit-check` | pass (2 approved exceptions) |
 | `npm run build` | pass |
-| `npm run test:integration` — **fresh DB** (0001→0063 from scratch) | pass — **36 files / 207 tests** (incl. the 0063 atomic-enqueue two-connection races + lifecycle trigger, and the 0062 signature-exact allowlist + 42501 suite) |
-| `npm run test:integration` — **upgrade path** (0058 + legacy data → 0059→0063) | pass — **36 files / 207 tests**; the 0062 lockdown holds and a legacy `ready` quotation is atomically enqueued on the upgraded DB |
+| `npm run test:integration` — **fresh DB** (0001→0064 from scratch) | pass — **37 files / 224 tests** (incl. the 0064 delivery-boundary authenticated-role + service-role adversarial suite, the 0063 atomic-enqueue two-connection races, and the 0062 signature-exact allowlist + 42501 suite) |
+| `npm run test:integration` — **upgrade path** (0058 + legacy data → 0059→0064) | pass — **37 files / 224 tests**; the 0062 lockdown holds, a direct service-role `ready→queued` is refused, and a legacy `ready` quotation is atomically enqueued on the upgraded DB |
 | hosted hotfix (0041-staged disposable DB) | exposure before → locked after (COMMIT); simulated residual → RAISE + ROLLBACK |
 
-_Numbers above are the **fifth (final) review increment** (integration branch, migrations 0048–0063).
-Earlier rounds — fourth (0062, 35 files / 190 tests, unit 426); third (0061, 34 files / 182 tests, unit
-420); second (0060, 34 files / 180 tests, unit 410); first (0058, 33 files / 173 tests, unit 405); first
-pass (0055, unit 374) — are superseded. **GitHub Actions obtained no runner on any run**; all evidence is
-local disposable PostgreSQL 16 — no CI-pass is claimed._
+_Numbers above are the **sixth (final) review increment** (integration branch, migrations 0048–0064).
+Earlier rounds — fifth (0063, 36 files / 207 tests, unit 419); fourth (0062, 35 files / 190 tests, unit
+426); third (0061, 34 files / 182 tests, unit 420); second (0060, 34 files / 180 tests, unit 410); first
+(0058, 33 files / 173 tests, unit 405); first pass (0055, unit 374) — are superseded. **GitHub Actions
+obtained no runner on any run**; all evidence is local disposable PostgreSQL 16 — no CI-pass is claimed._
 
 Toolchain: Node v22.22.2, npm 10.9.7, PostgreSQL 16.13. No hosted migration applied; no feature flag
 enabled.

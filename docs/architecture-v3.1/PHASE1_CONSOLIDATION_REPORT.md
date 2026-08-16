@@ -1,11 +1,11 @@
 # Phase 1 — 0048+ Security/Accounting Corrections — Consolidation Report
 
 > Blocking prerequisite for the V3.1 program. This report is the verification evidence for the
-> correction phase (work packages WP10–WP18) **as revised after five external reviews** — migrations
-> **0048–0063**. Per-WP detail is in `docs/architecture-v3.1/PHASE1_CORRECTIONS_LEDGER.md`;
+> correction phase (work packages WP10–WP18) **as revised after six external reviews** — migrations
+> **0048–0064**. Per-WP detail is in `docs/architecture-v3.1/PHASE1_CORRECTIONS_LEDGER.md`;
 > authoritative applied-state is in `docs/architecture-v2/MIGRATION_STATE.md`.
 >
-> **Phase 1 verdict: CHANGES REQUESTED (five times) → corrected; awaiting the FINAL external review.**
+> **Phase 1 verdict: CHANGES REQUESTED (six times) → corrected; awaiting the FINAL external review.**
 > The first review found blocking defects in WP12/WP15/WP11 + a branch-integration problem (fixed:
 > 0056–0058); the second asked for deeper WP12 outbox reconciliation, WP11 composite DB constraints +
 > money fail-close, WP15 function-privilege, and doc/deployment accuracy (fixed: 0059–0060 + code +
@@ -16,12 +16,16 @@
 > fourth (security-boundary) asked to lock every service-only SECURITY DEFINER function to
 > `service_role` with an allowlist test over ALL of them, an application re-read in `tryFinalizeAndSend`,
 > and a prepared-but-unexecuted hosted privilege check + emergency REVOKE for the already-hosted
-> 0038–0041 functions (fixed: **0062** + code + docs — see §10); the fifth (final) found the fourth's
+> 0038–0041 functions (fixed: **0062** + code + docs — see §10); the fifth found the fourth's
 > application re-read still left a time-of-check/time-of-use enqueue window, and asked for a
 > **database-atomic** quotation enqueue (lock the row; couple the outbox insert with ready→queued in one
 > transaction) with a DB-boundary quotation lifecycle, a **signature-exact** SECURITY DEFINER allowlist,
-> and a self-verifying emergency hotfix (fixed: **0063** + code + docs — see §11). **WP11, WP12 and WP15
-> are not "done" until a review approves them.**
+> and a self-verifying emergency hotfix (fixed: **0063** + code + docs — see §11); the sixth found two
+> WP12 integrity gaps — the lifecycle trigger still permitted a DIRECT table `ready→queued`/`ready→sent`
+> (bypassing the atomic/fenced RPCs), and the ready+existing-row recovery compared only company/source,
+> not the payload — and asked for RPC-only privileged transitions (a non-spoofable `current_user` gate)
+> and an EXACT-payload recovery guard (fixed: **0064** + docs — see §12). **WP11, WP12 and WP15 are not
+> "done" until a review approves them.**
 >
 > **STOP AFTER THIS REPORT.** Nothing here is merged, deployed, or flag-enabled, **and the hosted
 > database has NOT been migrated** — that (not any flag) is what keeps these changes off the live
@@ -66,6 +70,7 @@
 | 0061 | WP11+WP12 (review 3, final) | Currencies **catalogue** (`is_active` on the existing 0002 table + 16 seeded ISO codes); `decide_approval` validates currency against it (fail-closed on unseeded codes e.g. `ZZZ`); atomic service-only `enqueue_outbox_row` (the real `enqueueOutbox` wrapper's RPC) + idempotent service-only `reconcile_quotation_from_outbox`; service-only grants (revoked from authenticated/anon) |
 | 0062 | security-boundary (review 4) | Lock EVERY service-only SECURITY DEFINER function to `service_role`: `_journal_post_internal` (incl. its legacy 7-arg signature), `claim_outbox_batch`, `complete_outbox_and_advance`, `ledger_integrity_report`, `_journal_fp_matches`, `enqueue_outbox_row`, `reconcile_quotation_from_outbox` — name-based + `to_regprocedure`-guarded, idempotent, upgrade-safe (revoke from PUBLIC/anon/authenticated) |
 | 0063 | atomic enqueue + lifecycle (review 5, final) | Atomic service-only `enqueue_quotation_outbox` RPC (locks the quotation row; only if still legally `ready` and the body total/currency still match, inserts the outbox row AND advances ready→queued in ONE transaction; result `enqueued`/`duplicate`/`terminal`/`not_ready`/`stale`/`inconsistent`) + a BEFORE UPDATE trigger enforcing the legal quotation lifecycle (`queued` can never jump to a terminal state). Service-only. |
+| 0064 | delivery-transition boundary (review 6) | Privileged delivery transitions (`ready→queued`/`queued→sent`/`ready→sent`) made RPC-ONLY — the SECURITY INVOKER lifecycle trigger refuses them when `current_user` is a PostgREST API role (anon/authenticated/service_role), so a direct table UPDATE cannot bypass the atomic/fenced delivery RPCs (whose internal UPDATE runs as the function owner). `enqueue_quotation_outbox`'s ready+existing-row recovery now requires an EXACT delivery-identity+payload match (company/source/key/channel/recipient/body/message_purpose) or returns `inconsistent`. |
 
 Application code changed (WP12): `src/lib/quotations.ts` (`tryFinalizeAndSend` → `queued`, propagate
 `DrainResult`; **final review:** concurrency-safe `refreshQuotationStatus` with the allowed-status
@@ -106,7 +111,7 @@ Static & application gates:
 | Command | Result |
 |---|---|
 | `npm run secret-scan` | pass — no tracked secrets |
-| `npm run migration-lint` | pass — **63 migrations, sequential 0001–0063** |
+| `npm run migration-lint` | pass — **64 migrations, sequential 0001–0064** |
 | `npm run typecheck` | pass |
 | `npm run lint` | pass (0 errors; pre-existing `<img>` warnings only) |
 | `npm test` (unit) | pass — **419 (79 files)** |
@@ -117,8 +122,8 @@ Database gates (disposable PostgreSQL 16 + Supabase-compat shim):
 
 | Path | Result |
 |---|---|
-| Fresh DB — `npm run migrate` `0001→0063` then `npm run test:integration` | pass — **36 files / 207 tests** (incl. the 0063 atomic-enqueue suite — single-connection results + real two-connection terminal-vs-enqueue & duplicate-finaliser races + the lifecycle trigger — and the 0062 signature-exact SECURITY DEFINER allowlist + 42501 adversarial suite) |
-| Upgrade path — staged at `0058` + representative legacy data (a company-consistent approval request+event in a **catalogue** currency `LKR` **and** one in a **non-catalogue** currency `XYZ`, a queued quotation with a **sent** outbox row, and a `ready` quotation), then `0059→0063` applied | pass — **36 files / 207 tests**; the composite FKs (0060) VALIDATE over the legacy data, the `LKR` event **approves**, the `XYZ` event **fails closed**, the legacy sent-outbox **reconciles** to `sent`, the 0062 lockdown holds, and the legacy `ready` quotation is **atomically enqueued** (ready→queued) on the upgraded DB |
+| Fresh DB — `npm run migrate` `0001→0064` then `npm run test:integration` | pass — **37 files / 224 tests** (incl. the 0064 delivery-boundary suite — authenticated-role AND service-role direct `ready→queued`/`ready→sent` refused 42501 RPC-only, exact-payload recovery vs stale `inconsistent` — the 0063 atomic-enqueue two-connection races + lifecycle trigger, and the 0062 signature-exact allowlist + 42501 suite) |
+| Upgrade path — staged at `0058` + representative legacy data (a company-consistent approval request+event in a **catalogue** currency `LKR` **and** one in a **non-catalogue** currency `XYZ`, a queued quotation with a **sent** outbox row, and a `ready` quotation), then `0059→0064` applied | pass — **37 files / 224 tests**; the composite FKs (0060) VALIDATE over the legacy data, the `LKR` event **approves**, the `XYZ` event **fails closed**, the legacy sent-outbox **reconciles**, the 0062 lockdown holds, a direct service-role `ready→queued` is refused, and the legacy `ready` quotation is **atomically enqueued** on the upgraded DB |
 
 Each external-review adversarial test was confirmed to **fail against the reviewed tip `509685b`**
 and pass after the correction. Second-review additions: WP15 function-privilege (authenticated →
@@ -130,7 +135,7 @@ vs inconsistent reconciliation (never `already_sent` with `sent=false`); currenc
 `enqueue_outbox_row` RPC** (one `enqueued`, one `duplicate`, exactly one row) — the same RPC the real
 `enqueueOutbox` wrapper invokes (`tests/outbox-enqueue.test.ts`).
 
-Adversarial & concurrency coverage is included in the 207 integration tests: the atomic quotation
+Adversarial & concurrency coverage is included in the 224 integration tests: the RPC-only delivery-transition boundary (authenticated + service-role direct writes refused) and exact-payload recovery (0064); the atomic quotation
 enqueue race (two real connections: terminal-vs-enqueue and duplicate-finaliser) + the DB-boundary
 quotation lifecycle trigger (WP12, 0063); SECURITY DEFINER
 service-only lockdown + `42501` direct-call proofs + an allowlist over ALL such functions (WP-sec, 0062);
@@ -151,12 +156,12 @@ left unchanged).
 ## 6. Owner action required
 
 1. **External review** of this correction phase (the mandatory STOP) before V3.1 phases 2–10.
-2. **Hosted application (staging first):** apply `0048–0063` via `npm run migrate` against a staging
+2. **Hosted application (staging first):** apply `0048–0064` via `npm run migrate` against a staging
    database, run the integration suite there, then production — **owner-gated**. Until then,
-   `MIGRATION_STATE.md` records hosted state for `0042–0063` as **owner confirmation required**.
+   `MIGRATION_STATE.md` records hosted state for `0042–0064` as **owner confirmation required**.
    **Before that**, because 0038–0041 are owner-reported-hosted and their service-only SECURITY DEFINER
    functions may be `authenticated`-executable, run the read-only privilege check and (if exposed) the
-   owner-approved emergency REVOKE from `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`.
+   owner-approval-REQUIRED emergency REVOKE from `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`.
    Note (0061): after applying, seed any additional in-use currencies into `currencies` (`insert … on
    conflict do nothing`) — an event whose currency is not an active catalogue row can no longer be
    approved (fail-closed by design).
@@ -184,7 +189,7 @@ left unchanged).
 
 - **No hosted migration was applied** by this development process, in this phase or any prior one.
   **This — not any feature flag — is what keeps these changes off the live system:** the hosted
-  Supabase database does not contain migrations `0042–0063`, so none of their objects or behaviour
+  Supabase database does not contain migrations `0042–0064`, so none of their objects or behaviour
   exist there.
 - **No feature flag was enabled.** `RLS_READS`, `RLS_WRITES`, `WHATSAPP_ASYNC` remain **OFF**.
   **Correction (removing an earlier inaccurate claim):** these migrations are **NOT** uniformly
@@ -208,7 +213,7 @@ left unchanged).
   claimed.
 - **Service-only SECURITY DEFINER functions are locked to `service_role`** (0062), proven by an
   allowlist test over ALL such functions + `42501` adversarial direct-call tests. The already-hosted
-  0038–0041 functions may be exposed on the hosted DB; a read-only check + owner-approved emergency
+  0038–0041 functions may be exposed on the hosted DB; a read-only check + an owner-approval-REQUIRED emergency
   REVOKE are **prepared but NOT executed** (`docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`).
 
 ## 9. Deployment note — automatic Vercel preview (accurate record)
@@ -259,7 +264,7 @@ left unchanged).
    Unit tests cover each race and the stale/zero-total case.
 4. **Hosted 0038–0041 exposure — prepared, not executed.** `docs/architecture-v2/`:
    `hosted_secdef_privilege_check.sql` (read-only), `hosted_secdef_emergency_revoke.sql`
-   (owner-approved break-glass), and `HOSTED_SECDEF_PRIVILEGE_HOTFIX.md` (evidence: on a 0041-staged
+   (owner-approval-REQUIRED break-glass), and `HOSTED_SECDEF_PRIVILEGE_HOTFIX.md` (evidence: on a 0041-staged
    disposable DB the legacy `_journal_post_internal`, `claim_outbox_batch` and `ledger_integrity_report`
    are `authenticated`-executable before the hotfix and locked after). **Not run against hosted.**
 5. **Docs reconciled:** one authoritative 0038–0041 hosted statement (owner-reported applied 2026-08-07,
@@ -303,7 +308,38 @@ at the database.
    `queued→accepted` then fails), and two finalisers (exactly one logical row) — plus single-connection
    stale/inconsistent/duplicate/atomicity-rollback and the lifecycle trigger.
 
-_Phase status: **verified on disposable PostgreSQL 16 (fresh 0001→0063 + upgrade 0058→0063 with legacy
+## 12. Delivery-transition boundary review (sixth) — what changed
+
+Two WP12 database-integrity gaps remained after §11: (a) the lifecycle trigger from 0063 still permitted
+a DIRECT table `ready→queued` / `ready→sent`, so a permitted table writer (an authenticated user with
+`sales.quotation.manage`, or `service_role`) could create a queued quotation with no outbox row, or mark
+one `sent` without provider completion — bypassing the atomic/fenced machinery; (b) the `ready` +
+existing-outbox-row recovery inside `enqueue_quotation_outbox` compared only company/source/id, so it
+could queue and drain a STALE row (e.g. an old total 100 after repricing to 120). Migration **0064**:
+
+1. **RPC-only privileged transitions (non-spoofable).** The SECURITY INVOKER lifecycle trigger observes
+   the real `current_user`. The privileged delivery transitions (`ready→queued`, `queued→sent`,
+   `ready→sent`) are allowed only when `current_user` is NOT a PostgREST API role — i.e. inside a
+   SECURITY DEFINER delivery RPC (owned by `postgres`, so `current_user` = owner) or a trusted DB admin.
+   A direct table UPDATE by `anon`/`authenticated`/`service_role` (which cannot `SET ROLE` to the owner)
+   is refused with SQLSTATE 42501. The trigger is deliberately **not** SECURITY DEFINER (that would make
+   every caller appear as the owner). `current_user` is not a JWT field, header, application boolean or
+   GUC, so it cannot be forged. `complete_outbox_and_advance` / `reconcile_quotation_from_outbox` were
+   confirmed to still perform their `queued→sent` / `ready→sent` recovery (their internal UPDATE runs as
+   the owner) and remain service-role-only — no replacement was required.
+2. **Exact-payload recovery guard.** The `ready` + existing-row path now returns `inconsistent` (leaving
+   the quotation `ready`, creating/queuing/draining nothing) unless the existing row matches the request
+   on company, source type, source id, idempotency key, channel, recipient, body and message purpose. An
+   already-`queued` quotation's original snapshot stays authoritative (no payload rebuild).
+3. **Role-based adversarial tests** (`tests/integration/wp12-delivery-boundary.test.ts`, REAL roles): a
+   control proves the capability user's legal non-privileged transition succeeds (RLS permits, rowCount
+   1), then authenticated AND service-role direct `ready→queued`/`ready→sent` are refused 42501 (proven
+   to be the trigger, not an RLS zero-match); the RPC + `complete_outbox_and_advance` succeed; reconcile
+   advances only with a matching sent row; `queued→accepted/rejected` stays blocked; `sent→accepted`
+   stays allowed; re-pricing works; and the exact-payload recovery (stale body/recipient/channel/purpose
+   → `inconsistent`; exact → `duplicate`) is proven through the production RPC.
+
+_Phase status: **verified on disposable PostgreSQL 16 (fresh 0001→0064 + upgrade 0058→0064 with legacy
 data); not fully verified on hosted infrastructure** (no staging/production application; GitHub Actions
-obtained no runner). Five external reviews returned CHANGES REQUESTED; all corrected. **Awaiting the
+obtained no runner). Six external reviews returned CHANGES REQUESTED; all corrected. **Awaiting the
 final external review — STOP.**_

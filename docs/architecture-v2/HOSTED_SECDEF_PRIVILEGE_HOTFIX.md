@@ -87,6 +87,6 @@ afterwards is a no-op on these functions (same end-state).
 
 1. Run `hosted_secdef_privilege_check.sql` on the hosted DB (read-only). Save the output.
 2. If any service-only function shows `exposed = true`, run `hosted_secdef_emergency_revoke.sql`
-   (owner-approved) to close the window immediately.
+   (owner approval required) to close the window immediately.
 3. Apply the full Phase-1 migration set (…→**0062**) via `npm run migrate` on staging first, then
    production — at which point 0062 makes the lockdown permanent and part of the migration history.
