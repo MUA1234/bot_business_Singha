@@ -8,16 +8,22 @@ Any AI coding agent (Claude Code, Codex, or other) must follow the same rules.
 > (`src/config/flags.ts`) and canonical proposal contracts (`src/schemas/v3_1/*`) — is additive,
 > consumed by no runtime path (this foundation specifically is zero behaviour change). The
 > `0048+` security/accounting correction (pack WP10–WP18) — a **blocking prerequisite** for any V3.1
-> finance/RLS/outbox cutover — is now **IMPLEMENTED as a controlled draft PR** (migrations **0048–0064**,
+> finance/RLS/outbox cutover — is now **IMPLEMENTED as a controlled draft PR** (migrations **0048–0065**,
 > integration branch `feature/v3-1-phase-1-external-review-fixes`), verified on a disposable PostgreSQL
-> 16 (fresh + upgrade), **NOT merged, NOT deployed, hosted DB NOT migrated**, after six external
+> 16 (fresh + upgrade), **NOT merged, NOT deployed, hosted DB NOT migrated**, after seven external
 > reviews (all CHANGES REQUESTED → corrected; awaiting the final review). It is **not** uniformly
-> "inert while flags OFF" — the un-migrated hosted DB is the containment, not the flags. The latest
-> (sixth) review added migration **0064**: the privileged delivery transitions
+> "inert while flags OFF" — the un-migrated hosted DB is the containment, not the flags. The sixth
+> review added migration **0064**: the privileged delivery transitions
 > (`ready→queued`/`queued→sent`/`ready→sent`) are RPC-only — a `current_user`-gated lifecycle trigger
 > refuses them for direct table writes by authenticated/`service_role`, so they cannot bypass the atomic
 > `enqueue_quotation_outbox` (0063) / fenced completion RPCs — plus an EXACT-payload recovery guard
-> against stale outbox rows. Because the already-hosted 0038–0041 functions may be
+> against stale outbox rows. The seventh review added migration **0065**, closing two residual boundary
+> gaps: the scheduled drain `claim_outbox_batch` is now **quotation-aware** (a quotation-delivery outbox
+> row is claimable only when its linked quotation is committed `queued`, so a stale `ready` row cannot be
+> drained), and a direct-**INSERT** boundary lets a non-trusted writer create a quotation only in the
+> initial state (`draft`, `sent_at` null) — enforced by a **positive owner allowlist** (not a role-name
+> denylist), so a bespoke custom role is refused both the fabricating INSERT and the privileged UPDATE.
+> Because the already-hosted 0038–0041 functions may be
 > `authenticated`-executable, a read-only privilege check + a self-verifying, owner-approval-required
 > emergency REVOKE hotfix are **prepared but not executed**
 > (`docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`). See

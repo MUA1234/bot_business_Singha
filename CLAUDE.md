@@ -19,12 +19,12 @@
 > `docs/architecture-v3.1/` (`00_BASELINE_ASSESSMENT.md`, `01_V3_1_EXECUTION_SPEC.md`,
 > `IMPLEMENTATION_LEDGER.md`). Its compatibility foundation (default-OFF flags `src/config/flags.ts`
 > + proposal contracts `src/schemas/v3_1/*`) plus the **`0048+` security/accounting correction (pack
-> WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0064** — and verified on a
+> WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0065** — and verified on a
 > disposable PostgreSQL 16 (fresh + upgrade). They are the **blocking prerequisite** for any V3.1
 > finance/RLS/outbox cutover and are **NOT merged, NOT deployed, hosted DB NOT migrated, all flags
 > OFF**. (Note: "hosted DB NOT migrated" — not the flags — is what keeps these off the live system;
 > the WP12 delivery path runs with `WHATSAPP_ASYNC` OFF and `decide_approval`/FKs/catalogue enforce for
-> any caller once migrated, so they are **not** uniformly "inert while flags OFF".) Six external
+> any caller once migrated, so they are **not** uniformly "inert while flags OFF".) Seven external
 > reviews returned **CHANGES REQUESTED**; all are fixed (first: migrations 0056–0058; second: WP12
 > outbox reconciliation + WP11 composite FKs/money fail-close + WP15 function-privilege, 0059–0060;
 > third: concurrency-safe `refreshQuotationStatus`, sent-outbox reconcile-or-fail-closed,
@@ -38,10 +38,18 @@
 > sixth: the privileged delivery transitions (`ready→queued`/`queued→sent`/`ready→sent`) made **RPC-only**
 > via a `current_user`-gated lifecycle trigger (a direct table UPDATE by authenticated/`service_role`
 > cannot bypass the atomic/fenced RPCs) + an EXACT-payload recovery guard against stale outbox rows —
-> migration **0064** — see `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`) on
+> migration **0064**; seventh: two residual WP12 boundary gaps closed in migration **0065** — (a) the
+> scheduled drain `claim_outbox_batch` is now **quotation-aware** (a quotation-delivery outbox row is
+> claimable ONLY when its linked quotation is committed `queued`, so a stale `ready` row left after an
+> `inconsistent` enqueue can never be leased or sent; generic rows keep their retry/lease eligibility),
+> and (b) a direct-**INSERT** lifecycle boundary — a non-trusted writer may create a quotation only in the
+> initial state (`status=draft`, `sent_at` null); the trusted-writer signal is a **positive owner
+> allowlist** derived from the delivery functions' OWNER (NOT a role-name denylist), so a bespoke custom
+> role is refused both the fabricating INSERT and the privileged UPDATE — see
+> `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`) on
 > `feature/v3-1-phase-1-external-review-fixes`, now **awaiting the FINAL external review** — do not
-> begin V3.1 Phase 2 until it is approved. Verified counts: **unit 419 (79 files); integration 37
-> files / 224 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
+> begin V3.1 Phase 2 until it is approved. Verified counts: **unit 419 (79 files); integration 38
+> files / 267 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
 > `PHASE1_CORRECTIONS_LEDGER.md`.
 >
 > **Superseded-document rule:** A coding agent MUST NOT rely on any instruction that

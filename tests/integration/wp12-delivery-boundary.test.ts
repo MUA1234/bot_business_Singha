@@ -1,9 +1,9 @@
 /**
- * WP12 FINAL review — the delivery-transition DB boundary (migration 0064) and the exact-payload
+ * WP12 FINAL review — the delivery-transition DB boundary (migrations 0064 → 0065) and the exact-payload
  * recovery guard. Live Postgres, ZERO-PERSISTENCE, using REAL PostgreSQL roles (authenticated /
- * service_role), not the database owner.
+ * service_role / a bespoke CUSTOM role), not the database owner.
  *
- * Correction 1 — the privileged DELIVERY transitions (ready→queued, queued→sent, ready→sent) are
+ * Correction 1 (0064) — the privileged DELIVERY transitions (ready→queued, queued→sent, ready→sent) are
  * RPC-ONLY. A direct table UPDATE by an authenticated user (WITH an active `owner_management`
  * membership that genuinely grants `sales.quotation.manage`, so the quotations RLS UPDATE policy
  * PERMITS the write and the trigger is actually reached) — or by `service_role` (which bypasses RLS) —
@@ -12,10 +12,18 @@
  * The failure is proven to be the trigger, not an RLS zero-match, by showing the SAME user's legal
  * non-privileged transition succeeds (rowCount 1).
  *
- * Correction 2 — the `ready` + existing-outbox-row recovery inside `enqueue_quotation_outbox` requires
- * the existing row's EXACT delivery identity + payload (company, source type, source id, key, channel,
- * recipient, body, message purpose) to match, else it returns `inconsistent` and leaves the quotation
- * `ready` (never queue/drain a stale row).
+ * Correction 2 (0064) — the `ready` + existing-outbox-row recovery inside `enqueue_quotation_outbox`
+ * requires the existing row's EXACT delivery identity + payload (company, source type, source id, key,
+ * channel, recipient, body, message purpose) to match, else it returns `inconsistent` and leaves the
+ * quotation `ready` (never queue/drain a stale row).
+ *
+ * Correction (0065) — finding 2: close the direct-INSERT lifecycle bypass. A non-trusted writer may
+ * create a quotation ONLY in the valid initial state (status='draft', sent_at null); a direct INSERT of
+ * any delivery/terminal status (or a non-null sent_at) is refused with SQLSTATE 42501 for authenticated,
+ * service_role, AND a bespoke CUSTOM role. The trusted-writer signal is a POSITIVE owner allowlist derived
+ * from the delivery functions' OWNER — NOT a role-name denylist — so a NEW custom role (whose name is not
+ * anon/authenticated/service_role) is ALSO refused both the fabricating INSERT and the privileged UPDATE,
+ * which a denylist would have let through. `sent_at` may be mutated only in the trusted (owner) context.
  *
  * Skipped unless DATABASE_URL is set.
  */
@@ -29,6 +37,9 @@ const rnd = () => Math.random().toString(36).slice(2, 12);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let client: any;
 let co: string, capUser: string;
+// A bespoke custom role that INHERITS `authenticated`'s grants (so it can reach the table + RLS
+// functions) but whose NAME is not in any denylist — the adversary the positive owner check must stop.
+let customRole: string;
 
 async function q(sql: string, params: unknown[] = []) {
   await client.query("savepoint s");
@@ -36,15 +47,19 @@ async function q(sql: string, params: unknown[] = []) {
   catch (e) { await client.query("rollback to savepoint s"); throw e; }
 }
 // Run a statement under a real API role (savepoint-isolated; the role + jwt reset on rollback).
-async function runAs(role: "auth" | "service", sql: string, params: unknown[] = []): Promise<{ ok: boolean; code?: string; message?: string; rowCount?: number }> {
+// "custom" is the bespoke role: it carries capUser's JWT (so it passes the has_capability RLS policies
+// exactly like `authenticated`) but its DB `current_user` is the custom role name — the case a role-name
+// denylist would miss and the positive owner check must still refuse.
+async function runAs(role: "auth" | "service" | "custom", sql: string, params: unknown[] = []): Promise<{ ok: boolean; code?: string; message?: string; rowCount?: number }> {
   await client.query("savepoint r");
   try {
-    if (role === "auth") {
-      await client.query("set local role authenticated");
-      await client.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: capUser, role: "authenticated" })]);
-    } else {
+    if (role === "service") {
       await client.query("set local role service_role");
       await client.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+    } else {
+      // authenticated OR the custom role — both act as capUser (a genuine capability holder).
+      await client.query(`set local role ${role === "custom" ? customRole : "authenticated"}`);
+      await client.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: capUser, role: "authenticated" })]);
     }
     const res = await client.query(sql, params);
     await client.query("reset role");
@@ -54,6 +69,11 @@ async function runAs(role: "auth" | "service", sql: string, params: unknown[] = 
     await client.query("rollback to savepoint r");
     return { ok: false, code: (e as { code?: string }).code, message: (e as Error).message };
   }
+}
+// Direct INSERT of a quotation as `role`, at `status`, with optional non-null sent_at (ISO string).
+async function insertQuotationAs(role: "auth" | "service" | "custom", status: string, sentAt: string | null = null) {
+  return runAs(role, `insert into quotations (company_id, quote_number, currency, status, total, public_token, sent_at) values ($1,$2,'LKR',$3,'100',$4,$5)`,
+    [co, "SQ-" + rnd(), status, "tok_" + rnd(), sentAt]);
 }
 async function seedQuotation(status: string, total = "100", currency = "LKR") {
   const conv = (await q(`insert into wa_conversations (company_id, customer_wa_id, status) values ($1,$2,'quoting') returning id`, [co, "9471" + rnd()])).rows[0].id;
@@ -66,7 +86,7 @@ const statusOf = async (quo: string) => (await q(`select status from quotations 
 const rowsFor = async (key: string) => (await q(`select count(*)::int c from message_outbox where idempotency_key=$1`, [key])).rows[0].c;
 const ENQ = `select public.enqueue_quotation_outbox($1,$2,$3,$4,$5,$6,$7,'whatsapp','quotation') as v`;
 
-describe.skipIf(!enabled)("0064 delivery-transition boundary + exact-payload recovery (live, real roles)", () => {
+describe.skipIf(!enabled)("0064/0065 delivery-transition + INSERT boundary + exact-payload recovery (live, real roles incl. a custom role)", () => {
   beforeAll(async () => {
     const { default: pg } = await import("pg" as string);
     client = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } });
@@ -83,6 +103,12 @@ describe.skipIf(!enabled)("0064 delivery-transition boundary + exact-payload rec
     await client.query(`insert into profiles (id, company_id, username, department, is_admin, is_active) values ($1,$2,$3,'sales',false,true)`, [capUser, co, "cap_" + capUser.slice(0, 8)]);
     const mem = (await client.query(`insert into memberships (company_id, user_id, status) values ($1,$2,'active') returning id`, [co, capUser])).rows[0].id;
     await client.query(`insert into membership_roles (membership_id, company_id, role_key) values ($1,$2,'owner_management')`, [mem, co]);
+    // A bespoke custom role: inherits `authenticated`'s grants (table DML + RLS-helper EXECUTE) so it can
+    // genuinely reach the quotations table and the trigger, but its name is NOT anon/authenticated/
+    // service_role. Created inside the test transaction → rolled back in afterAll (no cluster leak).
+    customRole = "cust_" + rnd();
+    await client.query(`create role ${customRole} nologin`);
+    await client.query(`grant authenticated to ${customRole}`);
   });
   afterAll(async () => { if (client) { await client.query("rollback").catch(() => {}); await client.end().catch(() => {}); } });
 
@@ -187,6 +213,81 @@ describe.skipIf(!enabled)("0064 delivery-transition boundary + exact-payload rec
     const { quo } = await seedQuotation("ready");
     expect((await runAs("auth", `update quotations set status='awaiting_price' where id=$1 and company_id=$2`, [quo, co])).ok).toBe(true);
     expect((await runAs("auth", `update quotations set status='ready' where id=$1 and company_id=$2`, [quo, co])).ok).toBe(true);
+    expect(await statusOf(quo)).toBe("ready");
+  });
+
+  // ── finding 2 (0065): the direct-INSERT lifecycle boundary — non-trusted writers create only drafts ──
+  it.each(["auth", "service", "custom"] as const)("%s: direct INSERT of a DRAFT quotation (sent_at null) is allowed", async (role) => {
+    const r = await insertQuotationAs(role, "draft");
+    expect(r.ok, r.message).toBe(true);
+    expect(r.rowCount).toBe(1);
+  });
+
+  // Every non-draft initial status is refused for every non-owner writer — including a custom role a
+  // role-name denylist would not have covered. (`queued`/`sent`/`accepted`/`rejected` are the fabrication
+  // targets; `ready` proves the boundary is "draft only", not merely "not a delivery state".)
+  it.each([
+    ["auth", "ready"], ["auth", "queued"], ["auth", "sent"], ["auth", "accepted"], ["auth", "rejected"],
+    ["service", "ready"], ["service", "queued"], ["service", "sent"], ["service", "accepted"], ["service", "rejected"],
+    ["custom", "ready"], ["custom", "queued"], ["custom", "sent"], ["custom", "accepted"], ["custom", "rejected"],
+  ] as const)("%s: direct INSERT of status=%s is REFUSED at the initial-state boundary (42501)", async (role, status) => {
+    const r = await insertQuotationAs(role, status);
+    expect(r.ok).toBe(false);
+    expect(r.code, r.message).toBe("42501");
+    expect(r.message).toMatch(/initial state|draft/i);
+  });
+
+  it.each(["auth", "service", "custom"] as const)("%s: direct INSERT of a draft with a non-null sent_at is REFUSED (42501)", async (role) => {
+    const r = await insertQuotationAs(role, "draft", new Date(Date.now() - 1000).toISOString());
+    expect(r.ok).toBe(false);
+    expect(r.code, r.message).toBe("42501");
+  });
+
+  // The custom role is the denylist adversary: its name is not anon/authenticated/service_role, so the
+  // 0064 denylist would have let these privileged transitions THROUGH. The 0065 positive owner check
+  // refuses them because current_user (the custom role) is not the delivery-function owner.
+  it("custom role: direct ready→queued is REFUSED by the positive owner check (42501, RPC-only)", async () => {
+    const { quo } = await seedQuotation("ready");
+    const r = await runAs("custom", `update quotations set status='queued' where id=$1 and company_id=$2`, [quo, co]);
+    expect(r.ok).toBe(false);
+    expect(r.code).toBe("42501");
+    expect(r.message).toMatch(/RPC-only/);
+    expect(await statusOf(quo)).toBe("ready");
+  });
+
+  it("custom role: direct ready→sent is REFUSED (42501, RPC-only)", async () => {
+    const { quo } = await seedQuotation("ready");
+    const r = await runAs("custom", `update quotations set status='sent' where id=$1 and company_id=$2`, [quo, co]);
+    expect(r.ok).toBe(false);
+    expect(r.code).toBe("42501");
+    expect(r.message).toMatch(/RPC-only/);
+  });
+
+  it("custom role: direct queued→sent is REFUSED (42501, RPC-only)", async () => {
+    const { quo } = await seedQuotation("queued");
+    const r = await runAs("custom", `update quotations set status='sent' where id=$1 and company_id=$2`, [quo, co]);
+    expect(r.ok).toBe(false);
+    expect(r.code).toBe("42501");
+    expect(r.message).toMatch(/RPC-only/);
+  });
+
+  it("custom role: legal non-privileged transitions still work (draft→ready, sent→accepted)", async () => {
+    const d = await seedQuotation("draft");
+    expect((await runAs("custom", `update quotations set status='ready' where id=$1 and company_id=$2`, [d.quo, co])).ok).toBe(true);
+    expect(await statusOf(d.quo)).toBe("ready");
+    const s = await seedQuotation("sent");
+    const r = await runAs("custom", `update quotations set status='accepted' where id=$1 and company_id=$2`, [s.quo, co]);
+    expect(r.ok, r.message).toBe(true);
+    expect(await statusOf(s.quo)).toBe("accepted");
+  });
+
+  // sent_at is delivery-completion metadata: only the trusted (owner) RPC context may set/change it.
+  it.each(["auth", "custom"] as const)("%s: mutating sent_at directly (no status change) is REFUSED (42501)", async (role) => {
+    const { quo } = await seedQuotation("ready");
+    const r = await runAs(role, `update quotations set sent_at=now() where id=$1 and company_id=$2`, [quo, co]);
+    expect(r.ok).toBe(false);
+    expect(r.code).toBe("42501");
+    expect(r.message).toMatch(/sent_at/);
     expect(await statusOf(quo)).toBe("ready");
   });
 

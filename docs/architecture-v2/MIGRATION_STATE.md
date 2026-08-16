@@ -21,8 +21,8 @@ _Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, W
 
 ## Migration source of truth
 
-- **Canonical migrations:** `src/db/migrations/0001_*.sql` … `0064_*.sql` (forward-only,
-  sequential; `migration-lint` confirms 0001–0064, no gaps). This directory is the **one**
+- **Canonical migrations:** `src/db/migrations/0001_*.sql` … `0065_*.sql` (forward-only,
+  sequential; `migration-lint` confirms 0001–0065, no gaps). This directory is the **one**
   migration source of truth.
 - **⚠️ Divergence risk (flag for WP6):** duplicate/aggregate runnable copies exist and
   can drift from canonical migrations. They must not be treated as authoritative:
@@ -110,6 +110,7 @@ _Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, W
 | 0062 | secure_definer_function_grants (4th/security-boundary review: lock every service-only SECURITY DEFINER function — `_journal_post_internal` incl. its legacy 7-arg signature, `claim_outbox_batch`, `complete_outbox_and_advance`, `ledger_integrity_report`, `_journal_fp_matches`, `enqueue_outbox_row`, `reconcile_quotation_from_outbox` — to `service_role`; name-based + `to_regprocedure`-guarded, idempotent, upgrade-safe) | ⛔ **owner confirmation required** (added 2026-08-16; dev-verified on disposable PostgreSQL 16, fresh + upgrade). **Note:** `claim_outbox_batch`/`ledger_integrity_report`/legacy `_journal_post_internal` from 0038–0041 are **already hosted and may be `authenticated`-executable** — see `HOSTED_SECDEF_PRIVILEGE_HOTFIX.md` for the prepared read-only check + emergency REVOKE. |
 | 0063 | wp12_atomic_quotation_enqueue (5th/final review: atomic service-only `enqueue_quotation_outbox` RPC — locks the company-scoped quotation row, and only if still legally `ready` inserts the outbox row AND advances ready→queued in ONE transaction, closing the enqueue race; result `enqueued`/`duplicate`/`terminal`/`not_ready`/`stale`/`inconsistent`; plus a BEFORE UPDATE trigger enforcing the legal quotation lifecycle at the DB boundary — `queued` can never jump to a terminal state) | ⛔ **owner confirmation required** (added 2026-08-16; dev-verified on disposable PostgreSQL 16, fresh + upgrade) |
 | 0064 | wp12_delivery_transition_boundary (6th review: the privileged delivery transitions `ready→queued`/`queued→sent`/`ready→sent` are RPC-ONLY — the SECURITY INVOKER lifecycle trigger refuses them when `current_user` is a PostgREST API role, so a direct table UPDATE by authenticated/service_role cannot bypass the atomic/fenced RPCs; and `enqueue_quotation_outbox`'s ready+existing-row recovery now requires an EXACT delivery-identity+payload match — company/source/key/channel/recipient/body/message_purpose — else `inconsistent`) | ⛔ **owner confirmation required** (added 2026-08-16; dev-verified on disposable PostgreSQL 16, fresh + upgrade, incl. authenticated-role and service-role adversarial tests) |
+| 0065 | wp12_claim_and_insert_boundary (7th review: (a) `claim_outbox_batch` is now **quotation-aware** — a quotation-delivery outbox row is claimable ONLY when its linked quotation is committed `queued` (same company, `source_type`+`message_purpose` both `quotation`, `source_id` present), so a stale `ready` row left after an `inconsistent` enqueue can never be leased/sent; either-field-`quotation`-with-mismatch fails closed; generic rows keep retry/lease/SKIP-LOCKED eligibility. (b) a BEFORE INSERT trigger restricts non-trusted writers to the initial state (`status=draft`, `sent_at` null); the UPDATE trigger's privileged-transition and `sent_at` guards now use a **positive owner allowlist** — `_is_quotation_delivery_owner()` derived from the delivery functions' OWNER — not a role-name denylist, so a bespoke custom role is refused both the fabricating INSERT and the privileged UPDATE) | ⛔ **owner confirmation required** (added 2026-08-16; dev-verified on disposable PostgreSQL 16, fresh + upgrade, incl. authenticated-role, service-role AND custom-role adversarial tests) |
 
 > **Correction-phase note (0044–0047):** authored 2026-08-08, **not** applied to any hosted
 > DB. Verified on a disposable local **PostgreSQL 16** (Supabase-compat shim) from a clean
@@ -123,10 +124,10 @@ _Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, W
 > confirmation on record, combined file `RUN_0038-0041_*.sql`). **0042 and 0043 onward were NOT
 > applied to any hosted database** — the per-migration rows above are authoritative; the earlier
 > prose that grouped "0038–0043 … applied by the owner" over-reached and is void. Everything from
-> **0042 through 0064** has hosted state **"owner confirmation required"** (dev-process verified on
+> **0042 through 0065** has hosted state **"owner confirmation required"** (dev-process verified on
 > disposable PostgreSQL 16 only).
 
-### Phase 1 correction migrations (0048–0064) — the five states, kept separate (WP18)
+### Phase 1 correction migrations (0048–0065) — the five states, kept separate (WP18)
 
 Each state is tracked independently; none implies another. "Applied to staging/production" is
 asserted only from a dated owner confirmation — there is none, so it is **owner confirmation
@@ -158,6 +159,7 @@ is not migrated** (the rows below are all "owner confirmation required"), **not*
 | 0062 secdef grants (rev 4, security) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
 | 0063 atomic quote enqueue (rev 5, final) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a — sync path runs with `WHATSAPP_ASYNC` OFF |
 | 0064 delivery-transition boundary (rev 6) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0065 claim + INSERT boundary (rev 7) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a — sync path runs with `WHATSAPP_ASYNC` OFF |
 
 > Legend: **File exists** = the `.sql` is committed. **Tested on disposable DB** = applied and its
 > adversarial + concurrency suite passed on an ephemeral PostgreSQL 16 with the Supabase-compat
