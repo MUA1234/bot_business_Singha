@@ -180,4 +180,22 @@ describe.skipIf(!enabled)("WP12 completion concurrency — live, two connections
     await c2.query("rollback").catch(() => {});
     expect(blocked).toBe(true);
   });
+
+  it("two concurrent finalisers cannot both create the same outbox row (unique dedupe key)", async () => {
+    // Two workers enqueuing the same quotation:<id> key → the unique idempotency_key means the
+    // second cannot independently insert while the first holds it (it blocks, then conflicts).
+    const key = "out_race_" + rnd();
+    const ins = `insert into message_outbox (company_id, channel, recipient, body, idempotency_key, status, source_type, message_purpose) values ($1,'whatsapp','9471','b',$2,'pending','quotation','quotation')`;
+    await c1.query("begin");
+    await c1.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+    await c1.query(ins, [cco, key]); // c1 holds the key (uncommitted)
+    await c2.query("begin");
+    await c2.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+    await c2.query("set local statement_timeout = '1500ms'");
+    let contended = false;
+    try { await c2.query(ins, [cco, key]); } catch (e) { contended = /statement timeout|canceling statement|duplicate key|unique/i.test((e as Error).message); }
+    await c1.query("rollback").catch(() => {});
+    await c2.query("rollback").catch(() => {});
+    expect(contended).toBe(true); // c2 could not independently insert the same key
+  });
 });

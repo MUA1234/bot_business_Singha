@@ -111,13 +111,12 @@ describe.skipIf(!enabled)("WP11 approval fail-closed + domain caps (0057) — li
   });
 
   it("missing/cross-company event, NULL amount/currency, and unknown domain all fail closed", async () => {
-    // cross-company: request in `co` references an event in coB
-    const rX = await mkReq(co, feB, maker);
-    const dx = await decide(uOwner, co, rX);
-    expect(dx.ok).toBe(false);
-    expect(dx.error).toMatch(/not found in this company/i);
-    expect(await reqStatus(rX)).toBe("pending"); expect(await actionCount(rX)).toBe(0); expect(await auditCount(rX)).toBe(0);
-    // NULL amount
+    // cross-company: the composite FK (migration 0060) forbids a `co` request referencing a coB event
+    // — it cannot even be inserted (stronger than the RPC's fail-closed check).
+    let fk = false;
+    try { await mkReq(co, feB, maker); } catch (e) { fk = /foreign key|company_fk|violates/i.test((e as Error).message); }
+    expect(fk).toBe(true);
+    // NULL amount (same-company event, so it inserts; decide fails closed)
     const rNull = await mkReq(co, await mkEvent(co, { amount: null }), maker);
     expect((await decide(uOwner, co, rNull)).error).toMatch(/missing amount\/currency/i);
     expect(await reqStatus(rNull)).toBe("pending");

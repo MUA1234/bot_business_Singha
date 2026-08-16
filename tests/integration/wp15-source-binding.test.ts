@@ -120,4 +120,20 @@ describe.skipIf(!enabled)("WP15 source-binding fingerprint (0056) — live, zero
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/retry conflict|differs from the linked journal/i);
   });
+
+  it("_journal_fp_matches is NOT executable by authenticated (function privilege, 0059)", async () => {
+    // The internal helper must be unreachable by untrusted roles; the definer posters (owner) still
+    // call it (proven by the passing tests above).
+    await client.query("set local role authenticated");
+    await client.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: "00000000-0000-0000-0000-0000000000ff", role: "authenticated" })]);
+    let sqlstate = "";
+    // q() wraps the call in a savepoint and rolls back on error, so the permission-denied does not
+    // abort the outer transaction (letting `reset role` below run).
+    try {
+      await q(`select public._journal_fp_matches(gen_random_uuid(),'x',gen_random_uuid(),'x',gen_random_uuid(),'2026-07-15','LKR','m','[]'::jsonb)`);
+    } catch (e) { sqlstate = (e as { code?: string }).code ?? (e as Error).message; }
+    await client.query("reset role");
+    await client.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+    expect(sqlstate).toBe("42501"); // insufficient_privilege
+  });
 });
