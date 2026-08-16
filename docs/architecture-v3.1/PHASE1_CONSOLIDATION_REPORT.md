@@ -1,16 +1,18 @@
 # Phase 1 — 0048+ Security/Accounting Corrections — Consolidation Report
 
 > Blocking prerequisite for the V3.1 program. This report is the verification evidence for the
-> correction phase (work packages WP10–WP18) **as revised after the first external review** —
-> migrations **0048–0060**. Per-WP detail is in `docs/architecture-v3.1/PHASE1_CORRECTIONS_LEDGER.md`;
+> correction phase (work packages WP10–WP18) **as revised after two external reviews** — migrations
+> **0048–0060**. Per-WP detail is in `docs/architecture-v3.1/PHASE1_CORRECTIONS_LEDGER.md`;
 > authoritative applied-state is in `docs/architecture-v2/MIGRATION_STATE.md`.
 >
-> **Phase 1 verdict: CHANGES REQUESTED → corrected; awaiting the SECOND external review.** The first
-> review found blocking defects in WP12, WP15 and WP11 plus a branch-integration problem; all are
-> fixed in this increment. **WP11, WP12 and WP15 are not "done" until the second review approves.**
+> **Phase 1 verdict: CHANGES REQUESTED (twice) → corrected; awaiting the FINAL external review.** The
+> first review found blocking defects in WP12/WP15/WP11 + a branch-integration problem (fixed:
+> 0056–0058); the second asked for deeper WP12 outbox reconciliation, WP11 composite DB constraints +
+> money fail-close, WP15 function-privilege, and doc/deployment accuracy (fixed: 0059–0060 + code +
+> docs). **WP11, WP12 and WP15 are not "done" until a review approves them.**
 >
 > **STOP AFTER THIS REPORT.** Nothing here is merged, deployed, or flag-enabled. Do not begin V3.1
-> Phase 2 until the owner supplies an explicit second-review approval.
+> Phase 2 until the owner supplies an explicit final-review approval.
 
 ## 1. Branch & commit
 
@@ -18,7 +20,7 @@
   against `main`** — it integrates, preserving history: (1) PR #3 compatibility foundation
   (`3224d08`), (2) the Phase-1 stack PRs #4–#12 via tip `509685b`, (3) the external-review
   corrections A–D.
-- **Content commit SHA:** `__FINAL_SHA__` — the commit carrying the second-review corrections
+- **Content commit SHA:** `0eeceae655023f7f9d6373d55fc05112a7ae24e2` — the commit carrying the second-review corrections
   (migrations 0059/0060 + WP12 code + docs). (A commit cannot embed its own hash; this SHA is stamped
   by the immediately following commit on the branch tip, so the tip = the stamp commit and its parent
   is the content commit named here.)
@@ -98,7 +100,7 @@ and pass after the correction. Second-review additions: WP15 function-privilege 
 SQLSTATE 42501), WP11 composite-FK + money/approvals fail-closed (direct DB), WP12 outbox-state
 reconciliation + refreshQuotationStatus hard guard + finaliser-enqueue concurrency.
 
-Adversarial & concurrency coverage is included in the 173 integration tests: RLS write-gating
+Adversarial & concurrency coverage is included in the 180 integration tests: RLS write-gating
 (WP10), system-actor boundary (WP17), posted-journal immutability (WP13), fingerprint collision
 (WP14), invoice/bill invariants + source binding (WP15), reimbursement chain (WP16), approval
 scope/currency/delegation + fail-closed/domain-caps + a two-connection approval race (WP11), and the
