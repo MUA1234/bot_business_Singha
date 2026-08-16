@@ -43,7 +43,7 @@
   against `main`** — it integrates, preserving history: (1) PR #3 compatibility foundation
   (`3224d08`), (2) the Phase-1 stack PRs #4–#12 via tip `509685b`, (3) the external-review
   corrections A–D.
-- **Content commit SHA (seventh review):** `__CONTENT_SHA__` — the commit carrying the claim-boundary +
+- **Content commit SHA (seventh review):** `5e5f42a76e887a929d3fc30e0415e93388194ada` — the commit carrying the claim-boundary +
   INSERT-boundary corrections (migration **0065** — quotation-aware `claim_outbox_batch`, the BEFORE
   INSERT initial-state trigger, and the positive-owner-allowlist UPDATE/`sent_at` guards — plus the new
   `wp12-claim-boundary.test.ts` suite, the extended `wp12-delivery-boundary.test.ts` custom-role suite,
