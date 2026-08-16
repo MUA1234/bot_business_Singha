@@ -48,7 +48,7 @@
   against `main`** — it integrates, preserving history: (1) PR #3 compatibility foundation
   (`3224d08`), (2) the Phase-1 stack PRs #4–#12 via tip `509685b`, (3) the external-review
   corrections A–D.
-- **Content commit SHA (eighth review):** `__CONTENT_SHA__` — the commit carrying the signature-exact
+- **Content commit SHA (eighth review):** `9c51b2c786831098647e492a53a61c1610254241` — the commit carrying the signature-exact
   owner check + delete-boundary + frozen-snapshot corrections (migration **0066** — signature-exact
   `_is_quotation_delivery_owner()` with a migration-time fail-closed assertion, the BEFORE DELETE
   boundary, the whole-row frozen-snapshot UPDATE trigger, and the `quotation_items` freeze via a
