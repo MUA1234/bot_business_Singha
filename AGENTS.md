@@ -8,12 +8,16 @@ Any AI coding agent (Claude Code, Codex, or other) must follow the same rules.
 > (`src/config/flags.ts`) and canonical proposal contracts (`src/schemas/v3_1/*`) — is additive,
 > consumed by no runtime path (this foundation specifically is zero behaviour change). The
 > `0048+` security/accounting correction (pack WP10–WP18) — a **blocking prerequisite** for any V3.1
-> finance/RLS/outbox cutover — is now **IMPLEMENTED as a controlled draft PR** (migrations **0048–0061**,
+> finance/RLS/outbox cutover — is now **IMPLEMENTED as a controlled draft PR** (migrations **0048–0062**,
 > integration branch `feature/v3-1-phase-1-external-review-fixes`), verified on a disposable PostgreSQL
-> 16 (fresh + upgrade), **NOT merged, NOT deployed, hosted DB NOT migrated**, after three external
+> 16 (fresh + upgrade), **NOT merged, NOT deployed, hosted DB NOT migrated**, after four external
 > reviews (all CHANGES REQUESTED → corrected; awaiting the final review). It is **not** uniformly
-> "inert while flags OFF" — the un-migrated hosted DB is the containment, not the flags (see
-> `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md`). Start with
+> "inert while flags OFF" — the un-migrated hosted DB is the containment, not the flags. The latest
+> (fourth) review added migration **0062**, which locks every service-only SECURITY DEFINER function to
+> `service_role`; because the already-hosted 0038–0041 functions may be `authenticated`-executable,
+> a read-only privilege check + owner-approved emergency REVOKE hotfix are **prepared but not executed**
+> (`docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`). See
+> `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md`. Start with
 > `docs/architecture-v3.1/00_BASELINE_ASSESSMENT.md`.
 
 ## Start here, every session
@@ -32,7 +36,8 @@ Any AI coding agent (Claude Code, Codex, or other) must follow the same rules.
 - **This is a WORKING application**, not a Phase-0 documentation stub. It has an app
   shell, Supabase auth, department dashboards, an admin panel, a live official Meta
   WhatsApp Cloud API quotation flow, an internally-owned double-entry Accounting Core,
-  event ingestion, and **195 passing unit tests (46 files)**. TypeScript checks pass.
+  event ingestion, and a large passing unit + integration test suite (current counts in
+  `docs/CURRENT_IMPLEMENTATION_STATUS.md`). TypeScript checks pass.
 - **Current approved phase:** Production Control Foundation
   (`docs/architecture-v2/NEXT_PHASE_DEVELOPER_BRIEF.md`). It is a foundation-hardening
   phase (identity/RLS, accounting controls, staff progress, durable WhatsApp, AI-manager

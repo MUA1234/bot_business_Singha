@@ -5,17 +5,24 @@ appending to prior text. This file describes **reality**; where it disagrees wit
 narrative docs, this file and the code win._
 
 **Current phase:** **Phase 1 — 0048+ Security/Accounting Corrections** (WP10–WP18), migrations
-**0048–0061**. Status: **implemented and verified on a disposable PostgreSQL 16 (fresh + upgrade);
-CHANGES REQUESTED by three external reviews, corrected, and AWAITING THE FINAL REVIEW.** Not merged,
+**0048–0062**. Status: **implemented and verified on a disposable PostgreSQL 16 (fresh + upgrade);
+CHANGES REQUESTED by four external reviews, corrected, and AWAITING THE FINAL REVIEW.** Not merged,
 not deployed, **hosted DB not migrated** (this — not any flag — is what keeps the changes off the live
 system), all feature flags OFF. The corrections (first review: migrations 0056–0058; second review:
 WP12 outbox reconciliation + WP11 composite FKs/money fail-close + WP15 function-privilege, migrations
-0059–0060; third/final review: concurrency-safe `refreshQuotationStatus`, sent-outbox reconcile-or-
+0059–0060; third review: concurrency-safe `refreshQuotationStatus`, sent-outbox reconcile-or-
 fail-closed, currency **catalogue** validation, a concurrency test through the **production enqueue
-RPC**, and doc-accuracy incl. removing the "inert because flags OFF" claim — migration 0061) live on
-the integration branch `feature/v3-1-phase-1-external-review-fixes` (PR #3 foundation + stack PRs
-#4–#12 + all three correction rounds, one draft PR against `main`). Verified counts: **unit 420 (79
-files); integration 34 files / 182 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md`
+RPC**, and doc-accuracy incl. removing the "inert because flags OFF" claim — migration 0061; fourth
+(security-boundary) review: **migration 0062** locks every service-only SECURITY DEFINER function
+(`_journal_post_internal` incl. its legacy signature, `claim_outbox_batch`, `complete_outbox_and_advance`,
+`ledger_integrity_report`, and the outbox/fingerprint helpers) to `service_role`, with an allowlist
+test over ALL such functions; `tryFinalizeAndSend` made end-to-end concurrency-safe (re-read the real
+state after the guarded refresh, build from the fresh total, no JS `Number`); plus a prepared-but-
+unexecuted hosted privilege check + emergency REVOKE hotfix for the already-hosted 0038–0041 functions
+— see `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`) live on the integration branch
+`feature/v3-1-phase-1-external-review-fixes` (PR #3 foundation + stack PRs #4–#12 + all four correction
+rounds, one draft PR against `main`). Verified counts: **unit 426 (79 files); integration 35 files /
+190 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md`
 and `PHASE1_CORRECTIONS_LEDGER.md`; authoritative applied-state: `docs/architecture-v2/MIGRATION_STATE.md`.
 **Do not begin V3.1 Phase 2 until the owner approves the final review.**
 
@@ -122,32 +129,48 @@ Implemented + verified on a disposable Postgres 16 (incl. an upgrade path from a
   `brace-expansion` fixed; `next`/`postcss` reviewed exceptions. Production config
   fail-fast via `src/instrumentation.ts`. Gates: `DEPLOYMENT_GATES.md`.
 
-## Verification evidence (2026-08-07, local, this machine)
+## Verification evidence (2026-08-16, local disposable PostgreSQL 16)
 
-Commands run and results:
+> Supersedes the earlier 2026-08-07 snapshot (migrations 0044–0047; unit 374) — that wording is stale;
+> the header above carries the current authoritative counts. **GitHub Actions obtained no runner** on
+> any run (the account's runner provisioning fails at startup — systemic, pre-existing), so there is
+> **no CI-pass**; the disposable local PostgreSQL 16 is the CI substitute for all database evidence.
+
+Commands run and results (integration branch, migrations 0001–0062):
 - `npm run secret-scan` → **pass** (no tracked secrets).
-- `npm run migration-lint` → **pass** (47 migrations, sequential 0001–0047).
+- `npm run migration-lint` → **pass** (62 migrations, sequential 0001–0062).
 - `npm run typecheck` → **pass**.
 - `npm run lint` → **pass** (pre-existing `<img>` warnings only).
-- `npm test` → **374 passing** (74 files) + 22 integration files / 89 tests on disposable Postgres 16.
+- `npm test` (unit) → **426 passing (79 files)**.
 - `npm run build` → **pass** (placeholder public env).
 - `npm run audit-check` → **pass** (2 high findings, both approved exceptions: next, postcss).
 
-**Database tests (now run):**
-- `DATABASE_URL=<disposable Postgres 16> npm run test:integration` → **22 files / 89 tests pass**,
-  including adversarial RLS, accounting-RPC hardening, canonical idempotency + lifecycle,
-  bank maker-checker, approval authority, RLS-matrix coverage, and two-connection concurrency
-  (settlement, reversal, invoice post, bank approval). Verified from a clean checkout AND via
-  the 0043→0047 upgrade path with legacy data. The same suite runs in CI's `db-tests` job.
-- Migrations **0038–0043** were applied by the owner to the live DB; **0044–0047** are NOT yet
-  applied to any hosted DB (owner action — see `MIGRATION_STATE.md`).
+**Database tests (disposable PostgreSQL 16 + Supabase-compat shim — run locally, NOT in CI):**
+- Fresh `0001→0062` then `npm run test:integration` → **35 files / 190 tests pass**, including the 0062
+  SECURITY DEFINER allowlist + `42501` adversarial privilege tests (authenticated cannot post a journal,
+  claim/read an outbox batch, read the cross-company integrity report, or complete an outbox row), the
+  WP11/WP12 adversarial + two-connection concurrency suites, and the currency-catalogue tests.
+- Upgrade path (staged at `0058` + company-consistent legacy data → `0059→0062`) → **35 files / 190
+  tests pass**; the 0062 lockdown holds on the upgraded DB. These suites are wired into CI's `db-tests`
+  job, but **GitHub Actions obtained no runner**, so they were executed locally, not in CI.
+- Hosted applied-state: the single authoritative statement is in "Reconciliation with MIGRATION_STATE.md"
+  below and `MIGRATION_STATE.md` (0038–0041 owner-reported applied 2026-08-07, unverified by this
+  process; 0042–0062 owner confirmation required).
 
 ## Reconciliation with MIGRATION_STATE.md
 
 `MIGRATION_STATE.md` is the authority on applied-state. 0001–0013 confirmed applied to
-production (owner, 2026-08-05); 0014–0022 reported-applied-unverified; 0023–0043 applied by owner to
-the DB `gazjughejdzebathpscb`; **0038–0041 not applied to any environment**. No statement
-here asserts a migration is applied merely because its file exists.
+production (owner, 2026-08-05); 0014–0022 reported-applied-unverified; 0023–0037 applied by owner to
+the hosted DB `gazjughejdzebathpscb`. **0038–0041: owner-reported applied to the hosted DB on
+2026-08-07** (SQL editor, `RUN_0038-0041_security_reliability_gate.sql`), **unverified by this
+process** (no hosted access) — this is the single authoritative statement; earlier text that also said
+"not applied to any environment" is void. Because 0039/0040/0041 revoked service-only function EXECUTE
+only from PUBLIC, their SECURITY DEFINER functions (`claim_outbox_batch`, `ledger_integrity_report`,
+legacy `_journal_post_internal`) may be `authenticated`-executable on the hosted DB — mitigation
+prepared but **not executed** (`docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`); migration
+0062 fixes it once applied. **0042–0062: owner confirmation required** (dev-verified on disposable
+PostgreSQL 16 only; not applied to any hosted environment). No statement here asserts a migration is
+applied merely because its file exists.
 
 ## Gated / not built (owner + legal/privacy approval required)
 

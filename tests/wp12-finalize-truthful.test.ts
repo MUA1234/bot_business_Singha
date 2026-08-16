@@ -15,7 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { outboundIdempotencyKey } from "@/events/outbox";
 
-const H = vi.hoisted(() => ({ box: { store: undefined as any, writes: [] as any[] }, enqueueMock: vi.fn(), drainMock: vi.fn(), reconcileMock: vi.fn() }));
+const H = vi.hoisted(() => ({ box: { store: undefined as any, writes: [] as any[], raceTo: null as string | null, raceConsumed: false }, enqueueMock: vi.fn(), drainMock: vi.fn(), reconcileMock: vi.fn() }));
 
 vi.mock("@/lib/outbox-enqueue", () => ({ enqueueOutbox: H.enqueueMock }));
 vi.mock("@/events/outbox-drain", () => ({ drainOutbox: H.drainMock }));
@@ -37,6 +37,14 @@ function makeDb(box: any) {
     }
     function run() {
       if (mode === "update") {
+        // Concurrency simulation: the FIRST quotations UPDATE is refreshQuotationStatus's guarded
+        // update. If a race target is set, a concurrent transaction is modelled as having moved the
+        // row to that status just before — so the guarded `.in(...)` filter now matches nothing (a
+        // real no-op) and the later re-read observes the raced status. One-shot.
+        if (table === "quotations" && box.raceTo && !box.raceConsumed) {
+          box.raceConsumed = true;
+          for (const r of Object.values(box.store.quotations)) (r as any).status = box.raceTo;
+        }
         const rs = rows();
         box.writes.push({ op: "update", table, payload, rows: rs.length });
         for (const r of rs) Object.assign(r, payload);
@@ -68,15 +76,17 @@ function makeDb(box: any) {
 }
 
 const OB_KEY = outboundIdempotencyKey("whatsapp", "quotation:q1");
-function seed(status: string, opts: { priced?: boolean; outbox?: string } = {}) {
+function seed(status: string, opts: { priced?: boolean; outbox?: string; total?: number; raceTo?: string } = {}) {
   const priced = opts.priced ?? true;
   H.box.store = {
-    quotations: { q1: { id: "q1", company_id: "co", quote_number: "SQ-1", currency: "LKR", total: 100, status, public_token: "tok", order_id: "o1" } },
+    quotations: { q1: { id: "q1", company_id: "co", quote_number: "SQ-1", currency: "LKR", total: opts.total ?? 100, status, public_token: "tok", order_id: "o1" } },
     orders: { o1: { id: "o1", company_id: "co", customer_phone: "94711", customer_name: "C", conversation_id: "cv1" } },
     items: [{ quotation_id: "q1", company_id: "co", unit_price: priced ? 100 : null, line_total: priced ? 100 : null, status: priced ? "priced" : "needs_confirmation" }],
     message_outbox: {} as any,
   };
   if (opts.outbox) H.box.store.message_outbox[OB_KEY] = { id: OB_KEY, company_id: "co", idempotency_key: OB_KEY, source_type: "quotation", source_id: "q1", status: opts.outbox };
+  H.box.raceTo = opts.raceTo ?? null;
+  H.box.raceConsumed = false;
   H.box.writes = [];
 }
 const qStatus = () => H.box.store.quotations.q1.status;
@@ -268,5 +278,51 @@ describe("WP12 tryFinalizeAndSend — state machine + outbox reconciliation", ()
     const r = await tryFinalizeAndSend("co", "q1");
     expect(r.reason).toBe("awaiting_price");
     expect(H.enqueueMock).not.toHaveBeenCalled();
+  });
+
+  // ── item 2: end-to-end concurrency. tryFinalizeAndSend NEVER assumes `ready` after the guarded
+  //    refresh — it re-reads the authoritative state and branches on it. ──
+
+  it.each(["sent", "accepted", "rejected"])(
+    "initial read is ready but the row races to terminal %s before the guarded update → zero enqueue, zero outbox row",
+    async (term) => {
+      seed("ready", { raceTo: term });
+      const r = await tryFinalizeAndSend("co", "q1");
+      expect(H.enqueueMock, term).not.toHaveBeenCalled();
+      expect(Object.keys(H.box.store.message_outbox), term).toHaveLength(0); // no outbox row created
+      expect(H.drainMock, term).not.toHaveBeenCalled();
+      expect(r.reason, term).toBe("terminal");
+      expect(r.sent, term).toBe(term === "sent");
+    },
+  );
+
+  it("initial read is draft but the row races to rejected before the guarded update → zero enqueue, zero send", async () => {
+    seed("draft", { raceTo: "rejected" });
+    const r = await tryFinalizeAndSend("co", "q1");
+    expect(H.enqueueMock).not.toHaveBeenCalled();
+    expect(Object.keys(H.box.store.message_outbox)).toHaveLength(0);
+    expect(r.reason).toBe("terminal");
+    expect(r.sent).toBe(false);
+  });
+
+  it("initial read is ready but the row races to queued before the guarded update → reconcile the EXISTING outbox row, no new enqueue", async () => {
+    // A concurrent finaliser already enqueued (pending row) and moved the quotation to queued.
+    seed("ready", { raceTo: "queued", outbox: "pending" });
+    H.drainMock.mockImplementation(async () => { H.box.store.quotations.q1.status = "sent"; return { ok: true, considered: 1, sent: 1, failed: 0, dead: 0, errors: 0 }; });
+    const r = await tryFinalizeAndSend("co", "q1");
+    expect(H.enqueueMock).not.toHaveBeenCalled();        // NO new enqueue
+    expect(H.drainMock).toHaveBeenCalledTimes(1);        // reconciled the existing pending row
+    expect(r.sent).toBe(true);
+    expect(r.status).toBe("sent");
+  });
+
+  it("builds the message from the freshly-persisted total, not the stale pre-refresh total", async () => {
+    // Stale/zero total on the row; the priced item recomputes it to 100 during the guarded refresh.
+    seed("draft", { total: 0 });
+    await tryFinalizeAndSend("co", "q1");
+    expect(H.enqueueMock).toHaveBeenCalledTimes(1);
+    const body = H.enqueueMock.mock.calls[0]![0].body as string;
+    expect(body).toContain("LKR 100.00"); // the newly-calculated total, formatted without JS Number
+    expect(body).not.toMatch(/LKR 0(\.00)?\b/); // never the stale zero
   });
 });

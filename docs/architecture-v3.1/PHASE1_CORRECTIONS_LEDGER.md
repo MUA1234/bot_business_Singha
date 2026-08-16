@@ -5,17 +5,20 @@
 > with failing-before/passing-after tests, verified on a disposable PostgreSQL 16 (fresh **and**
 > `0047→0048+` upgrade path). `RLS_READS` / `RLS_WRITES` / `WHATSAPP_ASYNC` stay OFF. No hosted action.
 
-> **Phase 1 status: CHANGES REQUESTED (three times) → corrected, awaiting the FINAL external review.**
+> **Phase 1 status: CHANGES REQUESTED (four times) → corrected, awaiting the FINAL external review.**
 > The first review found blocking defects in WP12/WP15/WP11 + a branch-integration problem (fixed:
 > migrations **0056–0058**). The second review asked for deeper WP12 outbox-state reconciliation,
 > WP11 composite DB constraints + money fail-close, WP15 function-privilege, and doc/deployment
-> accuracy (fixed: migrations **0059–0060** + WP12 code + docs). The third (bounded final) review asked
-> for a concurrency-safe `refreshQuotationStatus`, reconcile-or-fail-closed for a sent-outbox/quotation
+> accuracy (fixed: migrations **0059–0060** + WP12 code + docs). The third review asked for a
+> concurrency-safe `refreshQuotationStatus`, reconcile-or-fail-closed for a sent-outbox/quotation
 > inconsistency, currency validation against a **catalogue**, a concurrency test through the
-> **production enqueue RPC** invoked by the real wrapper, and documentation accuracy — **including
-> removing the incorrect claim that these migrations are inert merely because the flags are OFF**
-> (fixed: migration **0061** + WP11/WP12 code + docs). All on the integration branch
-> `feature/v3-1-phase-1-external-review-fixes` (PR #3 foundation + stack PRs #4–#12 + all three
+> **production enqueue RPC**, and doc accuracy incl. removing the "inert while flags OFF" claim (fixed:
+> migration **0061** + WP11/WP12 code + docs). The fourth (security-boundary) review asked to lock every
+> service-only SECURITY DEFINER function to `service_role` with an allowlist test over ALL of them, to
+> make `tryFinalizeAndSend` end-to-end concurrency-safe, to prepare-but-not-execute a hosted privilege
+> check + emergency REVOKE for the already-hosted 0038–0041 functions, and to reconcile the docs (fixed:
+> migration **0062** + WP12 code + prepared hosted artifacts + docs). All on the integration branch
+> `feature/v3-1-phase-1-external-review-fixes` (PR #3 foundation + stack PRs #4–#12 + all four
 > correction rounds). **WP11, WP12 and WP15 are NOT re-marked "done" until a review approves them.**
 > See the external-review section below and `PHASE1_CONSOLIDATION_REPORT.md`.
 
@@ -423,23 +426,56 @@ Migration **0061** internals worth noting for review: `enqueue_outbox_row` uses 
 (EXECUTE revoked from `public`, `authenticated`, `anon`; granted to `service_role`) because Supabase /
 the test shim grant EXECUTE on public functions to `authenticated` by default.
 
+## Fourth (security-boundary) external review — migration 0062 + WP12 code + prepared hosted artifacts
+
+CHANGES REQUESTED, bounded. Do not merge; do not begin Phase 2; do not migrate hosted / deploy / enable
+flags. Three items, all addressed:
+
+1. **SECURITY DEFINER audit + lockdown (migration 0062).** Every service-only / internal function is
+   revoked from PUBLIC, `anon` and `authenticated` and granted only `service_role`:
+   `_journal_post_internal` (incl. its legacy 7-arg signature — caught by the name-based loop and an
+   explicit `to_regprocedure` guard), `claim_outbox_batch(integer,text,integer)`,
+   `complete_outbox_and_advance(uuid,text,text)`, `ledger_integrity_report(uuid)`, `_journal_fp_matches`,
+   `enqueue_outbox_row`, `reconcile_quotation_from_outbox`. Idempotent + upgrade-safe. Deliberately left
+   executable (documented + asserted): RLS predicate helpers and the authenticated write-path RPCs.
+   Tests (`tests/integration/secure-definer-grants.test.ts`): an **allowlist over ALL** SECURITY DEFINER
+   functions (fails on any unclassified one); the grant matrix; and `42501` proofs that an authenticated
+   caller cannot create a journal, claim/read an outbox batch, read the cross-company integrity report,
+   or complete an outbox row — while `service_role` retains execution.
+2. **`tryFinalizeAndSend` end-to-end concurrency-safe.** No longer assumes `ready` after
+   `refreshQuotationStatus` returns `awaiting=false`; it **re-reads** the real status+total after the
+   guarded update. Race to `sent`/`accepted`/`rejected` → stop, zero enqueue/send; race to `queued` →
+   reconcile only the existing outbox row; new enqueue only while still `ready`. The message is built
+   from the **freshly-persisted total** (not `quote.total`) and formatted **without a JS `Number`**
+   (Decimal → string). Unit tests: each race (queued/sent/accepted/rejected before the guarded update)
+   creates no outbox row / no delivery, and a stale/zero total sends the newly-calculated total.
+3. **Hosted 0038–0041 — prepared, NOT executed.** `docs/architecture-v2/hosted_secdef_privilege_check.sql`
+   (read-only), `hosted_secdef_emergency_revoke.sql` (owner-approved break-glass) and
+   `HOSTED_SECDEF_PRIVILEGE_HOTFIX.md` (evidence: a 0041-staged disposable DB shows the legacy
+   `_journal_post_internal`, `claim_outbox_batch` and `ledger_integrity_report` are
+   `authenticated`-executable before the hotfix and locked after). Docs reconciled (one 0038–0041 hosted
+   statement; 0042–0062 separate; GitHub Actions obtained no runner; Vercel Preview vs no prod; stale
+   195/current-state wording removed).
+
 ## Verification (disposable PostgreSQL 16, this session)
 
 | Gate | Result |
 |---|---|
 | `npm run secret-scan` | pass |
-| `npm run migration-lint` | pass — **61 migrations, sequential 0001–0061** |
+| `npm run migration-lint` | pass — **62 migrations, sequential 0001–0062** |
 | `npm run typecheck` | pass |
 | `npm run lint` | pass (0 errors; pre-existing `<img>` warnings only) |
-| `npm test` (unit) | pass — **420 (79 files)** |
+| `npm test` (unit) | pass — **426 (79 files)** |
 | `npm run audit-check` | pass (2 approved exceptions) |
 | `npm run build` | pass |
-| `npm run test:integration` — **fresh DB** (0001→0061 from scratch) | pass — **34 files / 182 tests** |
-| `npm run test:integration` — **upgrade path** (0058 + legacy data → 0059→0061) | pass — **34 files / 182 tests** (composite FKs VALIDATE over legacy data; on the upgraded DB a legacy `LKR` event approves, a legacy `XYZ` event fails closed, a legacy sent-outbox reconciles) |
+| `npm run test:integration` — **fresh DB** (0001→0062 from scratch) | pass — **35 files / 190 tests** (incl. the 0062 SECURITY DEFINER allowlist + 42501 adversarial suite) |
+| `npm run test:integration` — **upgrade path** (0058 + legacy data → 0059→0062) | pass — **35 files / 190 tests**; the 0062 lockdown holds on the upgraded DB |
 
-_Numbers above are the **final (third) review increment** (integration branch, migrations 0048–0061).
-The second-review figures (0060, 34 files / 180 tests, unit 410) and earlier rounds (first review:
-0058, 33 files / 173 tests, unit 405; first pass: 0055, unit 374) are superseded._
+_Numbers above are the **fourth (security-boundary) review increment** (integration branch, migrations
+0048–0062). Earlier rounds — third (0061, 34 files / 182 tests, unit 420); second (0060, 34 files / 180
+tests, unit 410); first (0058, 33 files / 173 tests, unit 405); first pass (0055, unit 374) — are
+superseded. **GitHub Actions obtained no runner on any run**; all evidence is local disposable
+PostgreSQL 16 — no CI-pass is claimed._
 
 Toolchain: Node v22.22.2, npm 10.9.7, PostgreSQL 16.13. No hosted migration applied; no feature flag
 enabled.

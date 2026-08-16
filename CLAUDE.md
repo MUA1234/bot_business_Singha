@@ -6,7 +6,8 @@
 > **Implementation status (current):** This is a WORKING application, not a Phase-0
 > documentation stub. It has an app shell, auth, department dashboards, an admin
 > panel, a live WhatsApp Cloud API quotation flow, an internally-owned double-entry
-> Accounting Core, event ingestion, and 195 passing unit tests (46 files). Do NOT
+> Accounting Core, event ingestion, and a large passing unit + integration test suite
+> (current counts in `docs/CURRENT_IMPLEMENTATION_STATUS.md`). Do NOT
 > treat this repo as greenfield. See `docs/CURRENT_IMPLEMENTATION_STATUS.md`.
 >
 > **Active target / current approved phase:** the **Production Control Foundation**
@@ -18,21 +19,25 @@
 > `docs/architecture-v3.1/` (`00_BASELINE_ASSESSMENT.md`, `01_V3_1_EXECUTION_SPEC.md`,
 > `IMPLEMENTATION_LEDGER.md`). Its compatibility foundation (default-OFF flags `src/config/flags.ts`
 > + proposal contracts `src/schemas/v3_1/*`) plus the **`0048+` security/accounting correction (pack
-> WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0061** — and verified on a
+> WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0062** — and verified on a
 > disposable PostgreSQL 16 (fresh + upgrade). They are the **blocking prerequisite** for any V3.1
 > finance/RLS/outbox cutover and are **NOT merged, NOT deployed, hosted DB NOT migrated, all flags
 > OFF**. (Note: "hosted DB NOT migrated" — not the flags — is what keeps these off the live system;
 > the WP12 delivery path runs with `WHATSAPP_ASYNC` OFF and `decide_approval`/FKs/catalogue enforce for
-> any caller once migrated, so they are **not** uniformly "inert while flags OFF".) Three external
-> reviews returned **CHANGES REQUESTED**; all are fixed (first review: migrations 0056–0058; second
-> review: WP12 outbox reconciliation + WP11 composite FKs/money fail-close + WP15 function-privilege,
-> migrations 0059–0060; third/final review: concurrency-safe `refreshQuotationStatus`, sent-outbox
-> reconcile-or-fail-closed, currency-catalogue validation, a concurrency test through the production
-> enqueue RPC, and doc accuracy — migration 0061) on
+> any caller once migrated, so they are **not** uniformly "inert while flags OFF".) Four external
+> reviews returned **CHANGES REQUESTED**; all are fixed (first: migrations 0056–0058; second: WP12
+> outbox reconciliation + WP11 composite FKs/money fail-close + WP15 function-privilege, 0059–0060;
+> third: concurrency-safe `refreshQuotationStatus`, sent-outbox reconcile-or-fail-closed,
+> currency-catalogue validation, production enqueue-RPC concurrency test, doc accuracy — 0061; fourth
+> (security-boundary): lock every service-only SECURITY DEFINER function to `service_role` — migration
+> **0062** + an allowlist test over ALL such functions; end-to-end concurrency-safe `tryFinalizeAndSend`
+> — re-read the real state, fresh total, no JS `Number`; a prepared-but-unexecuted hosted privilege
+> check + emergency REVOKE hotfix for the already-hosted 0038–0041 functions
+> — `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`) on
 > `feature/v3-1-phase-1-external-review-fixes`, now **awaiting the FINAL external review** — do not
-> begin V3.1 Phase 2 until it is approved. Verified counts: **unit 420 (79 files); integration 34
-> files / 182 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
-> `PHASE1_CORRECTIONS_LEDGER.md`. (The "195 (46 files)" and "374 (75 files)" figures above are stale.)
+> begin V3.1 Phase 2 until it is approved. Verified counts: **unit 426 (79 files); integration 35
+> files / 190 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
+> `PHASE1_CORRECTIONS_LEDGER.md`.
 >
 > **Superseded-document rule:** A coding agent MUST NOT rely on any instruction that
 > conflicts with the document precedence below. Where a document is marked superseded

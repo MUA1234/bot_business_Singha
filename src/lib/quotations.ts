@@ -63,6 +63,19 @@ export function quoteUrl(token: string): string {
 }
 
 /**
+ * Format a monetary total for display WITHOUT a lossy JavaScript Number conversion. The DB returns
+ * `numeric` as a string; `new Decimal()` parses it exactly, `toFixed(2)` fixes the scale, and the
+ * thousands separators are applied with a string-only regex — the value never passes through a
+ * binary float. (Totals are non-negative here.)
+ */
+function formatMoney(total: string | number | null | undefined): string {
+  const parts = new Decimal(total ?? 0).toFixed(2).split("."); // always "int.frac" (2dp)
+  const int = parts[0] ?? "0";
+  const frac = parts[1] ?? "00";
+  return `${int.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${frac}`;
+}
+
+/**
  * Create an order + quotation + items from a captured request, then price it.
  * Returns the quotation id and whether it is fully priced (ready) or awaiting a
  * human price confirmation.
@@ -247,11 +260,11 @@ export async function tryFinalizeAndSend(
 ): Promise<{ sent: boolean; status?: string; reason?: string; drain?: DrainResult }> {
   const db = supabaseAdmin();
 
-  // Read the CURRENT state FIRST — before any price refresh — so the legal state machine is honoured
+  // Read the CURRENT status FIRST — before any price refresh — so the legal state machine is honoured
   // (draft → awaiting_price → ready → queued → sent; accepted/rejected terminal).
   const { data: quote } = await db
     .from("quotations")
-    .select("id, quote_number, currency, total, status, public_token, order_id, company_id")
+    .select("status")
     .eq("id", quotationId)
     .eq("company_id", companyId)
     .single();
@@ -263,18 +276,38 @@ export async function tryFinalizeAndSend(
   }
 
   // Refresh pricing ONLY for pre-queue states; a `queued` quotation is never re-priced or reset.
-  let curStatus = quote.status as string;
-  if (curStatus !== "queued") {
+  if (quote.status !== "queued") {
     const awaiting = await refreshQuotationStatus(companyId, quotationId);
     if (awaiting) return { sent: false, status: "awaiting_price", reason: "awaiting_price" };
-    curStatus = "ready";
   }
-  // curStatus is now 'ready' (fresh) or 'queued' (already enqueued once).
+
+  // RE-READ the authoritative state AFTER the guarded refresh — NEVER assume `ready` just because
+  // refreshQuotationStatus returned awaiting=false. Its UPDATE is guarded (a no-op if the row moved
+  // concurrently), so between the first read and here the quotation may have gone queued/sent/
+  // accepted/rejected, and its total may have been recomputed. Both status AND total come from here.
+  const { data: fresh } = await db
+    .from("quotations")
+    .select("status, total, currency, quote_number, public_token, order_id")
+    .eq("id", quotationId)
+    .eq("company_id", companyId)
+    .single();
+  if (!fresh) return { sent: false, reason: "not_found" };
+  const curStatus = fresh.status as string;
+
+  // Terminal after the refresh → STOP with zero enqueue/send.
+  if (curStatus === "sent" || curStatus === "accepted" || curStatus === "rejected") {
+    return { sent: curStatus === "sent", status: curStatus, reason: "terminal" };
+  }
+  // Only `ready` (freshly priced) or `queued` (already enqueued once) may proceed. A concurrent
+  // re-price could leave it `awaiting_price`/`draft` — not sendable now, and never enqueued.
+  if (curStatus !== "ready" && curStatus !== "queued") {
+    return { sent: false, status: curStatus, reason: curStatus === "awaiting_price" ? "awaiting_price" : "not_ready" };
+  }
 
   const { data: order } = await db
     .from("orders")
     .select("customer_phone, customer_name, conversation_id")
-    .eq("id", quote.order_id)
+    .eq("id", fresh.order_id)
     .eq("company_id", companyId)
     .maybeSingle();
   const to = order?.customer_phone?.replace(/^\+/, "");
@@ -283,17 +316,21 @@ export async function tryFinalizeAndSend(
     return { sent: false, status: curStatus, reason: "no_recipient" };
   }
 
-  const link = quoteUrl(quote.public_token);
-  const total = `${quote.currency} ${Number(quote.total).toLocaleString()}`;
+  // Build the message from the FRESHLY-persisted total (not the pre-refresh read), formatted without
+  // a lossy JavaScript Number conversion (see formatMoney).
+  const link = quoteUrl(fresh.public_token);
+  const total = `${fresh.currency} ${formatMoney(fresh.total)}`;
   const body =
     `Thank you${order?.customer_name ? `, ${order.customer_name}` : ""}! ` +
-    `Here is your quotation ${quote.quote_number} from Singha.\n\n` +
+    `Here is your quotation ${fresh.quote_number} from Singha.\n\n` +
     `Total: ${total}\n\nView / download your quotation:\n${link}\n\n` +
     `Reply here if you'd like to proceed or have any questions.`;
   const dedupeKey = `quotation:${quotationId}`;
 
   // Enqueue EXACTLY once, tagged with its source. If already `queued`, do NOT enqueue or add history
-  // again — reconcile the existing row. Handle every enqueue result explicitly.
+  // again — reconcile the existing row. A NEW enqueue happens only for a `ready` quotation (proven by
+  // the fresh re-read above, and re-proven by the guarded ready→queued transition below, which no-ops
+  // if a concurrent finaliser moved it first). Handle every enqueue result explicitly.
   let enq: "enqueued" | "duplicate" | "unavailable";
   if (curStatus === "queued") {
     enq = "duplicate";
