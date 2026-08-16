@@ -3,8 +3,9 @@
  * money/approvals_required. Live Postgres, ZERO-PERSISTENCE.
  *
  * Proves migration 0060: an approval_action cannot reference a cross-company approval_request
- * (composite FK); and decide_approval fails closed on a non-positive/non-finite amount, an invalid
- * currency, and an invalid approvals_required.
+ * (composite FK); and decide_approval fails closed on a non-positive/non-finite amount and an invalid
+ * approvals_required. Migration 0061: the financial-event currency is validated against the
+ * `currencies` CATALOGUE (a well-formed-but-unseeded code like ZZZ is rejected), not a bare regex.
  *
  * Skipped unless DATABASE_URL is set.
  */
@@ -42,7 +43,7 @@ async function mkReq(fe: string, required = 1): Promise<string> {
   return (await q(`insert into approval_requests (company_id, financial_event_id, status, approvals_required, submitted_by) values ($1,$2,'pending',$3,$4) returning id`, [co, fe, required, maker])).rows[0].id;
 }
 
-describe.skipIf(!enabled)("WP11 composite constraints + money fail-closed (0060) — live, zero-persistence", () => {
+describe.skipIf(!enabled)("WP11 composite constraints + money/currency fail-closed (0060/0061) — live, zero-persistence", () => {
   beforeAll(async () => {
     const { default: pg } = await import("pg" as string);
     client = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } });
@@ -83,10 +84,25 @@ describe.skipIf(!enabled)("WP11 composite constraints + money fail-closed (0060)
     expect(r.error).toMatch(/positive and finite/i);
   });
 
-  it("an invalid currency fails closed", async () => {
+  it("a well-formed but unsupported currency (ZZZ) fails closed — validated against the catalogue, not a bare regex", async () => {
+    // ZZZ passes any three-letter regex yet is not a seeded ISO code, so the OLD regex would have let
+    // it through. The catalogue check (migration 0061) must reject it.
+    const r = await decide(uOwner, await mkReq(await mkEvent(co, "500", "ZZZ")));
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/not a supported currency/i);
+  });
+
+  it("a malformed currency (1XA) also fails closed against the catalogue", async () => {
     const r = await decide(uOwner, await mkReq(await mkEvent(co, "500", "1XA")));
     expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/currency is invalid/i);
+    expect(r.error).toMatch(/not a supported currency/i);
+  });
+
+  it("a seeded supported currency (LKR) passes the currency gate (reaches later authority checks)", async () => {
+    // A supported currency must NOT trip the currency check; this request is otherwise valid and the
+    // owner holds company-wide LKR payment authority, so decide_approval succeeds.
+    const r = await decide(uOwner, await mkReq(await mkEvent(co, "500", "LKR")));
+    expect(r.ok, r.error).toBe(true);
   });
 
   it("an invalid approvals_required fails closed", async () => {

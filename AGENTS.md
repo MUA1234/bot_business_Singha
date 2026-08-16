@@ -4,11 +4,16 @@ This repository is governed by `CLAUDE.md` and the documents under `docs/`.
 Any AI coding agent (Claude Code, Codex, or other) must follow the same rules.
 
 > **V3.1 program (added 2026-08).** A V3.1 senior-management-intelligence evolution is scoped in
-> `docs/architecture-v3.1/`. Only its compatibility foundation is built so far: a default-OFF
-> feature-flag registry (`src/config/flags.ts`) and canonical proposal contracts
-> (`src/schemas/v3_1/*`) — additive, consumed by no runtime path, zero behaviour change. The
-> `0048+` security/accounting correction (pack WP10–WP18) is **not yet implemented** and is a
-> **blocking prerequisite** for any V3.1 finance/RLS/outbox cutover. Start with
+> `docs/architecture-v3.1/`. Its compatibility foundation — a default-OFF feature-flag registry
+> (`src/config/flags.ts`) and canonical proposal contracts (`src/schemas/v3_1/*`) — is additive,
+> consumed by no runtime path (this foundation specifically is zero behaviour change). The
+> `0048+` security/accounting correction (pack WP10–WP18) — a **blocking prerequisite** for any V3.1
+> finance/RLS/outbox cutover — is now **IMPLEMENTED as a controlled draft PR** (migrations **0048–0061**,
+> integration branch `feature/v3-1-phase-1-external-review-fixes`), verified on a disposable PostgreSQL
+> 16 (fresh + upgrade), **NOT merged, NOT deployed, hosted DB NOT migrated**, after three external
+> reviews (all CHANGES REQUESTED → corrected; awaiting the final review). It is **not** uniformly
+> "inert while flags OFF" — the un-migrated hosted DB is the containment, not the flags (see
+> `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md`). Start with
 > `docs/architecture-v3.1/00_BASELINE_ASSESSMENT.md`.
 
 ## Start here, every session

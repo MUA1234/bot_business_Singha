@@ -15,7 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { outboundIdempotencyKey } from "@/events/outbox";
 
-const H = vi.hoisted(() => ({ box: { store: undefined as any, writes: [] as any[] }, enqueueMock: vi.fn(), drainMock: vi.fn() }));
+const H = vi.hoisted(() => ({ box: { store: undefined as any, writes: [] as any[] }, enqueueMock: vi.fn(), drainMock: vi.fn(), reconcileMock: vi.fn() }));
 
 vi.mock("@/lib/outbox-enqueue", () => ({ enqueueOutbox: H.enqueueMock }));
 vi.mock("@/events/outbox-drain", () => ({ drainOutbox: H.drainMock }));
@@ -56,7 +56,15 @@ function makeDb(box: any) {
     };
     return api;
   }
-  return { from: qb };
+  return {
+    from: qb,
+    // Service-only RPCs the state machine may call. Only reconcile_quotation_from_outbox is reachable
+    // here (from the sent-outbox branch); it returns a boolean the caller re-verifies against the store.
+    rpc: async (name: string, args: any) => {
+      if (name === "reconcile_quotation_from_outbox") return { data: await H.reconcileMock(args), error: null };
+      return { data: null, error: { message: `unknown rpc ${name}` } };
+    },
+  };
 }
 
 const OB_KEY = outboundIdempotencyKey("whatsapp", "quotation:q1");
@@ -79,6 +87,8 @@ describe("WP12 tryFinalizeAndSend — state machine + outbox reconciliation", ()
   beforeEach(() => {
     H.enqueueMock.mockReset();
     H.drainMock.mockReset();
+    H.reconcileMock.mockReset();
+    H.reconcileMock.mockResolvedValue(false); // opt-in per test; default: reconcile cannot advance
     H.drainMock.mockResolvedValue({ ok: true, considered: 0, sent: 0, failed: 0, dead: 0, errors: 0 });
     // Default enqueue: insert a fresh pending outbox row (as the real enqueue would) and return enqueued.
     H.enqueueMock.mockImplementation(async (e: any) => {
@@ -119,15 +129,49 @@ describe("WP12 tryFinalizeAndSend — state machine + outbox reconciliation", ()
     expect(r.status).toBe("sent");
   });
 
-  it("outbox states reconcile distinctly: processing waits, dead is surfaced, sent is already-sent (no drain)", async () => {
-    for (const [obState, reason] of [["processing", "processing"], ["dead", "dead"], ["sent", "already_sent"]] as const) {
+  it("outbox states reconcile distinctly: processing waits, dead is surfaced (no drain)", async () => {
+    for (const [obState, reason] of [["processing", "processing"], ["dead", "dead"]] as const) {
       seed("queued", { outbox: obState });
       const r = await tryFinalizeAndSend("co", "q1");
-      expect(H.drainMock, obState).not.toHaveBeenCalled(); // none of these three drain
+      expect(H.drainMock, obState).not.toHaveBeenCalled(); // neither drains
       expect(r.reason, obState).toBe(reason);
-      expect(r.sent, obState).toBe(false); // quotation still 'queued' in all three
+      expect(r.sent, obState).toBe(false); // quotation still 'queued'
       H.drainMock.mockClear();
     }
+  });
+
+  // ── item 2: sent-outbox / source reconciliation. `already_sent` is NEVER returned with sent=false. ──
+
+  it("consistent sent state (quotation already sent) is truthfully sent:true and mutates nothing", async () => {
+    seed("sent", { outbox: "sent" }); // both agree → the terminal fast-path returns before any reconcile
+    const r = await tryFinalizeAndSend("co", "q1");
+    expect(r.sent).toBe(true);
+    expect(r.status).toBe("sent");
+    expect(H.box.writes).toHaveLength(0);
+    expect(H.reconcileMock).not.toHaveBeenCalled();
+  });
+
+  it("sent outbox + not-yet-sent quotation: reconciles atomically to sent (truthful sent:true), never a false already_sent", async () => {
+    seed("queued", { outbox: "sent" }); // inconsistent: outbox delivered but quotation still queued
+    H.reconcileMock.mockImplementation(async () => { H.box.store.quotations.q1.status = "sent"; return true; });
+    const r = await tryFinalizeAndSend("co", "q1");
+    expect(H.reconcileMock).toHaveBeenCalledTimes(1);
+    expect(H.drainMock).not.toHaveBeenCalled();
+    expect(r.sent).toBe(true);
+    expect(r.status).toBe("sent");
+    expect(r.reason).toBe("reconciled");
+  });
+
+  it("sent outbox that cannot be reconciled FAILS CLOSED as outbox_source_inconsistent — never already_sent with sent=false", async () => {
+    seed("queued", { outbox: "sent" });
+    H.reconcileMock.mockResolvedValue(false); // e.g. quotation terminal/cross-company → cannot force-advance
+    const r = await tryFinalizeAndSend("co", "q1");
+    expect(H.reconcileMock).toHaveBeenCalledTimes(1);
+    expect(r.sent).toBe(false);
+    expect(r.reason).toBe("outbox_source_inconsistent");
+    expect(r.reason).not.toBe("already_sent"); // the exact regression the final review forbids
+    expect(qStatus()).toBe("queued"); // never forced to sent
+    expect(H.drainMock).not.toHaveBeenCalled();
   });
 
   it("a failed(due) outbox row is drained (retried), not treated as terminal", async () => {
@@ -188,6 +232,35 @@ describe("WP12 tryFinalizeAndSend — state machine + outbox reconciliation", ()
       await refreshQuotationStatus("co", "q1");
       expect(qStatus(), st).toBe(st); // status unchanged
     }
+  });
+
+  // ── item 1: refreshQuotationStatus is concurrency-safe — queued/terminal get ZERO mutations
+  //    (status AND totals), because the allowed-current-status condition is ON THE UPDATE itself. ──
+
+  it("refreshQuotationStatus leaves a queued/terminal quotation's TOTALS untouched, not just its status", async () => {
+    const { refreshQuotationStatus } = await import("@/lib/quotations");
+    for (const st of ["queued", "sent", "accepted", "rejected"]) {
+      seed(st); // priced item (line_total 100) → a refresh, if it ran, would set total = 100
+      H.box.store.quotations.q1.total = 999; // a value a rogue refresh would "correct"
+      await refreshQuotationStatus("co", "q1");
+      expect(qStatus(), st).toBe(st); // status unchanged
+      expect(H.box.store.quotations.q1.total, st).toBe(999); // totals NOT recomputed
+      // the guarded UPDATE matched zero rows for this state:
+      const touched = H.box.writes.filter((w) => w.op === "update" && w.table === "quotations" && w.rows > 0);
+      expect(touched, st).toHaveLength(0);
+    }
+  });
+
+  it("read→update race: a quotation that moves to queued after the item read is NOT rewritten (guard on the UPDATE)", async () => {
+    const { refreshQuotationStatus } = await import("@/lib/quotations");
+    // Items are fully priced, so the computed target would be 'ready'; but the row has already moved
+    // to 'queued'. The condition lives on the UPDATE, so the recompute cannot resurrect/rewrite it.
+    seed("queued");
+    H.box.store.quotations.q1.total = 555;
+    const awaiting = await refreshQuotationStatus("co", "q1");
+    expect(awaiting).toBe(false); // derived from the (priced) items read
+    expect(qStatus()).toBe("queued"); // NOT reset to 'ready'
+    expect(H.box.store.quotations.q1.total).toBe(555); // NOT recomputed to 100
   });
 
   it("awaiting_price (an unpriced item) returns without queuing", async () => {

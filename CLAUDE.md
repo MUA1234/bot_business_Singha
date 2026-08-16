@@ -18,15 +18,20 @@
 > `docs/architecture-v3.1/` (`00_BASELINE_ASSESSMENT.md`, `01_V3_1_EXECUTION_SPEC.md`,
 > `IMPLEMENTATION_LEDGER.md`). Its compatibility foundation (default-OFF flags `src/config/flags.ts`
 > + proposal contracts `src/schemas/v3_1/*`) plus the **`0048+` security/accounting correction (pack
-> WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0060** — and verified on a
+> WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0061** — and verified on a
 > disposable PostgreSQL 16 (fresh + upgrade). They are the **blocking prerequisite** for any V3.1
 > finance/RLS/outbox cutover and are **NOT merged, NOT deployed, hosted DB NOT migrated, all flags
-> OFF**. Two external reviews returned **CHANGES REQUESTED**; both are fixed (first review:
-> migrations 0056–0058; second review: WP12 outbox reconciliation + WP11 composite FKs/money
-> fail-close + WP15 function-privilege, migrations 0059–0060) on
+> OFF**. (Note: "hosted DB NOT migrated" — not the flags — is what keeps these off the live system;
+> the WP12 delivery path runs with `WHATSAPP_ASYNC` OFF and `decide_approval`/FKs/catalogue enforce for
+> any caller once migrated, so they are **not** uniformly "inert while flags OFF".) Three external
+> reviews returned **CHANGES REQUESTED**; all are fixed (first review: migrations 0056–0058; second
+> review: WP12 outbox reconciliation + WP11 composite FKs/money fail-close + WP15 function-privilege,
+> migrations 0059–0060; third/final review: concurrency-safe `refreshQuotationStatus`, sent-outbox
+> reconcile-or-fail-closed, currency-catalogue validation, a concurrency test through the production
+> enqueue RPC, and doc accuracy — migration 0061) on
 > `feature/v3-1-phase-1-external-review-fixes`, now **awaiting the FINAL external review** — do not
-> begin V3.1 Phase 2 until it is approved. Verified counts: **unit 410 (78 files); integration 34
-> files / 180 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
+> begin V3.1 Phase 2 until it is approved. Verified counts: **unit 420 (79 files); integration 34
+> files / 182 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
 > `PHASE1_CORRECTIONS_LEDGER.md`. (The "195 (46 files)" and "374 (75 files)" figures above are stale.)
 >
 > **Superseded-document rule:** A coding agent MUST NOT rely on any instruction that

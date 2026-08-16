@@ -7,7 +7,11 @@
 
 ## Program invariants (carried every slice)
 
-- Feature flags default **OFF** → zero behaviour change until an owner-approved flip.
+- Feature flags default **OFF** → the **flag-gated cutover** they control (RLS reads/writes, async
+  delivery mode) stays inert until an owner-approved flip. This does **not** make every migration
+  inert: security/accounting hardening (e.g. `decide_approval`, composite FKs, the currency catalogue,
+  the WP12 sync delivery path) is active for any caller once the DB is migrated — the containment for
+  unreviewed work is the **un-migrated hosted DB**, not the flags (see `PHASE1_CONSOLIDATION_REPORT.md`).
 - Forward-only migrations; applied migrations are immutable; next free number discovered from the
   branch.
 - AI output: Zod → deterministic authority/policy → permission → audit. Nothing free-text executes.

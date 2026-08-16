@@ -16,6 +16,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { enqueueOutbox } from "@/lib/outbox-enqueue";
 import { outboundIdempotencyKey } from "@/events/outbox";
 import { drainOutbox, type DrainResult } from "@/events/outbox-drain";
+import { log } from "@/lib/log";
 import { env } from "@/config/env";
 
 export interface DraftItem {
@@ -206,12 +207,6 @@ export async function priceQuotation(
  */
 export async function refreshQuotationStatus(companyId: string, quotationId: string): Promise<boolean> {
   const db = supabaseAdmin();
-  const { data: quote } = await db
-    .from("quotations")
-    .select("status")
-    .eq("id", quotationId)
-    .eq("company_id", companyId)
-    .single();
   const { data: items } = await db
     .from("quotation_items")
     .select("unit_price, line_total, status")
@@ -222,12 +217,16 @@ export async function refreshQuotationStatus(companyId: string, quotationId: str
   let subtotal = new Decimal(0);
   for (const i of items ?? []) if (i.line_total != null) subtotal = subtotal.plus(i.line_total);
 
-  const cur = quote?.status;
-  const statusIsMutable = cur === "draft" || cur === "awaiting_price" || cur === "ready";
-  const patch: Record<string, unknown> = { subtotal: subtotal.toFixed(2), total: subtotal.toFixed(2) };
-  if (statusIsMutable) patch.status = awaiting ? "awaiting_price" : "ready";
-
-  await db.from("quotations").update(patch).eq("id", quotationId).eq("company_id", companyId);
+  // Concurrency-safe: the allowed-current-status condition is ON THE UPDATE itself, so a `queued`
+  // or terminal (`sent`/`accepted`/`rejected`) quotation receives ZERO mutations (status AND totals)
+  // even if it transitions concurrently between our read and this write — the UPDATE simply matches
+  // no row.
+  await db
+    .from("quotations")
+    .update({ subtotal: subtotal.toFixed(2), total: subtotal.toFixed(2), status: awaiting ? "awaiting_price" : "ready" })
+    .eq("id", quotationId)
+    .eq("company_id", companyId)
+    .in("status", ["draft", "awaiting_price", "ready"]);
   return awaiting;
 }
 
@@ -338,7 +337,17 @@ export async function tryFinalizeAndSend(
   let drainFailed = false;
   let reason: string | undefined;
   if (ob.status === "sent") {
-    reason = "already_sent";       // provider succeeded; the completion RPC advanced the quotation.
+    // Provider already succeeded. Normally the completion RPC advanced the quotation atomically, so
+    // it is already `sent`. If it lags (outbox sent, quotation not sent), reconcile through the
+    // idempotent service-only RPC; if that cannot make them consistent, FAIL CLOSED with
+    // `outbox_source_inconsistent` + operator-visible logging. NEVER return already_sent with sent=false.
+    const { data: q0 } = await db.from("quotations").select("status").eq("id", quotationId).eq("company_id", companyId).single();
+    if (q0?.status === "sent") return { sent: true, status: "sent", reason: "already_sent" };
+    const { data: ok } = await db.rpc("reconcile_quotation_from_outbox", { p_outbox_id: ob.id });
+    const { data: q1 } = await db.from("quotations").select("status").eq("id", quotationId).eq("company_id", companyId).single();
+    if (ok === true && q1?.status === "sent") return { sent: true, status: "sent", reason: "reconciled" };
+    log("error", "outbox sent but quotation not reconciled", { event: "quotation.outbox_source_inconsistent", quotationId, outboxId: ob.id, quotationStatus: q1?.status ?? null });
+    return { sent: false, status: q1?.status ?? curStatus, reason: "outbox_source_inconsistent" };
   } else if (ob.status === "dead") {
     reason = "dead";               // permanently failed — visible for operator recovery; no drain.
   } else if (ob.status === "processing") {

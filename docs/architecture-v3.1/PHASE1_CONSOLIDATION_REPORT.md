@@ -1,18 +1,24 @@
 # Phase 1 — 0048+ Security/Accounting Corrections — Consolidation Report
 
 > Blocking prerequisite for the V3.1 program. This report is the verification evidence for the
-> correction phase (work packages WP10–WP18) **as revised after two external reviews** — migrations
-> **0048–0060**. Per-WP detail is in `docs/architecture-v3.1/PHASE1_CORRECTIONS_LEDGER.md`;
+> correction phase (work packages WP10–WP18) **as revised after three external reviews** — migrations
+> **0048–0061**. Per-WP detail is in `docs/architecture-v3.1/PHASE1_CORRECTIONS_LEDGER.md`;
 > authoritative applied-state is in `docs/architecture-v2/MIGRATION_STATE.md`.
 >
-> **Phase 1 verdict: CHANGES REQUESTED (twice) → corrected; awaiting the FINAL external review.** The
-> first review found blocking defects in WP12/WP15/WP11 + a branch-integration problem (fixed:
+> **Phase 1 verdict: CHANGES REQUESTED (three times) → corrected; awaiting the FINAL external review.**
+> The first review found blocking defects in WP12/WP15/WP11 + a branch-integration problem (fixed:
 > 0056–0058); the second asked for deeper WP12 outbox reconciliation, WP11 composite DB constraints +
 > money fail-close, WP15 function-privilege, and doc/deployment accuracy (fixed: 0059–0060 + code +
-> docs). **WP11, WP12 and WP15 are not "done" until a review approves them.**
+> docs); the third (bounded final) asked for a concurrency-safe `refreshQuotationStatus`, a
+> reconcile-or-fail-closed for a sent-outbox/quotation inconsistency, currency validation against a
+> **catalogue** (not a regex), a concurrency test through the **production enqueue RPC** invoked by the
+> real wrapper, and documentation accuracy — **including removing the incorrect claim that these
+> migrations are inert merely because the flags are OFF** (fixed: **0061** + code + docs). **WP11, WP12
+> and WP15 are not "done" until a review approves them.**
 >
-> **STOP AFTER THIS REPORT.** Nothing here is merged, deployed, or flag-enabled. Do not begin V3.1
-> Phase 2 until the owner supplies an explicit final-review approval.
+> **STOP AFTER THIS REPORT.** Nothing here is merged, deployed, or flag-enabled, **and the hosted
+> database has NOT been migrated** — that (not any flag) is what keeps these changes off the live
+> system. Do not begin V3.1 Phase 2 until the owner supplies an explicit final-review approval.
 
 ## 1. Branch & commit
 
@@ -47,12 +53,19 @@
 | 0058 | WP12 (review A) | Outbound message history written atomically on durable send only (provider id); no pre-completion history |
 | 0059 | WP15 (review 2) | REVOKE `_journal_fp_matches` EXECUTE from PUBLIC/anon/authenticated (internal helper) |
 | 0060 | WP11 (review 2) | Composite company-consistency FKs (request→event, action→request; NOT VALID + preflight); decide_approval fails closed on non-positive/non-finite amount, invalid currency, invalid approvals_required |
+| 0061 | WP11+WP12 (review 3, final) | Currencies **catalogue** (`is_active` on the existing 0002 table + 16 seeded ISO codes); `decide_approval` validates currency against it (fail-closed on unseeded codes e.g. `ZZZ`); atomic service-only `enqueue_outbox_row` (the real `enqueueOutbox` wrapper's RPC) + idempotent service-only `reconcile_quotation_from_outbox`; service-only grants (revoked from authenticated/anon) |
 
 Application code changed (WP12): `src/lib/quotations.ts` (`tryFinalizeAndSend` → `queued`, propagate
-`DrainResult`), `src/events/outbox-drain.ts` (complete `sent` via the fenced RPC), `src/events/outbox.ts`
+`DrainResult`; **final review:** concurrency-safe `refreshQuotationStatus` with the allowed-status
+condition **on the UPDATE** so a queued/terminal quotation gets zero mutations; sent-outbox/quotation
+inconsistency **reconciles via the service-only RPC or fails closed** with `outbox_source_inconsistent`
++ operator-visible logging — never `already_sent` with `sent=false`), `src/lib/outbox-enqueue.ts`
+(**final review:** enqueue via the atomic `enqueue_outbox_row` RPC, not a raw insert),
+`src/events/outbox-drain.ts` (complete `sent` via the fenced RPC), `src/events/outbox.ts`
 (source metadata). Documentation: this report + `PHASE1_CORRECTIONS_LEDGER.md` +
 `docs/architecture-v2/MIGRATION_STATE.md` + `VERIFICATION_EVIDENCE.md` pointer. Adversarial/concurrency
-tests added under `tests/integration/wp1*.test.ts`; `outbox-drain` unit test updated.
+tests added under `tests/integration/wp1*.test.ts` + `tests/wp12-finalize-truthful.test.ts` +
+`tests/outbox-enqueue.test.ts`; `outbox-drain` unit test updated.
 
 ## 3. Work-package status
 
@@ -62,10 +75,10 @@ tests added under `tests/integration/wp1*.test.ts`; `outbox-drain` unit test upd
 | WP17 | Explicit system-actor trust boundary | **complete** (0049) |
 | WP13 | Posted-journal immutability allowlist | **complete** (0050) |
 | WP14 | Canonical-JSON idempotency fingerprints | **complete** (0051) |
-| WP15 | Invoice/bill document invariants + **source binding** | **corrected** (0052 + **0056**) — awaiting re-review |
+| WP15 | Invoice/bill document invariants + **source binding** | **corrected** (0052 + **0056** + **0059** fn-privilege) — awaiting re-review |
 | WP16 | Reimbursement/payment reuse validation | **complete** (0053) |
-| WP11 | Approval scope/currency/delegation + **fail-closed + domain caps** | **corrected** (0054 + **0057**) — awaiting re-review |
-| WP12 | Truthful quotation/order delivery state (**end-to-end**) | **corrected** (0055 + **0058** + code) — awaiting re-review |
+| WP11 | Approval scope/currency/delegation + **fail-closed + domain caps + composite FKs + currency catalogue** | **corrected** (0054 + **0057** + **0060** + **0061**) — awaiting re-review |
+| WP12 | Truthful quotation/order delivery state (**end-to-end**, concurrency-safe, atomic enqueue RPC) | **corrected** (0055 + **0058** + **0061** + code) — awaiting re-review |
 | WP18 | Migration-state / verification reconciliation | **complete** (docs) |
 
 **WP11 domain-capability (review C #5, now IMPLEMENTED).** The generic `approve` capability is
@@ -81,10 +94,10 @@ Static & application gates:
 | Command | Result |
 |---|---|
 | `npm run secret-scan` | pass — no tracked secrets |
-| `npm run migration-lint` | pass — **60 migrations, sequential 0001–0060** |
+| `npm run migration-lint` | pass — **61 migrations, sequential 0001–0061** |
 | `npm run typecheck` | pass |
 | `npm run lint` | pass (0 errors; pre-existing `<img>` warnings only) |
-| `npm test` (unit) | pass — **410** |
+| `npm test` (unit) | pass — **420 (79 files)** |
 | `npm run audit-check` | pass — 2 approved exceptions (next, postcss) |
 | `npm run build` | pass |
 
@@ -92,15 +105,20 @@ Database gates (disposable PostgreSQL 16 + Supabase-compat shim):
 
 | Path | Result |
 |---|---|
-| Fresh DB — `npm run migrate` `0001→0060` then `npm run test:integration` | pass — **34 files / 180 tests** |
-| Upgrade path — staged at `0058` + representative legacy data (approval request+event, an invoice), then `0059→0060` applied | pass — **34 files / 180 tests**; the composite FKs apply to new rows over legacy data |
+| Fresh DB — `npm run migrate` `0001→0061` then `npm run test:integration` | pass — **34 files / 182 tests** |
+| Upgrade path — staged at `0058` + representative legacy data (a company-consistent approval request+event in a **catalogue** currency `LKR` **and** one in a **non-catalogue** currency `XYZ`, plus a queued quotation with a **sent** outbox row), then `0059→0061` applied | pass — **34 files / 182 tests**; the composite FKs (0060) VALIDATE over the legacy data, and on the upgraded DB the `LKR` event **approves**, the `XYZ` event **fails closed** (`not a supported currency`), and the legacy sent-outbox **reconciles** the quotation to `sent` |
 
 Each external-review adversarial test was confirmed to **fail against the reviewed tip `509685b`**
 and pass after the correction. Second-review additions: WP15 function-privilege (authenticated →
 SQLSTATE 42501), WP11 composite-FK + money/approvals fail-closed (direct DB), WP12 outbox-state
-reconciliation + refreshQuotationStatus hard guard + finaliser-enqueue concurrency.
+reconciliation + refreshQuotationStatus hard guard + finaliser-enqueue concurrency. Final-review
+additions: `refreshQuotationStatus` terminal-total + read/update-race guards; sent-outbox consistent
+vs inconsistent reconciliation (never `already_sent` with `sent=false`); currency-catalogue validation
+(`ZZZ`/`1XA` rejected, `LKR` passes); and a **two-connection concurrency test through the production
+`enqueue_outbox_row` RPC** (one `enqueued`, one `duplicate`, exactly one row) — the same RPC the real
+`enqueueOutbox` wrapper invokes (`tests/outbox-enqueue.test.ts`).
 
-Adversarial & concurrency coverage is included in the 180 integration tests: RLS write-gating
+Adversarial & concurrency coverage is included in the 182 integration tests: RLS write-gating
 (WP10), system-actor boundary (WP17), posted-journal immutability (WP13), fingerprint collision
 (WP14), invoice/bill invariants + source binding (WP15), reimbursement chain (WP16), approval
 scope/currency/delegation + fail-closed/domain-caps + a two-connection approval race (WP11), and the
@@ -117,9 +135,12 @@ left unchanged).
 ## 6. Owner action required
 
 1. **External review** of this correction phase (the mandatory STOP) before V3.1 phases 2–10.
-2. **Hosted application (staging first):** apply `0048–0060` via `npm run migrate` against a staging
+2. **Hosted application (staging first):** apply `0048–0061` via `npm run migrate` against a staging
    database, run the integration suite there, then production — **owner-gated**. Until then,
-   `MIGRATION_STATE.md` records hosted state for `0042–0060` as **owner confirmation required**.
+   `MIGRATION_STATE.md` records hosted state for `0042–0061` as **owner confirmation required**.
+   Note (0061): after applying, seed any additional in-use currencies into `currencies` (`insert … on
+   conflict do nothing`) — an event whose currency is not an active catalogue row can no longer be
+   approved (fail-closed by design).
 3. **Composite-FK VALIDATE (WP11):** after running the documented preflight (0060) against staging and
    remediating any rows it reports, VALIDATE `approval_requests_fe_company_fk` and
    `approval_actions_request_company_fk` (they are `NOT VALID` today — enforcing new rows only).
@@ -143,8 +164,21 @@ left unchanged).
 ## 8. Confirmations
 
 - **No hosted migration was applied** by this development process, in this phase or any prior one.
-- **No feature flag was enabled.** `RLS_READS`, `RLS_WRITES`, `WHATSAPP_ASYNC` remain **OFF**; the
-  0048–0060 migrations are inert at runtime while they are off.
+  **This — not any feature flag — is what keeps these changes off the live system:** the hosted
+  Supabase database does not contain migrations `0042–0061`, so none of their objects or behaviour
+  exist there.
+- **No feature flag was enabled.** `RLS_READS`, `RLS_WRITES`, `WHATSAPP_ASYNC` remain **OFF**.
+  **Correction (removing an earlier inaccurate claim):** these migrations are **NOT** uniformly
+  "inert while the flags are OFF". Only the **RLS read/write cutover** is flag-inert — the app still
+  uses the service-role client, which bypasses RLS, so the capability write-policies are not yet the
+  enforcement path. Everything else is **active whenever its code path runs**, independent of any flag:
+  the WP12 delivery-state machine + `enqueue_outbox_row`/`reconcile_quotation_from_outbox` run on the
+  **default synchronous WhatsApp path (`WHATSAPP_ASYNC` OFF)**; `decide_approval`'s authority + money +
+  **currency-catalogue** fail-close applies to **every caller of that RPC** (integration tests today —
+  the live finance UI action does not yet call it, but no flag renders it inert); and the composite
+  FKs, function-privilege REVOKEs, and `currencies` catalogue enforce at the schema level for **any**
+  writer. The safety guarantee is therefore "**hosted DB not migrated / not merged / not deployed**",
+  not "inert because flags OFF".
 - **No accounting history was edited or deleted;** posting functions were replaced only.
 - **The permission catalogue gained domain-specific approval capabilities** (WP11 review C #5) —
   **code only, owner-authorised for this increment, not enabled in any hosted environment.**
@@ -168,9 +202,15 @@ left unchanged).
   (no production `SUPABASE_SERVICE_ROLE_KEY`, `WHATSAPP_ACCESS_TOKEN`/`APP_SECRET`, `OPENAI_API_KEY`,
   `INNGEST_*`, `CRON_SECRET`, or a production `DATABASE_URL`). Defence already in the code: production
   config fails fast (`src/config/env.ts`) and the write/commit integration tests **refuse to run**
-  against `PRODUCTION_DB_HOST`. With `RLS_*`/`WHATSAPP_ASYNC` OFF a preview exercises no
-  behaviour-changed path from these migrations.
+  against `PRODUCTION_DB_HOST`. The real containment is that **a preview points at whatever database
+  its `DATABASE_URL` names, and no hosted database has these migrations applied** — so the new objects
+  (`enqueue_outbox_row`, `reconcile_quotation_from_outbox`, the `currencies` catalogue, the composite
+  FKs) simply do not exist for a preview to reach. It is **not** correct to say "flags OFF ⇒ no
+  behaviour-changed path": the WP12 delivery path runs with `WHATSAPP_ASYNC` OFF, so once a database is
+  migrated these behaviours are live regardless of flags. Preview safety rests on the un-migrated
+  database + no production credentials, not on the flags.
 
-_Phase status: **verified on disposable PostgreSQL 16; not fully verified on hosted infrastructure**
-(no staging/production application, no CI run). Second review returned CHANGES REQUESTED; corrected.
-**Awaiting the final external review — STOP.**_
+_Phase status: **verified on disposable PostgreSQL 16 (fresh 0001→0061 + upgrade 0058→0061 with legacy
+data); not fully verified on hosted infrastructure** (no staging/production application, no CI run).
+Three external reviews returned CHANGES REQUESTED; all corrected. **Awaiting the final external
+review — STOP.**_

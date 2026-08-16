@@ -22,7 +22,7 @@ _Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, W
 ## Migration source of truth
 
 - **Canonical migrations:** `src/db/migrations/0001_*.sql` … `0055_*.sql` (forward-only,
-  sequential; `migration-lint` confirms 0001–0060, no gaps). This directory is the **one**
+  sequential; `migration-lint` confirms 0001–0061, no gaps). This directory is the **one**
   migration source of truth.
 - **⚠️ Divergence risk (flag for WP6):** duplicate/aggregate runnable copies exist and
   can drift from canonical migrations. They must not be treated as authoritative:
@@ -106,6 +106,7 @@ _Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, W
 | 0058 | wp12_message_history_on_completion (external-review A: outbound wa_messages written atomically on durable send only, with the provider id) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16, fresh + upgrade) |
 | 0059 | wp15_fp_matches_privilege (2nd review: REVOKE _journal_fp_matches EXECUTE from PUBLIC/anon/authenticated) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
 | 0060 | wp11_composite_fk_money_failclose (2nd review: composite company-consistency FKs NOT VALID + preflight; decide_approval fails closed on non-positive/non-finite amount, invalid currency, invalid approvals_required) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16, fresh + upgrade; **VALIDATE the two NOT VALID FKs after the documented preflight on staging**) |
+| 0061 | final_review_currency_enqueue_reconcile (3rd/final review: `currencies` catalogue — `is_active` + 16 seeded ISO codes on the existing 0002 table; `decide_approval` validates currency against it; service-only `enqueue_outbox_row` + `reconcile_quotation_from_outbox` RPCs, EXECUTE revoked from authenticated/anon) | ⛔ **owner confirmation required** (added 2026-08-16; dev-verified on disposable PostgreSQL 16, fresh + upgrade; **seed any additional in-use currencies after applying** — an unseeded currency can no longer be approved) |
 
 > **Correction-phase note (0044–0047):** authored 2026-08-08, **not** applied to any hosted
 > DB. Verified on a disposable local **PostgreSQL 16** (Supabase-compat shim) from a clean
@@ -119,15 +120,21 @@ _Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, W
 > confirmation on record, combined file `RUN_0038-0041_*.sql`). **0042 and 0043 onward were NOT
 > applied to any hosted database** — the per-migration rows above are authoritative; the earlier
 > prose that grouped "0038–0043 … applied by the owner" over-reached and is void. Everything from
-> **0042 through 0055** has hosted state **"owner confirmation required"** (dev-process verified on
+> **0042 through 0061** has hosted state **"owner confirmation required"** (dev-process verified on
 > disposable PostgreSQL 16 only).
 
-### Phase 1 correction migrations (0048–0055) — the five states, kept separate (WP18)
+### Phase 1 correction migrations (0048–0061) — the five states, kept separate (WP18)
 
 Each state is tracked independently; none implies another. "Applied to staging/production" is
 asserted only from a dated owner confirmation — there is none, so it is **owner confirmation
-required**. All three flags remain **OFF**, so these migrations are inert at runtime (the service
-role bypasses RLS and the RPCs treat the service caller as the trusted path).
+required**. **What "flags OFF" does and does not mean (corrected):** it is **not** true that these
+migrations are uniformly "inert at runtime while the flags are OFF." Only the **RLS read/write
+cutover** is flag-inert (the app uses the service-role client, which bypasses RLS). The WP12 delivery
+path (0055/0058/0061) runs on the **default synchronous WhatsApp path with `WHATSAPP_ASYNC` OFF**;
+`decide_approval` (0054/0057/0060/0061) applies its authority/money/currency fail-close to **every
+caller** of the RPC; and the composite FKs, function-privilege REVOKEs and `currencies` catalogue
+enforce for **any** writer. What keeps all of this off the live system is that **the hosted database
+is not migrated** (the rows below are all "owner confirmation required"), **not** the flags.
 
 | Migration | File exists | Tested on disposable DB (PG 16, fresh + upgrade) | Applied to staging | Applied to production | Feature flag enabled |
 |---|:---:|:---:|:---:|:---:|:---:|
@@ -138,7 +145,13 @@ role bypasses RLS and the RPCs treat the service caller as the trusted path).
 | 0052 wp15 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
 | 0053 wp16 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
 | 0054 wp11 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
-| 0055 wp12 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a — `WHATSAPP_ASYNC` OFF |
+| 0055 wp12 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a — sync path runs with `WHATSAPP_ASYNC` OFF |
+| 0056 wp15 (rev A) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0057 wp11 (rev C) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0058 wp12 (rev A) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a — sync path runs with `WHATSAPP_ASYNC` OFF |
+| 0059 wp15 (rev 2) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0060 wp11 (rev 2) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0061 wp11+wp12 (rev 3, final) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
 
 > Legend: **File exists** = the `.sql` is committed. **Tested on disposable DB** = applied and its
 > adversarial + concurrency suite passed on an ephemeral PostgreSQL 16 with the Supabase-compat
@@ -153,14 +166,16 @@ role bypasses RLS and the RPCs treat the service caller as the trusted path).
 | **Local** | Not applied (no local DB provisioned). |
 | **CI** | Applied to a **disposable Postgres per run** (service container + `tests/integration/helpers/supabase-shim.sql`), then the integration/RLS/concurrency suite runs. Ephemeral — torn down each run. |
 | **Staging** | **Not applied.** No confirmed non-production staging project. Prerequisite before flipping `RLS_READS`/`RLS_WRITES`/`WHATSAPP_ASYNC` (see `RLS_CUTOVER_PLAN.md`). |
-| **Production** | **Not applied.** Owner-only, with approval (invariant #16). These migrations are inert while the flags are OFF (service role bypasses RLS; RPCs treat the service caller as the trusted path), so they can ship ahead of any flag flip with no behaviour change. |
+| **Production** | **Not applied.** Owner-only, with approval (invariant #16). The **RLS write-policy** parts are inert while `RLS_WRITES` is OFF (the service role bypasses RLS); the **RPC hardening (0039)** and **audit/health (0041)**, however, change the behaviour of those functions for **any** caller once applied — "inert" applies to the RLS cutover, not to every object in the gate. |
 
 > These four migrations were authored offline and **not** run by the development process.
 > The **owner applied them via the Supabase SQL editor on 2026-08-07** (combined file
-> `RUN_0038-0041_security_reliability_gate.sql`). They remain **inert** until the feature
-> flags are turned on (service role bypasses RLS; RPCs treat the service caller as the
-> trusted path), so applying them was a zero-behaviour-change step. Still verified by
-> `migration-lint` (sequential 0001–0041) and, in CI, against the disposable Postgres.
+> `RUN_0038-0041_security_reliability_gate.sql`). The **RLS read/write cutover** they add stays inert
+> until `RLS_READS`/`RLS_WRITES` are turned on (the service role bypasses RLS); the accounting-RPC
+> hardening (0039) and audit/health (0041) they add are **active for any caller of those functions**
+> once applied — so "zero behaviour change" is accurate only for the RLS-cutover portion, not the whole
+> gate. Still verified by `migration-lint` (sequential 0001–0041) and, in CI, against the disposable
+> Postgres.
 
 ### Basis for the "reported applied, unverified" status (0014–0022)
 

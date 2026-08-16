@@ -5,15 +5,18 @@ appending to prior text. This file describes **reality**; where it disagrees wit
 narrative docs, this file and the code win._
 
 **Current phase:** **Phase 1 — 0048+ Security/Accounting Corrections** (WP10–WP18), migrations
-**0048–0060**. Status: **implemented and verified on a disposable PostgreSQL 16 (fresh + upgrade);
-CHANGES REQUESTED by two external reviews, corrected, and AWAITING THE FINAL REVIEW.** Not merged,
-not deployed, hosted DB not migrated, all feature flags OFF. The corrections (first review: migrations
-0056–0058; second review: WP12 outbox reconciliation + WP11 composite FKs/money fail-close + WP15
-function-privilege, migrations 0059–0060) live on the integration branch
-`feature/v3-1-phase-1-external-review-fixes` (PR #3 foundation + stack PRs #4–#12 + both correction
-rounds, one draft PR against `main`). Verified counts: **unit 410 (78 files); integration 34 files /
-180 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
-`PHASE1_CORRECTIONS_LEDGER.md`; authoritative applied-state: `docs/architecture-v2/MIGRATION_STATE.md`.
+**0048–0061**. Status: **implemented and verified on a disposable PostgreSQL 16 (fresh + upgrade);
+CHANGES REQUESTED by three external reviews, corrected, and AWAITING THE FINAL REVIEW.** Not merged,
+not deployed, **hosted DB not migrated** (this — not any flag — is what keeps the changes off the live
+system), all feature flags OFF. The corrections (first review: migrations 0056–0058; second review:
+WP12 outbox reconciliation + WP11 composite FKs/money fail-close + WP15 function-privilege, migrations
+0059–0060; third/final review: concurrency-safe `refreshQuotationStatus`, sent-outbox reconcile-or-
+fail-closed, currency **catalogue** validation, a concurrency test through the **production enqueue
+RPC**, and doc-accuracy incl. removing the "inert because flags OFF" claim — migration 0061) live on
+the integration branch `feature/v3-1-phase-1-external-review-fixes` (PR #3 foundation + stack PRs
+#4–#12 + all three correction rounds, one draft PR against `main`). Verified counts: **unit 420 (79
+files); integration 34 files / 182 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md`
+and `PHASE1_CORRECTIONS_LEDGER.md`; authoritative applied-state: `docs/architecture-v2/MIGRATION_STATE.md`.
 **Do not begin V3.1 Phase 2 until the owner approves the final review.**
 
 Prior phases: Production Security & Reliability Gate
@@ -49,8 +52,18 @@ DEFINER posting RPCs are the sole accounting source of truth. **QuickBooks is NO
 | `RLS_WRITES` | off | off | off | off |
 | `WHATSAPP_ASYNC` | off | off | off | off |
 
-Default OFF = **zero behaviour change**: reads/writes use the service-role client and the
-legacy department/admin checks. See `docs/architecture-v2/RLS_CUTOVER_PLAN.md`.
+What "OFF" actually means (do **not** over-read it as "all migrations are inert"):
+- `RLS_READS` / `RLS_WRITES` **OFF** → the **RLS read/write cutover** is inert: reads/writes use the
+  service-role client (which bypasses RLS) and the legacy department/admin checks, so the capability
+  write-policies are not yet the enforcement path. See `docs/architecture-v2/RLS_CUTOVER_PLAN.md`.
+- `WHATSAPP_ASYNC` **OFF** → the **synchronous** WhatsApp reply path is used (default). That path
+  **still runs the WP12 truthful-delivery state machine** (`tryFinalizeAndSend` → `enqueueOutbox` →
+  `enqueue_outbox_row`, quotation `queued`→`sent` only on durable completion). It is **not** inert.
+- **Independent of every flag:** `decide_approval`'s authority + money + **currency-catalogue**
+  fail-close applies to any caller of that RPC; the composite FKs, function-privilege REVOKEs and the
+  `currencies` catalogue enforce at the schema level for any writer — **once the database is migrated**.
+  Because the **hosted database is not migrated**, none of this runs on the live system today; that,
+  not the flags, is the containment.
 
 ## Correction phase — migrations 0044–0047 (CLAUDE_CORRECTION_BRIEF_0044)
 

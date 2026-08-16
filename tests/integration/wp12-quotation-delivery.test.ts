@@ -104,13 +104,11 @@ describe.skipIf(!enabled)("WP12 truthful quotation delivery — live, zero-persi
     expect(await statusOf("quotations", quo)).toBe("sent");
   });
 
-  it("retrying finalisation does not create a second outbox row (dedupe key is unique)", async () => {
+  it("retrying finalisation via the production enqueue RPC is idempotent: second call is a 'duplicate', still one row", async () => {
     const key = "out_dupe_" + rnd();
-    await q(`insert into message_outbox (company_id, channel, recipient, body, idempotency_key, status) values ($1,'whatsapp','9471','b',$2,'pending')`, [co, key]);
-    let dup = false;
-    try { await q(`insert into message_outbox (company_id, channel, recipient, body, idempotency_key, status) values ($1,'whatsapp','9471','b',$2,'pending')`, [co, key]); }
-    catch (e) { dup = /duplicate key|unique/i.test((e as Error).message); }
-    expect(dup).toBe(true);
+    const call = `select public.enqueue_outbox_row($1,'whatsapp','9471','b',$2,null,null,null,'quotation',null,'quotation') as v`;
+    expect((await q(call, [co, key])).rows[0].v).toBe("enqueued");
+    expect((await q(call, [co, key])).rows[0].v).toBe("duplicate"); // a serial retry through the real RPC
     expect((await q(`select count(*)::int c from message_outbox where idempotency_key=$1`, [key])).rows[0].c).toBe(1);
   });
 
@@ -181,21 +179,27 @@ describe.skipIf(!enabled)("WP12 completion concurrency — live, two connections
     expect(blocked).toBe(true);
   });
 
-  it("two concurrent finalisers cannot both create the same outbox row (unique dedupe key)", async () => {
-    // Two workers enqueuing the same quotation:<id> key → the unique idempotency_key means the
-    // second cannot independently insert while the first holds it (it blocks, then conflicts).
+  it("enqueue_outbox_row is atomic under real concurrency: two connections → one 'enqueued', one 'duplicate', exactly one row", async () => {
+    // This exercises the PRODUCTION enqueue RPC (the same one the real application wrapper enqueueOutbox
+    // invokes — proven in tests/outbox-enqueue.test.ts) under genuine two-connection concurrency. Its
+    // INSERT … ON CONFLICT (idempotency_key) DO NOTHING can never yield two logical rows: whichever
+    // connection commits first wins 'enqueued'; the other's insert conflicts → 'duplicate'.
     const key = "out_race_" + rnd();
-    const ins = `insert into message_outbox (company_id, channel, recipient, body, idempotency_key, status, source_type, message_purpose) values ($1,'whatsapp','9471','b',$2,'pending','quotation','quotation')`;
+    const call = `select public.enqueue_outbox_row($1,'whatsapp','9471','b',$2,null,null,null,'quotation',null,'quotation') as v`;
     await c1.query("begin");
     await c1.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
-    await c1.query(ins, [cco, key]); // c1 holds the key (uncommitted)
+    const r1 = await c1.query(call, [cco, key]); // inserts the row (uncommitted) → 'enqueued'
+    expect(r1.rows[0].v).toBe("enqueued");
+
     await c2.query("begin");
     await c2.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
-    await c2.query("set local statement_timeout = '1500ms'");
-    let contended = false;
-    try { await c2.query(ins, [cco, key]); } catch (e) { contended = /statement timeout|canceling statement|duplicate key|unique/i.test((e as Error).message); }
-    await c1.query("rollback").catch(() => {});
+    const p2 = c2.query(call, [cco, key]); // races for the same key: blocks on the unique index…
+    await c1.query("commit");               // …c1 commits, so c2's insert now conflicts (DO NOTHING)
+    const r2 = await p2;
+    expect(r2.rows[0].v).toBe("duplicate");  // truthful: the concurrent enqueue is reported a duplicate
     await c2.query("rollback").catch(() => {});
-    expect(contended).toBe(true); // c2 could not independently insert the same key
+
+    const cnt = (await setup.query(`select count(*)::int c from message_outbox where company_id=$1 and idempotency_key=$2`, [cco, key])).rows[0].c;
+    expect(cnt).toBe(1); // exactly ONE logical row despite the concurrent enqueue
   });
 });
