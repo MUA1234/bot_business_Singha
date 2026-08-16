@@ -19,24 +19,26 @@
 > `docs/architecture-v3.1/` (`00_BASELINE_ASSESSMENT.md`, `01_V3_1_EXECUTION_SPEC.md`,
 > `IMPLEMENTATION_LEDGER.md`). Its compatibility foundation (default-OFF flags `src/config/flags.ts`
 > + proposal contracts `src/schemas/v3_1/*`) plus the **`0048+` security/accounting correction (pack
-> WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0062** — and verified on a
+> WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0063** — and verified on a
 > disposable PostgreSQL 16 (fresh + upgrade). They are the **blocking prerequisite** for any V3.1
 > finance/RLS/outbox cutover and are **NOT merged, NOT deployed, hosted DB NOT migrated, all flags
 > OFF**. (Note: "hosted DB NOT migrated" — not the flags — is what keeps these off the live system;
 > the WP12 delivery path runs with `WHATSAPP_ASYNC` OFF and `decide_approval`/FKs/catalogue enforce for
-> any caller once migrated, so they are **not** uniformly "inert while flags OFF".) Four external
+> any caller once migrated, so they are **not** uniformly "inert while flags OFF".) Five external
 > reviews returned **CHANGES REQUESTED**; all are fixed (first: migrations 0056–0058; second: WP12
 > outbox reconciliation + WP11 composite FKs/money fail-close + WP15 function-privilege, 0059–0060;
 > third: concurrency-safe `refreshQuotationStatus`, sent-outbox reconcile-or-fail-closed,
 > currency-catalogue validation, production enqueue-RPC concurrency test, doc accuracy — 0061; fourth
 > (security-boundary): lock every service-only SECURITY DEFINER function to `service_role` — migration
-> **0062** + an allowlist test over ALL such functions; end-to-end concurrency-safe `tryFinalizeAndSend`
-> — re-read the real state, fresh total, no JS `Number`; a prepared-but-unexecuted hosted privilege
-> check + emergency REVOKE hotfix for the already-hosted 0038–0041 functions
-> — `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`) on
+> **0062** + an allowlist test; the hosted privilege check + emergency REVOKE hotfix for the
+> already-hosted 0038–0041 functions; fifth (final): an **atomic** service-only `enqueue_quotation_outbox`
+> RPC that locks the quotation row and couples the outbox insert with ready→queued in one transaction
+> (closing the enqueue race) + a DB-boundary quotation-lifecycle trigger — migration **0063**; a
+> **signature-exact** SECURITY DEFINER allowlist; a self-verifying (abort-on-residual) emergency hotfix —
+> `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`) on
 > `feature/v3-1-phase-1-external-review-fixes`, now **awaiting the FINAL external review** — do not
-> begin V3.1 Phase 2 until it is approved. Verified counts: **unit 426 (79 files); integration 35
-> files / 190 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
+> begin V3.1 Phase 2 until it is approved. Verified counts: **unit 419 (79 files); integration 36
+> files / 207 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
 > `PHASE1_CORRECTIONS_LEDGER.md`.
 >
 > **Superseded-document rule:** A coding agent MUST NOT rely on any instruction that

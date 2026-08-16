@@ -13,7 +13,6 @@
 import Decimal from "decimal.js";
 import { randomBytes } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { enqueueOutbox } from "@/lib/outbox-enqueue";
 import { outboundIdempotencyKey } from "@/events/outbox";
 import { drainOutbox, type DrainResult } from "@/events/outbox-drain";
 import { log } from "@/lib/log";
@@ -327,26 +326,43 @@ export async function tryFinalizeAndSend(
     `Reply here if you'd like to proceed or have any questions.`;
   const dedupeKey = `quotation:${quotationId}`;
 
-  // Enqueue EXACTLY once, tagged with its source. If already `queued`, do NOT enqueue or add history
-  // again — reconcile the existing row. A NEW enqueue happens only for a `ready` quotation (proven by
-  // the fresh re-read above, and re-proven by the guarded ready→queued transition below, which no-ops
-  // if a concurrent finaliser moved it first). Handle every enqueue result explicitly.
-  let enq: "enqueued" | "duplicate" | "unavailable";
-  if (curStatus === "queued") {
-    enq = "duplicate";
-  } else {
-    enq = await enqueueOutbox({ channel: "whatsapp", companyId, recipient: to, body, dedupeKey, sourceType: "quotation", sourceId: quotationId, messagePurpose: "quotation" });
-  }
-
-  if (enq === "unavailable") {
-    // No durable outbox record was written → keep the quotation retryable (leave it 'ready'); never
-    // claim `queued` or `sent`. The caller / scheduled sweep can retry.
+  // ATOMIC enqueue (migration 0063 `enqueue_quotation_outbox`). A single service-only RPC LOCKS the
+  // company-scoped quotation row, inspects the authoritative status UNDER THAT LOCK, verifies the body's
+  // total/currency still match the locked row, and — only if still legally `ready` — inserts the outbox
+  // row AND advances ready→queued in ONE transaction. This closes the previous time-of-check/time-of-use
+  // window: a concurrent terminal transition can no longer leave a live pending row (there is no
+  // application re-read between the check and the insert). The linearization point is the row lock.
+  const key = outboundIdempotencyKey("whatsapp", dedupeKey);
+  const { data: enq, error: enqErr } = await db.rpc("enqueue_quotation_outbox", {
+    p_company: companyId,
+    p_quotation: quotationId,
+    p_recipient: to,
+    p_body: body,
+    p_idempotency_key: key,
+    p_expected_total: fresh.total,
+    p_expected_currency: fresh.currency,
+    p_channel: "whatsapp",
+    p_message_purpose: "quotation",
+  });
+  if (enqErr || !enq) {
+    // No durable record written → keep the quotation retryable; never claim queued/sent.
+    log("error", "atomic quotation enqueue failed", { event: "quotation.enqueue_failed", quotationId, error: enqErr?.message ?? "no result" });
     return { sent: false, status: curStatus, reason: "enqueue_unavailable" };
   }
-
-  // Load the existing outbox row, scoped to THIS company AND source document, by its deterministic
-  // key (both the fresh-enqueue and duplicate paths land here). This is the row we reconcile against.
-  const key = outboundIdempotencyKey("whatsapp", dedupeKey);
+  // Results that MUST NOT drain or send — the atomic operation created no sendable row for this caller.
+  if (enq === "terminal") {
+    const { data: t } = await db.from("quotations").select("status").eq("id", quotationId).eq("company_id", companyId).single();
+    const st = (t?.status as string) ?? "sent";
+    return { sent: st === "sent", status: st, reason: "terminal" };
+  }
+  if (enq === "not_ready") return { sent: false, status: curStatus, reason: "not_ready" };
+  if (enq === "stale") return { sent: false, status: curStatus, reason: "stale" }; // total moved under the lock; retryable
+  if (enq === "inconsistent") {
+    log("error", "atomic quotation enqueue inconsistent", { event: "quotation.outbox_source_inconsistent", quotationId, idempotencyKey: key });
+    return { sent: false, status: curStatus, reason: "outbox_source_inconsistent" };
+  }
+  // enq is 'enqueued' or 'duplicate' → a durable row for THIS (company, quotation, key) exists and the
+  // quotation is now `queued`. Load that exact row and reconcile/drain it by its real state (below).
   const { data: ob } = await db
     .from("message_outbox")
     .select("id, status")
@@ -356,15 +372,8 @@ export async function tryFinalizeAndSend(
     .eq("source_id", quotationId)
     .maybeSingle();
   if (!ob) {
-    // enqueue reported enqueued/duplicate but no company+source-scoped row exists → a key clash on a
-    // different company/source, or a lost write. Fail closed; never claim queued/sent.
+    // enqueued/duplicate but no company+source-scoped row exists → fail closed; never claim queued/sent.
     return { sent: false, status: curStatus, reason: "outbox_not_found" };
-  }
-
-  // Ready→queued recovery: a durable outbox row exists, so the quotation must be at least `queued`.
-  // This repairs an enqueue-succeeded / status-update-lost race. Never touches a terminal quote.
-  if (curStatus === "ready") {
-    await db.from("quotations").update({ status: "queued" }).eq("id", quotationId).eq("company_id", companyId).eq("status", "ready");
   }
 
   // Reconcile by the outbox row's REAL state — each state a distinct, truthful outcome. Message

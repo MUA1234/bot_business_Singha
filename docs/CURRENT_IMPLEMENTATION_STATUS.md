@@ -5,8 +5,8 @@ appending to prior text. This file describes **reality**; where it disagrees wit
 narrative docs, this file and the code win._
 
 **Current phase:** **Phase 1 — 0048+ Security/Accounting Corrections** (WP10–WP18), migrations
-**0048–0062**. Status: **implemented and verified on a disposable PostgreSQL 16 (fresh + upgrade);
-CHANGES REQUESTED by four external reviews, corrected, and AWAITING THE FINAL REVIEW.** Not merged,
+**0048–0063**. Status: **implemented and verified on a disposable PostgreSQL 16 (fresh + upgrade);
+CHANGES REQUESTED by five external reviews, corrected, and AWAITING THE FINAL REVIEW.** Not merged,
 not deployed, **hosted DB not migrated** (this — not any flag — is what keeps the changes off the live
 system), all feature flags OFF. The corrections (first review: migrations 0056–0058; second review:
 WP12 outbox reconciliation + WP11 composite FKs/money fail-close + WP15 function-privilege, migrations
@@ -16,13 +16,18 @@ RPC**, and doc-accuracy incl. removing the "inert because flags OFF" claim — m
 (security-boundary) review: **migration 0062** locks every service-only SECURITY DEFINER function
 (`_journal_post_internal` incl. its legacy signature, `claim_outbox_batch`, `complete_outbox_and_advance`,
 `ledger_integrity_report`, and the outbox/fingerprint helpers) to `service_role`, with an allowlist
-test over ALL such functions; `tryFinalizeAndSend` made end-to-end concurrency-safe (re-read the real
-state after the guarded refresh, build from the fresh total, no JS `Number`); plus a prepared-but-
-unexecuted hosted privilege check + emergency REVOKE hotfix for the already-hosted 0038–0041 functions
-— see `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`) live on the integration branch
-`feature/v3-1-phase-1-external-review-fixes` (PR #3 foundation + stack PRs #4–#12 + all four correction
-rounds, one draft PR against `main`). Verified counts: **unit 426 (79 files); integration 35 files /
-190 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md`
+test over ALL such functions, plus a prepared-but-unexecuted hosted privilege check + emergency REVOKE
+hotfix for the already-hosted 0038–0041 functions; fifth (final) review: the fourth review's
+application re-read still left a time-of-check/time-of-use window, so **migration 0063** adds an
+**atomic** service-only `enqueue_quotation_outbox` RPC that LOCKS the quotation row and — only if still
+legally `ready` and the body's total/currency still match — inserts the outbox row AND advances
+ready→queued in ONE transaction (the enqueue race is closed at the database, not by an app re-read),
+with a DB-boundary quotation-lifecycle trigger, a **signature-exact** SECURITY DEFINER allowlist, and a
+self-verifying (abort-on-residual) emergency hotfix — see
+`docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`) live on the integration branch
+`feature/v3-1-phase-1-external-review-fixes` (PR #3 foundation + stack PRs #4–#12 + all five correction
+rounds, one draft PR against `main`). Verified counts: **unit 419 (79 files); integration 36 files /
+207 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md`
 and `PHASE1_CORRECTIONS_LEDGER.md`; authoritative applied-state: `docs/architecture-v2/MIGRATION_STATE.md`.
 **Do not begin V3.1 Phase 2 until the owner approves the final review.**
 
@@ -136,23 +141,26 @@ Implemented + verified on a disposable Postgres 16 (incl. an upgrade path from a
 > any run (the account's runner provisioning fails at startup — systemic, pre-existing), so there is
 > **no CI-pass**; the disposable local PostgreSQL 16 is the CI substitute for all database evidence.
 
-Commands run and results (integration branch, migrations 0001–0062):
+Commands run and results (integration branch, migrations 0001–0063):
 - `npm run secret-scan` → **pass** (no tracked secrets).
-- `npm run migration-lint` → **pass** (62 migrations, sequential 0001–0062).
+- `npm run migration-lint` → **pass** (63 migrations, sequential 0001–0063).
 - `npm run typecheck` → **pass**.
 - `npm run lint` → **pass** (pre-existing `<img>` warnings only).
-- `npm test` (unit) → **426 passing (79 files)**.
+- `npm test` (unit) → **419 passing (79 files)**.
 - `npm run build` → **pass** (placeholder public env).
 - `npm run audit-check` → **pass** (2 high findings, both approved exceptions: next, postcss).
 
 **Database tests (disposable PostgreSQL 16 + Supabase-compat shim — run locally, NOT in CI):**
-- Fresh `0001→0062` then `npm run test:integration` → **35 files / 190 tests pass**, including the 0062
-  SECURITY DEFINER allowlist + `42501` adversarial privilege tests (authenticated cannot post a journal,
-  claim/read an outbox batch, read the cross-company integrity report, or complete an outbox row), the
-  WP11/WP12 adversarial + two-connection concurrency suites, and the currency-catalogue tests.
-- Upgrade path (staged at `0058` + company-consistent legacy data → `0059→0062`) → **35 files / 190
-  tests pass**; the 0062 lockdown holds on the upgraded DB. These suites are wired into CI's `db-tests`
-  job, but **GitHub Actions obtained no runner**, so they were executed locally, not in CI.
+- Fresh `0001→0063` then `npm run test:integration` → **36 files / 207 tests pass**, including the 0063
+  atomic-quotation-enqueue suite (single-connection state results + a real two-connection terminal-vs-
+  enqueue race and duplicate-finaliser race + the DB-boundary lifecycle trigger), the 0062 SECURITY
+  DEFINER **signature-exact** allowlist + `42501` adversarial privilege tests (authenticated cannot post
+  a journal, claim/read an outbox batch, read the cross-company integrity report, complete an outbox
+  row, or atomically enqueue a quotation), and the WP11/WP12 adversarial + concurrency + currency suites.
+- Upgrade path (staged at `0058` + company-consistent legacy data → `0059→0063`) → **36 files / 207
+  tests pass**; the 0062 lockdown holds and a legacy `ready` quotation is atomically enqueued
+  (ready→queued) on the upgraded DB. These suites are wired into CI's `db-tests` job, but **GitHub
+  Actions obtained no runner**, so they were executed locally, not in CI.
 - Hosted applied-state: the single authoritative statement is in "Reconciliation with MIGRATION_STATE.md"
   below and `MIGRATION_STATE.md` (0038–0041 owner-reported applied 2026-08-07, unverified by this
   process; 0042–0062 owner confirmation required).

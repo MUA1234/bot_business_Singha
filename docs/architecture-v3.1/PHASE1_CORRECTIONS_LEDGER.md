@@ -5,7 +5,7 @@
 > with failing-before/passing-after tests, verified on a disposable PostgreSQL 16 (fresh **and**
 > `0047→0048+` upgrade path). `RLS_READS` / `RLS_WRITES` / `WHATSAPP_ASYNC` stay OFF. No hosted action.
 
-> **Phase 1 status: CHANGES REQUESTED (four times) → corrected, awaiting the FINAL external review.**
+> **Phase 1 status: CHANGES REQUESTED (five times) → corrected, awaiting the FINAL external review.**
 > The first review found blocking defects in WP12/WP15/WP11 + a branch-integration problem (fixed:
 > migrations **0056–0058**). The second review asked for deeper WP12 outbox-state reconciliation,
 > WP11 composite DB constraints + money fail-close, WP15 function-privilege, and doc/deployment
@@ -457,25 +457,57 @@ flags. Three items, all addressed:
    statement; 0042–0062 separate; GitHub Actions obtained no runner; Vercel Preview vs no prod; stale
    195/current-state wording removed).
 
+## Fifth (final) external review — migration 0063 (atomic enqueue + lifecycle) + code + docs
+
+CHANGES REQUESTED, bounded. Do not merge; do not begin Phase 2; do not migrate hosted / deploy / enable
+flags / run the hosted scripts against hosted. Four items, all addressed:
+
+1. **Atomic quotation enqueue (migration 0063).** The fourth review's application re-read left a
+   time-of-check/time-of-use window. The new service-only `enqueue_quotation_outbox` RPC closes it at
+   the DB: it LOCKS the company-scoped quotation row (linearization point), inspects the authoritative
+   status under that lock, verifies the caller's total/currency still match, and — only if still legally
+   `ready` — inserts the outbox row AND advances `ready→queued` in ONE transaction (rolled back together
+   on failure). Results: `enqueued`/`duplicate`/`terminal`/`not_ready`/`stale`/`inconsistent`.
+   `tryFinalizeAndSend` branches on the result and never drains on terminal/not_ready/stale/inconsistent;
+   the generic `enqueue_outbox_row` path is unchanged for non-quotation messages. A BEFORE UPDATE trigger
+   enforces the legal quotation lifecycle at the DB boundary (`queued` can never jump to accepted/rejected).
+   Tests (`tests/integration/wp12-atomic-enqueue.test.ts`, real two connections): terminal-wins → zero
+   rows; enqueue-wins → one row + queued and a concurrent `queued→accepted` FAILS; two finalisers → one
+   logical row; plus single-connection stale/inconsistent(cross-company key)/duplicate/atomicity-rollback
+   and the lifecycle trigger. Unit orchestration is in `tests/wp12-finalize-truthful.test.ts`.
+2. **Signature-exact SECURITY DEFINER allowlist.** `secure-definer-grants.test.ts` classifies by exact
+   `regprocedure` identity (name + arg types), so a new overload of an approved name fails the allowlist;
+   `enqueue_quotation_outbox` is service-only (+ its own 42501 test).
+3. **Self-verifying emergency hotfix.** `hosted_secdef_emergency_revoke.sql` now ASSERTS zero residual
+   anon/authenticated EXECUTE in-transaction and RAISES (aborting) if any remains — a partial lockdown
+   can never COMMIT. Wording fixed ("owner approval REQUIRED before execution"; **catalog-driven**, not
+   `to_regprocedure`). Proven on a 0041-staged DB (exposed → locked; simulated residual → ROLLBACK).
+4. **Docs reconciled.** Canonical range fixed to `0001–0063` (MIGRATION_STATE.md no longer says "ends at
+   0055"); 0038–0041 owner-reported-applied-2026-08-07-unverified preserved; 0042–0063 owner confirmation
+   required; hosted scripts prepared-not-executed; GitHub Actions obtained no runner (no CI-pass);
+   automatic Vercel Preview ≠ production; counts from actual runs; the "end-to-end concurrency-safe"
+   claim now attributed to the atomic RPC (0063), not the fourth review's re-read.
+
 ## Verification (disposable PostgreSQL 16, this session)
 
 | Gate | Result |
 |---|---|
 | `npm run secret-scan` | pass |
-| `npm run migration-lint` | pass — **62 migrations, sequential 0001–0062** |
+| `npm run migration-lint` | pass — **63 migrations, sequential 0001–0063** |
 | `npm run typecheck` | pass |
 | `npm run lint` | pass (0 errors; pre-existing `<img>` warnings only) |
-| `npm test` (unit) | pass — **426 (79 files)** |
+| `npm test` (unit) | pass — **419 (79 files)** |
 | `npm run audit-check` | pass (2 approved exceptions) |
 | `npm run build` | pass |
-| `npm run test:integration` — **fresh DB** (0001→0062 from scratch) | pass — **35 files / 190 tests** (incl. the 0062 SECURITY DEFINER allowlist + 42501 adversarial suite) |
-| `npm run test:integration` — **upgrade path** (0058 + legacy data → 0059→0062) | pass — **35 files / 190 tests**; the 0062 lockdown holds on the upgraded DB |
+| `npm run test:integration` — **fresh DB** (0001→0063 from scratch) | pass — **36 files / 207 tests** (incl. the 0063 atomic-enqueue two-connection races + lifecycle trigger, and the 0062 signature-exact allowlist + 42501 suite) |
+| `npm run test:integration` — **upgrade path** (0058 + legacy data → 0059→0063) | pass — **36 files / 207 tests**; the 0062 lockdown holds and a legacy `ready` quotation is atomically enqueued on the upgraded DB |
+| hosted hotfix (0041-staged disposable DB) | exposure before → locked after (COMMIT); simulated residual → RAISE + ROLLBACK |
 
-_Numbers above are the **fourth (security-boundary) review increment** (integration branch, migrations
-0048–0062). Earlier rounds — third (0061, 34 files / 182 tests, unit 420); second (0060, 34 files / 180
-tests, unit 410); first (0058, 33 files / 173 tests, unit 405); first pass (0055, unit 374) — are
-superseded. **GitHub Actions obtained no runner on any run**; all evidence is local disposable
-PostgreSQL 16 — no CI-pass is claimed._
+_Numbers above are the **fifth (final) review increment** (integration branch, migrations 0048–0063).
+Earlier rounds — fourth (0062, 35 files / 190 tests, unit 426); third (0061, 34 files / 182 tests, unit
+420); second (0060, 34 files / 180 tests, unit 410); first (0058, 33 files / 173 tests, unit 405); first
+pass (0055, unit 374) — are superseded. **GitHub Actions obtained no runner on any run**; all evidence is
+local disposable PostgreSQL 16 — no CI-pass is claimed._
 
 Toolchain: Node v22.22.2, npm 10.9.7, PostgreSQL 16.13. No hosted migration applied; no feature flag
 enabled.

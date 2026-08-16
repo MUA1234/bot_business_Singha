@@ -30,10 +30,15 @@ but the hotfix is name-based and locks them too if they are ever present.
 1. **`hosted_secdef_privilege_check.sql`** — READ-ONLY. Lists every SECURITY DEFINER function and its
    anon/authenticated/service_role EXECUTE ACL, plus a focused query that flags `exposed = true`. Safe
    to run against hosted at any time; it mutates nothing.
-2. **`hosted_secdef_emergency_revoke.sql`** — OWNER-APPROVED mutation. The break-glass lockdown
-   (identical in effect to migration 0062's core): name-based, idempotent, `to_regprocedure`-guarded,
-   transactional, with an in-transaction confirmation SELECT that must return zero rows before COMMIT.
-   Run ONLY with owner approval, ONLY if the check shows an exposure, and ONLY before 0062 is applied.
+2. **`hosted_secdef_emergency_revoke.sql`** — mutation; **owner approval REQUIRED before execution**
+   (the script header states a requirement, not that approval has been granted). The break-glass
+   lockdown (identical in effect to migration 0062's core): **catalog-driven** — it discovers the
+   service-only functions from `pg_proc` by name and locks down every present signature, so no signature
+   is hardcoded and it is safe on both a 0041-only and a fully-migrated DB — idempotent, and
+   **self-verifying**: after the REVOKEs it ASSERTS in the same transaction that no anon/authenticated
+   EXECUTE remains and RAISES (aborting the whole transaction) if any does, so a partial lockdown can
+   never be committed from a SQL-editor batch. Run ONLY with owner approval, ONLY if the check shows an
+   exposure, and ONLY before 0062 is applied.
 
 ## Evidence (disposable PostgreSQL 16 staged at 0041 — mirrors the hosted 0038–0041 state)
 
@@ -48,8 +53,8 @@ but the hotfix is name-based and locks them too if they are ever present.
 All three are `authenticated_execute = true` — i.e. reachable by a logged-in user. This reproduces the
 hosted risk (the legacy 7-arg `_journal_post_internal` is present and exposed).
 
-**Running** `hosted_secdef_emergency_revoke.sql` — the in-transaction confirmation SELECT returned
-`(0 rows)` (no residual exposure), then `COMMIT`.
+**Running** `hosted_secdef_emergency_revoke.sql` — the REVOKE loop ran, the in-transaction self-verify
+found zero residual exposure, and the transaction reached `COMMIT` (`DO` then `COMMIT`).
 
 **After** the hotfix — same functions (`authenticated_execute`, `service_role_execute`):
 
@@ -58,6 +63,22 @@ hosted risk (the legacy 7-arg `_journal_post_internal` is present and exposed).
  claim_outbox_batch      | …                  | f | t
  ledger_integrity_report | p_company uuid      | f | t
 ```
+
+**Abort-gate proof** — a deliberately simulated residual exposure (re-granting EXECUTE to
+`authenticated` on one service-only function before the self-verify) makes the gate RAISE and the whole
+transaction ROLL BACK, so nothing is committed:
+
+```
+ERROR:  emergency hotfix ABORTED: 1 service-only signature(s) still expose EXECUTE to anon/authenticated
+ROLLBACK
+-- and the simulated grant did NOT persist (transaction aborted):
+ has_function_privilege
+------------------------
+ f
+```
+
+This is the fail-safe the review requires: the operator cannot commit a partial lockdown from a
+SQL-editor batch — residual exposure aborts the transaction rather than reaching `COMMIT`.
 
 `authenticated` (and `anon`) EXECUTE is revoked; `service_role` retains it. Applying migration **0062**
 afterwards is a no-op on these functions (same end-state).

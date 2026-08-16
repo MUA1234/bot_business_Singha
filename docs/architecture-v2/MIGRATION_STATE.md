@@ -21,8 +21,8 @@ _Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, W
 
 ## Migration source of truth
 
-- **Canonical migrations:** `src/db/migrations/0001_*.sql` … `0055_*.sql` (forward-only,
-  sequential; `migration-lint` confirms 0001–0062, no gaps). This directory is the **one**
+- **Canonical migrations:** `src/db/migrations/0001_*.sql` … `0063_*.sql` (forward-only,
+  sequential; `migration-lint` confirms 0001–0063, no gaps). This directory is the **one**
   migration source of truth.
 - **⚠️ Divergence risk (flag for WP6):** duplicate/aggregate runnable copies exist and
   can drift from canonical migrations. They must not be treated as authoritative:
@@ -108,6 +108,7 @@ _Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, W
 | 0060 | wp11_composite_fk_money_failclose (2nd review: composite company-consistency FKs NOT VALID + preflight; decide_approval fails closed on non-positive/non-finite amount, invalid currency, invalid approvals_required) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16, fresh + upgrade; **VALIDATE the two NOT VALID FKs after the documented preflight on staging**) |
 | 0061 | final_review_currency_enqueue_reconcile (3rd/final review: `currencies` catalogue — `is_active` + 16 seeded ISO codes on the existing 0002 table; `decide_approval` validates currency against it; service-only `enqueue_outbox_row` + `reconcile_quotation_from_outbox` RPCs, EXECUTE revoked from authenticated/anon) | ⛔ **owner confirmation required** (added 2026-08-16; dev-verified on disposable PostgreSQL 16, fresh + upgrade; **seed any additional in-use currencies after applying** — an unseeded currency can no longer be approved) |
 | 0062 | secure_definer_function_grants (4th/security-boundary review: lock every service-only SECURITY DEFINER function — `_journal_post_internal` incl. its legacy 7-arg signature, `claim_outbox_batch`, `complete_outbox_and_advance`, `ledger_integrity_report`, `_journal_fp_matches`, `enqueue_outbox_row`, `reconcile_quotation_from_outbox` — to `service_role`; name-based + `to_regprocedure`-guarded, idempotent, upgrade-safe) | ⛔ **owner confirmation required** (added 2026-08-16; dev-verified on disposable PostgreSQL 16, fresh + upgrade). **Note:** `claim_outbox_batch`/`ledger_integrity_report`/legacy `_journal_post_internal` from 0038–0041 are **already hosted and may be `authenticated`-executable** — see `HOSTED_SECDEF_PRIVILEGE_HOTFIX.md` for the prepared read-only check + emergency REVOKE. |
+| 0063 | wp12_atomic_quotation_enqueue (5th/final review: atomic service-only `enqueue_quotation_outbox` RPC — locks the company-scoped quotation row, and only if still legally `ready` inserts the outbox row AND advances ready→queued in ONE transaction, closing the enqueue race; result `enqueued`/`duplicate`/`terminal`/`not_ready`/`stale`/`inconsistent`; plus a BEFORE UPDATE trigger enforcing the legal quotation lifecycle at the DB boundary — `queued` can never jump to a terminal state) | ⛔ **owner confirmation required** (added 2026-08-16; dev-verified on disposable PostgreSQL 16, fresh + upgrade) |
 
 > **Correction-phase note (0044–0047):** authored 2026-08-08, **not** applied to any hosted
 > DB. Verified on a disposable local **PostgreSQL 16** (Supabase-compat shim) from a clean
@@ -121,10 +122,10 @@ _Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, W
 > confirmation on record, combined file `RUN_0038-0041_*.sql`). **0042 and 0043 onward were NOT
 > applied to any hosted database** — the per-migration rows above are authoritative; the earlier
 > prose that grouped "0038–0043 … applied by the owner" over-reached and is void. Everything from
-> **0042 through 0062** has hosted state **"owner confirmation required"** (dev-process verified on
+> **0042 through 0063** has hosted state **"owner confirmation required"** (dev-process verified on
 > disposable PostgreSQL 16 only).
 
-### Phase 1 correction migrations (0048–0062) — the five states, kept separate (WP18)
+### Phase 1 correction migrations (0048–0063) — the five states, kept separate (WP18)
 
 Each state is tracked independently; none implies another. "Applied to staging/production" is
 asserted only from a dated owner confirmation — there is none, so it is **owner confirmation
@@ -154,6 +155,7 @@ is not migrated** (the rows below are all "owner confirmation required"), **not*
 | 0060 wp11 (rev 2) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
 | 0061 wp11+wp12 (rev 3, final) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
 | 0062 secdef grants (rev 4, security) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0063 atomic quote enqueue (rev 5, final) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a — sync path runs with `WHATSAPP_ASYNC` OFF |
 
 > Legend: **File exists** = the `.sql` is committed. **Tested on disposable DB** = applied and its
 > adversarial + concurrency suite passed on an ephemeral PostgreSQL 16 with the Supabase-compat
