@@ -7,7 +7,7 @@ export const metadata = {
 };
 
 export const viewport = {
-  themeColor: "#1a0524",
+  themeColor: "#0b0e11",
   width: "device-width",
   initialScale: 1,
   // Let content extend under notches; globals.css pads with safe-area insets.
