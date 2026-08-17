@@ -32,6 +32,13 @@ const SERVICE_ONLY = new Set([
   "_journal_post_internal(uuid,date,text,text,uuid,text,jsonb,text,text,text,uuid)",
   "_journal_post_internal(uuid,date,text,text,uuid,jsonb,text)", // legacy 7-arg (upgrade only)
   "claim_outbox_batch(integer,text,integer)",
+  // 0069 durable inbound processing — leases, bounded retry, dead-letter, company-scoped backlog.
+  // Each gates on caller_jwt_role() = 'service_role' internally AND is granted to service_role only;
+  // migration 0069 carries its own fail-closed assertion that anon/authenticated cannot execute them.
+  "claim_source_events(integer,text,integer)",
+  "complete_source_event(uuid,text)",
+  "fail_source_event(uuid,text,text,text,integer)",
+  "source_event_backlog(uuid)",
   "complete_outbox_and_advance(uuid,text,text)",
   "create_management_case_atomic(uuid,text,jsonb,jsonb,uuid,text)", // 0068 atomic AI-case boundary
   "enqueue_outbox_row(uuid,text,text,text,text,text,text,jsonb,text,uuid,text)",
