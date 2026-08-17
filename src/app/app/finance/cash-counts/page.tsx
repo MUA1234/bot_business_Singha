@@ -6,6 +6,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { dec, fmtMoney } from "@/lib/money";
 import { recordCashCount } from "./actions";
 
 export const metadata = { title: "Cash Counts — Singha" };
@@ -56,12 +57,12 @@ export default async function CashCountsPage() {
               <thead><tr><th>Account</th><th className="num">Counted</th><th className="num">Variance</th><th>When</th></tr></thead>
               <tbody>
                 {counts.map((c) => {
-                  const v = Number(c.variance ?? 0);
+                  const v = dec(c.variance);
                   return (
                     <tr key={c.id}>
                       <td style={{ fontWeight: 600 }}>{c.cash_accounts?.name ?? "—"}</td>
-                      <td className="num">{c.cash_accounts?.currency} {Number(c.counted_amount).toLocaleString()}</td>
-                      <td className="num" style={{ color: v < 0 ? "var(--danger)" : v > 0 ? "var(--warn)" : "var(--ok)" }}>{v > 0 ? "+" : ""}{v.toLocaleString()}</td>
+                      <td className="num">{fmtMoney(c.counted_amount, c.cash_accounts?.currency)}</td>
+                      <td className="num" style={{ color: v.isNegative() ? "var(--danger)" : v.greaterThan(0) ? "var(--warn)" : "var(--ok)" }}>{v.greaterThan(0) ? "+" : ""}{fmtMoney(v)}</td>
                       <td className="dim small">{c.counted_at ? new Date(c.counted_at).toLocaleString() : "—"}</td>
                     </tr>
                   );

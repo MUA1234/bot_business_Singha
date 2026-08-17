@@ -7,6 +7,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { fmtMoney } from "@/lib/money";
 import { compareQuotations, type Quotation } from "@/modules/procurement/quote-comparison";
 import { addQuotation, awardQuotation } from "../actions";
 
@@ -41,7 +42,7 @@ export default async function RfqDetail({ params }: { params: { id: string } }) 
       </div>
 
       {comparison.ranked.length > 1 && (
-        <div className="notice ok">Cheapest: <b>{comparison.ranked[0]!.supplierName}</b> · potential saving vs highest: {currency} {Number(comparison.saving).toLocaleString()}</div>
+        <div className="notice ok">Cheapest: <b>{comparison.ranked[0]!.supplierName}</b> · potential saving vs highest: {fmtMoney(comparison.saving, currency)}</div>
       )}
 
       <div className="card">
@@ -67,7 +68,7 @@ export default async function RfqDetail({ params }: { params: { id: string } }) 
                   <tr key={q.id}>
                     <td>{q.isCheapest ? <span className="badge ok">best</span> : q.rank}</td>
                     <td style={{ fontWeight: 600 }}>{q.supplierName} {selected.has(q.id) && <span className="badge accent" style={{ marginLeft: 6 }}>awarded</span>}</td>
-                    <td className="num">{currency} {Number(q.total).toLocaleString()}</td>
+                    <td className="num">{fmtMoney(q.total, currency)}</td>
                     <td className="num">{q.leadTimeDays != null ? `${q.leadTimeDays}d` : "—"}</td>
                     <td>
                       {!selected.has(q.id) && (

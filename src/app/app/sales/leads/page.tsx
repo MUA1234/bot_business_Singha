@@ -7,6 +7,7 @@
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { fmtMoney } from "@/lib/money";
 import { scoreLead, type LeadStage } from "@/modules/commercial/lead-scoring";
 import { createLead, setLeadStage } from "./actions";
 
@@ -71,7 +72,7 @@ export default async function LeadsPage() {
                 {scored.map((r) => (
                   <tr key={r.id}>
                     <td><div style={{ fontWeight: 600 }}>{r.name}</div><div className="small dim">{r.contact ?? ""}</div></td>
-                    <td className="dim small">{r.currency ?? "LKR"} {Number(r.estimated_value ?? 0).toLocaleString()}</td>
+                    <td className="dim small">{fmtMoney(r.estimated_value, r.currency ?? "LKR")}</td>
                     <td><span className={`badge ${gradeBadge(r.grade)}`}>{r.grade} · {r.score}</span></td>
                     <td><span className="badge">{r.stage}</span></td>
                     <td>

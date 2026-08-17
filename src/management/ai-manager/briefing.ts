@@ -4,6 +4,8 @@
  * sentences for the owner. It summarises verified numbers only — no model, no
  * speculation — and recommends attention, never actions.
  */
+import { decGtZero, fmtMoney } from "@/lib/money";
+
 export interface BriefingInput {
   criticalCount: number;
   warnCount: number;
@@ -15,7 +17,7 @@ export interface BriefingInput {
   forecastLowest?: { date: string; balance: string } | null;
 }
 
-const money = (currency: string, v: string) => `${currency} ${Number(v).toLocaleString()}`;
+const money = (currency: string, v: string) => fmtMoney(v, currency);
 
 /** Ordered briefing lines (most important first). Always returns at least one line. */
 export function buildBriefing(input: BriefingInput): string[] {
@@ -27,10 +29,10 @@ export function buildBriefing(input: BriefingInput): string[] {
   if (input.forecastGoesNegative && input.forecastLowest) {
     lines.push(`💸 Cash is projected to go negative — trough ${money(input.currency, input.forecastLowest.balance)} on ${input.forecastLowest.date}.`);
   }
-  if (Number(input.arOverdue) > 0) {
+  if (decGtZero(input.arOverdue)) {
     lines.push(`📥 ${money(input.currency, input.arOverdue)} in receivables is overdue — chase collections.`);
   }
-  if (Number(input.apOverdue) > 0) {
+  if (decGtZero(input.apOverdue)) {
     lines.push(`📤 ${money(input.currency, input.apOverdue)} in payables is overdue — schedule/approve payment.`);
   }
   lines.push(`🏦 Cash on hand: ${money(input.currency, input.cash)}.`);

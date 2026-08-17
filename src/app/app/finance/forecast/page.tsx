@@ -7,6 +7,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { dec, decGtZero, decSub, fmtMoney } from "@/lib/money";
 import { computeCashPosition, type CashAccount, type CashMovement } from "@/modules/finance/cash-position";
 import { projectCash, type CashFlowItem } from "@/management/ai-manager/forecast";
 import { expandRecurring, type Cadence } from "@/modules/finance/recurring";
@@ -50,20 +51,20 @@ export default async function ForecastPage() {
     .filter((m): m is CashMovement => m !== null);
   const openingCash = computeCashPosition(cashAccounts, movements).totalsByCurrency[currency] ?? "0";
 
-  const outstanding = (r: any) => String(Number(r.total_amount ?? 0) - Number(r.amount_settled ?? 0));
-  const inflows: CashFlowItem[] = invoices.filter((r) => Number(outstanding(r)) > 0).map((r) => ({ date: r.due_date ?? today(), amount: outstanding(r) }));
+  const outstanding = (r: any) => decSub(r.total_amount, r.amount_settled).toFixed();
+  const inflows: CashFlowItem[] = invoices.filter((r) => decGtZero(outstanding(r))).map((r) => ({ date: r.due_date ?? today(), amount: outstanding(r) }));
 
   const now = new Date();
   const outflows: CashFlowItem[] = [
-    ...bills.filter((r) => Number(outstanding(r)) > 0).map((r) => ({ date: r.due_date ?? today(), amount: outstanding(r) })),
+    ...bills.filter((r) => decGtZero(outstanding(r))).map((r) => ({ date: r.due_date ?? today(), amount: outstanding(r) })),
     // One-off commitments (rent deposits, contracted spend).
-    ...commitments.filter((c) => Number(c.amount ?? 0) > 0).map((c): CashFlowItem => ({ date: c.expected_settlement_date ?? today(), amount: String(c.amount) })),
+    ...commitments.filter((c) => decGtZero(c.amount)).map((c): CashFlowItem => ({ date: c.expected_settlement_date ?? today(), amount: String(c.amount) })),
     // Recurring obligations (rent, salaries) expanded across the 90-day horizon.
     ...recurring.flatMap((r) => (r.next_due ? expandRecurring(r.cadence as Cadence, String(r.amount ?? 0), r.next_due, 90, now) : [])),
   ];
 
   const fc = projectCash({ currency, openingCash, inflows, outflows, horizonDays: 90 });
-  const fmt = (v: string) => `${currency} ${Number(v).toLocaleString()}`;
+  const fmt = (v: string) => fmtMoney(v, currency);
 
   // Sample the curve at 0/30/60/90 days for a compact view.
   const sample = [0, 30, 60, 90].map((d) => fc.points[Math.min(d, fc.points.length - 1)]).filter(Boolean);
@@ -85,7 +86,7 @@ export default async function ForecastPage() {
       <div className="grid cols-3">
         <div className="card stat"><div className="k">Opening cash</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmt(openingCash)}</div></div>
         <div className="card stat"><div className="k">Projected close (90d)</div><div className="v" style={{ fontSize: "1.4rem", color: fc.goesNegative ? "var(--danger)" : "var(--ok)" }}>{fmt(fc.closingBalance)}</div></div>
-        <div className="card stat"><div className="k">Lowest point</div><div className="v" style={{ fontSize: "1.4rem", color: Number(fc.lowest.balance) < 0 ? "var(--danger)" : "var(--info)" }}>{fmt(fc.lowest.balance)}</div><div className="d dim">{fc.lowest.date}</div></div>
+        <div className="card stat"><div className="k">Lowest point</div><div className="v" style={{ fontSize: "1.4rem", color: dec(fc.lowest.balance).isNegative() ? "var(--danger)" : "var(--info)" }}>{fmt(fc.lowest.balance)}</div><div className="d dim">{fc.lowest.date}</div></div>
       </div>
 
       <div className="card">

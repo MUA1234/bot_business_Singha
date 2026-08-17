@@ -7,6 +7,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { decGtZero, decSub, fmtMoney } from "@/lib/money";
 import { ageItems, bucketFor, type AgingItem } from "@/modules/finance/aging";
 
 export const metadata = { title: "Customer — Singha" };
@@ -28,8 +29,8 @@ export default async function CustomerDetail({ params }: { params: { id: string 
 
   const open = (invoices ?? []).filter((i: any) => !["paid", "cancelled"].includes(i.status));
   const currency = (invoices ?? [])[0]?.currency ?? "LKR";
-  const aging = ageItems(open.map((i: any): AgingItem => ({ dueDate: i.due_date, outstanding: String(Number(i.total_amount ?? 0) - Number(i.amount_settled ?? 0)) })), currency, now);
-  const m = (v: string | number) => `${currency} ${Number(v).toLocaleString()}`;
+  const aging = ageItems(open.map((i: any): AgingItem => ({ dueDate: i.due_date, outstanding: decSub(i.total_amount, i.amount_settled).toFixed() })), currency, now);
+  const m = (v: unknown) => fmtMoney(v, currency);
 
   return (
     <div className="stack gap-3">
@@ -42,8 +43,8 @@ export default async function CustomerDetail({ params }: { params: { id: string 
       </div>
 
       <div className="grid cols-3">
-        <div className="card stat"><div className="k">Outstanding</div><div className="v" style={{ fontSize: "1.4rem", color: Number(aging.total) > 0 ? "var(--warn)" : "var(--ok)" }}>{m(aging.total)}</div></div>
-        <div className="card stat"><div className="k">Overdue</div><div className="v" style={{ fontSize: "1.4rem", color: Number(aging.overdue) > 0 ? "var(--danger)" : "var(--ok)" }}>{m(aging.overdue)}</div></div>
+        <div className="card stat"><div className="k">Outstanding</div><div className="v" style={{ fontSize: "1.4rem", color: decGtZero(aging.total) ? "var(--warn)" : "var(--ok)" }}>{m(aging.total)}</div></div>
+        <div className="card stat"><div className="k">Overdue</div><div className="v" style={{ fontSize: "1.4rem", color: decGtZero(aging.overdue) ? "var(--danger)" : "var(--ok)" }}>{m(aging.overdue)}</div></div>
         <div className="card stat"><div className="k">90+ days</div><div className="v" style={{ fontSize: "1.4rem" }}>{m(aging.buckets.d90_plus)}</div></div>
       </div>
 
@@ -55,13 +56,13 @@ export default async function CustomerDetail({ params }: { params: { id: string 
               <thead><tr><th>Number</th><th className="num">Total</th><th className="num">Outstanding</th><th>Age</th><th>Status</th></tr></thead>
               <tbody>
                 {(invoices ?? []).map((i: any) => {
-                  const outstanding = Number(i.total_amount ?? 0) - Number(i.amount_settled ?? 0);
+                  const outstanding = decSub(i.total_amount, i.amount_settled);
                   const bucket = ["paid", "cancelled"].includes(i.status) ? null : bucketFor(i.due_date ?? null, now);
                   return (
                     <tr key={i.id}>
                       <td className="mono"><Link href={`/app/finance/customer-invoices/${i.id}`}>{i.invoice_number}</Link></td>
                       <td className="num">{m(i.total_amount)}</td>
-                      <td className="num">{outstanding > 0 ? m(outstanding) : "—"}</td>
+                      <td className="num">{outstanding.greaterThan(0) ? m(outstanding) : "—"}</td>
                       <td>{bucket ? <span className={`badge ${bucket === "d90_plus" ? "danger" : bucket === "current" ? "" : "warn"}`}>{BUCKET_LABEL[bucket]}</span> : "—"}</td>
                       <td><span className={`badge ${i.status === "paid" ? "ok" : ""}`}>{i.status}</span></td>
                     </tr>

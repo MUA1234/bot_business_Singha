@@ -65,6 +65,24 @@ export async function GET(req: Request): Promise<Response> {
     oldestAvailable = false;
   }
 
+  // Completion P1C — core APPLICATION tables the dashboards read. A missing table, revoked
+  // permission, or failed query on these must be OBSERVABLE here (the pages themselves render a
+  // user-safe degraded banner, never a fake "all clear"). Each probe distinguishes ok/unavailable.
+  const CORE_TABLES = [
+    "tasks", "customer_invoices", "supplier_bills", "management_cases",
+    "capacity_snapshots", "bank_accounts", "cash_accounts", "payments",
+  ] as const;
+  const coreTableResults = await Promise.all(
+    CORE_TABLES.map(async (t) => {
+      const m = await probe(db.from(t).select("*", { count: "exact", head: true }));
+      return [t, metricLabel(m)] as const;
+    }),
+  );
+  const unavailableTables = coreTableResults.filter(([, v]) => v === "unavailable").map(([t]) => t);
+  if (unavailableTables.length) {
+    log("error", "core table probe failed", { event: "health.table_unavailable", tables: unavailableTables });
+  }
+
   // Ledger integrity via the read-only report (migration 0041).
   let ledger: { level: SignalLevel; issues: string[]; available: boolean } = { level: "ok", issues: [], available: true };
   try {
@@ -107,6 +125,7 @@ export async function GET(req: Request): Promise<Response> {
     outboxAgeLevel(oldestAvailable ? oldestPendingMin : null),
     ledger.level,
     missing.length ? (process.env.APP_ENV === "production" ? "crit" : "warn") : "ok",
+    unavailableTables.length ? "warn" : "ok", // a dashboard-critical table failing is never "all clear"
   ]);
 
   if (overall === "crit") log("error", "health critical", { event: "health.critical", alerts: alerts.map((a) => a.key) });
@@ -127,6 +146,7 @@ export async function GET(req: Request): Promise<Response> {
       unanalysedConversations: label(unanalysed),
     },
     ledgerIntegrity: ledger,
+    coreTables: Object.fromEntries(coreTableResults),
     config: { missing },
     alerts,
   });

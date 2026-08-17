@@ -5,6 +5,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { fmtMoney } from "@/lib/money";
 import { createPurchaseOrder } from "./actions";
 
 export const metadata = { title: "Purchase Orders — Singha" };
@@ -52,7 +53,7 @@ export default async function PurchaseOrdersPage() {
                 {rows.map((r) => (
                   <tr key={r.id}>
                     <td className="mono" style={{ fontWeight: 600 }}>{r.po_number}</td>
-                    <td className="num">{r.currency ?? "LKR"} {Number(r.total_amount ?? 0).toLocaleString()}</td>
+                    <td className="num">{fmtMoney(r.total_amount, r.currency ?? "LKR")}</td>
                     <td><span className="badge">{(r.status ?? "").replace(/_/g, " ")}</span></td>
                     <td><Link className="btn ghost sm" href={`/app/procurement/purchase-orders/${r.id}`}>Open</Link></td>
                   </tr>

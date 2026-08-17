@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { decGtZero, fmtMoney } from "@/lib/money";
 import { PrintButton } from "./PrintButton";
 
 // Quotations carry customer PII behind a shareable capability-URL. Never let a
@@ -12,7 +13,7 @@ export const metadata = {
 
 function money(v: number | string | null, currency: string): string {
   if (v == null) return "—";
-  return `${currency} ${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  return fmtMoney(v, currency); // exact decimal, currency scale (≥2dp for LKR)
 }
 
 export default async function QuotationPage({ params }: { params: { token: string } }) {
@@ -137,7 +138,7 @@ export default async function QuotationPage({ params }: { params: { token: strin
                   <span>Subtotal</span>
                   <span>{money(quote.subtotal, cur)}</span>
                 </div>
-                {Number(quote.tax_amount) > 0 && (
+                {decGtZero(quote.tax_amount) && (
                   <div className="r">
                     <span>Tax</span>
                     <span>{money(quote.tax_amount, cur)}</span>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
+import { parseMoneyInput } from "@/lib/money";
 
 export interface CatalogState {
   error?: string;
@@ -25,9 +26,11 @@ export async function addProduct(_prev: CatalogState, formData: FormData): Promi
   const priceRaw = String(formData.get("unit_price") ?? "").trim();
   const currency = (String(formData.get("currency") ?? "LKR").trim() || "LKR").toUpperCase().slice(0, 3);
   if (!name) return { error: "Product name is required." };
-  const unit_price = priceRaw === "" ? null : Number(priceRaw);
-  if (unit_price !== null && (!isFinite(unit_price) || unit_price < 0))
+  // Decimal money, nullable: blank means "price varies" (absent). Never a JS float.
+  const unitPrice = priceRaw === "" ? null : parseMoneyInput(priceRaw, currency);
+  if (priceRaw !== "" && (!unitPrice || unitPrice.isNegative()))
     return { error: "Enter a valid price, or leave blank if the price varies." };
+  const unit_price = unitPrice ? unitPrice.toString() : null;
 
   const { error } = await supabaseWriteClient().from("product_catalog").insert({
     company_id: p.companyId,

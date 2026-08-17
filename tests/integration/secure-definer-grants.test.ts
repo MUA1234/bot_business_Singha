@@ -33,6 +33,7 @@ const SERVICE_ONLY = new Set([
   "_journal_post_internal(uuid,date,text,text,uuid,jsonb,text)", // legacy 7-arg (upgrade only)
   "claim_outbox_batch(integer,text,integer)",
   "complete_outbox_and_advance(uuid,text,text)",
+  "create_management_case_atomic(uuid,text,jsonb,jsonb,uuid,text)", // 0068 atomic AI-case boundary
   "enqueue_outbox_row(uuid,text,text,text,text,text,text,jsonb,text,uuid,text)",
   "enqueue_quotation_outbox(uuid,uuid,text,text,text,numeric,text,text,text)",
   "ledger_integrity_report(uuid)",

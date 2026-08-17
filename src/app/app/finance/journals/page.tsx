@@ -6,6 +6,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { fmtMoney } from "@/lib/money";
 
 export const metadata = { title: "Journals — Singha" };
 
@@ -51,8 +52,8 @@ export default async function JournalsPage() {
                     <td className="dim small">{r.posting_date}</td>
                     <td>{r.memo ?? "—"}</td>
                     <td><span className={`badge ${r.status === "posted" ? "ok" : r.status === "reversed" ? "warn" : ""}`}>{r.status}</span></td>
-                    <td className="num">{r.currency} {Number(r.total_debit ?? 0).toLocaleString()}</td>
-                    <td className="num">{r.currency} {Number(r.total_credit ?? 0).toLocaleString()}</td>
+                    <td className="num">{fmtMoney(r.total_debit, r.currency)}</td>
+                    <td className="num">{fmtMoney(r.total_credit, r.currency)}</td>
                     <td><Link className="btn ghost sm" href={`/app/finance/journals/${r.id}`}>View</Link></td>
                   </tr>
                 ))}

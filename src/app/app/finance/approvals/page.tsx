@@ -7,6 +7,7 @@
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { fmtMoney } from "@/lib/money";
 import { computeApprovalProgress, canActOnApproval, type ApprovalAction } from "@/policy/approval-progress";
 import { actOnApproval } from "./actions";
 
@@ -95,7 +96,7 @@ export default async function ApprovalsPage() {
                   return (
                     <tr key={r.id}>
                       <td>{ev?.event_type ?? "financial event"}</td>
-                      <td className="num">{ev?.amount != null ? `${ev.currency ?? ""} ${Number(ev.amount).toLocaleString()}` : "—"}</td>
+                      <td className="num">{ev?.amount != null ? fmtMoney(ev.amount, ev.currency ?? undefined) : "—"}</td>
                       <td className="dim small">{progress.approvals}/{Math.max(1, r.approvals_required)} approvals</td>
                       <td><span className={`badge ${badge}`}>{progress.status}</span></td>
                       <td>
@@ -138,7 +139,7 @@ export default async function ApprovalsPage() {
                   <tr key={r.id}>
                     <td style={{ fontWeight: 600 }}>{r.description}</td>
                     <td>{r.status === "resolved" ? <span className="badge ok">Confirmed</span> : <span className="badge">Dismissed</span>}</td>
-                    <td>{r.resolved_price != null ? `${r.currency} ${Number(r.resolved_price).toLocaleString()}` : "—"}</td>
+                    <td>{r.resolved_price != null ? fmtMoney(r.resolved_price, r.currency) : "—"}</td>
                     <td><span className="badge">{r.department}</span></td>
                     <td className="dim small">{r.resolved_at ? new Date(r.resolved_at).toLocaleString() : "—"}</td>
                   </tr>

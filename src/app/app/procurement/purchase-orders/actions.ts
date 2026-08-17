@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
+import { dec, decSum, parseMoneyInput } from "@/lib/money";
 
 async function requireProc() {
   const p = await requireProfile();
@@ -23,7 +24,7 @@ export async function createPurchaseOrder(formData: FormData): Promise<void> {
   const db = supabaseWriteClient();
   const { data, error } = await db
     .from("purchase_orders")
-    .insert({ company_id: p.companyId, po_number: poNumber(), status: "draft", total_amount: 0 })
+    .insert({ company_id: p.companyId, po_number: poNumber(), status: "draft", total_amount: "0.00" })
     .select("id")
     .maybeSingle();
   if (error) return;
@@ -41,11 +42,12 @@ async function recomputePoTotalAndStatus(poId: string, companyId: string) {
   const db = supabaseWriteClient();
   const { data: lines } = await db.from("po_lines").select("quantity, unit_price, received_quantity").eq("purchase_order_id", poId).eq("company_id", companyId);
   const rows = lines ?? [];
-  const total = rows.reduce((s: number, l: any) => s + Number(l.quantity ?? 0) * Number(l.unit_price ?? 0), 0);
+  // Money × quantity in Decimal — never a JS float (Constitution invariant #11).
+  const total = decSum(rows.map((l: any) => dec(l.unit_price).times(Math.max(0, Math.trunc(Number(l.quantity) || 0)))));
   const anyReceived = rows.some((l: any) => Number(l.received_quantity ?? 0) > 0);
   const allReceived = rows.length > 0 && rows.every((l: any) => Number(l.received_quantity ?? 0) >= Number(l.quantity ?? 0));
   const status = allReceived ? "received" : anyReceived ? "part_received" : "draft";
-  await db.from("purchase_orders").update({ total_amount: total, status }).eq("id", poId).eq("company_id", companyId);
+  await db.from("purchase_orders").update({ total_amount: total.toFixed(), status }).eq("id", poId).eq("company_id", companyId);
 }
 
 export async function addPoLine(formData: FormData): Promise<void> {
@@ -54,11 +56,13 @@ export async function addPoLine(formData: FormData): Promise<void> {
   if (!(await poInCompany(poId, p.companyId))) return;
   const description = String(formData.get("description") ?? "").trim();
   if (!description) return;
-  const quantity = Math.max(0, Number(formData.get("quantity") ?? 0) || 0);
-  const unit_price = Math.max(0, Number(formData.get("unit_price") ?? 0) || 0);
+  const quantity = Math.max(0, Math.trunc(Number(formData.get("quantity") ?? 0) || 0));
+  // Decimal money via parseMoneyInput — malformed/negative price is rejected like other invalid input.
+  const unitPrice = parseMoneyInput(formData.get("unit_price"), "LKR");
+  if (!unitPrice || unitPrice.isNegative()) return;
 
   await supabaseWriteClient().from("po_lines").insert({
-    purchase_order_id: poId, company_id: p.companyId, description, quantity, unit_price, received_quantity: 0,
+    purchase_order_id: poId, company_id: p.companyId, description, quantity, unit_price: unitPrice.toString(), received_quantity: 0,
   });
   await recomputePoTotalAndStatus(poId, p.companyId);
   revalidatePath(`/app/procurement/purchase-orders/${poId}`);

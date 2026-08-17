@@ -5,6 +5,7 @@
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { fmtMoney } from "@/lib/money";
 import { createPurchaseRequest, setPurchaseRequestStatus } from "./actions";
 
 export const metadata = { title: "Purchase Requests — Singha" };
@@ -63,7 +64,7 @@ export default async function PurchaseRequestsPage() {
                 {rows.map((r) => (
                   <tr key={r.id}>
                     <td style={{ fontWeight: 600 }}>{r.title}</td>
-                    <td className="dim small">{r.estimated_cost != null ? `${r.currency ?? "LKR"} ${Number(r.estimated_cost).toLocaleString()}` : "—"}</td>
+                    <td className="dim small">{r.estimated_cost != null ? fmtMoney(r.estimated_cost, r.currency ?? "LKR") : "—"}</td>
                     <td><span className="badge">{r.status}</span></td>
                     <td>
                       <div className="row gap-1 wrap">

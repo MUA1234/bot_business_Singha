@@ -6,6 +6,7 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { summarizePipeline, type Opportunity } from "@/modules/commercial/pipeline-value";
+import { fmtMoney } from "@/lib/money";
 import { createOpportunity, setOpportunityStatus } from "./actions";
 
 export const metadata = { title: "Opportunities — Singha" };
@@ -24,8 +25,9 @@ export default async function OpportunitiesPage() {
   }
 
   const currency = rows[0]?.currency ?? "LKR";
-  const summary = summarizePipeline(rows.map((r): Opportunity => ({ amount: Number(r.amount ?? 0), probability: Number(r.probability ?? 0), status: r.status })));
-  const m = (n: number) => `${currency} ${n.toLocaleString()}`;
+  // Amount strings go straight into the Decimal-based pipeline summary — no float round-trip.
+  const summary = summarizePipeline(rows.map((r): Opportunity => ({ amount: String(r.amount ?? "0"), probability: Number(r.probability ?? 0), status: r.status })));
+  const m = (v: string | number | null | undefined) => fmtMoney(v ?? "0", currency);
 
   return (
     <div className="stack gap-3">
@@ -62,7 +64,7 @@ export default async function OpportunitiesPage() {
                 {rows.map((r) => (
                   <tr key={r.id}>
                     <td style={{ fontWeight: 600 }}>{r.title}</td>
-                    <td className="num">{m(Number(r.amount ?? 0))}</td>
+                    <td className="num">{m(r.amount)}</td>
                     <td className="num">{Number(r.probability ?? 0)}%</td>
                     <td className="dim small">{r.expected_close ?? "—"}</td>
                     <td><span className={`badge ${r.status === "won" ? "ok" : r.status === "lost" ? "danger" : "warn"}`}>{r.status}</span></td>

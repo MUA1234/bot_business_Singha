@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
+import { parseMoneyInput } from "@/lib/money";
 
 async function requireMarketing() {
   const p = await requireProfile();
@@ -24,7 +25,9 @@ export async function createCampaign(formData: FormData): Promise<void> {
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
   const channel = String(formData.get("channel") ?? "whatsapp");
-  const budget = Number(formData.get("budget") ?? 0) || null;
+  // Decimal money, nullable: empty/zero/unparseable → null (absent), exactly as before — no JS float.
+  const budgetMoney = parseMoneyInput(formData.get("budget"), "LKR");
+  const budget = budgetMoney && !budgetMoney.isZero() ? budgetMoney.toString() : null;
   const audience_id = String(formData.get("audience_id") ?? "").trim() || null;
   const { error } = await supabaseWriteClient().from("campaigns").insert({
     company_id: p.companyId, name, channel: ["whatsapp", "email", "other"].includes(channel) ? channel : "whatsapp",

@@ -21,25 +21,46 @@ import {
 } from "@/management/ai-manager/exceptions";
 import { ageItems, type AgingItem } from "@/modules/finance/aging";
 import { computeCashPosition, type CashAccount, type CashMovement } from "@/modules/finance/cash-position";
+import { decGtZero, decSub, fmtMoney } from "@/lib/money";
+import { log } from "@/lib/log";
 import { projectCash, type CashFlowItem } from "@/management/ai-manager/forecast";
 import { buildBriefing } from "@/management/ai-manager/briefing";
 
 export const metadata = { title: "Command Centre — Singha" };
 
-/** Query that never throws: a missing table (pre-migration) yields []. */
-async function safeSelect<T>(run: () => Promise<{ data: T[] | null; error: unknown }>): Promise<T[]> {
-  try {
-    const { data } = await run();
-    return data ?? [];
-  } catch {
-    return [];
-  }
+/**
+ * Completion P1C — a failed query is a DEGRADED page, never a silent []. Each failure is logged
+ * (telemetry: `command.query_failed`; /api/health independently probes the same tables) and recorded
+ * so the page renders a user-safe degraded banner instead of a false "All clear".
+ */
+function makeObservedSelect(failures: string[]) {
+  return async function observedSelect<T>(
+    name: string,
+    run: () => Promise<{ data: T[] | null; error: { message?: string } | null }>,
+  ): Promise<T[]> {
+    try {
+      const { data, error } = await run();
+      if (error) {
+        failures.push(name);
+        log("error", "command centre query failed", { event: "command.query_failed", source: name, error: error.message ?? "unknown" });
+        return [];
+      }
+      return data ?? [];
+    } catch (e) {
+      failures.push(name);
+      log("error", "command centre query failed", { event: "command.query_failed", source: name, error: (e as Error).message });
+      return [];
+    }
+  };
 }
 
 export default async function CommandCentrePage() {
   const admin = await requireAdmin();
   const db = supabaseReadClient();
   const now = new Date();
+  const failedSources: string[] = [];
+  const safeSelect = <T,>(run: () => Promise<{ data: T[] | null; error: { message?: string } | null }>, name = "query") =>
+    makeObservedSelect(failedSources)<T>(name, run);
 
   const taskRows = await safeSelect<any>(() =>
     db
@@ -47,7 +68,7 @@ export default async function CommandCentrePage() {
       .select("id, title, status, due_date, estimate_hours, updated_at")
       .eq("company_id", admin.companyId)
       .limit(500) as any,
-  );
+  "tasks");
 
   const capRows = await safeSelect<any>(() =>
     db
@@ -56,7 +77,7 @@ export default async function CommandCentrePage() {
       .eq("company_id", admin.companyId)
       .order("week_start", { ascending: false })
       .limit(200) as any,
-  );
+  "capacity_snapshots");
 
   const invoices = await safeSelect<any>(() =>
     db
@@ -64,30 +85,33 @@ export default async function CommandCentrePage() {
       .select("currency, total_amount, amount_settled, due_date, status")
       .eq("company_id", admin.companyId)
       .not("status", "in", "(paid,cancelled)") as any,
-  );
+  "customer_invoices");
   const bills = await safeSelect<any>(() =>
     db
       .from("supplier_bills")
       .select("currency, total_amount, amount_settled, due_date, status")
       .eq("company_id", admin.companyId)
       .not("status", "in", "(paid,cancelled)") as any,
-  );
+  "supplier_bills");
 
   const currency = invoices[0]?.currency ?? bills[0]?.currency ?? "LKR";
+  // Outstanding = total − settled, EXACT (Decimal) — these amounts drive aging buckets, the
+  // overdue exceptions below, and the cash forecast; a float subtraction drifts on both large
+  // and fractional amounts.
   const toItems = (rows: any[]): AgingItem[] =>
     rows.map((r) => ({
       dueDate: r.due_date ?? null,
-      outstanding: String(Number(r.total_amount ?? 0) - Number(r.amount_settled ?? 0)),
+      outstanding: decSub(r.total_amount, r.amount_settled).toFixed(),
     }));
   const ar = ageItems(toItems(invoices), currency, now);
   const ap = ageItems(toItems(bills), currency, now);
-  const fmt = (v: string) => `${currency} ${Number(v).toLocaleString()}`;
+  const fmt = (v: string) => fmtMoney(v, currency);
 
   // Cash position: bank + cash accounts, adjusted by non-void payments.
   const [banks, cashes, pmts] = await Promise.all([
-    safeSelect<any>(() => db.from("bank_accounts").select("id, name, currency, opening_balance").eq("company_id", admin.companyId) as any),
-    safeSelect<any>(() => db.from("cash_accounts").select("id, name, currency, opening_balance").eq("company_id", admin.companyId) as any),
-    safeSelect<any>(() => db.from("payments").select("direction, amount, bank_account_id, cash_account_id, status").eq("company_id", admin.companyId).neq("status", "void") as any),
+    safeSelect<any>(() => db.from("bank_accounts").select("id, name, currency, opening_balance").eq("company_id", admin.companyId) as any, "bank_accounts"),
+    safeSelect<any>(() => db.from("cash_accounts").select("id, name, currency, opening_balance").eq("company_id", admin.companyId) as any, "cash_accounts"),
+    safeSelect<any>(() => db.from("payments").select("direction, amount, bank_account_id, cash_account_id, status").eq("company_id", admin.companyId).neq("status", "void") as any, "payments"),
   ]);
   const cashAccounts: CashAccount[] = [...banks, ...cashes].map((a) => ({
     id: a.id, name: a.name, currency: a.currency, openingBalance: String(a.opening_balance ?? 0),
@@ -121,9 +145,9 @@ export default async function CommandCentrePage() {
   }
 
   const financeExceptions: Exception[] = [];
-  if (Number(ar.overdue) > 0)
+  if (decGtZero(ar.overdue))
     financeExceptions.push({ type: "overdue", severity: "critical", message: `Overdue receivables: ${fmt(ar.overdue)}` });
-  if (Number(ap.overdue) > 0)
+  if (decGtZero(ap.overdue))
     financeExceptions.push({ type: "overdue", severity: "warn", message: `Overdue payables: ${fmt(ap.overdue)}` });
 
   const exceptions: Exception[] = sortBySeverity([
@@ -139,8 +163,8 @@ export default async function CommandCentrePage() {
   const fc = projectCash({
     currency,
     openingCash: cashTotal,
-    inflows: invoices.map((r): CashFlowItem => ({ date: r.due_date ?? t(), amount: String(Number(r.total_amount ?? 0) - Number(r.amount_settled ?? 0)) })).filter((i) => Number(i.amount) > 0),
-    outflows: bills.map((r): CashFlowItem => ({ date: r.due_date ?? t(), amount: String(Number(r.total_amount ?? 0) - Number(r.amount_settled ?? 0)) })).filter((o) => Number(o.amount) > 0),
+    inflows: invoices.map((r): CashFlowItem => ({ date: r.due_date ?? t(), amount: decSub(r.total_amount, r.amount_settled).toFixed() })).filter((i) => decGtZero(i.amount)),
+    outflows: bills.map((r): CashFlowItem => ({ date: r.due_date ?? t(), amount: decSub(r.total_amount, r.amount_settled).toFixed() })).filter((o) => decGtZero(o.amount)),
     horizonDays: 90,
   });
   const briefing = buildBriefing({
@@ -211,11 +235,20 @@ export default async function CommandCentrePage() {
 
       <div className="card">
         <div className="card-title">Needs attention</div>
+        {failedSources.length > 0 && (
+          <div className="row" style={{ padding: "8px 4px", color: "var(--danger)", borderBottom: "1px solid var(--panel-border)" }}>
+            ⚠ Some data sources failed to load ({failedSources.join(", ")}). Figures on this page may be
+            incomplete — this is a system problem, not a clean bill of health. It has been reported to
+            monitoring.
+          </div>
+        )}
         {exceptions.length === 0 ? (
           <div className="empty">
-            {tasks.length === 0 && caps.length === 0
-              ? "No task or capacity data yet. Once the Phase-1/2 tables are populated, exceptions appear here."
-              : "All clear — nothing needs attention right now."}
+            {failedSources.length > 0
+              ? "Exception detection is degraded because data sources failed — no \"all clear\" can be given."
+              : tasks.length === 0 && caps.length === 0
+                ? "No task or capacity data yet. Once the Phase-1/2 tables are populated, exceptions appear here."
+                : "All clear — nothing needs attention right now."}
           </div>
         ) : (
           <div className="stack gap-1 mt-2">

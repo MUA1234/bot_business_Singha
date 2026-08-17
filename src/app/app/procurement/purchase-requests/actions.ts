@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
+import { parseMoneyInput } from "@/lib/money";
 
 async function requireProc() {
   const p = await requireProfile();
@@ -18,7 +19,9 @@ export async function createPurchaseRequest(formData: FormData): Promise<void> {
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return;
   const description = String(formData.get("description") ?? "").trim() || null;
-  const estimated_cost = Number(formData.get("estimated_cost") ?? 0) || null;
+  // Decimal money, nullable: empty/zero/unparseable → null (absent), exactly as before — no JS float.
+  const estimatedCost = parseMoneyInput(formData.get("estimated_cost"), "LKR");
+  const estimated_cost = estimatedCost && !estimatedCost.isZero() ? estimatedCost.toString() : null;
 
   const { data, error } = await supabaseWriteClient()
     .from("purchase_requests")
