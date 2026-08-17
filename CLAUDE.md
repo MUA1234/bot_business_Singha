@@ -67,17 +67,23 @@
 > extension-owned) to `pg_catalog, extensions, public, pg_temp` (pg_temp LAST; `extensions` for
 > digest/pgcrypto), closing the `pg_temp` relation-shadowing class across the accounting/approval/identity-
 > RLS/bank-change/journal/settlement/reimbursement/fingerprint/integrity domains — bodies unchanged, only
-> `search_path`; the migration **fails closed** if anon/authenticated/service_role has CREATE on
-> `public`/`extensions`, and a permanent integration gate (`search-path-safety.test.ts`) fails on any future
-> unsafe function; and (b) closes a quotation-item vs atomic-enqueue race — the item-freeze guard now reads
-> the parent quotation **FOR UPDATE** (serializing with `enqueue_quotation_outbox`), and enqueue locks the
-> item rows and returns `stale` when an itemised quotation's expected total diverges from the live item sum,
-> so a queued outbox snapshot can never disagree with committed items (owner-approved hosted search_path
-> check + self-verifying hardening scripts prepared, not executed) — see
+> `search_path`; the migration **fails closed** if anon/authenticated/service_role has CREATE — direct or
+> SET-ROLE-reachable — on `public`/`extensions`, the hardening SELF-VERIFIES owner-agnostically (any
+> function left unsafe, e.g. under a foreign owner, ABORTS the migration naming it — no silent partial
+> hardening), and a permanent owner-agnostic integration gate (`search-path-safety.test.ts`) fails on any
+> future unsafe function (unsafe includes a duplicated `pg_temp` whose first occurrence is not last); and
+> (b) closes a quotation-item vs atomic-enqueue race at a SINGLE linearization lock — the item-freeze guard
+> reads the parent quotation **FOR UPDATE** (serializing with `enqueue_quotation_outbox`, which takes NO
+> item-row locks: one lock object cannot deadlock), enqueue requires UNCONDITIONALLY that the expected
+> total equal the live `SUM(line_total)` (no item-count exemption — deleting ALL items yields sum 0 ≠ a
+> non-zero total → `stale`) and refuses any unpriced item, and the freeze guard FAILS CLOSED on an
+> unclassifiable caller (raw `service_role` with no JWT claims), so a queued outbox snapshot can never
+> disagree with committed items (owner-approved hosted search_path check + self-verifying hardening
+> scripts prepared, not executed) — see
 > `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`) on
 > `feature/v3-1-phase-1-external-review-fixes`, now **awaiting the FINAL external review** — do not
 > begin V3.1 Phase 2 until it is approved. Verified counts: **unit 419 (79 files); integration 41
-> files / 311 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
+> files / 317 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
 > `PHASE1_CORRECTIONS_LEDGER.md`.
 >
 > **Superseded-document rule:** A coding agent MUST NOT rely on any instruction that

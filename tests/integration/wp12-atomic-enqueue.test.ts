@@ -32,6 +32,10 @@ async function seedQuotation(conn: any, company: string, status: string, total =
   const ord = (await conn.query(`insert into orders (company_id, conversation_id, customer_phone, status) values ($1,$2,'9471','new') returning id`, [company, conv])).rows[0].id;
   const quo = (await conn.query(`insert into quotations (company_id, order_id, quote_number, currency, status, total, public_token) values ($1,$2,$3,$4,$5,$6,$7) returning id`,
     [company, ord, "SQ-" + rnd(), currency, status, total, "tok_" + rnd()])).rows[0].id;
+  // One priced item matching the stored total — 0067's enqueue guard requires the live item sum to equal
+  // the expected total UNCONDITIONALLY (an item-less "ready" seed would now be `stale`).
+  await conn.query(`insert into quotation_items (quotation_id, company_id, description, quantity, unit_price, currency, line_total, status) values ($1,$2,'item',1,$3,$4,$3,'priced')`,
+    [quo, company, total, currency]);
   return { conv, ord, quo };
 }
 const ENQ = `select public.enqueue_quotation_outbox($1,$2,'9471','body',$3,$4,$5,'whatsapp','quotation') as v`;

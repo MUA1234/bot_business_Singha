@@ -80,6 +80,10 @@ async function seedQuotation(status: string, total = "100", currency = "LKR") {
   const ord = (await q(`insert into orders (company_id, conversation_id, customer_phone, status) values ($1,$2,'9471','new') returning id`, [co, conv])).rows[0].id;
   const quo = (await q(`insert into quotations (company_id, order_id, quote_number, currency, status, total, public_token) values ($1,$2,$3,$4,$5,$6,$7) returning id`,
     [co, ord, "SQ-" + rnd(), currency, status, total, "tok_" + rnd()])).rows[0].id;
+  // One priced item whose line_total equals the stored total — 0067's enqueue guard requires the live
+  // item sum to equal the expected total UNCONDITIONALLY (an item-less "ready" seed would now be `stale`).
+  await q(`insert into quotation_items (quotation_id, company_id, description, quantity, unit_price, currency, line_total, status) values ($1,$2,'item',1,$3,$4,$3,'priced')`,
+    [quo, co, total, currency]);
   return { conv, ord, quo };
 }
 const statusOf = async (quo: string) => (await q(`select status from quotations where id=$1`, [quo])).rows[0].status;

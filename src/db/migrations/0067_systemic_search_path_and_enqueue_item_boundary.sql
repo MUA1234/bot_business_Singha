@@ -20,46 +20,80 @@
 --   is visibly queued, but `_quotation_status_for_guard()` performed an UNLOCKED parent-status read, so a
 --   concurrent item mutation could still see the pre-commit `ready` status while `enqueue_quotation_outbox`
 --   was queuing the previously-built message — leaving a queued outbox body/total that disagrees with the
---   committed items. Closed at the same DB linearization boundary, with ONE lock order (parent quotation
---   BEFORE child items):
---     (a) the item-freeze guard helper now reads the parent FOR UPDATE, so a concurrent item mutation
---         serializes on the quotation row that `enqueue_quotation_outbox` already locks; and
---     (b) `enqueue_quotation_outbox`, under that parent lock, locks the item rows and — for an ITEMISED
---         quotation — requires the caller's expected total to equal the authoritative live sum of item
---         line totals, else returns `stale`. Together: if the item mutation commits first, enqueue observes
---         the new authoritative sum and returns `stale` (never sends the old body); if enqueue commits
---         first, the concurrent item mutation waits on the parent lock and then fails 42501 (queued/frozen).
+--   committed items. Closed at the DB linearization boundary with a SINGLE lock — the parent quotation row:
+--     (a) the item-freeze guard helper reads the parent FOR UPDATE, so every non-trusted item mutation
+--         (INSERT/UPDATE/DELETE) must acquire the SAME quotation-row lock that `enqueue_quotation_outbox`
+--         holds. enqueue takes NO item-row locks (deliberately: the target item row is locked by Postgres
+--         BEFORE its row trigger fires, so an enqueue that then locked item rows would create a genuine
+--         parent→child vs child→parent AB-BA deadlock — found by the pre-submission adversarial pass and
+--         reproduced on a live PostgreSQL 16; a single lock object cannot form a cycle). Under the parent
+--         lock, enqueue's per-statement MVCC snapshot reads only COMMITTED item state: any mutation that
+--         committed first is visible; any uncommitted mutation is waiting on the parent lock and — once
+--         enqueue commits `queued` — is refused 42501 by the freeze guard (READ COMMITTED re-evaluation).
+--     (b) `enqueue_quotation_outbox`, under that parent lock, requires — UNCONDITIONALLY, on the `ready`
+--         path — the caller's expected total to equal the authoritative live SUM(line_total) of the
+--         quotation's items, and refuses (also `stale`) if ANY item is unpriced (`status <> 'priced'` or
+--         NULL `unit_price` — exactly the predicate `refreshQuotationStatus` uses to keep a quotation out
+--         of `ready`). There is NO item-count exemption: deleting ALL items of a `ready` quotation makes
+--         the live sum 0, which no longer matches a non-zero expected total → `stale` (the pre-submission
+--         adversarial pass showed the earlier `v_item_count > 0` guard let a delete-to-zero race ship a
+--         customer-facing total backed by zero items). A quotation that never had items enqueues only with
+--         an expected total of 0 — the degenerate seed case, impossible for a real priced quotation.
 --     Numeric/Decimal correctness is preserved (all DB numeric; no float). enqueue keeps its exact
 --     signature, SECURITY DEFINER owner, hardened search_path, service-role-only EXECUTE, and every existing
 --     result/exact-payload-recovery semantic.
+--
+--   Also from the same adversarial pass: `quotation_items_enforce_frozen` now FAILS CLOSED when the
+--   status guard returns NULL (an unclassifiable caller — e.g. a raw `service_role` session with no
+--   PostgREST JWT claims, which `caller_jwt_role()` cannot vouch for and RLS does not backstop because
+--   `service_role` has BYPASSRLS). Previously a NULL guard result skipped the freeze silently.
 --
 -- Forward-only, idempotent. No feature flag. The DB owner / migration admin remains trusted.
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- (1a) FAIL CLOSED if an API role can CREATE in a trusted schema (would allow a persistent shadow object).
 -- This migration does NOT revoke hosted privileges — it reports an incompatible condition to the operator.
+-- Coupling note (reviewed): this precondition deliberately shares the migration (and its transaction) with
+-- Corrections 1b/2 — the systemic hardening must not be recorded as applied into a schema where an API
+-- role can plant persistent shadow objects. If it trips, the whole of 0067 rolls back and the runner
+-- stops; the operator remediates the privilege (owner-approved) and re-runs — nothing is half-applied.
 -- ─────────────────────────────────────────────────────────────────────────────
 do $$
-declare r text;
+declare r text; s text; g record;
 begin
   foreach r in array array['anon','authenticated','service_role'] loop
     if exists (select 1 from pg_catalog.pg_roles where rolname = r) then
-      if pg_catalog.has_schema_privilege(r, 'public', 'CREATE') then
-        raise exception '0067 fail-closed: role % has CREATE on schema public — a persistent shadow object could be planted there. REVOKE CREATE (owner-approved) before applying; this migration does not alter hosted privileges.', r;
-      end if;
-      if pg_catalog.to_regnamespace('extensions') is not null
-         and pg_catalog.has_schema_privilege(r, 'extensions', 'CREATE') then
-        raise exception '0067 fail-closed: role % has CREATE on schema extensions — REVOKE CREATE (owner-approved) before applying.', r;
-      end if;
+      foreach s in array (case when pg_catalog.to_regnamespace('extensions') is not null
+                               then array['public','extensions'] else array['public'] end) loop
+        -- Direct or inherited CREATE (has_schema_privilege reflects PUBLIC grants and INHERIT membership).
+        if pg_catalog.has_schema_privilege(r, s, 'CREATE') then
+          raise exception '0067 fail-closed: role % has CREATE on schema % — a persistent shadow object could be planted there. REVOKE CREATE (owner-approved) before applying; this migration does not alter hosted privileges.', r, s;
+        end if;
+        -- SET-ROLE-reachable CREATE: has_schema_privilege does NOT count privilege a NOINHERIT role can
+        -- reach by explicitly SET ROLE-ing to a role it is a member of (verified empirically). PostgREST
+        -- never issues SET ROLE, but a raw-SQL session as the API role could — treat it as the same hole.
+        for g in
+          select gr.rolname
+            from pg_catalog.pg_roles gr
+           where gr.rolname <> r
+             and pg_catalog.pg_has_role(r, gr.oid, 'MEMBER')          -- r may SET ROLE gr (direct/transitive)
+             and pg_catalog.has_schema_privilege(gr.oid, s, 'CREATE') -- incl. a superuser target: worst case
+        loop
+          raise exception '0067 fail-closed: role % can reach CREATE on schema % via SET ROLE % — revoke that membership or its CREATE (owner-approved) before applying.', r, s, g.rolname;
+        end loop;
+      end loop;
     end if;
   end loop;
 end $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- (2a) Item-freeze guard helper now LOCKS the parent quotation (FOR UPDATE) — the linearization point it
--- shares with enqueue_quotation_outbox. Still SECURITY DEFINER + self-gating (returns a status only to a
--- caller holding sales.quotation.manage in that company, or the service worker) — never a cross-company
--- oracle. Schema-qualified + pg_temp-pinned. VOLATILE (it takes a row lock).
+-- (2a) Item-freeze guard helper now LOCKS the parent quotation (FOR UPDATE) — the SINGLE linearization
+-- lock it shares with enqueue_quotation_outbox (which takes no item-row locks; see Correction 2 header).
+-- Still SECURITY DEFINER + self-gating (returns a status only to a caller holding
+-- sales.quotation.manage in that company, or the service worker) — never a cross-company oracle. A NULL
+-- return means THE CALLER COULD NOT BE CLASSIFIED (no capability, no service JWT) — the freeze trigger
+-- below treats that as a refusal, never as "not frozen". Schema-qualified + pg_temp-pinned. VOLATILE
+-- (it takes a row lock).
 -- ─────────────────────────────────────────────────────────────────────────────
 create or replace function public._quotation_status_for_guard(p_company uuid, p_id uuid) returns text
 language plpgsql volatile security definer set search_path = pg_catalog, extensions, public, pg_temp as $$
@@ -76,6 +110,47 @@ end $$;
 grant execute on function public._quotation_status_for_guard(uuid,uuid) to public;
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- (2a′) The freeze trigger FAILS CLOSED on an unclassifiable caller. 0066's version treated a NULL guard
+-- result as "not frozen", which silently waived the freeze for exactly the caller RLS cannot backstop:
+-- a raw `service_role` session with no PostgREST JWT claims (`caller_jwt_role()` NULL, BYPASSRLS on).
+-- Now: the trusted owner is exempt as before; a caller the guard cannot vouch for is refused ANY
+-- quotation_items write regardless of parent status (PostgREST paths always carry claims; owner
+-- maintenance is exempt; nothing legitimate is lost). Same body otherwise; schema-qualified;
+-- pg_temp-pinned to the 0067 standard path.
+-- ─────────────────────────────────────────────────────────────────────────────
+create or replace function public.quotation_items_enforce_frozen()
+returns trigger language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$   -- SECURITY INVOKER
+declare s_new text; s_old text;
+begin
+  if public._is_quotation_delivery_owner() then
+    return coalesce(new, old);  -- trusted maintenance override
+  end if;
+  if tg_op in ('INSERT','UPDATE') then
+    s_new := public._quotation_status_for_guard(new.company_id, new.quotation_id);
+    if s_new is null then
+      raise exception 'quotation_items % refused: caller cannot be classified for quotation % (no capability / no service JWT) — fail closed (WP12 snapshot immutability)',
+        tg_op, new.quotation_id using errcode = 'insufficient_privilege';
+    end if;
+    if s_new in ('queued','sent','accepted','rejected') then
+      raise exception 'quotation_items % refused: parent quotation % is frozen (status %) (WP12 snapshot immutability)',
+        tg_op, new.quotation_id, s_new using errcode = 'insufficient_privilege';
+    end if;
+  end if;
+  if tg_op in ('UPDATE','DELETE') then
+    s_old := public._quotation_status_for_guard(old.company_id, old.quotation_id);
+    if s_old is null then
+      raise exception 'quotation_items % refused: caller cannot be classified for quotation % (no capability / no service JWT) — fail closed (WP12 snapshot immutability)',
+        tg_op, old.quotation_id using errcode = 'insufficient_privilege';
+    end if;
+    if s_old in ('queued','sent','accepted','rejected') then
+      raise exception 'quotation_items % refused: parent quotation % is frozen (status %) (WP12 snapshot immutability)',
+        tg_op, old.quotation_id, s_old using errcode = 'insufficient_privilege';
+    end if;
+  end if;
+  return coalesce(new, old);
+end $$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- (2b) enqueue_quotation_outbox: add the authoritative item-state guard. Replaces the 0064 body; the ONLY
 -- behavioural additions are the item-row lock + itemised-total validation on the `ready` path. Every other
 -- result and the EXACT-payload recovery are preserved verbatim. Schema-qualified + pg_temp-pinned.
@@ -89,7 +164,7 @@ declare
   v_status text; v_total numeric; v_currency text;
   v_company uuid; v_src_type text; v_src_id uuid; v_n int;
   v_channel text; v_recipient text; v_body text; v_purpose text; v_found boolean;
-  v_item_count int; v_item_total numeric;
+  v_item_unpriced int; v_item_total numeric;
 begin
   -- Linearization point: lock the company-scoped quotation row (parent BEFORE child items).
   select status, total, currency into v_status, v_total, v_currency
@@ -119,25 +194,30 @@ begin
     return 'stale';
   end if;
 
-  -- AUTHORITATIVE ITEM-STATE GUARD (closes the item-mutation vs enqueue race). Under the parent lock, lock
-  -- the child item rows (parent-before-child order → no deadlock) and, for an ITEMISED quotation, require
-  -- the expected total to equal the live sum of item line totals. A concurrent item mutation that committed
-  -- FIRST changed this sum → `stale` (never send the stale body); a mutation that has NOT committed is held
-  -- by the item guard's parent lock until this txn commits `queued`, then refused (42501). A non-itemised
-  -- quotation (no rows) has no item state to disagree with — the quotations.total check above governs it.
-  perform 1 from public.quotation_items where quotation_id = p_quotation and company_id = p_company for update;
-  select count(*), coalesce(sum(line_total), 0) into v_item_count, v_item_total
+  -- AUTHORITATIVE ITEM-STATE GUARD (closes the item-mutation vs enqueue race). The parent row lock taken
+  -- above is the SINGLE linearization lock: every non-trusted item INSERT/UPDATE/DELETE must acquire it in
+  -- its BEFORE trigger (freeze guard FOR UPDATE), so this per-statement MVCC read sees exactly the
+  -- COMMITTED item state — a mutation that committed first is visible here (→ `stale` if it diverged); an
+  -- uncommitted one is waiting on the parent lock and is refused 42501 after this txn commits `queued`.
+  -- DELIBERATELY NO item-row locks: the target item row is locked by Postgres BEFORE its row trigger runs,
+  -- so locking child rows here would create a parent→child vs child→parent AB-BA deadlock (reproduced on
+  -- live PostgreSQL 16 by the pre-submission adversarial pass). One lock object → no cycle is possible.
+  --
+  -- UNCONDITIONAL: the expected total must equal the live SUM(line_total) — there is NO item-count
+  -- exemption (deleting ALL items leaves sum 0, which cannot match a non-zero total → `stale`; a
+  -- never-itemised quotation enqueues only at total 0, the degenerate case). And NO item may be unpriced
+  -- (same predicate `refreshQuotationStatus` uses to hold a quotation out of `ready`): an item slipped in
+  -- after the price refresh but before this call must re-enter the pricing flow, not ride an old body.
+  -- NOTE (forward-risk): `quotations.tax_amount` is currently a dormant column (never set non-zero); if
+  -- tax is ever wired so `total = subtotal + tax`, this check must compare `p_expected_total` against
+  -- `subtotal` (or `SUM(line_total) + tax`), not the bare item sum.
+  select count(*) filter (where status is distinct from 'priced' or unit_price is null),
+         coalesce(sum(line_total), 0)
+    into v_item_unpriced, v_item_total
     from public.quotation_items where quotation_id = p_quotation and company_id = p_company;
-  if v_item_count > 0 and p_expected_total is distinct from v_item_total then
+  if v_item_unpriced > 0 or p_expected_total is distinct from v_item_total then
     return 'stale';
   end if;
-  -- NOTE (semantics): the authoritative total of an ITEMISED quotation is the live item sum (checked
-  -- above). A quotation with NO line items falls back to its stored `quotations.total` (the total/currency
-  -- check higher up governs it) — in production a `ready` quotation is always itemised (refreshQuotation
-  -- Status sets total = SUM(line_total); total>0 implies items exist), so the item-less branch is
-  -- reached only by item-free test seeds. NOTE (forward-risk): `quotations.tax_amount` is currently a
-  -- dormant column (never set non-zero); if tax is ever wired so `total = subtotal + tax`, this check must
-  -- compare `p_expected_total` against `subtotal` (or `SUM(line_total) + tax`), not the bare item sum.
 
   -- ready + existing row → require an EXACT delivery-identity + payload match before recovering, else
   -- fail closed (a stale/legacy row must never be queued or drained).
@@ -202,12 +282,31 @@ begin
 end $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- (1b) SYSTEMIC HARDENING — re-pin search_path on every application-owned SECURITY DEFINER function and
--- every trigger function in `public`, EXCLUDING extension-owned functions. Catalog-driven (operates on the
--- final active functions after 0066, not on historical text). Only search_path changes. Idempotent.
+-- (1b) SYSTEMIC HARDENING — re-pin search_path on every non-extension SECURITY DEFINER function and every
+-- trigger function in `public`. Catalog-driven (operates on the final active functions after 0066, not on
+-- historical text). Only search_path changes. Idempotent.
+--
+-- Ownership: the ALTER loop selects every function the migration session CAN alter — owned by
+-- `current_user` OR by any role it holds (pg_has_role … 'USAGE'; a superuser holds them all) — NOT a
+-- strict `proowner = current_user` match, which would SILENTLY skip functions applied out-of-band under a
+-- different owner (e.g. the hosted 0038–0041 functions applied via the SQL editor) while the disposable
+-- CI database, where one session owns everything, still reported success.
+--
+-- SELF-VERIFY (owner-agnostic, fail-closed): after the loop, NO non-extension SECURITY DEFINER / trigger
+-- function in `public` may remain with an unsafe path, REGARDLESS of owner — unsafe = no search_path, a
+-- `$user` entry, or `pg_temp` whose FIRST occurrence is not the final element (a leading `pg_temp` wins
+-- resolution even if another `pg_temp` sits at the end). Any residual aborts the migration and names the
+-- functions — the owner then applies docs/architecture-v2/hosted_secdef_searchpath_hardening.sql as the
+-- true owner. A silent partial hardening is thereby impossible.
+--
+-- Path-order note (reviewed): `extensions` precedes `public` so pgcrypto et al. resolve for finance
+-- fingerprints; an extension object can therefore shadow a like-named `public` relation inside hardened
+-- functions. Accepted deliberately: API roles cannot CREATE in either schema (block 1a fails closed on
+-- that), extension installation is owner-gated DDL, and no collision exists today; this matches the
+-- hosted companion scripts and Supabase's recommended pattern.
 -- ─────────────────────────────────────────────────────────────────────────────
 do $$
-declare r record; n int := 0;
+declare r record; n int := 0; bad text;
 begin
   for r in
     select p.oid::regprocedure as sig
@@ -215,7 +314,7 @@ begin
     join pg_catalog.pg_namespace nsp on nsp.oid = p.pronamespace
     where nsp.nspname = 'public'
       and (p.prosecdef or p.prorettype = 'pg_catalog.trigger'::regtype)  -- SECURITY DEFINER or trigger fn
-      and p.proowner = current_user::regrole::oid                        -- application-owned (migration role)
+      and pg_catalog.pg_has_role(current_user, p.proowner, 'USAGE')      -- alterable by this session
       and not exists (select 1 from pg_catalog.pg_depend d                -- exclude extension-owned
                        where d.classid = 'pg_catalog.pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e')
   loop
@@ -223,4 +322,28 @@ begin
     n := n + 1;
   end loop;
   raise notice '0067: hardened search_path (pg_catalog, extensions, public, pg_temp) on % application SECURITY DEFINER / trigger function(s)', n;
+
+  -- Owner-agnostic residual check: fail closed if ANY in-scope function is still unsafe.
+  select string_agg(sig, ', ' order by sig) into bad
+  from (
+    select p.oid::regprocedure::text as sig,
+           (select c from unnest(coalesce(p.proconfig, '{}'::text[])) c where c like 'search_path=%') as sp
+    from pg_catalog.pg_proc p
+    join pg_catalog.pg_namespace nsp on nsp.oid = p.pronamespace
+    where nsp.nspname = 'public'
+      and (p.prosecdef or p.prorettype = 'pg_catalog.trigger'::regtype)
+      and not exists (select 1 from pg_catalog.pg_depend d
+                       where d.classid = 'pg_catalog.pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e')
+  ) f
+  cross join lateral (
+    select case when f.sp is null then null
+                else (select array_agg(btrim(x)) from unnest(string_to_array(substr(f.sp, 13), ',')) x) end as elems
+  ) e
+  where f.sp is null
+     or f.sp like '%$user%'
+     or e.elems is null
+     or array_position(e.elems, 'pg_temp') is distinct from cardinality(e.elems);
+  if bad is not null then
+    raise exception '0067 fail-closed: search_path hardening left unsafe function(s) this session could not alter: %. Apply docs/architecture-v2/hosted_secdef_searchpath_hardening.sql as their owner, then re-run migrations.', bad;
+  end if;
 end $$;

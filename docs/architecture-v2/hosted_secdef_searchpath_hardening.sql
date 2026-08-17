@@ -60,7 +60,10 @@ begin
     n := n + 1;
   end loop;
 
-  -- (2) Self-verify: no residual unsafe signature (pg_temp must be LAST; no $user; path must be set).
+  -- (2) Self-verify: no residual unsafe signature. Unsafe = path unset, `$user` present, or the FIRST
+  -- occurrence of `pg_temp` not being the FINAL element (resolution uses the first occurrence, so a
+  -- leading pg_temp still wins even when another pg_temp sits at the end). Owner-scoped = the whole
+  -- in-scope set, because guard (0) proved every targeted function shares this single owner.
   residual := 0;
   for r in
     select p.oid,
@@ -75,7 +78,9 @@ begin
     sp := r.search_path;
     if sp is null
        or position('$user' in sp) > 0
-       or btrim(split_part(sp, ',', array_length(string_to_array(sp, ','), 1))) <> 'pg_temp' then
+       or (select array_position(a, 'pg_temp') is distinct from cardinality(a)
+             from (select array_agg(btrim(x)) as a
+                     from unnest(string_to_array(substr(sp, 13), ',')) x) t) then
       residual := residual + 1;
     end if;
   end loop;

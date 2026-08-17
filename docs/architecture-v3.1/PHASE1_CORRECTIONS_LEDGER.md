@@ -637,37 +637,78 @@ not merge; do not begin Phase 2; do not migrate hosted / deploy / enable flags /
    report, and the posted-journal/audit trigger functions — to `search_path = pg_catalog, extensions,
    public, pg_temp` (pg_catalog first; `extensions` for digest/pgcrypto; `public` for app relations;
    `pg_temp` LAST; no `$user`). Extension-owned functions are EXCLUDED. Only `search_path` changes — never
-   body/owner/args/return/SECURITY-DEFINER/ACL. The migration **fails closed** if anon/authenticated/
-   service_role has CREATE on the trusted `public`/`extensions` schemas (it reports; it does not revoke
-   hosted privileges blindly). A PERMANENT integration gate — `tests/integration/search-path-safety.test.ts`
-   — fails the build whenever a future application SECURITY DEFINER / trigger function has an unsafe path.
+   body/owner/args/return/SECURITY-DEFINER/ACL. Selection is by `pg_has_role(current_user, proowner,
+   'USAGE')` — NOT a strict `proowner = current_user` match, which would silently skip functions applied
+   out-of-band under a different owner (the hosted 0038–0041 case) while the disposable CI database, where
+   one session owns everything, still reported success — and the migration then SELF-VERIFIES
+   owner-agnostically: if ANY in-scope function remains unsafe (e.g. a foreign owner the session cannot
+   alter), it ABORTS naming the function(s), so a silent partial hardening is impossible (empirically
+   simulated: a non-superuser migration role + a foreign-owned unsafe function → abort naming
+   `foreign_unsafe()`; granting the owner role → hardened + clean pass). The migration **fails closed** if
+   anon/authenticated/service_role has CREATE — direct, PUBLIC-granted, or SET-ROLE-reachable via role
+   membership (which `has_schema_privilege` alone does not count for NOINHERIT roles; empirically
+   simulated → abort naming the reachable path) — on the trusted `public`/`extensions` schemas (it
+   reports; it does not revoke hosted privileges blindly). A PERMANENT owner-agnostic integration gate —
+   `tests/integration/search-path-safety.test.ts` — fails the build whenever a future SECURITY DEFINER /
+   trigger function in `public` (ANY owner, extension-owned excluded) has an unsafe path, where unsafe
+   includes a duplicated `pg_temp` whose FIRST occurrence is not the final element (resolution uses the
+   first occurrence, so `pg_temp, …, pg_temp` is unsafe despite ending in `pg_temp`; the gate proves it
+   catches both a foreign-owned unsafe function and the duplicated-`pg_temp` path).
 
 2. **Quotation-item vs atomic-enqueue race (Correction 2).** 0066 froze `quotation_items` after the parent
    is visibly queued, but `_quotation_status_for_guard()` did an UNLOCKED parent-status read, so a concurrent
    item mutation could still see the pre-commit `ready` status while `enqueue_quotation_outbox` queued the
    already-built message — a committed queued snapshot could disagree with committed items. Closed at the DB
-   linearization boundary with ONE lock order (parent quotation BEFORE child items): (a) the item-freeze
-   guard helper now reads the parent `FOR UPDATE`, so a concurrent item mutation serializes on the quotation
-   row that enqueue already locks; and (b) `enqueue_quotation_outbox`, under that lock, locks the item rows
-   and — for an ITEMISED quotation — returns `stale` if the caller's expected total ≠ the live sum of item
-   line totals. If the item mutation commits first, enqueue observes the new sum → `stale` (never sends the
-   old body); if enqueue commits first, the item mutation waits then fails 42501 (queued/frozen). enqueue
-   keeps its exact signature, SECURITY DEFINER owner, hardened search_path, service-role-only EXECUTE, and
-   every result / exact-payload-recovery semantic; numeric/Decimal correctness preserved (no float).
+   linearization boundary with a SINGLE lock — the parent quotation row: (a) the item-freeze guard helper
+   reads the parent `FOR UPDATE`, so every non-trusted item INSERT/UPDATE/DELETE serializes on the quotation
+   row that enqueue already locks; (b) `enqueue_quotation_outbox` takes NO item-row locks — the target item
+   row is locked by Postgres BEFORE its row trigger fires, so an enqueue that then locked item rows would
+   form a genuine parent→child vs child→parent AB-BA deadlock (found by the pre-submission adversarial
+   pass, reproduced on live PostgreSQL 16; one lock object cannot form a cycle) — and, under the parent
+   lock, requires UNCONDITIONALLY that the caller's expected total equal the live `SUM(line_total)`: there
+   is NO item-count exemption (the adversarial pass showed the earlier `v_item_count > 0` guard let a
+   delete-ALL-items race ship a customer-facing total backed by zero items — now sum 0 ≠ a non-zero total →
+   `stale`), and ANY unpriced item (`status <> 'priced'` or NULL `unit_price` — exactly
+   `refreshQuotationStatus`'s not-ready predicate) also returns `stale`. If the item mutation commits
+   first, enqueue observes the new sum → `stale` (never sends the old body); if enqueue commits first, the
+   item mutation waits on the parent lock then fails 42501 (queued/frozen). (c)
+   `quotation_items_enforce_frozen` now FAILS CLOSED on a NULL guard result: a caller the guard cannot
+   classify — a raw `service_role` session with no PostgREST JWT claims (`caller_jwt_role()` NULL,
+   BYPASSRLS, so RLS is no backstop) — is refused ANY item write in ANY status (0066 silently skipped the
+   freeze for exactly that caller). enqueue keeps its exact signature, SECURITY DEFINER owner, hardened
+   search_path, service-role-only EXECUTE, and every result / exact-payload-recovery semantic;
+   numeric/Decimal correctness preserved (no float).
 
 Hosted remediation prep (NOT executed): `docs/architecture-v2/hosted_secdef_searchpath_check.sql` (read-only
-inventory; 0041-staged disposable DB shows 19/19 unsafe) + `hosted_secdef_searchpath_hardening.sql` (owner-
-approved, self-verifying, exact-regprocedure, abort-on-residual; 0041-staged: 19 unsafe → 0, abort-gate
-rolls back a simulated residual).
+inventory; 0041-staged disposable DB shows 19/19 unsafe; the first-occurrence predicate also flags a planted
+`pg_temp, …, pg_temp` poisoned path) + `hosted_secdef_searchpath_hardening.sql` (owner-approved,
+self-verifying, exact-regprocedure, abort-on-residual with the same first-occurrence predicate; 0041-staged:
+19 unsafe → 0 with COMMIT; a planted second-owner function → ABORT + ROLLBACK with the unsafe count
+unchanged — nothing half-committed).
 
-Tests: `tests/integration/wp12-enqueue-item-race.test.ts` (7 — genuine two-connection races: item-first →
-`stale`; enqueue-first → the concurrent item write waits then 42501; no deadlock; two-finaliser; terminal-
-vs-enqueue; cross-company; pre-queue editable / post-queue immutable) and
-`tests/integration/search-path-safety.test.ts` (7 — the permanent gate + cross-domain pg_temp adversarial:
-`has_capability`/`my_company`/`is_admin` cannot be forged via temp memberships/profiles;
-`decide_approval` cannot be forced via a temp `approval_requests`; `_journal_post_internal` stays service-
-only + unshadowable; the WP12 owner check resists a temp `pg_proc`; legitimate paths still work). Independent
-adversarial-security + concurrency/regression subagent reviews were run and their findings incorporated.
+Tests: `tests/integration/wp12-enqueue-item-race.test.ts` (11 — genuine two-connection races: item-first →
+`stale`; enqueue-first → the concurrent item write waits then 42501; no deadlock while blocked on the parent
+lock; a DETERMINISTIC AB-BA-window proof — another tx holds an item-row lock (plain `SELECT … FOR UPDATE`,
+no trigger) and enqueue still completes without requesting it, then the item write is refused 42501;
+delete-ALL-items-then-enqueue → `stale` with zero outbox rows; an unpriced late item → `stale` even though
+the priced sum still matches; raw no-claims `service_role` refused 42501 in ANY status (fail-closed);
+two-finaliser; terminal-vs-enqueue; cross-company; pre-queue editable / post-queue immutable — the 4 new
+cases were run against the PREVIOUS 0067 build and fail there, proving they discriminate) and
+`tests/integration/search-path-safety.test.ts` (9 — the permanent owner-agnostic gate + adversarial gate
+proofs: the gate catches a foreign-owned unsafe function and a duplicated-`pg_temp` path; cross-domain
+pg_temp adversarial: `has_capability`/`my_company`/`is_admin` cannot be forged via temp
+memberships/profiles; `decide_approval` cannot be forced via a temp `approval_requests`;
+`_journal_post_internal` stays service-only + unshadowable; the WP12 owner check resists a temp `pg_proc`;
+legitimate paths still work). Independent adversarial-security + concurrency/regression subagent reviews
+were run; the security pass returned 2 blocker / 3 material / 3 minor-nit findings — the blockers
+(delete-to-zero item-guard bypass; `current_user`-scoped hardening silently under-hardening a
+differently-owned hosted set) and materials (a REAL AB-BA deadlock, empirically reproduced, in the
+parent-then-child item locking the migration had wrongly documented as deadlock-free; the freeze guard
+failing OPEN on a NULL guard result for raw no-claims `service_role`) are fixed above; one material claim
+(`pg_temp` shadowing of the unqualified `digest()` CALL inside the SECURITY-INVOKER fingerprint helpers)
+was REFUTED empirically before closing: PostgreSQL never resolves FUNCTION names from the temp schema —
+only relations and types — so a planted `pg_temp.digest(text,text)` is not reachable from an unqualified
+call (probe: constant-`\x00` temp digest planted; the helper still returned the true SHA-256).
 
 ## Verification (disposable PostgreSQL 16, this session)
 
@@ -680,9 +721,10 @@ adversarial-security + concurrency/regression subagent reviews were run and thei
 | `npm test` (unit) | pass — **419 (79 files)** |
 | `npm run audit-check` | pass (2 approved exceptions) |
 | `npm run build` | pass |
-| `npm run test:integration` — **fresh DB** (0001→0067 from scratch) | pass — **41 files / 311 tests** (incl. the new 0067 search-path-safety gate + cross-domain pg_temp adversarial suite and the 0067 two-connection enqueue-vs-item-mutation race suite; the 0066 snapshot-boundary suite; the 0065 claim + INSERT-boundary suites; the 0064 delivery-boundary suite; the 0063 atomic-enqueue two-connection races; and the 0062 signature-exact allowlist + 42501 suite) |
-| `npm run test:integration` — **upgrade path** (0058 + legacy data → 0059→0067) | pass — **41 files / 311 tests**; every application SECURITY DEFINER / trigger function is confirmed pg_temp-safe, the item-vs-enqueue race resolves both orderings, the 0062 lockdown holds, a queued quotation is frozen and undeletable, and a legacy `ready` quotation is atomically enqueued on the upgraded DB |
-| hosted hotfix (0041-staged disposable DB) | EXECUTE: exposure before (`exposed=t`, 3 functions) → locked after (`still_exposed=0`, COMMIT); simulated residual → RAISE + ROLLBACK. search_path: 19/19 unsafe before → 0 after (self-verifying); simulated residual → RAISE + ROLLBACK |
+| `npm run test:integration` — **fresh DB** (0001→0067 from scratch) | pass — **41 files / 317 tests** (incl. the 0067 search-path-safety owner-agnostic gate + gate-discrimination proofs + cross-domain pg_temp adversarial suite and the 0067 two-connection enqueue-vs-item-mutation race suite with the AB-BA-window, delete-to-zero, unpriced-item and no-claims fail-closed cases; the 0066 snapshot-boundary suite; the 0065 claim + INSERT-boundary suites; the 0064 delivery-boundary suite; the 0063 atomic-enqueue two-connection races; and the 0062 signature-exact allowlist + 42501 suite) |
+| `npm run test:integration` — **upgrade path** (0058 + legacy data → 0059→0067) | pass — **41 files / 317 tests**; every non-extension SECURITY DEFINER / trigger function is confirmed pg_temp-safe, the item-vs-enqueue race resolves both orderings without deadlock, the 0062 lockdown holds, a queued quotation is frozen and undeletable, and a legacy `ready` quotation is atomically enqueued on the upgraded DB |
+| 0067 fail-closed simulations (scratch DBs) | foreign-owned unsafe fn + non-superuser migration role → ABORT naming `foreign_unsafe()`; owner-role granted → hardened, clean pass; `authenticated` granted membership in a CREATE-holding role → ABORT naming the SET ROLE path |
+| hosted hotfix (0041-staged disposable DB) | EXECUTE: exposure before (`exposed=t`, 3 functions) → locked after (`still_exposed=0`, COMMIT); simulated residual → RAISE + ROLLBACK. search_path (re-run with the first-occurrence predicate): 19/19 unsafe before (+ a planted poisoned `pg_temp,…,pg_temp` path flagged → 20/20) → 0 after with COMMIT; a planted second-owner fn → ABORT + ROLLBACK, unsafe count unchanged |
 
 _Numbers above are the **ninth review increment** (integration branch, migrations 0048–0067).
 Earlier rounds — eighth (0066, 39 files / 297 tests, unit 419); seventh (0065, 38 files / 267 tests, unit 419); sixth (0064, 37 files / 224 tests, unit 419); fifth (0063, 36 files / 207 tests, unit

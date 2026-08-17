@@ -72,25 +72,66 @@ describe.skipIf(!enabled)("0067 search_path safety gate + cross-domain pg_temp a
   });
   afterAll(async () => { if (client) { await client.query("rollback").catch(() => {}); await client.end().catch(() => {}); } });
 
+  // The gate's population + predicate, shared by the gate itself and the adversarial gate tests below.
+  // OWNER-AGNOSTIC (no proowner filter): a SECURITY DEFINER / trigger function created by ANY role in
+  // `public` (except extension-owned) is in scope — an owner-scoped predicate would silently ignore
+  // functions applied out-of-band under a different owner, exactly the blind spot 0067's self-verify
+  // closes fail-closed.
+  const GATE_SQL = `
+    select p.oid::regprocedure::text as sig,
+           (select c from unnest(coalesce(p.proconfig,'{}'::text[])) c where c like 'search_path=%') as sp
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname='public'
+      and (p.prosecdef or p.prorettype='pg_catalog.trigger'::regtype)
+      and not exists (select 1 from pg_depend d where d.classid='pg_proc'::regclass and d.objid=p.oid and d.deptype='e')
+    order by 1`;
+  // Unsafe = no search_path, `$user` present, or the FIRST occurrence of pg_temp not being the FINAL
+  // element (resolution uses the FIRST occurrence, so `pg_temp, …, pg_temp` is unsafe despite ending
+  // in pg_temp — a last-element-only check would miss it).
+  const isUnsafe = (sp: string | null): boolean => {
+    if (!sp) return true;
+    if (/\$user/.test(sp)) return true;
+    const list = sp.replace(/^search_path=/, "").split(",").map((s) => s.trim());
+    return list.indexOf("pg_temp") !== list.length - 1;
+  };
+
   // ── the permanent gate ──
-  it("GATE: every application-owned SECURITY DEFINER / trigger function pins pg_temp LAST with no $user", async () => {
-    const rows = (await q(`
-      select p.oid::regprocedure::text as sig,
-             (select c from unnest(coalesce(p.proconfig,'{}'::text[])) c where c like 'search_path=%') as sp
-      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname='public'
-        and (p.prosecdef or p.prorettype='pg_catalog.trigger'::regtype)
-        and p.proowner = (select oid from pg_roles where rolname = current_user)
-        and not exists (select 1 from pg_depend d where d.classid='pg_proc'::regclass and d.objid=p.oid and d.deptype='e')
-      order by 1`)).rows as Array<{ sig: string; sp: string | null }>;
+  it("GATE: every non-extension SECURITY DEFINER / trigger function in public (ANY owner) pins pg_temp last-and-only-last with no $user", async () => {
+    const rows = (await q(GATE_SQL)).rows as Array<{ sig: string; sp: string | null }>;
     expect(rows.length).toBeGreaterThan(30); // sanity: the audit actually found the functions
-    const unsafe = rows.filter((r) => {
-      if (!r.sp) return true;                              // no search_path at all
-      const list = r.sp.replace(/^search_path=/, "").split(",").map((s) => s.trim());
-      if (/\$user/.test(r.sp)) return true;                // $user present
-      return list[list.length - 1] !== "pg_temp";          // pg_temp not last
-    });
+    const unsafe = rows.filter((r) => isUnsafe(r.sp));
     expect(unsafe.map((r) => r.sig), `unsafe search_path on: ${unsafe.map((r) => r.sig).join(", ")}`).toEqual([]);
+  });
+
+  it("GATE catches a foreign-owned unsafe function (the owner-filter blind spot is closed)", async () => {
+    await client.query("savepoint fo");
+    try {
+      const foreignOwner = "fo_" + rnd();
+      await client.query(`create role ${foreignOwner} nologin`);
+      await client.query(`create function public.__gate_probe_foreign() returns int language sql security definer set search_path = public as 'select 1'`);
+      await client.query(`alter function public.__gate_probe_foreign() owner to ${foreignOwner}`);
+      const rows = (await client.query(GATE_SQL)).rows as Array<{ sig: string; sp: string | null }>;
+      const probe = rows.find((r) => r.sig.includes("__gate_probe_foreign"));
+      expect(probe, "gate population must include the foreign-owned function").toBeDefined();
+      expect(isUnsafe(probe!.sp)).toBe(true); // and classify it unsafe
+    } finally {
+      await client.query("rollback to savepoint fo"); // drops the role + function
+    }
+  });
+
+  it("GATE catches a duplicated pg_temp path (`pg_temp, …, pg_temp` is unsafe despite its last element)", async () => {
+    await client.query("savepoint dup");
+    try {
+      await client.query(`create function public.__gate_probe_dup() returns int language sql security definer set search_path = pg_temp, pg_catalog, public, pg_temp as 'select 1'`);
+      const rows = (await client.query(GATE_SQL)).rows as Array<{ sig: string; sp: string | null }>;
+      const probe = rows.find((r) => r.sig.includes("__gate_probe_dup"));
+      expect(probe).toBeDefined();
+      expect(isUnsafe(probe!.sp)).toBe(true); // first occurrence of pg_temp is NOT the last element
+      // and the migration's canonical safe path stays safe under the same predicate
+      expect(isUnsafe("search_path=pg_catalog, extensions, public, pg_temp")).toBe(false);
+    } finally {
+      await client.query("rollback to savepoint dup");
+    }
   });
 
   // ── identity / RLS: capability + company cannot be fabricated by shadowing memberships/profiles ──

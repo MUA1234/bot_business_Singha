@@ -317,6 +317,9 @@ describe.skipIf(!enabled)("0066 two-connection claim-vs-delete/mutate race (live
     const ord = (await setup.query(`insert into orders (company_id, conversation_id, customer_phone, status) values ($1,$2,'9471','new') returning id`, [rco, conv])).rows[0].id;
     const quo = (await setup.query(`insert into quotations (company_id, order_id, quote_number, currency, status, total, public_token) values ($1,$2,$3,'LKR','ready','100',$4) returning id`,
       [rco, ord, "SQ-" + rnd(), "tok_" + rnd()])).rows[0].id;
+    // One priced item matching the total — 0067's enqueue guard requires the live item sum to equal the
+    // expected total unconditionally.
+    await setup.query(`insert into quotation_items (quotation_id, company_id, description, quantity, unit_price, currency, line_total, status) values ($1,$2,'item',1,'100','LKR','100','priced')`, [quo, rco]);
     const key = "k_" + rnd();
     const enq = await setup.query(`select public.enqueue_quotation_outbox($1,$2,'9471','body',$3,'100','LKR','whatsapp','quotation') as v`, [rco, quo, key]);
     if (enq.rows[0].v !== "enqueued") throw new Error("seed enqueue: " + enq.rows[0].v);

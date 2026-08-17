@@ -7,9 +7,11 @@
 -- safe to run against the hosted DB at any time. It is the read-only precondition for the owner-approved
 -- `hosted_secdef_searchpath_hardening.sql`.
 --
--- SAFE definition: the function has a `search_path` GUC set, its LAST element is `pg_temp`, and it does
--- not contain `$user`. (Postgres searches pg_temp for RELATION names before pg_catalog/public unless
--- pg_temp is listed later, so pg_temp must be present AND last.)
+-- SAFE definition: the function has a `search_path` GUC set, it does not contain `$user`, and the FIRST
+-- occurrence of `pg_temp` is the FINAL element. (Postgres searches pg_temp for RELATION names before
+-- pg_catalog/public unless pg_temp is listed later, and resolution uses the FIRST occurrence of a schema
+-- in the list — so `pg_temp, pg_catalog, public, pg_temp` is still unsafe even though it ENDS in pg_temp.
+-- The predicate therefore requires array_position(elems,'pg_temp') = cardinality(elems).)
 
 with fn as (
   select p.oid,
@@ -24,29 +26,39 @@ with fn as (
     and (p.prosecdef or p.prorettype = 'pg_catalog.trigger'::regtype)
     and not exists (select 1 from pg_depend d
                      where d.classid = 'pg_catalog.pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e')
+),
+parsed as (
+  select fn.*,
+         case when fn.search_path is null then null
+              else (select array_agg(btrim(x))
+                      from unnest(string_to_array(substr(fn.search_path, 13), ',')) x) end as elems
+  from fn
 )
 select signature, owner, security_definer, is_trigger,
        coalesce(search_path, '(none)') as search_path,
-       case
-         when search_path is null then true
-         when position('$user' in search_path) > 0 then true
-         when btrim(split_part(search_path, ',', array_length(string_to_array(replace(search_path,'search_path=',''), ','), 1))) <> 'pg_temp' then true
-         else false
-       end as unsafe
-from fn
+       (search_path is null
+        or position('$user' in search_path) > 0
+        or elems is null
+        or array_position(elems, 'pg_temp') is distinct from cardinality(elems)) as unsafe
+from parsed
 order by unsafe desc, signature;
 
 -- Focused count of UNSAFE application SECURITY DEFINER / trigger functions (the remediation target set):
-select count(*) filter (where unsafe) as unsafe_count, count(*) as total
-from (
-  select case
-           when (select c from unnest(coalesce(p.proconfig,'{}'::text[])) c where c like 'search_path=%') is null then true
-           when position('$user' in coalesce((select c from unnest(coalesce(p.proconfig,'{}'::text[])) c where c like 'search_path=%'),'')) > 0 then true
-           when btrim(split_part((select c from unnest(coalesce(p.proconfig,'{}'::text[])) c where c like 'search_path=%'), ',',
-                     array_length(string_to_array((select c from unnest(coalesce(p.proconfig,'{}'::text[])) c where c like 'search_path=%'), ','),1))) <> 'pg_temp' then true
-           else false
-         end as unsafe
+with fn as (
+  select (select c from unnest(coalesce(p.proconfig,'{}'::text[])) c where c like 'search_path=%') as sp
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname='public' and (p.prosecdef or p.prorettype='pg_catalog.trigger'::regtype)
     and not exists (select 1 from pg_depend d where d.classid='pg_catalog.pg_proc'::regclass and d.objid=p.oid and d.deptype='e')
-) s;
+),
+parsed as (
+  select sp,
+         case when sp is null then null
+              else (select array_agg(btrim(x)) from unnest(string_to_array(substr(sp, 13), ',')) x) end as elems
+  from fn
+)
+select count(*) filter (where sp is null
+                           or position('$user' in sp) > 0
+                           or elems is null
+                           or array_position(elems, 'pg_temp') is distinct from cardinality(elems)) as unsafe_count,
+       count(*) as total
+from parsed;

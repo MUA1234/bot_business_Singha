@@ -36,11 +36,16 @@ Any AI coding agent (Claude Code, Codex, or other) must follow the same rules.
 > full-codebase search_path audit of other-domain SECURITY DEFINER functions noted as a systemic follow-up
 > out of WP12 scope. Note the `message_outbox` service-only DML boundary originated in migration **0038**
 > (not 0048). The ninth review added migration **0067**: it performs that systemic follow-up — a
-> catalog-driven audit re-pins EVERY application SECURITY DEFINER + trigger function in `public` (excluding
-> extension-owned) to `pg_catalog, extensions, public, pg_temp` (bodies unchanged; fails closed if an API
-> role has CREATE on public/extensions; a permanent integration gate blocks future unsafe functions) — and
-> closes a quotation-item vs atomic-enqueue race (the item-freeze guard reads the parent FOR UPDATE and
-> enqueue validates the itemised total under the item lock, returning `stale` on divergence). Owner-approved
+> catalog-driven audit re-pins EVERY non-extension SECURITY DEFINER + trigger function in `public` to
+> `pg_catalog, extensions, public, pg_temp` (bodies unchanged; fails closed if an API role has CREATE —
+> direct or SET-ROLE-reachable — on public/extensions; SELF-VERIFIES owner-agnostically, ABORTING if any
+> function is left unsafe under a foreign owner; a permanent owner-agnostic integration gate blocks future
+> unsafe functions, including a duplicated `pg_temp` not in first-occurrence-last position) — and closes a
+> quotation-item vs atomic-enqueue race at a SINGLE linearization lock (the item-freeze guard reads the
+> parent FOR UPDATE; enqueue takes NO item-row locks — one lock object cannot deadlock — and requires the
+> expected total to equal the live `SUM(line_total)` UNCONDITIONALLY with no item-count exemption, refusing
+> unpriced items, returning `stale` on any divergence; the freeze guard FAILS CLOSED on an unclassifiable
+> caller such as raw `service_role` without JWT claims). Owner-approved
 > hosted search_path check + self-verifying hardening scripts are prepared, not executed. Because the
 > already-hosted 0038–0041 functions may be
 > `authenticated`-executable, a read-only privilege check + a self-verifying, owner-approval-required

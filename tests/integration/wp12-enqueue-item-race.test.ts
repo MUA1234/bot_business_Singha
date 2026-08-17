@@ -1,13 +1,20 @@
 /**
  * WP12 NINTH review — the quotation-item vs atomic-enqueue race (migration 0067). GENUINE two-connection
- * PostgreSQL tests, REAL roles. Lock order: parent quotation BEFORE child items.
+ * PostgreSQL tests, REAL roles. The parent quotation row is the SINGLE linearization lock: the item-freeze
+ * guard takes it FOR UPDATE, and `enqueue_quotation_outbox` deliberately takes NO item-row locks (the
+ * target item row is locked by Postgres BEFORE its row trigger fires, so child-row locking inside enqueue
+ * would form a parent→child vs child→parent AB-BA deadlock — one lock object cannot form a cycle).
  *
  * The invariant: no committed outcome may contain a queued outbox snapshot that disagrees with the
  * committed quotation items/totals.
  *   - If the item mutation commits FIRST, `enqueue_quotation_outbox` observes the new authoritative item
- *     sum under the parent lock and returns `stale` (it never sends the old body).
+ *     sum under the parent lock and returns `stale` (it never sends the old body). That includes deleting
+ *     ALL items (sum 0 ≠ a non-zero expected total — no item-count exemption) and slipping in an
+ *     UNPRICED item (refused outright).
  *   - If enqueue commits FIRST, the concurrent item mutation waits on the parent lock (taken by the
- *     item-freeze guard, now FOR UPDATE) and then fails 42501 because the quotation is `queued`.
+ *     item-freeze guard FOR UPDATE) and then fails 42501 because the quotation is `queued`.
+ *   - A caller the guard cannot classify (raw service_role with NO PostgREST JWT claims — BYPASSRLS, so
+ *     RLS is no backstop) is refused item writes outright: the freeze guard FAILS CLOSED on NULL.
  *
  * Skipped unless DATABASE_URL is set.
  */
@@ -119,6 +126,85 @@ describe.skipIf(!enabled)("0067 enqueue vs item-mutation race (live, two connect
     await cB.query("rollback").catch(() => {}); await cB.query("reset role").catch(() => {});
     expect(deadlock).toBe(false); // no 40P01
     expect(code).toBe("42501");
+  });
+
+  it("no deadlock in the AB-BA window: enqueue completes even while another tx already holds an item-row lock", async () => {
+    // This is the interleaving that DID deadlock when enqueue locked child rows: B holds an item-row lock
+    // (as a plain SELECT ... FOR UPDATE — no trigger fires, no parent lock taken), then A enqueues. A
+    // must NOT request item-row locks (single-lock design) — it completes despite B's held row lock; B's
+    // subsequent trigger-guarded UPDATE then serializes on the parent lock and is refused (queued).
+    const { quo, itemIds } = await seedReadyWithItems(co, "80", ["80"]);
+    const key = "k_" + rnd();
+    await cB.query("begin");
+    const lockRes = await asCap(`select id from quotation_items where id=$1 and company_id=$2 for update`, [itemIds[0], co]);
+    expect(lockRes.rowCount).toBe(1); // premise: B genuinely holds the child-row lock (not RLS-filtered)
+    // A's enqueue would BLOCK (then deadlock on B's next statement) under child-row locking. It must complete.
+    const rA = await cA.query(ENQ, [co, quo, key, "80"]); // autocommit → parent lock released at completion
+    expect(rA.rows[0].v).toBe("enqueued");
+    // B now mutates the item it still holds a row lock on → freeze guard takes the parent lock → queued → 42501
+    let code: string | undefined;
+    try { await asCap(`update quotation_items set line_total='90', unit_price='90' where id=$1 and company_id=$2`, [itemIds[0], co]); }
+    catch (e) { code = (e as { code?: string }).code; }
+    await cB.query("rollback").catch(() => {}); await cB.query("reset role").catch(() => {});
+    expect(code).toBe("42501");
+    expect(await rowsFor(key)).toBe(1);
+    expect(await statusOf(quo)).toBe("queued");
+    expect((await setup.query(`select line_total from quotation_items where id=$1`, [itemIds[0]])).rows[0].line_total).toBe("80.00");
+  });
+
+  it("delete-to-zero is closed: removing ALL items of a ready quotation makes enqueue return `stale` (no item-count exemption)", async () => {
+    const { quo } = await seedReadyWithItems(co, "100", ["40", "60"]);
+    const key = "k_" + rnd();
+    // B (capability holder) deletes EVERY item and commits; quotations.total is untouched (still 100).
+    await cB.query("begin");
+    await asCap(`delete from quotation_items where quotation_id=$1 and company_id=$2`, [quo, co]);
+    await cB.query("commit"); await cB.query("reset role");
+    expect((await setup.query(`select count(*)::int c from quotation_items where quotation_id=$1`, [quo])).rows[0].c).toBe(0);
+    // A enqueues with the stored total (100): live item sum is 0 → MUST be stale (a 100-total message
+    // backed by zero items must never queue).
+    const r = await cA.query(ENQ, [co, quo, key, "100"]);
+    expect(r.rows[0].v).toBe("stale");
+    expect(await rowsFor(key)).toBe(0);
+    expect(await statusOf(quo)).toBe("ready");
+  });
+
+  it("an UNPRICED item slipped in after the refresh blocks enqueue (`stale`), even when the priced sum still matches", async () => {
+    const { quo } = await seedReadyWithItems(co, "100", ["100"]);
+    const key = "k_" + rnd();
+    // B inserts an unpriced item (NULL unit_price/line_total — the state refreshQuotationStatus would
+    // have held out of `ready`). SUM(line_total) ignores NULL, so the sum alone would still match.
+    await cB.query("begin");
+    await asCap(`insert into quotation_items (quotation_id, company_id, description, quantity, currency, status) values ($1,$2,'late',1,'LKR','needs_confirmation')`, [quo, co]);
+    await cB.query("commit"); await cB.query("reset role");
+    const r = await cA.query(ENQ, [co, quo, key, "100"]);
+    expect(r.rows[0].v).toBe("stale"); // unpriced item present → refuse; it must re-enter the pricing flow
+    expect(await rowsFor(key)).toBe(0);
+    expect(await statusOf(quo)).toBe("ready");
+  });
+
+  it("FAIL CLOSED: a raw service_role session with NO JWT claims cannot mutate quotation_items in any status (42501)", async () => {
+    // BYPASSRLS + no claims = the caller the guard cannot classify; 0066 treated the NULL guard result as
+    // "not frozen" (silent bypass of the queued freeze). 0067 refuses it outright — queued AND pre-queue.
+    const { quo, itemIds } = await seedReadyWithItems(co, "30", ["30"]);
+    const { default: pg } = await import("pg" as string);
+    const cC = new pg.Client({ connectionString: URL, ssl: mkSsl(URL) });
+    await cC.connect(); // fresh connection: request.jwt.claims has never been set
+    try {
+      await cC.query("set role service_role");
+      let preQueue: string | undefined;
+      try { await cC.query(`update quotation_items set line_total='99' where id=$1 and company_id=$2`, [itemIds[0], co]); }
+      catch (e) { preQueue = (e as { code?: string }).code; }
+      expect(preQueue).toBe("42501"); // even pre-queue: unclassifiable caller is refused
+      const key = "k_" + rnd();
+      expect((await setup.query(ENQ, [co, quo, key, "30"])).rows[0].v).toBe("enqueued"); // owner ctx → queued
+      let postQueue: string | undefined;
+      try { await cC.query(`update quotation_items set line_total='99' where id=$1 and company_id=$2`, [itemIds[0], co]); }
+      catch (e) { postQueue = (e as { code?: string }).code; }
+      expect(postQueue).toBe("42501"); // the 0066 fail-open path (NULL → skip freeze) is closed
+      expect((await setup.query(`select line_total from quotation_items where id=$1`, [itemIds[0]])).rows[0].line_total).toBe("30.00");
+    } finally {
+      await cC.end().catch(() => {});
+    }
   });
 
   it("two concurrent finalisers on an itemised quotation → exactly one logical outbox row (enqueued + duplicate)", async () => {

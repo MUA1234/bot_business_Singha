@@ -52,17 +52,23 @@ DEFINER function and every trigger function in `public` (excluding extension-own
 `pg_catalog, extensions, public, pg_temp` (pg_temp LAST; `extensions` for digest/pgcrypto), closing the
 `pg_temp` relation-shadowing class across all domains (identity/RLS, approvals, journals, settlement,
 reimbursement, bank-change, fingerprint, integrity) — bodies unchanged, only `search_path`; it **fails
-closed** if anon/authenticated/service_role has CREATE on `public`/`extensions`, and a permanent
-integration gate (`search-path-safety.test.ts`) fails on any future unsafe function; and (b) closes a
-quotation-item vs atomic-enqueue race — the item-freeze guard now reads the parent quotation **FOR UPDATE**
-(serializing with `enqueue_quotation_outbox`), and enqueue locks the item rows and returns `stale` when an
-itemised quotation's expected total diverges from the live sum of item line totals, so a queued outbox
-snapshot can never disagree with committed items; owner-approved hosted search_path check + self-verifying
+closed** if anon/authenticated/service_role has CREATE — direct or SET-ROLE-reachable — on
+`public`/`extensions`, SELF-VERIFIES owner-agnostically (any function left unsafe, e.g. under a foreign
+owner, ABORTS the migration naming it), and a permanent owner-agnostic integration gate
+(`search-path-safety.test.ts`) fails on any future unsafe function (unsafe includes a duplicated `pg_temp`
+whose first occurrence is not the final element); and (b) closes a quotation-item vs atomic-enqueue race
+at a SINGLE linearization lock — the item-freeze guard reads the parent quotation **FOR UPDATE**
+(serializing with `enqueue_quotation_outbox`, which takes NO item-row locks: one lock object cannot form
+a deadlock cycle), enqueue requires UNCONDITIONALLY that the expected total equal the live
+`SUM(line_total)` (no item-count exemption — deleting ALL items leaves sum 0 ≠ a non-zero total →
+`stale`) and refuses any unpriced item, and the freeze guard FAILS CLOSED on an unclassifiable caller
+(raw `service_role` with no JWT claims — BYPASSRLS, so RLS is no backstop), so a queued outbox snapshot
+can never disagree with committed items; owner-approved hosted search_path check + self-verifying
 hardening scripts are prepared, not executed
 — see `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`) live on the
 integration branch `feature/v3-1-phase-1-external-review-fixes` (PR #3 foundation + stack PRs #4–#12 +
 all nine correction rounds, one draft PR against `main`). Verified counts: **unit 419 (79 files);
-integration 41 files / 311 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md`
+integration 41 files / 317 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md`
 and `PHASE1_CORRECTIONS_LEDGER.md`; authoritative applied-state: `docs/architecture-v2/MIGRATION_STATE.md`.
 **Do not begin V3.1 Phase 2 until the owner approves the final review.**
 
@@ -186,7 +192,11 @@ Commands run and results (integration branch, migrations 0001–0067):
 - `npm run audit-check` → **pass** (2 high findings, both approved exceptions: next, postcss).
 
 **Database tests (disposable PostgreSQL 16 + Supabase-compat shim — run locally, NOT in CI):**
-- Fresh `0001→0067` then `npm run test:integration` → **41 files / 311 tests pass**, including the new
+- Fresh `0001→0067` then `npm run test:integration` → **41 files / 317 tests pass**, including the
+  0067 search-path gate + adversarial suite (owner-agnostic gate that also catches a foreign-owned unsafe
+  function and a duplicated-`pg_temp` path) and the 0067 enqueue-vs-item race suite (both commit orders, a
+  deterministic AB-BA-window no-deadlock proof, delete-to-zero → `stale`, an unpriced late item → `stale`,
+  and raw no-claims `service_role` refused 42501 fail-closed), plus the
   0066 snapshot-boundary suite (signature-exact owner check resists a fake `enqueue_quotation_outbox(int)`
   overload owned by another role; authenticated/service_role/custom cannot delete a queued/terminal
   quotation or one with outbox history; a draft with no outbox stays deletable; a queued quotation and its
@@ -198,7 +208,7 @@ Commands run and results (integration branch, migrations 0001–0067):
   direct `ready→queued`/`ready→sent` refused 42501 RPC-only; exact-payload recovery vs stale `inconsistent`),
   the 0063 atomic-quotation-enqueue two-connection races, the 0062 SECURITY DEFINER **signature-exact**
   allowlist + `42501` adversarial privilege tests, and the WP11/WP12 adversarial + concurrency + currency suites.
-- Upgrade path (staged at `0058` + company-consistent legacy data → `0059→0067`) → **41 files / 311
+- Upgrade path (staged at `0058` + company-consistent legacy data → `0059→0067`) → **41 files / 317
   tests pass**; the 0062 lockdown holds, a stale `ready` quotation row is unclaimable, a direct
   service-role/custom-role `ready→queued` is refused, a queued quotation is frozen and undeletable, and a
   legacy `ready` quotation is atomically enqueued
