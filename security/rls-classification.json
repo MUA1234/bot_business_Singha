@@ -1,5 +1,5 @@
 {
-  "_comment": "WP8 — every public table with company_id is classified here. tests/integration/rls-matrix-coverage.test.ts FAILS if a company-scoped table is not classified, so a NEW sensitive table cannot ship on generic company-member write by omission. Classes: service_only (RPC/worker only), rpc_only (written only via a maker-checker/decision RPC), append_only (insert only), self_service (member inserts own row; capability updates), capability (operation-specific capability), identity (admin.identity.manage), company_member (lower-sensitivity operational/CRM; company-scoped write is the deliberate rule). See RLS_WRITE_POLICY_MATRIX.md.",
+  "_comment": "WP8 — every public table with company_id is classified here. tests/integration/rls-matrix-coverage.test.ts FAILS if a company-scoped table is not classified, so a NEW sensitive table cannot ship on generic company-member write by omission. Classes: service_only (RPC/worker only), rpc_only (written only via a maker-checker/decision RPC), append_only (insert only), self_service (member inserts own row; capability updates), capability (operation-specific capability), identity (admin.identity.manage), company_member (lower-sensitivity operational/CRM; company-scoped write is the deliberate rule). As of migration 0048 (correction WP10) NO table is classified company_member: the commercially sensitive tables moved to capability, and WhatsApp history + worker notifications moved to service_only. See RLS_WRITE_POLICY_MATRIX.md.",
   "classified": {
     "accounting_periods": "capability", "chart_of_accounts": "capability", "tax_codes": "capability",
     "cash_accounts": "capability", "exchange_rates": "capability", "fiscal_years": "capability",
@@ -33,12 +33,12 @@
     "financial_event_versions": "service_only", "financial_event_allocations": "service_only",
     "management_cases": "service_only", "capacity_snapshots": "service_only",
     "conversation_references": "service_only", "document_extractions": "service_only",
-    "leads": "company_member", "opportunities": "company_member", "orders": "company_member",
-    "quotations": "company_member", "quotation_items": "company_member", "price_confirmations": "company_member",
-    "product_catalog": "company_member", "campaigns": "company_member", "audiences": "company_member",
-    "objectives": "company_member", "notifications": "company_member", "documents": "company_member",
-    "approval_policies": "company_member", "divisions": "company_member", "branches": "company_member",
-    "departments": "company_member", "sites": "company_member", "projects": "company_member", "cost_centres": "company_member",
-    "wa_conversations": "company_member", "wa_messages": "company_member"
+    "leads": "capability", "opportunities": "capability", "orders": "capability",
+    "quotations": "capability", "quotation_items": "capability", "price_confirmations": "capability",
+    "product_catalog": "capability", "campaigns": "capability", "audiences": "capability",
+    "objectives": "capability", "documents": "capability",
+    "approval_policies": "capability", "divisions": "capability", "branches": "capability",
+    "departments": "capability", "sites": "capability", "projects": "capability", "cost_centres": "capability",
+    "notifications": "service_only", "wa_conversations": "service_only", "wa_messages": "service_only"
   }
 }

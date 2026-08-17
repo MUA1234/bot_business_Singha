@@ -6,13 +6,101 @@
 > **Implementation status (current):** This is a WORKING application, not a Phase-0
 > documentation stub. It has an app shell, auth, department dashboards, an admin
 > panel, a live WhatsApp Cloud API quotation flow, an internally-owned double-entry
-> Accounting Core, event ingestion, and 195 passing unit tests (46 files). Do NOT
+> Accounting Core, event ingestion, and a large passing unit + integration test suite
+> (current counts in `docs/CURRENT_IMPLEMENTATION_STATUS.md`). Do NOT
 > treat this repo as greenfield. See `docs/CURRENT_IMPLEMENTATION_STATUS.md`.
 >
 > **Active target / current approved phase:** the **Production Control Foundation**
 > defined in `docs/architecture-v2/NEXT_PHASE_DEVELOPER_BRIEF.md` (work packages
 > WP0–WP6, executed strictly in order). It refines the target architecture in
 > `docs/architecture-v2/CHANGE_PLAN.md` + `docs/architecture-v2/Singha_AI_Management_Architecture_V2.puml`.
+>
+> **V3.1 program (added 2026-08):** A V3.1 senior-management-intelligence evolution is scoped in
+> `docs/architecture-v3.1/` (`00_BASELINE_ASSESSMENT.md`, `01_V3_1_EXECUTION_SPEC.md`,
+> `IMPLEMENTATION_LEDGER.md`). Its compatibility foundation (default-OFF flags `src/config/flags.ts`
+> + proposal contracts `src/schemas/v3_1/*`) plus the **`0048+` security/accounting correction (pack
+> WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0067** — and verified on a
+> disposable PostgreSQL 16 (fresh + upgrade). They are the **blocking prerequisite** for any V3.1
+> finance/RLS/outbox cutover and are **NOT merged, NOT deployed, hosted DB NOT migrated, all flags
+> OFF**. (Note: "hosted DB NOT migrated" — not the flags — is what keeps these off the live system;
+> the WP12 delivery path runs with `WHATSAPP_ASYNC` OFF and `decide_approval`/FKs/catalogue enforce for
+> any caller once migrated, so they are **not** uniformly "inert while flags OFF".) Nine external
+> reviews returned **CHANGES REQUESTED**; all are fixed (first: migrations 0056–0058; second: WP12
+> outbox reconciliation + WP11 composite FKs/money fail-close + WP15 function-privilege, 0059–0060;
+> third: concurrency-safe `refreshQuotationStatus`, sent-outbox reconcile-or-fail-closed,
+> currency-catalogue validation, production enqueue-RPC concurrency test, doc accuracy — 0061; fourth
+> (security-boundary): lock every service-only SECURITY DEFINER function to `service_role` — migration
+> **0062** + an allowlist test; the hosted privilege check + emergency REVOKE hotfix for the
+> already-hosted 0038–0041 functions; fifth: an **atomic** service-only `enqueue_quotation_outbox`
+> RPC that locks the quotation row and couples the outbox insert with ready→queued in one transaction
+> (closing the enqueue race) + a DB-boundary quotation-lifecycle trigger — migration **0063**; a
+> **signature-exact** SECURITY DEFINER allowlist; a self-verifying (abort-on-residual) emergency hotfix;
+> sixth: the privileged delivery transitions (`ready→queued`/`queued→sent`/`ready→sent`) made **RPC-only**
+> via a `current_user`-gated lifecycle trigger (a direct table UPDATE by authenticated/`service_role`
+> cannot bypass the atomic/fenced RPCs) + an EXACT-payload recovery guard against stale outbox rows —
+> migration **0064**; seventh: two residual WP12 boundary gaps closed in migration **0065** — (a) the
+> scheduled drain `claim_outbox_batch` is now **quotation-aware** (a quotation-delivery outbox row is
+> claimable ONLY when its linked quotation is committed `queued`, so a stale `ready` row left after an
+> `inconsistent` enqueue can never be leased or sent; generic rows keep their retry/lease eligibility),
+> and (b) a direct-**INSERT** lifecycle boundary — a non-trusted writer may create a quotation only in the
+> initial state (`status=draft`, `sent_at` null); the trusted-writer signal is a **positive owner
+> allowlist** derived from the delivery functions' OWNER (NOT a role-name denylist), so a bespoke custom
+> role is refused both the fabricating INSERT and the privileged UPDATE; eighth: migration **0066** closes
+> the residual WP12 boundary gaps — (a) the trusted-owner check `_is_quotation_delivery_owner()` is now
+> **signature-exact** (resolves the owner from the exact 9-arg `enqueue_quotation_outbox` identity, with a
+> migration-time fail-closed assertion that the three delivery functions exist, are all SECURITY DEFINER,
+> share ONE owner, and are unreachable by anon/authenticated/service_role — a like-named overload cannot
+> flip it); (b) a BEFORE DELETE trigger refuses a non-trusted delete of a quotation that is queued/terminal
+> OR has any outbox delivery history (closing the claim-then-delete race); (c) once queued, the quotation
+> and its `quotation_items` are a **frozen snapshot** — a non-trusted writer may change nothing but a pure
+> `sent→accepted`/`sent→rejected` decision (draft/awaiting_price/ready editing stays functional); (d) the
+> eighth review's own adversarial security pass surfaced a `search_path`/`pg_temp` relation-shadowing class
+> (a caller with default TEMP could `CREATE TEMP TABLE pg_proc`/`quotations`/`message_outbox` to shadow the
+> real tables inside a trigger/function) — every 0066 function now schema-qualifies its relations and pins
+> `search_path = pg_catalog, public, pg_temp` (pg_temp LAST), the WP12 delivery RPCs are re-pinned the same
+> way, the delivered `message_outbox` content (recipient/body/template/source) is frozen against
+> `service_role` while delivery-state stays worker-mutable, and non-trusted `TRUNCATE`/`DELETE` of the
+> delivery row is refused; and (e) a doc correction that the `message_outbox` service-only DML boundary
+> originated in migration **0038**, not 0048); ninth: migration **0067** performs the systemic follow-up the
+> eighth review flagged plus a concurrency fix — (a) a **catalog-driven search_path audit** re-pins EVERY
+> application-owned SECURITY DEFINER function and every trigger function in `public` (excluding
+> extension-owned) to `pg_catalog, extensions, public, pg_temp` (pg_temp LAST; `extensions` for
+> digest/pgcrypto), closing the `pg_temp` relation-shadowing class across the accounting/approval/identity-
+> RLS/bank-change/journal/settlement/reimbursement/fingerprint/integrity domains — bodies unchanged, only
+> `search_path`; the migration **fails closed** if anon/authenticated/service_role has CREATE — direct or
+> SET-ROLE-reachable — on `public`/`extensions`, the hardening SELF-VERIFIES owner-agnostically (any
+> function left unsafe, e.g. under a foreign owner, ABORTS the migration naming it — no silent partial
+> hardening), and a permanent owner-agnostic integration gate (`search-path-safety.test.ts`) fails on any
+> future unsafe function (unsafe includes a duplicated `pg_temp` whose first occurrence is not last); and
+> (b) closes a quotation-item vs atomic-enqueue race at a SINGLE linearization lock — the item-freeze guard
+> reads the parent quotation **FOR UPDATE** (serializing with `enqueue_quotation_outbox`, which takes NO
+> item-row locks: one lock object cannot deadlock), enqueue requires UNCONDITIONALLY that the expected
+> total equal the live `SUM(line_total)` (no item-count exemption — deleting ALL items yields sum 0 ≠ a
+> non-zero total → `stale`) and refuses any unpriced item, and the freeze guard FAILS CLOSED on an
+> unclassifiable caller (raw `service_role` with no JWT claims), so a queued outbox snapshot can never
+> disagree with committed items (owner-approved hosted search_path check + self-verifying hardening
+> scripts prepared, not executed) — see
+> `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`; tenth (the SECOND AND FINAL bounded
+> correction loop, still migration 0067 — reconfirmed never applied outside disposable databases): (a) the
+> safe-path predicate at all four sites (migration self-verify, permanent gate, hosted check, hosted
+> hardening) is now STRICT CANONICAL EQUALITY — only the exact parsed path `pg_catalog, extensions,
+> public, pg_temp` passes, because a merely-pg_temp-last path can still LEAD with an attacker-writable
+> schema that wins relation resolution; (b) the enqueue item guard requires a COMPLETE snapshot line —
+> `status='priced'`, non-NULL `unit_price`, non-NULL `line_total` (SUM skips NULL), and item currency
+> equal to the LOCKED quotation currency (a numeric match in the wrong currency never sends) — mirrored
+> 1:1 by `refreshQuotationStatus`, with `priceQuotation` auto-pricing only from a same-currency catalogue
+> entry (else a human price confirmation posed in the quotation currency) and `resolvePriceConfirmation`
+> stamping the item to the quotation currency (no float, no conversion); and (c) the predicted
+> draft-deletion cascade regression was REPRODUCED-AS-NOT-OCCURRING on live PostgreSQL 16 — RI cascade
+> queries run in the security context of the `quotation_items` TABLE OWNER (observed: current_user=owner,
+> depth=2, guard NULL but unreached), which is the trusted delivery owner, so authorised pre-queue deletes
+> of itemised quotations cascade cleanly; that ownership invariant (tables owner == exact 9-arg
+> `enqueue_quotation_outbox` owner) is now ASSERTED fail-closed by the migration and pinned by regression
+> tests) on
+> `feature/v3-1-phase-1-external-review-fixes`, now **awaiting the FINAL external approval** — do not
+> begin V3.1 Phase 2 until it is granted. Verified counts: **unit 419 (79 files); integration 41
+> files / 321 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
+> `PHASE1_CORRECTIONS_LEDGER.md`.
 >
 > **Superseded-document rule:** A coding agent MUST NOT rely on any instruction that
 > conflicts with the document precedence below. Where a document is marked superseded

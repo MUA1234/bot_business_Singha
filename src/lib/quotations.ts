@@ -13,8 +13,9 @@
 import Decimal from "decimal.js";
 import { randomBytes } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { enqueueOutbox } from "@/lib/outbox-enqueue";
-import { drainOutbox } from "@/events/outbox-drain";
+import { outboundIdempotencyKey } from "@/events/outbox";
+import { drainOutbox, type DrainResult } from "@/events/outbox-drain";
+import { log } from "@/lib/log";
 import { env } from "@/config/env";
 
 export interface DraftItem {
@@ -58,6 +59,25 @@ function quoteNumber(): string {
 
 export function quoteUrl(token: string): string {
   return `${env.appBaseUrl.replace(/\/$/, "")}/q/${token}`;
+}
+
+/**
+ * Format a monetary total for display WITHOUT a lossy JavaScript Number conversion. The DB returns
+ * `numeric` as a string; `new Decimal()` parses it exactly, `toFixed(2)` fixes the scale, and the
+ * thousands separators are applied with a string-only regex — the value never passes through a
+ * binary float. (Totals are non-negative here.)
+ */
+function formatMoney(total: string | number | null | undefined): string {
+  const parts = new Decimal(total ?? 0).toFixed(2).split("."); // always "int.frac" (2dp)
+  const int = parts[0] ?? "0";
+  const frac = parts[1] ?? "00";
+  return `${int.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${frac}`;
+}
+
+// Currency comparison used for item completeness — trim (char(3) padding) + case only. Deliberately NO
+// conversion of any kind: two currencies either match or the item goes to the human pricing flow.
+function normalizeCurrency(c: string | null | undefined): string {
+  return String(c ?? "").trim().toUpperCase();
 }
 
 /**
@@ -135,6 +155,16 @@ export async function priceQuotation(
 ): Promise<boolean> {
   const db = supabaseAdmin();
 
+  // The quotation's currency governs the whole document: the public quotation renders every item in it,
+  // and the enqueue guard (migration 0067) refuses any item whose currency disagrees with it.
+  const { data: quo } = await db
+    .from("quotations")
+    .select("currency")
+    .eq("id", quotationId)
+    .eq("company_id", companyId)
+    .single();
+  const qCurrency = normalizeCurrency(quo?.currency);
+
   const { data: catalog } = await db
     .from("product_catalog")
     .select("id, name, unit_price, currency")
@@ -144,11 +174,21 @@ export async function priceQuotation(
 
   const { data: items } = await db
     .from("quotation_items")
-    .select("id, description, quantity, unit_price, status, currency")
+    .select("id, description, quantity, unit_price, line_total, status, currency")
     .eq("quotation_id", quotationId);
 
   for (const it of items ?? []) {
-    if (it.status === "priced" && it.unit_price != null) continue;
+    // Skip only a COMPLETE line — the same completeness predicate refreshQuotationStatus and the DB
+    // enqueue guard use. A legacy item priced in a non-quotation currency (or with a NULL line_total)
+    // must RE-ENTER pricing here — same-currency catalogue match → repriced in the quotation currency;
+    // otherwise → a human price confirmation — instead of wedging in awaiting_price with no exit.
+    if (
+      it.status === "priced" &&
+      it.unit_price != null &&
+      it.line_total != null &&
+      normalizeCurrency(it.currency) === qCurrency
+    )
+      continue;
 
     const desc = (it.description ?? "").toLowerCase();
     const match = (catalog ?? []).find((c: any) => {
@@ -156,13 +196,16 @@ export async function priceQuotation(
       return name && (desc === name || desc.includes(name) || name.includes(desc));
     });
 
-    if (match) {
+    // Auto-price ONLY from a catalogue entry in the QUOTATION's currency. A price in any other
+    // currency is NOT copied (no implicit conversion — that would silently misprice the document);
+    // it is routed to a human price confirmation in the quotation's currency instead.
+    if (match && normalizeCurrency(match.currency) === qCurrency && qCurrency !== "") {
       const line = new Decimal(match.unit_price).times(it.quantity || 1).toFixed(2);
       await db
         .from("quotation_items")
         .update({
           unit_price: match.unit_price,
-          currency: match.currency,
+          currency: qCurrency,
           line_total: line,
           status: "priced",
           catalog_id: match.id,
@@ -170,7 +213,8 @@ export async function priceQuotation(
         .eq("id", it.id)
         .eq("company_id", companyId);
     } else {
-      // Ensure a single open confirmation for this item.
+      // Ensure a single open confirmation for this item — priced in the QUOTATION currency (that is
+      // the currency the confirmed number will be used in; the item's own stale currency is not shown).
       const { data: existing } = await db
         .from("price_confirmations")
         .select("id")
@@ -185,7 +229,7 @@ export async function priceQuotation(
           department: routeDepartment,
           description: it.description,
           quantity: it.quantity || 1,
-          currency: it.currency ?? "LKR",
+          currency: qCurrency || (it.currency ?? "LKR"),
           status: "open",
         });
       }
@@ -195,91 +239,230 @@ export async function priceQuotation(
   return await refreshQuotationStatus(companyId, quotationId);
 }
 
-/** Recompute totals + status. Returns true if still awaiting a price. */
+/**
+ * Recompute totals + status. Returns true if still awaiting a price.
+ *
+ * WP12 hard guard: this NEVER changes a `queued` or terminal (`sent`/`accepted`/`rejected`)
+ * quotation's status — only `draft`/`awaiting_price`/`ready` are re-derived. Totals are always
+ * refreshed. This holds regardless of the caller, so a mispriced refresh cannot resurrect or resend
+ * a document that has already left the pricing stage.
+ */
 export async function refreshQuotationStatus(companyId: string, quotationId: string): Promise<boolean> {
   const db = supabaseAdmin();
+  // The quotation currency is part of item completeness: an item priced in a different currency (e.g. a
+  // catalogue currency copied before this rule existed) must NOT count as ready — the public quotation
+  // renders every item in the quotation currency, and the enqueue guard (0067) refuses the mismatch.
+  const { data: quo } = await db
+    .from("quotations")
+    .select("currency")
+    .eq("id", quotationId)
+    .eq("company_id", companyId)
+    .single();
+  if (!quo) return true; // quotation gone (concurrent delete) → nothing to mark ready; treat as awaiting
+  const qCurrency = normalizeCurrency(quo.currency);
+
   const { data: items } = await db
     .from("quotation_items")
-    .select("unit_price, line_total, status")
+    .select("unit_price, line_total, status, currency")
     .eq("quotation_id", quotationId)
     .eq("company_id", companyId);
 
-  const awaiting = (items ?? []).some((i: any) => i.status !== "priced" || i.unit_price == null);
+  // COMPLETE item = priced + non-null unit_price + non-null line_total + quotation-currency match.
+  // Anything less keeps the quotation in `awaiting_price` (the human pricing flow) — mirrored 1:1 by the
+  // DB-level enqueue guard, which returns `stale` for the same conditions (no float, no conversion).
+  const awaiting = (items ?? []).some(
+    (i: any) =>
+      i.status !== "priced" ||
+      i.unit_price == null ||
+      i.line_total == null ||
+      normalizeCurrency(i.currency) !== qCurrency,
+  );
   let subtotal = new Decimal(0);
   for (const i of items ?? []) if (i.line_total != null) subtotal = subtotal.plus(i.line_total);
 
+  // Concurrency-safe: the allowed-current-status condition is ON THE UPDATE itself, so a `queued`
+  // or terminal (`sent`/`accepted`/`rejected`) quotation receives ZERO mutations (status AND totals)
+  // even if it transitions concurrently between our read and this write — the UPDATE simply matches
+  // no row.
   await db
     .from("quotations")
-    .update({
-      subtotal: subtotal.toFixed(2),
-      total: subtotal.toFixed(2),
-      status: awaiting ? "awaiting_price" : "ready",
-    })
+    .update({ subtotal: subtotal.toFixed(2), total: subtotal.toFixed(2), status: awaiting ? "awaiting_price" : "ready" })
     .eq("id", quotationId)
-    .eq("company_id", companyId);
-
+    .eq("company_id", companyId)
+    .in("status", ["draft", "awaiting_price", "ready"]);
   return awaiting;
 }
 
 /**
  * If the quotation is fully priced, finalize and WhatsApp it to the customer.
- * Idempotent-ish: won't resend a quotation already marked sent.
+ *
+ * WP12 — truthful delivery state. Enqueueing marks the quotation `queued`, NOT `sent`. The
+ * quotation only becomes `sent` when the durable outbox row is completed by the fenced
+ * `complete_outbox_and_advance` RPC (the inline drain here, or the scheduled sweep). Delivery is
+ * AT-LEAST-ONCE: a provider-success / DB-failure window can still cause a retry, so a lease does
+ * not make duplicate external delivery impossible. The returned `sent` reflects the quotation's
+ * real state after the inline drain; the `DrainResult` is propagated, never swallowed.
+ * Idempotent: a repeated finalise re-uses the same outbox row (dedupe key) and never resends.
  */
 export async function tryFinalizeAndSend(
   companyId: string,
   quotationId: string,
-): Promise<{ sent: boolean; reason?: string }> {
+): Promise<{ sent: boolean; status?: string; reason?: string; drain?: DrainResult }> {
   const db = supabaseAdmin();
-  const awaiting = await refreshQuotationStatus(companyId, quotationId);
-  if (awaiting) return { sent: false, reason: "awaiting_price" };
 
+  // Read the CURRENT status FIRST — before any price refresh — so the legal state machine is honoured
+  // (draft → awaiting_price → ready → queued → sent; accepted/rejected terminal).
   const { data: quote } = await db
     .from("quotations")
-    .select("id, quote_number, currency, total, status, public_token, order_id, company_id")
+    .select("status")
     .eq("id", quotationId)
     .eq("company_id", companyId)
     .single();
   if (!quote) return { sent: false, reason: "not_found" };
-  if (quote.status === "sent" || quote.status === "accepted") return { sent: false, reason: "already_sent" };
+
+  // Terminal states never mutate and never (re)send.
+  if (quote.status === "sent" || quote.status === "accepted" || quote.status === "rejected") {
+    return { sent: quote.status === "sent", status: quote.status, reason: "terminal" };
+  }
+
+  // Refresh pricing ONLY for pre-queue states; a `queued` quotation is never re-priced or reset.
+  if (quote.status !== "queued") {
+    const awaiting = await refreshQuotationStatus(companyId, quotationId);
+    if (awaiting) return { sent: false, status: "awaiting_price", reason: "awaiting_price" };
+  }
+
+  // RE-READ the authoritative state AFTER the guarded refresh — NEVER assume `ready` just because
+  // refreshQuotationStatus returned awaiting=false. Its UPDATE is guarded (a no-op if the row moved
+  // concurrently), so between the first read and here the quotation may have gone queued/sent/
+  // accepted/rejected, and its total may have been recomputed. Both status AND total come from here.
+  const { data: fresh } = await db
+    .from("quotations")
+    .select("status, total, currency, quote_number, public_token, order_id")
+    .eq("id", quotationId)
+    .eq("company_id", companyId)
+    .single();
+  if (!fresh) return { sent: false, reason: "not_found" };
+  const curStatus = fresh.status as string;
+
+  // Terminal after the refresh → STOP with zero enqueue/send.
+  if (curStatus === "sent" || curStatus === "accepted" || curStatus === "rejected") {
+    return { sent: curStatus === "sent", status: curStatus, reason: "terminal" };
+  }
+  // Only `ready` (freshly priced) or `queued` (already enqueued once) may proceed. A concurrent
+  // re-price could leave it `awaiting_price`/`draft` — not sendable now, and never enqueued.
+  if (curStatus !== "ready" && curStatus !== "queued") {
+    return { sent: false, status: curStatus, reason: curStatus === "awaiting_price" ? "awaiting_price" : "not_ready" };
+  }
 
   const { data: order } = await db
     .from("orders")
     .select("customer_phone, customer_name, conversation_id")
-    .eq("id", quote.order_id)
+    .eq("id", fresh.order_id)
     .eq("company_id", companyId)
     .maybeSingle();
-
   const to = order?.customer_phone?.replace(/^\+/, "");
-  const link = quoteUrl(quote.public_token);
-  const total = `${quote.currency} ${Number(quote.total).toLocaleString()}`;
-  const body =
-    `Thank you${order?.customer_name ? `, ${order.customer_name}` : ""}! ` +
-    `Here is your quotation ${quote.quote_number} from Singha.\n\n` +
-    `Total: ${total}\n\nView / download your quotation:\n${link}\n\n` +
-    `Reply here if you'd like to proceed or have any questions.`;
-
-  if (to) {
-    // §WP5: enqueue the quotation message to the durable outbox (dedup on the quotation id),
-    // not a direct send — provider failures can't lose/duplicate it. Best-effort inline drain.
-    await enqueueOutbox({ channel: "whatsapp", companyId, recipient: to, body, dedupeKey: `quotation:${quotationId}` });
-    if (order?.conversation_id) {
-      await db.from("wa_messages").insert({
-        conversation_id: order.conversation_id,
-        company_id: companyId,
-        direction: "outbound",
-        body,
-        wa_message_id: null,
-      });
-    }
-    try { await drainOutbox(db); } catch { /* sweep will recover */ }
+  if (!to) {
+    // No deliverable phone → nothing can be queued; leave the quotation retryable (truthful).
+    return { sent: false, status: curStatus, reason: "no_recipient" };
   }
 
-  await db.from("quotations").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", quotationId).eq("company_id", companyId);
-  await db.from("orders").update({ status: "quoted" }).eq("id", quote.order_id).eq("company_id", companyId);
-  if (order?.conversation_id)
-    await db.from("wa_conversations").update({ status: "quoted" }).eq("id", order.conversation_id).eq("company_id", companyId);
+  // Build the message from the FRESHLY-persisted total (not the pre-refresh read), formatted without
+  // a lossy JavaScript Number conversion (see formatMoney).
+  const link = quoteUrl(fresh.public_token);
+  const total = `${fresh.currency} ${formatMoney(fresh.total)}`;
+  const body =
+    `Thank you${order?.customer_name ? `, ${order.customer_name}` : ""}! ` +
+    `Here is your quotation ${fresh.quote_number} from Singha.\n\n` +
+    `Total: ${total}\n\nView / download your quotation:\n${link}\n\n` +
+    `Reply here if you'd like to proceed or have any questions.`;
+  const dedupeKey = `quotation:${quotationId}`;
 
-  return { sent: true };
+  // ATOMIC enqueue (migration 0063 `enqueue_quotation_outbox`). A single service-only RPC LOCKS the
+  // company-scoped quotation row, inspects the authoritative status UNDER THAT LOCK, verifies the body's
+  // total/currency still match the locked row, and — only if still legally `ready` — inserts the outbox
+  // row AND advances ready→queued in ONE transaction. This closes the previous time-of-check/time-of-use
+  // window: a concurrent terminal transition can no longer leave a live pending row (there is no
+  // application re-read between the check and the insert). The linearization point is the row lock.
+  const key = outboundIdempotencyKey("whatsapp", dedupeKey);
+  const { data: enq, error: enqErr } = await db.rpc("enqueue_quotation_outbox", {
+    p_company: companyId,
+    p_quotation: quotationId,
+    p_recipient: to,
+    p_body: body,
+    p_idempotency_key: key,
+    p_expected_total: fresh.total,
+    p_expected_currency: fresh.currency,
+    p_channel: "whatsapp",
+    p_message_purpose: "quotation",
+  });
+  if (enqErr || !enq) {
+    // No durable record written → keep the quotation retryable; never claim queued/sent.
+    log("error", "atomic quotation enqueue failed", { event: "quotation.enqueue_failed", quotationId, error: enqErr?.message ?? "no result" });
+    return { sent: false, status: curStatus, reason: "enqueue_unavailable" };
+  }
+  // Results that MUST NOT drain or send — the atomic operation created no sendable row for this caller.
+  if (enq === "terminal") {
+    const { data: t } = await db.from("quotations").select("status").eq("id", quotationId).eq("company_id", companyId).single();
+    const st = (t?.status as string) ?? "sent";
+    return { sent: st === "sent", status: st, reason: "terminal" };
+  }
+  if (enq === "not_ready") return { sent: false, status: curStatus, reason: "not_ready" };
+  if (enq === "stale") return { sent: false, status: curStatus, reason: "stale" }; // total moved under the lock; retryable
+  if (enq === "inconsistent") {
+    log("error", "atomic quotation enqueue inconsistent", { event: "quotation.outbox_source_inconsistent", quotationId, idempotencyKey: key });
+    return { sent: false, status: curStatus, reason: "outbox_source_inconsistent" };
+  }
+  // enq is 'enqueued' or 'duplicate' → a durable row for THIS (company, quotation, key) exists and the
+  // quotation is now `queued`. Load that exact row and reconcile/drain it by its real state (below).
+  const { data: ob } = await db
+    .from("message_outbox")
+    .select("id, status")
+    .eq("company_id", companyId)
+    .eq("idempotency_key", key)
+    .eq("source_type", "quotation")
+    .eq("source_id", quotationId)
+    .maybeSingle();
+  if (!ob) {
+    // enqueued/duplicate but no company+source-scoped row exists → fail closed; never claim queued/sent.
+    return { sent: false, status: curStatus, reason: "outbox_not_found" };
+  }
+
+  // Reconcile by the outbox row's REAL state — each state a distinct, truthful outcome. Message
+  // history is written only by the fenced completion RPC (never here), so a queued item is never
+  // shown as sent.
+  let drain: DrainResult | undefined;
+  let drainFailed = false;
+  let reason: string | undefined;
+  if (ob.status === "sent") {
+    // Provider already succeeded. Normally the completion RPC advanced the quotation atomically, so
+    // it is already `sent`. If it lags (outbox sent, quotation not sent), reconcile through the
+    // idempotent service-only RPC; if that cannot make them consistent, FAIL CLOSED with
+    // `outbox_source_inconsistent` + operator-visible logging. NEVER return already_sent with sent=false.
+    const { data: q0 } = await db.from("quotations").select("status").eq("id", quotationId).eq("company_id", companyId).single();
+    if (q0?.status === "sent") return { sent: true, status: "sent", reason: "already_sent" };
+    const { data: ok } = await db.rpc("reconcile_quotation_from_outbox", { p_outbox_id: ob.id });
+    const { data: q1 } = await db.from("quotations").select("status").eq("id", quotationId).eq("company_id", companyId).single();
+    if (ok === true && q1?.status === "sent") return { sent: true, status: "sent", reason: "reconciled" };
+    log("error", "outbox sent but quotation not reconciled", { event: "quotation.outbox_source_inconsistent", quotationId, outboxId: ob.id, quotationStatus: q1?.status ?? null });
+    return { sent: false, status: q1?.status ?? curStatus, reason: "outbox_source_inconsistent" };
+  } else if (ob.status === "dead") {
+    reason = "dead";               // permanently failed — visible for operator recovery; no drain.
+  } else if (ob.status === "processing") {
+    reason = "processing";         // another worker holds the lease; let it complete. No drain.
+  } else {
+    // pending or failed(due) → attempt an inline drain to progress delivery.
+    try { drain = await drainOutbox(db); } catch { drainFailed = true; }
+  }
+
+  // Truthful final state: `sent` iff the durable completion advanced the quotation to `sent`.
+  const { data: after } = await db
+    .from("quotations")
+    .select("status")
+    .eq("id", quotationId)
+    .eq("company_id", companyId)
+    .single();
+  const status = after?.status ?? curStatus;
+  return { sent: status === "sent", status, drain, reason: drainFailed ? "drain_failed" : reason };
 }
 
 /** Resolve a price confirmation from a dashboard, then finalize if ready. */
@@ -305,10 +488,25 @@ export async function resolvePriceConfirmation(input: {
     .eq("company_id", input.companyId)
     .single();
 
+  // The human confirms the price in the QUOTATION's currency (that is how the confirmation was posed and
+  // how the public quotation renders the line), so the resolution stamps the item to that currency — a
+  // stale catalogue-copied currency would otherwise keep the quotation out of `ready` forever.
+  const { data: quoForCurrency } = await db
+    .from("quotations")
+    .select("currency")
+    .eq("id", conf.quotation_id)
+    .eq("company_id", input.companyId)
+    .single();
+
   const line = new Decimal(input.resolvedPrice).times(item?.quantity || 1).toFixed(2);
   await db
     .from("quotation_items")
-    .update({ unit_price: input.resolvedPrice, line_total: line, status: "priced" })
+    .update({
+      unit_price: input.resolvedPrice,
+      line_total: line,
+      status: "priced",
+      ...(quoForCurrency?.currency ? { currency: normalizeCurrency(quoForCurrency.currency) } : {}),
+    })
     .eq("id", conf.quotation_item_id)
     .eq("company_id", input.companyId);
 

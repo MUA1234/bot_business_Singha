@@ -56,6 +56,8 @@ describe.skipIf(!enabled)("settlement + reversal — live, zero-persistence", ()
     client = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } });
     await client.connect();
     await client.query("begin");
+    // Posting/settlement RPCs run on the service path; present a service_role JWT (WP17/0049).
+    await client.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
     company = (await client.query(`insert into companies (name, base_currency) values ('wp_set','LKR') returning id`)).rows[0].id;
     poster = (await client.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(),'wp_set_poster',true) returning id`)).rows[0].id;
     customer = (await client.query(`insert into customers (company_id, name) values ($1,'Cust') returning id`, [company])).rows[0].id;

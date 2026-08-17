@@ -26,6 +26,14 @@ export interface OutboxEntry {
   /** Approved template to deliver outside the 24h window (§WP4.7). */
   templateName?: string;
   templateParams?: string[];
+  /**
+   * WP12: link this send to the commercial document it delivers, so the fenced completion
+   * (`complete_outbox_and_advance`) can advance the exact source when — and only when — the
+   * provider send is durably recorded. No secrets: type + id + a coarse purpose only.
+   */
+  sourceType?: string;
+  sourceId?: string;
+  messagePurpose?: string;
 }
 
 /**
@@ -89,5 +97,8 @@ export function buildOutboxRow(entry: OutboxEntry) {
     correlation_id: entry.correlationId ?? null,
     template_name: entry.templateName ?? null,
     template_params: entry.templateParams ?? null,
+    source_type: entry.sourceType ?? null,
+    source_id: entry.sourceId ?? null,
+    message_purpose: entry.messagePurpose ?? null,
   };
 }

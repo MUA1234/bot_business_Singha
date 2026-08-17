@@ -8,12 +8,22 @@
 > This file is the single place to track applied-state. Update it whenever a migration
 > is run against any environment, and cite who confirmed it and when.
 
-_Last reviewed: 2026-08-07 (Production Security & Reliability Gate)._
+_Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, WP18)._
+
+> **WP18 authority note.** This file is **the** authoritative migration-state document. The five
+> states below are tracked **separately** and never conflated — in particular, *file exists* and
+> *tested on a disposable database* never imply *applied to staging/production*. Execution is the
+> migration **runner** (`npm run migrate`, `schema_migrations` ledger); the combined `RUN_*.sql`
+> files are non-authoritative aids. Hosted (staging/production) state is asserted **only** from an
+> owner confirmation with a date; where none exists it is recorded **"owner confirmation required."**
+> This development process has **not** applied any migration to a hosted database and has **not**
+> enabled any feature flag.
 
 ## Migration source of truth
 
-- **Canonical migrations:** `src/db/migrations/0001_*.sql` … `0022_*.sql` (forward-only,
-  sequential). This directory is the **one** migration source of truth.
+- **Canonical migrations:** `src/db/migrations/0001_*.sql` … `0067_*.sql` (forward-only,
+  sequential; `migration-lint` confirms 0001–0067, no gaps). This directory is the **one**
+  migration source of truth.
 - **⚠️ Divergence risk (flag for WP6):** duplicate/aggregate runnable copies exist and
   can drift from canonical migrations. They must not be treated as authoritative:
   - `docs/architecture-v2/RUN_0014_*.sql` … `RUN_0022_*.sql`
@@ -83,14 +93,83 @@ _Last reviewed: 2026-08-07 (Production Security & Reliability Gate)._
 | 0045 | bank_change_maker_checker (correction WP6: request/decision RPCs; supplier_bank_detail_changes RPC-only; maker<>checker; no bank numbers in audit) | ❌ **not applied to any environment** (added 2026-08-08; verified on disposable Postgres) |
 | 0046 | authority_and_approvals (correction WP7: authority_rules.is_unlimited; deny-by-default within_authority; decide_approval RPC; approval_actions RPC-only) | ❌ **not applied to any environment** (added 2026-08-08; verified on disposable Postgres) |
 | 0047 | rls_write_matrix (correction WP8: capability-gate remaining sensitive finance/bank/planning/inventory/fleet/identity tables; operations.fleet.manage) | ❌ **not applied to any environment** (added 2026-08-08; verified on disposable Postgres) |
+| 0048 | wp10_sensitive_write_rls (Phase 1 WP10: remove broad company-member writes; capability-gate 18 commercially-sensitive tables; WhatsApp/notifications service-only) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16, fresh + upgrade) |
+| 0049 | wp17_system_actor (Phase 1 WP17: `_resolve_actor` — system path only via service_role JWT; reject missing/malformed/anon/unknown; EXECUTE revoked from PUBLIC) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
+| 0050 | wp13_posted_journal_immutability (Phase 1 WP13: allowlist whole-row posted-journal immutability; posted lines immutable to INSERT too) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
+| 0051 | wp14_canonical_json_fingerprint (Phase 1 WP14: versioned canonical-JSON SHA-256 fingerprint `v3:`; v2/legacy-NULL compatibility) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
+| 0052 | wp15_invoice_bill_invariants (Phase 1 WP15: require source lines, positive header, header = line total; verify an existing journal is this document's) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
+| 0053 | wp16_reimbursement_reuse_validation (Phase 1 WP16: full source-bound payload validation on reimbursement/payment reuse) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
+| 0054 | wp11_approval_scope_currency_delegation (Phase 1 WP11: authority_rules/delegations scope + is_company_wide; within_authority_for_event; strict currency; delegation ⊆ delegator) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
+| 0055 | wp12_truthful_delivery_state (Phase 1 WP12: outbox source metadata; quotations `queued` state; fenced `complete_outbox_and_advance` RPC; at-least-once) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16, fresh + upgrade) |
+| 0056 | wp15_source_binding_fingerprint (external-review B: invoice/bill existing-journal path recomputes the canonical fingerprint — a matching key alone is not proof of source binding) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16, fresh + upgrade) |
+| 0057 | wp11_approval_failclose_domain_caps (external-review C: fail-closed approvals incl. reject; deterministic domain→capability whitelist; duplicate-action conflict; delegation company-consistency) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
+| 0058 | wp12_message_history_on_completion (external-review A: outbound wa_messages written atomically on durable send only, with the provider id) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16, fresh + upgrade) |
+| 0059 | wp15_fp_matches_privilege (2nd review: REVOKE _journal_fp_matches EXECUTE from PUBLIC/anon/authenticated) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16) |
+| 0060 | wp11_composite_fk_money_failclose (2nd review: composite company-consistency FKs NOT VALID + preflight; decide_approval fails closed on non-positive/non-finite amount, invalid currency, invalid approvals_required) | ⛔ **owner confirmation required** (added 2026-08-15; dev-verified on disposable PostgreSQL 16, fresh + upgrade; **VALIDATE the two NOT VALID FKs after the documented preflight on staging**) |
+| 0061 | final_review_currency_enqueue_reconcile (3rd/final review: `currencies` catalogue — `is_active` + 16 seeded ISO codes on the existing 0002 table; `decide_approval` validates currency against it; service-only `enqueue_outbox_row` + `reconcile_quotation_from_outbox` RPCs, EXECUTE revoked from authenticated/anon) | ⛔ **owner confirmation required** (added 2026-08-16; dev-verified on disposable PostgreSQL 16, fresh + upgrade; **seed any additional in-use currencies after applying** — an unseeded currency can no longer be approved) |
+| 0062 | secure_definer_function_grants (4th/security-boundary review: lock every service-only SECURITY DEFINER function — `_journal_post_internal` incl. its legacy 7-arg signature, `claim_outbox_batch`, `complete_outbox_and_advance`, `ledger_integrity_report`, `_journal_fp_matches`, `enqueue_outbox_row`, `reconcile_quotation_from_outbox` — to `service_role`; name-based + `to_regprocedure`-guarded, idempotent, upgrade-safe) | ⛔ **owner confirmation required** (added 2026-08-16; dev-verified on disposable PostgreSQL 16, fresh + upgrade). **Note:** `claim_outbox_batch`/`ledger_integrity_report`/legacy `_journal_post_internal` from 0038–0041 are **already hosted and may be `authenticated`-executable** — see `HOSTED_SECDEF_PRIVILEGE_HOTFIX.md` for the prepared read-only check + emergency REVOKE. |
+| 0063 | wp12_atomic_quotation_enqueue (5th/final review: atomic service-only `enqueue_quotation_outbox` RPC — locks the company-scoped quotation row, and only if still legally `ready` inserts the outbox row AND advances ready→queued in ONE transaction, closing the enqueue race; result `enqueued`/`duplicate`/`terminal`/`not_ready`/`stale`/`inconsistent`; plus a BEFORE UPDATE trigger enforcing the legal quotation lifecycle at the DB boundary — `queued` can never jump to a terminal state) | ⛔ **owner confirmation required** (added 2026-08-16; dev-verified on disposable PostgreSQL 16, fresh + upgrade) |
+| 0064 | wp12_delivery_transition_boundary (6th review: the privileged delivery transitions `ready→queued`/`queued→sent`/`ready→sent` are RPC-ONLY — the SECURITY INVOKER lifecycle trigger refuses them when `current_user` is a PostgREST API role, so a direct table UPDATE by authenticated/service_role cannot bypass the atomic/fenced RPCs; and `enqueue_quotation_outbox`'s ready+existing-row recovery now requires an EXACT delivery-identity+payload match — company/source/key/channel/recipient/body/message_purpose — else `inconsistent`) | ⛔ **owner confirmation required** (added 2026-08-16; dev-verified on disposable PostgreSQL 16, fresh + upgrade, incl. authenticated-role and service-role adversarial tests) |
+| 0065 | wp12_claim_and_insert_boundary (7th review: (a) `claim_outbox_batch` is now **quotation-aware** — a quotation-delivery outbox row is claimable ONLY when its linked quotation is committed `queued` (same company, `source_type`+`message_purpose` both `quotation`, `source_id` present), so a stale `ready` row left after an `inconsistent` enqueue can never be leased/sent; either-field-`quotation`-with-mismatch fails closed; generic rows keep retry/lease/SKIP-LOCKED eligibility. (b) a BEFORE INSERT trigger restricts non-trusted writers to the initial state (`status=draft`, `sent_at` null); the UPDATE trigger's privileged-transition and `sent_at` guards now use a **positive owner allowlist** — `_is_quotation_delivery_owner()` derived from the delivery functions' OWNER — not a role-name denylist, so a bespoke custom role is refused both the fabricating INSERT and the privileged UPDATE) | ⛔ **owner confirmation required** (added 2026-08-16; dev-verified on disposable PostgreSQL 16, fresh + upgrade, incl. authenticated-role, service-role AND custom-role adversarial tests) |
+| 0066 | wp12_snapshot_and_delete_boundary (8th review: (a) `_is_quotation_delivery_owner()` is **signature-exact** — resolves the owner from the EXACT 9-arg `enqueue_quotation_outbox` identity, with a migration-time fail-closed assertion that enqueue/complete/reconcile all exist, are SECURITY DEFINER, share ONE owner, and are unreachable (SET ROLE) by anon/authenticated/service_role; a like-named overload with a different owner cannot flip it. (b) a BEFORE DELETE trigger refuses a non-trusted delete of a quotation that is queued/terminal OR has ANY outbox delivery history — closing the claim-then-delete race; the trusted owner keeps a maintenance override. (c) a whole-row BEFORE UPDATE freeze + `quotation_items` INSERT/UPDATE/DELETE triggers make a queued/terminal quotation and its items immutable to non-trusted writers except a pure `sent→accepted`/`sent→rejected` decision; pre-queue editing stays functional. The `quotation_items` parent-status read uses a self-gating SECURITY DEFINER helper so RLS visibility cannot bypass the freeze, without becoming a cross-company oracle. The eighth review's own security pass added `search_path`/`pg_temp` hardening — every function schema-qualifies relations + pins `search_path = pg_catalog, public, pg_temp`, the WP12 delivery RPCs are re-pinned via ALTER FUNCTION — and a `message_outbox` CONTENT freeze (recipient/body/template/source immutable to `service_role`; delivery-state stays worker-mutable) + TRUNCATE/DELETE guards. Documented residual: a full-codebase search_path audit of other-domain SECURITY DEFINER functions is a recommended systemic follow-up, out of WP12 scope) | ⛔ **owner confirmation required** (added 2026-08-16; dev-verified on disposable PostgreSQL 16, fresh + upgrade, incl. a GENUINE two-connection claim-vs-delete/mutate race, a fake-overload adversarial test, and pg_temp-shadowing-resistance tests) |
+| 0067 | systemic_search_path_and_enqueue_item_boundary (9th + 10th review — the 10th being the SECOND AND FINAL bounded correction loop, edited in place after reconfirming 0067 was never applied outside disposable databases: (a) a CATALOG-DRIVEN `ALTER FUNCTION` re-pins EVERY non-extension SECURITY DEFINER function and every trigger function in `public` (selected by `pg_has_role(current_user, proowner, 'USAGE')`, NOT a strict owner match) to `search_path = pg_catalog, extensions, public, pg_temp`, closing the `pg_temp` relation-shadowing class across identity-RLS/approvals/journals/settlement/reimbursement/bank-change/fingerprint/integrity — bodies unchanged, ONLY search_path. Fails closed if anon/authenticated/service_role has CREATE — direct or SET-ROLE-reachable — on public/extensions (reports; does not revoke blindly), and SELF-VERIFIES owner-agnostically with a STRICT-CANONICAL predicate: any in-scope function whose parsed path is not EXACTLY `pg_catalog, extensions, public, pg_temp` ABORTS the migration naming it (10th review: pg_temp-last alone was insufficient — a path can LEAD with an attacker-writable schema that wins relation resolution; strict equality also subsumes `$user` and duplicated-pg_temp). The permanent owner-agnostic integration gate — `search-path-safety.test.ts` — enforces the same strict-canonical predicate. (b) closes the quotation-item vs atomic-enqueue race at a SINGLE linearization lock: `_quotation_status_for_guard()` reads the parent quotation FOR UPDATE (serializing every non-trusted item write with `enqueue_quotation_outbox`'s parent lock), enqueue takes NO item-row locks (the target item row is locked BEFORE its row trigger fires, so child-row locking would form an AB-BA deadlock — one lock object cannot cycle) and requires UNCONDITIONALLY that `p_expected_total` equal the live SUM(line_total) — NO item-count exemption (delete-to-zero → `stale`) — refusing any INCOMPLETE snapshot line (10th review: `status<>'priced'`, NULL `unit_price`, NULL `line_total` [SUM skips NULL], or item currency ≠ the LOCKED quotation currency; mirrored 1:1 by `refreshQuotationStatus`/`priceQuotation`/`resolvePriceConfirmation` — no float, no conversion); `quotation_items_enforce_frozen` FAILS CLOSED on a NULL guard result (raw `service_role` with no JWT claims — BYPASSRLS, no RLS backstop). (c) 10th review: the predicted draft-deletion cascade regression does NOT occur — RI cascade queries run as the `quotation_items` TABLE OWNER (= the trusted delivery owner; observed live: current_user=owner, depth=2), so authorised pre-queue deletes of itemised quotations cascade cleanly; that ownership invariant (quotations/quotation_items owner == exact 9-arg enqueue owner) is ASSERTED fail-closed by the migration. enqueue keeps its exact signature/SECURITY DEFINER owner/service-role-only EXECUTE/result semantics) | ⛔ **owner confirmation required** (added 2026-08-17; dev-verified on disposable PostgreSQL 16, fresh + upgrade, incl. genuine two-connection enqueue-vs-item-mutation races [both commit orders + a deterministic AB-BA-window no-deadlock proof + delete-to-zero + unpriced/NULL-line_total/wrong-currency items + no-claims fail-closed UPDATE and DELETE + the draft/awaiting_price-with-items cascade pin] and cross-domain pg_temp-shadowing adversarial tests; fail-closed/self-verify paths empirically simulated: foreign-owner residual ABORTS naming the function, attacker-schema-leading pg_temp-last path ABORTS naming the function, SET-ROLE-reachable CREATE ABORTS naming the path, table-ownership divergence ABORTS naming table+owners). Prepared, NOT executed: `hosted_secdef_searchpath_check.sql` (read-only, strict-canonical) + `hosted_secdef_searchpath_hardening.sql` (owner-approved, self-verifying, strict-canonical) for the already-hosted 0038–0041 functions. |
 
 > **Correction-phase note (0044–0047):** authored 2026-08-08, **not** applied to any hosted
 > DB. Verified on a disposable local **PostgreSQL 16** (Supabase-compat shim) from a clean
 > database AND via an **upgrade path** (staged at 0043 with legacy data — null-hash journal,
 > unposted invoice, pending approval/outbox/bank-change — then migrated 0044→0047 cleanly;
 > the legacy null-hash journal's identical retry returns the same journal and upgrades its
-> fingerprint). Note 0038–0043 were previously applied by the owner to DB `gazjughejdzebathpscb`;
-> 0044–0047 are pending owner application (with approval) via `RUN_*`/`npm run migrate`.
+> fingerprint). 0044–0047 are pending owner application (with approval) via `npm run migrate`.
+>
+> **Reconciliation (WP18 — resolves the 0038–0043 contradiction).** The hosted record is:
+> **0038–0041** were owner-applied to DB `gazjughejdzebathpscb` on **2026-08-07** (owner
+> confirmation on record, combined file `RUN_0038-0041_*.sql`). **0042 and 0043 onward were NOT
+> applied to any hosted database** — the per-migration rows above are authoritative; the earlier
+> prose that grouped "0038–0043 … applied by the owner" over-reached and is void. Everything from
+> **0042 through 0067** has hosted state **"owner confirmation required"** (dev-process verified on
+> disposable PostgreSQL 16 only).
+
+### Phase 1 correction migrations (0048–0067) — the five states, kept separate (WP18)
+
+Each state is tracked independently; none implies another. "Applied to staging/production" is
+asserted only from a dated owner confirmation — there is none, so it is **owner confirmation
+required**. **What "flags OFF" does and does not mean (corrected):** it is **not** true that these
+migrations are uniformly "inert at runtime while the flags are OFF." Only the **RLS read/write
+cutover** is flag-inert (the app uses the service-role client, which bypasses RLS). The WP12 delivery
+path (0055/0058/0061) runs on the **default synchronous WhatsApp path with `WHATSAPP_ASYNC` OFF**;
+`decide_approval` (0054/0057/0060/0061) applies its authority/money/currency fail-close to **every
+caller** of the RPC; and the composite FKs, function-privilege REVOKEs and `currencies` catalogue
+enforce for **any** writer. What keeps all of this off the live system is that **the hosted database
+is not migrated** (the rows below are all "owner confirmation required"), **not** the flags.
+
+| Migration | File exists | Tested on disposable DB (PG 16, fresh + upgrade) | Applied to staging | Applied to production | Feature flag enabled |
+|---|:---:|:---:|:---:|:---:|:---:|
+| 0048 wp10 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a — `RLS_WRITES` OFF |
+| 0049 wp17 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0050 wp13 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0051 wp14 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0052 wp15 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0053 wp16 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0054 wp11 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0055 wp12 | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a — sync path runs with `WHATSAPP_ASYNC` OFF |
+| 0056 wp15 (rev A) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0057 wp11 (rev C) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0058 wp12 (rev A) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a — sync path runs with `WHATSAPP_ASYNC` OFF |
+| 0059 wp15 (rev 2) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0060 wp11 (rev 2) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0061 wp11+wp12 (rev 3, final) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0062 secdef grants (rev 4, security) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0063 atomic quote enqueue (rev 5, final) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a — sync path runs with `WHATSAPP_ASYNC` OFF |
+| 0064 delivery-transition boundary (rev 6) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+| 0065 claim + INSERT boundary (rev 7) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a — sync path runs with `WHATSAPP_ASYNC` OFF |
+| 0066 snapshot + delete boundary (rev 8) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a — sync path runs with `WHATSAPP_ASYNC` OFF |
+| 0067 systemic search_path + enqueue-item race (rev 9) | ✅ | ✅ | ⛔ owner confirmation required | ⛔ owner confirmation required | n/a (no flag) |
+
+> Legend: **File exists** = the `.sql` is committed. **Tested on disposable DB** = applied and its
+> adversarial + concurrency suite passed on an ephemeral PostgreSQL 16 with the Supabase-compat
+> shim, both fresh (`0001→NNNN`) and via the upgrade path. **Applied to staging/production** =
+> a dated owner confirmation against that live database exists. **Feature flag enabled** = the
+> relevant `RLS_READS` / `RLS_WRITES` / `WHATSAPP_ASYNC` flag is ON in that environment.
 
 ### Production Security & Reliability Gate migrations (0038–0041) — applied state
 
@@ -99,14 +178,19 @@ _Last reviewed: 2026-08-07 (Production Security & Reliability Gate)._
 | **Local** | Not applied (no local DB provisioned). |
 | **CI** | Applied to a **disposable Postgres per run** (service container + `tests/integration/helpers/supabase-shim.sql`), then the integration/RLS/concurrency suite runs. Ephemeral — torn down each run. |
 | **Staging** | **Not applied.** No confirmed non-production staging project. Prerequisite before flipping `RLS_READS`/`RLS_WRITES`/`WHATSAPP_ASYNC` (see `RLS_CUTOVER_PLAN.md`). |
-| **Production** | **Not applied.** Owner-only, with approval (invariant #16). These migrations are inert while the flags are OFF (service role bypasses RLS; RPCs treat the service caller as the trusted path), so they can ship ahead of any flag flip with no behaviour change. |
+| **Hosted (owner-reported)** | **Owner reported applying 0038–0041 to the hosted Supabase DB on 2026-08-07** (SQL editor, `RUN_0038-0041_security_reliability_gate.sql`). This development process has **no hosted access** and cannot independently re-verify presence or ACLs. The **RLS write-policy** parts are inert while `RLS_WRITES` is OFF; the **RPC hardening (0039)** and **audit/health (0041)** are behaviour-changing once applied. **Security caveat:** 0039/0040/0041 revoked service-only function EXECUTE only **from PUBLIC**, and managed Supabase grants `authenticated` EXECUTE on `public` functions directly — so `claim_outbox_batch`, `ledger_integrity_report` and the legacy 7-arg `_journal_post_internal` may be **`authenticated`-executable on the hosted DB**. Mitigation prepared (not executed): `HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`; migration **0062** fixes it permanently once applied. |
 
-> These four migrations were authored offline and **not** run by the development process.
+> This is the single authoritative 0038–0041 hosted statement; earlier prose that said both "applied
+> 2026-08-07" and "not applied to any environment" is void — treat 0038–0041 as **owner-reported
+> applied to the hosted DB, unverified by this process**. These four migrations were authored offline
+> and **not** run by the development process.
 > The **owner applied them via the Supabase SQL editor on 2026-08-07** (combined file
-> `RUN_0038-0041_security_reliability_gate.sql`). They remain **inert** until the feature
-> flags are turned on (service role bypasses RLS; RPCs treat the service caller as the
-> trusted path), so applying them was a zero-behaviour-change step. Still verified by
-> `migration-lint` (sequential 0001–0041) and, in CI, against the disposable Postgres.
+> `RUN_0038-0041_security_reliability_gate.sql`). The **RLS read/write cutover** they add stays inert
+> until `RLS_READS`/`RLS_WRITES` are turned on (the service role bypasses RLS); the accounting-RPC
+> hardening (0039) and audit/health (0041) they add are **active for any caller of those functions**
+> once applied — so "zero behaviour change" is accurate only for the RLS-cutover portion, not the whole
+> gate. Still verified by `migration-lint` (sequential 0001–0041) and, in CI, against the disposable
+> Postgres.
 
 ### Basis for the "reported applied, unverified" status (0014–0022)
 

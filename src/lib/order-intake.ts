@@ -157,10 +157,11 @@ export async function handleCustomerMessage(input: {
             "We'll send it here very shortly.",
         );
       } else {
-        // Fully priced — finalize + send the quotation link (its own message).
+        // Fully priced — finalize + send the quotation link (its own message). The conversation
+        // advances to `quoted` ONLY on durable provider success (via the fenced completion RPC);
+        // while the send is merely queued/failed it stays `quoting` (truthful, not delivered).
         const res = await tryFinalizeAndSend(companyId, quotationId);
-        status = "quoted";
-        // The quotation message is sent by tryFinalizeAndSend; acknowledge here.
+        status = res.sent ? "quoted" : "quoting";
         reply = res.sent
           ? "Perfect — I've just sent your quotation. Please check the message above. 🦁"
           : "Thank you! Your quotation is ready and being sent now.";

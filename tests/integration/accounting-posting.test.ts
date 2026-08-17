@@ -49,6 +49,8 @@ describe.skipIf(!enabled)("accounting posting controls — live, zero-persistenc
     client = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } });
     await client.connect();
     await client.query("begin");
+    // Posting RPCs run on the service path; present a service_role JWT (WP17/0049).
+    await client.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
     company = (await client.query(`insert into companies (name, base_currency) values ('wp_acc','LKR') returning id`)).rows[0].id;
     poster = (await client.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(),'wp_acc_poster',true) returning id`)).rows[0].id;
     await client.query(`insert into chart_of_accounts (company_id, code, name, type) values ($1,'1000','Cash','asset'),($1,'4000','Sales','income')`, [company]);

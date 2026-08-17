@@ -1,5 +1,15 @@
 # Verification evidence — Production Security & Reliability Gate
 
+> **Superseded for the current phase (2026-08-15).** The latest verification evidence is the
+> **Phase 1 — 0048+ Security/Accounting Corrections** run (migrations **0048–0055**, WP10–WP18),
+> recorded in **`docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md`** (stamped with the final
+> commit SHA, PostgreSQL 16.13, fresh + upgrade counts) and detailed per-WP in
+> **`docs/architecture-v3.1/PHASE1_CORRECTIONS_LEDGER.md`**. The section below remains the record
+> for the earlier correction gate (migrations 0044–0047). No hosted migration was applied and no
+> feature flag was enabled in either phase.
+
+---
+
 **Date:** 2026-08-08 · **Commit:** `3489bcf` (correction WP1–WP9, migrations 0044–0047) · **Node:** v24 (CI uses 20)
 **Database:** disposable local **PostgreSQL 16.14 (Homebrew)** — a throwaway cluster, NOT
 production — with the Supabase-compatibility shim (`tests/integration/helpers/supabase-shim.sql`)

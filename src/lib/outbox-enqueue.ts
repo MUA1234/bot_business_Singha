@@ -14,11 +14,25 @@ export type EnqueueResult = "enqueued" | "duplicate" | "unavailable";
 export async function enqueueOutbox(entry: OutboxEntry): Promise<EnqueueResult> {
   try {
     const row = buildOutboxRow(entry);
-    const { error } = await supabaseAdmin().from("message_outbox").insert(row);
-    if (!error) return "enqueued";
-    if ((error as { code?: string }).code === "23505") return "duplicate"; // already enqueued
-    log("error", "outbox enqueue failed", { event: "outbox.enqueue_failed", error: error.message });
-    return "unavailable"; // table missing (pre-0011) or other → don't break the caller
+    // Atomic, service-only enqueue via `enqueue_outbox_row` (migration 0061): a single INSERT …
+    // ON CONFLICT (idempotency_key) DO NOTHING inside the DB, so two concurrent finalisers can never
+    // create two logical rows (the key is a globally-unique SHA). Returns 'enqueued' | 'duplicate'.
+    const { data, error } = await supabaseAdmin().rpc("enqueue_outbox_row", {
+      p_company: row.company_id,
+      p_channel: row.channel,
+      p_recipient: row.recipient,
+      p_body: row.body,
+      p_idempotency_key: row.idempotency_key,
+      p_correlation_id: row.correlation_id,
+      p_template_name: row.template_name,
+      p_template_params: row.template_params,
+      p_source_type: row.source_type,
+      p_source_id: row.source_id,
+      p_message_purpose: row.message_purpose,
+    });
+    if (!error && (data === "enqueued" || data === "duplicate")) return data;
+    log("error", "outbox enqueue failed", { event: "outbox.enqueue_failed", error: error?.message ?? "unexpected enqueue result" });
+    return "unavailable"; // RPC missing/error → don't break the caller (retryable)
   } catch (e) {
     log("error", "outbox enqueue threw", { event: "outbox.enqueue_threw", error: (e as Error).message });
     return "unavailable";
