@@ -32,7 +32,7 @@ export default async function AdminHome() {
     <div className="stack gap-3">
       <div>
         <h1>Welcome, {admin.fullName || admin.username}</h1>
-        <p className="muted mt-1">You have full control of the Singha platform.</p>
+        <p className="muted mt-1">Full control — every department, every approval, every record.</p>
       </div>
 
       <div className="grid cols-4">

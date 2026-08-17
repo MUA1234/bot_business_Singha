@@ -59,7 +59,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | src/app/app/fleet/vehicles/[id]/page.tsx:83 | `<span>{Number(f.litres ?? 0)} L @ {Number(f.odometer ?? 0)} km</span><span className="dim">{fmtMoney` |
 | src/app/app/procurement/inventory/page.tsx:26 | `const items: StockItem[] = rows.map((r) => ({ name: r.name, quantityOnHand: Number(r.quantity_on_han` |
 | src/app/app/procurement/purchase-orders/actions.ts:46 | `const total = decSum(rows.map((l: any) => dec(l.unit_price).times(Math.max(0, Math.trunc(Number(l.qu` |
-| src/app/app/sales/opportunities/page.tsx:29 | `const summary = summarizePipeline(rows.map((r): Opportunity => ({ amount: String(r.amount ?? "0"), p` |
+| src/app/app/sales/opportunities/page.tsx:30 | `const summary = summarizePipeline(rows.map((r): Opportunity => ({ amount: String(r.amount ?? "0"), p` |
 | src/lib/money.ts:189 | `* `Number(v).toLocaleString()` — the latter both floats the amount and hides its currency scale.` |
 | src/modules/finance/reconcile.ts:66 | `reason: `${best.c.kind} of equal amount, ${Math.round(best.days)}d apart`,` |
 | src/modules/procurement/three-way-match.ts:30 | `const amtTol = Math.max(input.amountTolerancePct ?? 0, 0);` |
@@ -103,7 +103,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | file:line | returns |
 |---|---|
 | src/ai/gateway.ts:157 | `null` |
-| src/ai/manager-observation.ts:123 | `null` |
+| src/ai/manager-observation.ts:125 | `null` |
 | src/ai/quotation.ts:104 | `null` |
 | src/app/api/cron/daily-digest/route.ts:22 | `0` |
 | src/app/api/exports/[kind]/route.ts:28 | `error-discarding destructure` |
@@ -126,11 +126,11 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | src/app/app/finance/customer-invoices/page.tsx:19 | `error-discarding destructure` |
 | src/app/app/finance/expenses/actions.ts:19 | `error-discarding destructure` |
 | src/app/app/finance/expenses/page.tsx:17 | `[]` |
-| src/app/app/finance/forecast/page.tsx:20 | `[]` |
+| src/app/app/finance/forecast/page.tsx:21 | `[]` |
 | src/app/app/finance/journals/new/page.tsx:18 | `error-discarding destructure` |
 | src/app/app/finance/journals/page.tsx:18 | `error-discarding destructure` |
 | src/app/app/finance/loans/page.tsx:16 | `[]` |
-| src/app/app/finance/page.tsx:15 | `[]` |
+| src/app/app/finance/page.tsx:16 | `[]` |
 | src/app/app/finance/periods/page.tsx:16 | `[]` |
 | src/app/app/finance/receivables/page.tsx:28 | `[]` |
 | src/app/app/finance/reconciliation/page.tsx:19 | `[]` |
@@ -140,7 +140,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | src/app/app/fleet/page.tsx:17 | `[]` |
 | src/app/app/fleet/vehicles/actions.ts:37 | `error-discarding destructure` |
 | src/app/app/fleet/vehicles/page.tsx:17 | `error-discarding destructure` |
-| src/app/app/hr/capacity/page.tsx:19 | `[]` |
+| src/app/app/hr/capacity/page.tsx:20 | `[]` |
 | src/app/app/hr/page.tsx:12 | `0` |
 | src/app/app/hr/page.tsx:15 | `[]` |
 | src/app/app/hr/staff/actions.ts:18 | `error-discarding destructure` |

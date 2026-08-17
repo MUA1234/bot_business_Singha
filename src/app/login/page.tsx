@@ -17,7 +17,7 @@ export default async function LoginPage() {
           <Brand size={44} />
           <div>
             <h1 style={{ fontSize: "1.5rem" }}>Sign in</h1>
-            <p className="muted mt-1">Your workspace, scoped to your department.</p>
+            <p className="muted mt-1">Your work, ready where you left it.</p>
           </div>
         </div>
         <div className="card pad-lg">

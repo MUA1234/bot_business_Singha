@@ -5,7 +5,7 @@ import LivingBackground from "@/components/LivingBackground";
 export const metadata = {
   title: "Singha Central",
   description:
-    "Singha Central — the business management system for Singha: finance, operations, people, procurement, compliance, fleet and sales in one company-scoped, audited system.",
+    "Run the whole business from one place — finance, operations, people, procurement, compliance, fleet and sales. Your team keeps the work moving, every decision is recorded, and each person sees only their own work.",
 };
 
 export const viewport = {
