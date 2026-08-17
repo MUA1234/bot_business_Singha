@@ -18,8 +18,12 @@
     "migrate": "node scripts/migrate.mjs",
     "migrate:status": "node scripts/migrate.mjs --status",
     "inventory": "node scripts/completion-inventory.mjs",
-    "verify": "npm run secret-scan && npm run migration-lint && node scripts/completion-inventory.mjs --check && npm run typecheck && npm test",
-    "lint": "next lint"
+    "verify": "npm run secret-scan && npm run migration-lint && node scripts/completion-inventory.mjs --check && node scripts/autonomy/audit-requirements.mjs --quiet && node scripts/autonomy/check-ip-boundary.mjs --quiet && npm run typecheck && npm test",
+    "lint": "next lint",
+    "autonomy:status": "node scripts/autonomy/check-status.mjs",
+    "autonomy:audit": "node scripts/autonomy/audit-requirements.mjs",
+    "autonomy:ip-check": "node scripts/autonomy/check-ip-boundary.mjs",
+    "autonomy:checkpoint": "npm run autonomy:audit && npm run autonomy:ip-check"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

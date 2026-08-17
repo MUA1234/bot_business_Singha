@@ -1,0 +1,50 @@
+{
+  "program": "Singha Central Original Vision Completion",
+  "activePhase": "stage1-core-reliability",
+  "activeRequirementIds": ["FOUND-003", "AIM-002", "AIM-003"],
+  "currentBranch": "feature/v3-3-part2-durable-processing",
+  "currentPr": 24,
+  "baseSha": "079fbb8",
+  "lastGreenSha": "1ebaa80",
+  "latestMigration": "0069_durable_inbound_processing.sql",
+  "lastCompletedAction": "Part 2 slice 1 landed (migration 0069, sweeper, fairness, asset + multilingual specs); autonomy control layer created and first coverage audit run",
+  "nextAction": "FOUND-003 — production-reachable staff/finance intake: classify sender identity from trusted records (membership/channel identity), classify finance intent behind schema validation, and wire the real entrypoint to ingestSourceEvent with call-graph tests. This unblocks the sweeper's processor, which currently dead-letters every event as no_processor by design.",
+  "lastTargetedTests": [
+    "tests/integration/durable-inbound-processing.test.ts",
+    "tests/campaign/inbound-sweeper.test.ts",
+    "tests/campaign/authority-engine.test.ts"
+  ],
+  "lastFullGateResults": {
+    "sha": "1ebaa80",
+    "typecheck": "clean",
+    "lint": "0 errors",
+    "unit": "564 passed / 2 skipped / 87 files",
+    "integrationFresh": "345 passed / 44 files (0001-0069)",
+    "integrationUpgrade": "345 passed / 44 files (0058->0069)",
+    "build": "compiled",
+    "secretScan": "clean",
+    "migrationLint": "69 sequential",
+    "audit": "npm audit --omit=dev: 2 high (next, postcss)"
+  },
+  "openFindings": [
+    "AIM-003: AnalyzeForm states 'routed for human approval' when no approver, queue or approval record exists — a truthfulness defect",
+    "MOD-002: runQuotationTurn takes no CostLedger, so the highest-volume model call produces no ai_runs row",
+    "FOUND-006: RLS_READS/RLS_WRITES are OFF, so the app reads through the RLS-bypassing service-role client"
+  ],
+  "ownerGates": [
+    "PR merges (#22, #23, #24) — none merged",
+    "Hosted migration application (0042-0069) — hosted DB is at 0038-0041, not migrated",
+    "Feature flag activation — all 8 V3.1 flags OFF",
+    "ANTHROPIC_API_KEY for live-model evaluation (MOD-001) — supplied privately, never committed",
+    "Approval of ASSET_INTELLIGENCE_SPEC and MULTILINGUAL_SPEC before implementation",
+    "Sign-off on the authorityFloor impact mapping, or replacement by authority_rules-driven mapping (FOUND-004)",
+    "Decision on a private repository/package for proprietary prompts and evaluation data (IP-001)",
+    "GitHub Actions runner provisioning (systemic runner_id:0 failure)"
+  ],
+  "usageState": {
+    "opusReviewsThisProgram": 3,
+    "correctionLoopsUsed": { "campaign": 2, "v3.3-part1": 0, "v3.3-part2": 0 },
+    "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
+  },
+  "updatedAt": "2026-08-17"
+}

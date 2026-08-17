@@ -1,0 +1,506 @@
+# Singha Central — Original Vision requirement register
+#
+# The machine-readable source of truth for what the approved program requires and what actually
+# exists. `npm run autonomy:audit` parses this file, REFUSES a completion status that lacks its
+# evidence, and regenerates ORIGINAL_VISION_COVERAGE_MATRIX.md from it.
+#
+# Statuses: absent | specified | foundation_only | implementation_in_progress |
+#           implemented_unverified | locally_verified | preview_verified | staging_verified |
+#           production_verified | blocked_owner | blocked_external | deliberately_deferred
+#
+# Evidence rules (enforced by the audit, not by good intentions):
+#   * locally_verified REQUIRES runtime_entrypoint + test_evidence + last_verified_sha.
+#   * A schema contract, a feature flag, a type, a doc, a prompt or a fixture is NOT implementation.
+#   * Percentages are never evidence.
+#
+# POPULATION STATE: this register covers the requirement groups that this session could establish
+# from CODE, not from documents. Groups still to be expanded from the Original Vision Program are
+# listed at the bottom under `_pending_population` — they are absent from the register, and the
+# audit reports that rather than letting silence read as completeness.
+
+requirements:
+
+  # ── FOUND — runtime integrity and security ──────────────────────────────────────────────────
+  - id: FOUND-001
+    title: Durable inbound processing with leases, bounded retry and dead-letter
+    description: source_events carries processing state, attempts, next-attempt time, lease owner and expiry, error category and dead-letter reason, with atomic claim/complete/fail RPCs.
+    business_outcome: An inbound customer or staff message can never be silently lost, and a poison message cannot stall the queue.
+    phase: stage1
+    priority: P0
+    dependencies: []
+    status: locally_verified
+    feature_flag: none
+    runtime_entrypoint: src/app/api/cron/inbound-sweeper/route.ts
+    database_evidence: src/db/migrations/0069_durable_inbound_processing.sql
+    service_evidence: src/events/inbound-sweeper.ts
+    ui_evidence: none
+    test_evidence: tests/integration/durable-inbound-processing.test.ts; tests/campaign/inbound-sweeper.test.ts
+    security_evidence: service_role-only SECDEF + caller_jwt_role gate + fail-closed privilege assertion in 0069; allowlisted in tests/integration/secure-definer-grants.test.ts
+    audit_health_evidence: source_event_backlog(company) company-scoped counts
+    last_verified_sha: 1ebaa80
+    last_verified_at: 2026-08-17
+    owner_gate: hosted migration application
+    blocker: none
+    residual_risks: The sweeper has no processor wired yet (FOUND-003), so events dead-letter as no_processor by design.
+
+  - id: FOUND-002
+    title: Worker fairness by eligibility rather than ordering
+    description: A repeatedly failing row backs off and stops competing for batch slots; later eligible work continues; expired leases return to eligibility.
+    business_outcome: One bad message cannot starve every other customer.
+    phase: stage1
+    priority: P0
+    dependencies: [FOUND-001]
+    status: locally_verified
+    feature_flag: none
+    runtime_entrypoint: src/app/api/cron/inbound-sweeper/route.ts
+    database_evidence: claim_source_events eligibility predicate in 0069
+    service_evidence: src/events/inbound-sweeper.ts
+    ui_evidence: none
+    test_evidence: tests/integration/durable-inbound-processing.test.ts (fairness beyond 200 rows; multi-company opportunity; lease expiry after restart)
+    security_evidence: claim is service-only
+    audit_health_evidence: sweeper reports partialFailure and counts
+    last_verified_sha: 1ebaa80
+    last_verified_at: 2026-08-17
+    owner_gate: none
+    blocker: none
+    residual_risks: none known
+
+  - id: FOUND-003
+    title: Production-reachable staff and finance intake
+    description: A real production path classifies sender identity from trusted records and routes a staff finance message into ingestSourceEvent, policy, authority and approval — never into customer order intake.
+    business_outcome: An employee reporting a payment is handled as finance, not asked for a delivery address.
+    phase: stage1
+    priority: P0
+    dependencies: [FOUND-001]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: src/events/source-event.ts exists but has NO production caller
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: The entire finance consumer pipeline (processing.ts, duplicate.ts, evaluatePolicy) is unreachable in production until this exists.
+
+  - id: FOUND-004
+    title: Deterministic company-scoped authority engine
+    description: Required authority is resolved from authority_rules and the active approval policy; the model may raise but never lower it; unknown or conflicting policy fails closed.
+    business_outcome: No AI-influenced field can make a material matter look routine.
+    phase: stage1
+    priority: P0
+    dependencies: []
+    status: locally_verified
+    feature_flag: none
+    runtime_entrypoint: src/management/ai-manager/pipeline.ts (planFromObservation)
+    database_evidence: authority_rules (migration 0010); approval_policies
+    service_evidence: src/policy/authority-engine.ts
+    ui_evidence: none
+    test_evidence: tests/campaign/authority-engine.test.ts; tests/campaign/authority-floor.test.ts
+    security_evidence: closed action classification with NFKC folding; fail-closed on missing policy/membership/rule/currency
+    audit_health_evidence: plan.authorityReasons and authorityFailedClosed
+    last_verified_sha: 079fbb8
+    last_verified_at: 2026-08-17
+    owner_gate: sign-off on the impact-to-level mapping, or replacement by authority_rules-driven mapping
+    blocker: none
+    residual_risks: Floor inputs derive from the same model output; callers must supply AuthorityContext or the fail-closed fallback applies.
+
+  - id: FOUND-005
+    title: AI trust boundary — untrusted output cannot decide identity, scope or authority
+    description: Model output is Zod-validated, trusted scope is injected server-side, unknown fields are stripped, failures are recorded, and untrusted text is fenced with an unguessable per-run id.
+    business_outcome: A customer cannot steer the system by writing instructions in a message.
+    phase: stage1
+    priority: P0
+    dependencies: []
+    status: locally_verified
+    feature_flag: none
+    runtime_entrypoint: src/ai/manager-observation.ts; src/ai/quotation.ts
+    database_evidence: create_management_case_atomic forces status and caps tasks (0068)
+    service_evidence: src/ai/gateway.ts; src/ai/prompts.ts
+    ui_evidence: none
+    test_evidence: tests/campaign/ai-trust-boundary.test.ts
+    security_evidence: per-run random fence id; scope injected after parse; service-only persistence RPC
+    audit_health_evidence: ai_runs cost ledger records every run including failures
+    last_verified_sha: 7669ce1
+    last_verified_at: 2026-08-17
+    owner_gate: none
+    blocker: none
+    residual_risks: runQuotationTurn takes no CostLedger, so customer-facing model calls are absent from ai_runs (MOD-002).
+
+  - id: FOUND-006
+    title: Service-role and RLS read/write cutover
+    description: Application reads and writes run as the authenticated user under RLS rather than through the RLS-bypassing service-role client.
+    business_outcome: Company isolation is enforced by the database for real traffic, not only by query discipline.
+    phase: stage1
+    priority: P0
+    dependencies: []
+    status: foundation_only
+    feature_flag: RLS_READS, RLS_WRITES
+    runtime_entrypoint: src/lib/supabase/read.ts (shim returns the ADMIN client while flags are OFF)
+    database_evidence: RLS policies exist across migrations 0008+
+    service_evidence: src/lib/supabase/read.ts reaches 91 files
+    ui_evidence: none
+    test_evidence: tests/integration/rls-coverage.test.ts; write-isolation.test.ts (policies proven; the app path is not cut over)
+    security_evidence: policies exist; the application still bypasses them
+    audit_health_evidence: scripts/completion-inventory.mjs counts 38+ admin-client files
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: flag activation
+    blocker: none
+    residual_risks: Any unscoped query is a live cross-company leak while the flags are OFF.
+
+  # ── AIM — AI-management runtime ─────────────────────────────────────────────────────────────
+  - id: AIM-001
+    title: Atomic AI case, task and audit persistence
+    description: A management case, all its tasks and its audit event persist in one transaction, idempotently, with a forced captured status and a task cap.
+    business_outcome: An analysis is never half-saved, and a replay never duplicates work.
+    phase: stage3
+    priority: P0
+    dependencies: []
+    status: locally_verified
+    feature_flag: none
+    runtime_entrypoint: src/management/ai-manager/analyze-conversation.ts; src/app/app/command/analyze/actions.ts
+    database_evidence: src/db/migrations/0068_ai_atomic_case_persistence.sql
+    service_evidence: src/management/ai-manager/case-store.ts
+    ui_evidence: src/app/app/command/cases/page.tsx
+    test_evidence: tests/integration/ai-case-atomic.test.ts; tests/integration/campaign-cross-layer.test.ts
+    security_evidence: service-only SECDEF with caller_jwt_role gate
+    audit_health_evidence: audit event written in the same transaction
+    last_verified_sha: 7669ce1
+    last_verified_at: 2026-08-17
+    owner_gate: hosted migration application
+    blocker: none
+    residual_risks: none known
+
+  - id: AIM-002
+    title: Task-level deduplication
+    description: A stable company-scoped task identity prevents the same follow-up being recreated on every re-analysis, while genuinely distinct recurring work is preserved.
+    business_outcome: Staff do not receive the same task repeatedly.
+    phase: stage1
+    priority: P0
+    dependencies: [AIM-001]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: The case identity hashes the whole transcript, so every new message creates a new case and re-detects the same task.
+
+  - id: AIM-003
+    title: Truthful task routing
+    description: Every AI-created task terminates in a truthful routing state (assigned, queued, needs routing, awaiting approval, rejected) with persisted routing reason and audit history.
+    business_outcome: Work that the system captured actually reaches a person.
+    phase: stage1
+    priority: P0
+    dependencies: [AIM-002]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: tasks has no routing-state columns
+    service_evidence: none
+    ui_evidence: src/app/app/command/analyze/AnalyzeForm.tsx FALSELY states "routed for human approval"
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: A UI string currently claims a routing that does not occur — a truthfulness defect, not merely a missing feature.
+
+  - id: AIM-004
+    title: Task Intelligence Profile
+    description: Structured profile per detected task (dedupe key, purpose, target entity, required capability, effort).
+    phase: stage3
+    priority: P1
+    business_outcome: Downstream routing, teaming and prioritisation have a stable object to reason about.
+    dependencies: [AIM-002]
+    status: specified
+    feature_flag: V3_1_TASK_DETECTION
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: src/schemas/v3_1/task-intelligence-profile.ts (contract only, no producer)
+    ui_evidence: none
+    test_evidence: tests/v3_1-contracts.test.ts (contract shape only)
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: flag activation
+    blocker: none
+    residual_risks: Contract-only; a schema is not an implementation.
+
+  - id: AIM-005
+    title: Decision-path ladder
+    description: Ranked decision options with authority, risk and reversibility per rung.
+    business_outcome: A manager sees graded options rather than a single opaque recommendation.
+    phase: stage3
+    priority: P1
+    dependencies: [FOUND-004]
+    status: specified
+    feature_flag: V3_1_DECISION_PATHS
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: src/schemas/v3_1/decision-path.ts (contract only)
+    ui_evidence: none
+    test_evidence: tests/v3_1-contracts.test.ts
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: flag activation
+    blocker: none
+    residual_risks: Contract-only.
+
+  - id: AIM-006
+    title: Team formation and resource recommendation
+    business_outcome: Work is proposed to the right people and resources.
+    description: Role-first team requirements plus internal/external resource recommendations.
+    phase: stage3
+    priority: P1
+    dependencies: [AIM-004]
+    status: specified
+    feature_flag: V3_1_TEAM_FORMATION
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: src/schemas/v3_1/team-formation.ts (contract only)
+    ui_evidence: none
+    test_evidence: tests/v3_1-contracts.test.ts
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: flag activation
+    blocker: none
+    residual_risks: The observation's involved[] people/suppliers are collected then discarded.
+
+  - id: AIM-007
+    title: AI Guide next actions
+    business_outcome: A person is told what to do next, not merely what happened.
+    description: Persistent, per-task guidance with next actions and coaching.
+    phase: stage3
+    priority: P1
+    dependencies: [AIM-003]
+    status: foundation_only
+    feature_flag: V3_1_AI_GUIDE
+    runtime_entrypoint: src/app/app/command/analyze/actions.ts (computed once, rendered, never persisted)
+    database_evidence: none
+    service_evidence: src/management/ai-manager/pipeline.ts suggestedActions
+    ui_evidence: src/app/app/command/analyze/AnalyzeForm.tsx
+    test_evidence: tests/pipeline.test.ts
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: flag activation
+    blocker: none
+    residual_risks: Dropped entirely on the conversation-thread path.
+
+  - id: AIM-008
+    title: Outcome measurement and improvement loop
+    business_outcome: The system learns whether its advice worked.
+    description: Cases carry outcomes; accuracy is measurable over time.
+    phase: stage3
+    priority: P2
+    dependencies: [AIM-003]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: management_cases has no outcome column and no update path
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: ai_runs is read only for a cost tally
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Cases are write-once, so accuracy can never be measured.
+
+  # ── MEM / INT — organizational memory and integration gateway ───────────────────────────────
+  - id: MEM-001
+    title: Organizational memory and evidence provenance
+    business_outcome: Analysis draws on what the company already knows instead of restarting each time.
+    description: Retrieval of prior cases, tasks, customer history and policies into an analysis, with provenance.
+    phase: stage2
+    priority: P1
+    dependencies: [FOUND-003]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Every analysis is stateless and thread-local today.
+
+  - id: INT-001
+    title: Integration Gateway and connector registry
+    business_outcome: Other applications and channels can exchange events and commands under one contract.
+    description: Registry of applications, connectors, event contracts and command contracts with signature and replay protection.
+    phase: stage2
+    priority: P1
+    dependencies: [FOUND-001]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Only the WhatsApp webhook exists; email is a 501 stub.
+
+  # ── AST / LNG — specified programs, not started ─────────────────────────────────────────────
+  - id: AST-001
+    title: Asset Intelligence — registry, custody, reservations, utilization, optimization
+    business_outcome: The business knows what it owns, where it is, how used it is, and what to do about it.
+    description: See docs/specs/ASSET_INTELLIGENCE_SPEC.md for the full specification.
+    phase: stage4
+    priority: P1
+    dependencies: [FOUND-003, FOUND-006]
+    status: specified
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: approval of the specification before implementation
+    blocker: none
+    residual_risks: Confirmed by branch reconciliation to have never existed on any branch or PR.
+
+  - id: LNG-001
+    title: Multilingual English / Sinhala / Tamil
+    business_outcome: Staff use the system in their own language without changing what the business records.
+    description: See docs/specs/MULTILINGUAL_SPEC.md for the full specification.
+    phase: stage5
+    priority: P2
+    dependencies: [FOUND-003]
+    status: specified
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: approval of the specification before implementation
+    blocker: none
+    residual_risks: Confirmed by branch reconciliation to have never existed on any branch or PR.
+
+  # ── MOD — model routing and usage ───────────────────────────────────────────────────────────
+  - id: MOD-001
+    title: Live-model evaluation path
+    business_outcome: Model decision quality can be measured rather than assumed.
+    description: Provider transport behind the existing abstraction, bounded, key never logged, harness skips without a key.
+    phase: stage6
+    priority: P1
+    dependencies: []
+    status: blocked_owner
+    feature_flag: none
+    runtime_entrypoint: tests/campaign/live-eval.test.ts (evaluation-only; no production path)
+    database_evidence: none
+    service_evidence: src/ai/anthropic-transport.ts
+    ui_evidence: none
+    test_evidence: tests/campaign/live-eval.test.ts (2 cases skip without ANTHROPIC_API_KEY)
+    security_evidence: key never logged or returned; provider errors report status only; request/token/timeout ceilings
+    audit_health_evidence: ai_runs records model and prompt version
+    last_verified_sha: 079fbb8
+    last_verified_at: 2026-08-17
+    owner_gate: ANTHROPIC_API_KEY supplied privately via local/staging secret configuration
+    blocker: no provider key configured
+    residual_risks: Until a key exists, live-model quality is unmeasured and must not be reported.
+
+  - id: MOD-002
+    title: Customer-facing model calls recorded in the cost ledger
+    business_outcome: AI spend and failure rates are complete, not partial.
+    description: runQuotationTurn accepts a CostLedger and every customer-facing call produces an ai_runs row.
+    phase: stage6
+    priority: P2
+    dependencies: []
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: ai_runs exists
+    service_evidence: src/ai/quotation.ts takes no ledger
+    ui_evidence: src/app/app/admin/health/page.tsx AI cost figure
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: The highest-volume model call in the system is invisible to observability.
+
+  # ── IP — anti-clone and IP protection ───────────────────────────────────────────────────────
+  - id: IP-001
+    title: Public-repository IP boundary
+    business_outcome: A public repository does not hand a competitor the proprietary decision logic.
+    description: Classified boundary manifest plus an automated check for prompts, evaluation data, weights, secrets and server-only imports reaching the client.
+    phase: stage1
+    priority: P1
+    dependencies: []
+    status: implementation_in_progress
+    feature_flag: none
+    runtime_entrypoint: scripts/autonomy/check-ip-boundary.mjs
+    database_evidence: none
+    service_evidence: docs/autonomy/IP_BOUNDARY_MANIFEST.md
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: secret-scan already in the verify gate
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: decision on a private repository or package for proprietary prompts and evaluation data
+    blocker: none
+    residual_risks: The repository is public today and system prompts are committed in it.
+
+# Groups from the Original Vision Program that are NOT yet expanded into individual requirement
+# records. They are listed so their absence is visible and counted, rather than being mistaken for
+# completeness. Expanding these is the next register slice.
+_pending_population:
+  - GOV-* Executive Governor and Governance Constitution
+  - WRK-* workforce, capacity and coaching
+  - PRJ-* projects and portfolio intelligence
+  - FIN-* financial-management intelligence beyond the existing accounting core
+  - CRM-* customer, supplier and provider intelligence
+  - SCH-* scheduling, reminders and handover
+  - COM-* multimodal communication (voice notes, images, documents, email, calendar)
+  - CTL-* Mission Control
+  - IMP-* outcome measurement and improvement beyond AIM-008
+  - RSK-* risk, legal and compliance
+  - MOB-* mobile and PWA
+  - OPS-* deployment, backup/restore, staging UAT and production readiness
