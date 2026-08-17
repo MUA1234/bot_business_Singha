@@ -7,6 +7,8 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { detectTaskExceptions, type TaskLike } from "@/management/ai-manager/exceptions";
+import { BarChart, type BarDatum } from "@/components/charts";
+import { TASK_STATES } from "@/modules/work/task-lifecycle";
 
 export const metadata = { title: "Operations — Singha" };
 const TERMINAL = new Set(["completed", "cancelled"]);
@@ -27,6 +29,21 @@ export default async function OperationsHome() {
   const inProgress = open.filter((t) => t.status === "in_progress").length;
   const exceptions = detectTaskExceptions(tasks.map((t): TaskLike => ({ id: t.id, title: t.title, status: t.status, dueDate: t.due_date, lastCheckInAt: null, estimateHours: null })), now);
 
+  // Task counts per status (counts, not money), only for statuses actually present, ordered by the
+  // lifecycle. Blocked/overdue genuinely ARE states → reserved tones; everything else stays one hue.
+  const byStatus = new Map<string, number>();
+  for (const t of tasks) byStatus.set(String(t.status), (byStatus.get(String(t.status)) ?? 0) + 1);
+  const lifecycle: readonly string[] = TASK_STATES;
+  const statusData: BarDatum[] = [
+    ...lifecycle.filter((s) => byStatus.has(s)),
+    ...[...byStatus.keys()].filter((s) => !lifecycle.includes(s)).sort(),
+  ].map((s) => ({
+    label: s.replace(/_/g, " "),
+    display: String(byStatus.get(s) ?? 0),
+    value: byStatus.get(s) ?? 0,
+    tone: s === "blocked" ? "warn" : s === "overdue" ? "danger" : "accent",
+  }));
+
   const tiles = [
     { k: "Open tasks", v: open.length },
     { k: "In progress", v: inProgress },
@@ -45,6 +62,15 @@ export default async function OperationsHome() {
           <div key={t.k} className="card stat"><div className="k">{t.k}</div><div className="v" style={{ fontSize: "1.8rem", color: t.danger ? "var(--danger)" : undefined }}>{t.v}</div></div>
         ))}
       </div>
+      {statusData.length > 0 && (
+        <div className="card">
+          <div className="card-title">Tasks by status</div>
+          <div className="card-sub">Clear the amber blocked and red overdue bars first — they stall delivery.</div>
+          <div className="mt-2">
+            <BarChart data={statusData} valueOnAll />
+          </div>
+        </div>
+      )}
       <div className="card">
         <div className="card-title">Needs attention</div>
         {exceptions.length === 0 ? <div className="empty">Nothing flagged.</div> : (

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import "./globals.css";
+import LivingBackground from "@/components/LivingBackground";
 
 export const metadata = {
   title: "Singha — Business Control",
@@ -7,7 +8,7 @@ export const metadata = {
 };
 
 export const viewport = {
-  themeColor: "#1a0524",
+  themeColor: "#0b0e11",
   width: "device-width",
   initialScale: 1,
   // Let content extend under notches; globals.css pads with safe-area insets.
@@ -17,7 +18,10 @@ export const viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <LivingBackground />
+        {children}
+      </body>
     </html>
   );
 }

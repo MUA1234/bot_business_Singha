@@ -1,52 +1,96 @@
 /*
- * Singha design system — "Lion" theme.
- * Warm near-black background with a red glow, translucent glass cards, bright-red
- * accent (matches the Singha lion / auction reference), Singha red.
+ * Singha design system — "Agentic OS" theme.
+ * Cool graphite near-black with silvery flowing gradients, translucent glass panels,
+ * mint/teal accent. Semantic state colours (ok/warn/danger/info) are RESERVED and
+ * unchanged in meaning; the brand accent is mint and is never used for status.
  * Self-contained (no external fonts/assets) so it works on Vercel and offline.
  */
 
 :root {
-  /* Brand — red highlight scheme (matches the Singha lion / auction reference). */
-  --singha-red: #e2231a;
-  --accent: #ef3b2b;         /* bright red action colour (buttons, links, highlights) */
-  --accent-2: #c9241a;       /* deep red */
-  --accent-grad: linear-gradient(135deg, #ef3b2b 0%, #c9241a 100%);
-  --accent-rgb: 239, 59, 43; /* --accent as RGB, for translucent shadows/rings */
+  /* Brand — mint/teal accent on cool graphite (agentic-OS reference). */
+  --singha-red: #e2231a;       /* the lion mark's own red — logo only, not UI */
+  --accent: #34d9b4;           /* mint action colour (buttons, links, highlights) */
+  --accent-2: #0fb493;         /* deep teal */
+  --accent-grad: linear-gradient(135deg, #3fe4bf 0%, #0fb493 100%);
+  --accent-rgb: 52, 217, 180;  /* --accent as RGB, for translucent shadows/rings */
+  --accent-ink: #04231b;       /* near-black text ON the mint accent (9:1 contrast) */
 
-  /* Surfaces — warm near-black with red glow (was deep purple). */
-  --bg-0: #0e0708;           /* darkest */
-  --bg-1: #170a0b;
-  --bg-2: #241011;
-  --page-grad: radial-gradient(1200px 800px at 15% -10%, #3a0f0d 0%, transparent 55%),
-               radial-gradient(1000px 700px at 110% 10%, #7a1712 0%, transparent 45%),
-               linear-gradient(160deg, #0e0708 0%, #170a0b 50%, #22100f 100%);
+  /* Surfaces — cool graphite with a silvery drift and a faint teal breath. */
+  --bg-0: #07090b;             /* darkest */
+  --bg-1: #0b0e11;
+  --bg-2: #12161a;
+  --page-grad: radial-gradient(1100px 700px at 12% -8%, #1c2329 0%, transparent 55%),
+               radial-gradient(900px 650px at 108% 8%, #0e2a26 0%, transparent 45%),
+               radial-gradient(1400px 900px at 50% 115%, #14181d 0%, transparent 60%),
+               linear-gradient(165deg, #07090b 0%, #0b0e11 50%, #10141a 100%);
 
-  /* Glass panels */
-  --panel: rgba(255, 255, 255, 0.055);
-  --panel-strong: rgba(255, 255, 255, 0.09);
-  --panel-border: rgba(255, 255, 255, 0.12);
+  /* Glass panels — SMOKED (dark film), not a white film: these sit over the living
+   * background video, and a light film leaves body text effectively unbacked. The dark
+   * tint + blur keeps the artwork readable through the panel while text stays crisp. */
+  --panel: rgba(8, 13, 15, 0.58);
+  --panel-strong: rgba(13, 20, 23, 0.74);
+  --panel-border: rgba(255, 255, 255, 0.1);
   --panel-blur: 18px;
 
-  /* Text — warm neutrals (were lavender-tinted). */
-  --text: #f8f1f0;
-  --text-muted: #cdbcba;
-  --text-dim: #9d8a88;
+  /* Text — cool neutrals. */
+  --text: #eef4f2;
+  --text-muted: #aebbb7;
+  --text-dim: #8d9b98; /* nudged up from #7d8a87: low-emphasis text must survive the living background */
 
-  /* State */
-  --ok: #2fd48b;
+  /* State — reserved semantics, never the brand accent. */
+  --ok: #4ade80;               /* green, hue-separated from the mint accent */
   --warn: #ffb020;
-  --danger: #ff5a4d;         /* warm red (was pinkish #ff5470) */
+  --danger: #ff5a4d;
   --info: #56ccf2;
 
   --radius: 20px;
   --radius-sm: 12px;
   --radius-lg: 28px;
-  --shadow: 0 20px 60px -20px rgba(0, 0, 0, 0.55);
+  --shadow: 0 20px 60px -20px rgba(0, 0, 0, 0.6);
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
     "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
 }
 
 * { box-sizing: border-box; }
+
+/* ── Living background ──────────────────────────────────────────────
+ * Fixed, silent, seamless loop behind the entire app (see
+ * src/components/LivingBackground.tsx for the load strategy).
+ * Sized with `inset: 0` rather than 100vw/100vh: 100vw includes the scrollbar
+ * width (horizontal overflow) and 100vh leaves a gap when a mobile URL bar hides.
+ * z-index -2 keeps it under all content; pointer-events:none keeps it inert. */
+.singha-living-bg {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: -2;
+  pointer-events: none;
+  background: #05090a; /* ultimate fallback if no media paints */
+}
+.singha-living-bg video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  user-select: none;
+}
+/* Readability scrim — deliberately mild so the artwork keeps its depth. */
+.singha-living-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 55% 42%, transparent 0%, rgba(0, 0, 0, 0.1) 55%, rgba(0, 0, 0, 0.26) 100%),
+    rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+}
+/* Phones: bias the framing so the robot detail crops rather than the negative space
+ * the text sits on. */
+@media (max-width: 767px) {
+  .singha-living-bg video { object-position: 58% center; }
+}
 
 html, body {
   padding: 0;
@@ -73,6 +117,10 @@ body {
   min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
   letter-spacing: 0.1px;
+  /* Text outside a panel (page titles, section headings, helper lines) sits directly over the
+   * living background. A soft shadow keeps it legible over the bright wave forms; it is
+   * imperceptible on the dark smoked panels where most content lives. */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 a { color: inherit; text-decoration: none; }
@@ -120,8 +168,8 @@ p { margin: 0; line-height: 1.55; }
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   border: none; cursor: pointer; font-family: inherit; font-weight: 700;
   font-size: 0.9rem; padding: 11px 22px; border-radius: 999px;
-  color: #fff; background: var(--accent-grad);
-  box-shadow: 0 10px 24px -8px rgba(var(--accent-rgb), 0.6);
+  color: var(--accent-ink); background: var(--accent-grad);
+  box-shadow: 0 10px 24px -8px rgba(var(--accent-rgb), 0.45);
   transition: transform 0.12s ease, filter 0.12s ease, opacity 0.12s ease;
 }
 .btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
@@ -131,7 +179,7 @@ p { margin: 0; line-height: 1.55; }
   background: var(--panel-strong); color: var(--text);
   border: 1px solid var(--panel-border); box-shadow: none;
 }
-.btn.danger { background: linear-gradient(135deg, #ff5a4d, #d81f14); box-shadow: none; }
+.btn.danger { background: linear-gradient(135deg, #ff5a4d, #d81f14); color: #fff; box-shadow: none; }
 .btn.sm { padding: 7px 14px; font-size: 0.8rem; }
 .btn.block { width: 100%; }
 
@@ -168,7 +216,7 @@ p { margin: 0; line-height: 1.55; }
 .badge.warn { color: var(--warn); border-color: rgba(255, 176, 32, 0.4); }
 .badge.danger { color: var(--danger); border-color: rgba(255, 90, 77, 0.4); }
 .badge.info { color: var(--info); border-color: rgba(86, 204, 242, 0.4); }
-.badge.accent { color: #fff; background: var(--accent-grad); border: none; }
+.badge.accent { color: var(--accent-ink); background: var(--accent-grad); border: none; }
 
 /* ── Tables ─────────────────────────────────────────────────────── */
 .table-wrap { width: 100%; overflow-x: auto; border-radius: var(--radius-sm); }
@@ -198,7 +246,7 @@ table.data tr:hover td { background: rgba(255, 255, 255, 0.03); }
   padding: 22px 16px;
   padding-left: max(16px, env(safe-area-inset-left));
   border-right: 1px solid var(--panel-border);
-  background: rgba(0, 0, 0, 0.22); backdrop-filter: blur(10px);
+  background: rgba(4, 8, 9, 0.72); backdrop-filter: blur(14px);
   display: flex; flex-direction: column; gap: 6px; position: sticky; top: 0; height: 100vh; height: 100dvh;
 }
 .nav-item {
@@ -207,7 +255,7 @@ table.data tr:hover td { background: rgba(255, 255, 255, 0.03); }
   transition: background 0.12s ease, color 0.12s ease; white-space: nowrap;
 }
 .nav-item:hover { background: var(--panel); color: var(--text); }
-.nav-item.active { background: var(--accent-grad); color: #fff; box-shadow: 0 8px 20px -10px rgba(var(--accent-rgb), 0.7); }
+.nav-item.active { background: var(--accent-grad); color: var(--accent-ink); box-shadow: 0 8px 20px -10px rgba(var(--accent-rgb), 0.55); }
 .nav-item .ico { width: 20px; flex: none; display: inline-flex; align-items: center; justify-content: center; }
 /* Fluid gutters; cap content width so it stays readable on ultra-wide / 4K. */
 .main {
@@ -273,6 +321,86 @@ table.data tr:hover td { background: rgba(255, 255, 255, 0.03); }
 .brand { display: inline-flex; align-items: center; gap: 12px; }
 .brand img { height: 34px; width: auto; display: block; }
 .brand .name { font-weight: 800; font-size: 1.25rem; letter-spacing: 0.08em; }
+
+/* ── Landing (staff entry) ──────────────────────────────────────── */
+.landing-nav {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 14px 0;
+}
+.landing-nav .links { display: flex; gap: 22px; font-size: 0.86rem; color: var(--text-muted); font-weight: 600; }
+.landing-nav .links a:hover { color: var(--text); }
+@media (max-width: 640px) { .landing-nav .links { display: none; } }
+
+.hero {
+  position: relative; overflow: hidden;
+  display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: clamp(20px, 4vw, 48px); align-items: center;
+  padding: clamp(28px, 5vw, 56px);
+}
+@media (max-width: 900px) { .hero { grid-template-columns: 1fr; } }
+.hero h1 { font-size: clamp(1.9rem, 1.2rem + 2.8vw, 3.1rem); line-height: 1.04; letter-spacing: -0.03em; }
+.hero .eyebrow {
+  display: inline-flex; align-items: center; gap: 8px; font-size: 0.72rem; font-weight: 800;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent);
+}
+.hero .eyebrow::before { content: ""; width: 22px; height: 2px; background: var(--accent-grad); border-radius: 2px; }
+
+/* Flowing "liquid metal" backdrop — pure CSS, self-contained. */
+.flow-art { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: inherit; }
+.flow-art i { position: absolute; display: block; border-radius: 50%; filter: blur(46px); opacity: 0.55; }
+.flow-art .f1 { width: 55%; height: 120%; right: -12%; top: -30%;
+  background: radial-gradient(closest-side, #2b333b 0%, #171d22 55%, transparent 75%); }
+.flow-art .f2 { width: 44%; height: 90%; right: 6%; bottom: -45%;
+  background: radial-gradient(closest-side, #16342e 0%, transparent 70%); opacity: 0.7; }
+.flow-art .f3 { width: 30%; height: 60%; right: 26%; top: -18%;
+  background: radial-gradient(closest-side, rgba(var(--accent-rgb), 0.22) 0%, transparent 70%); }
+.flow-art .ridge { position: absolute; left: -10%; right: -10%; height: 200px; bottom: -60px;
+  border-radius: 50%; filter: blur(26px); opacity: 0.5;
+  background: linear-gradient(90deg, transparent 0%, #232b31 30%, #39434b 50%, #1a2126 72%, transparent 100%); }
+
+/* Glass device / stat panel in the hero. */
+.device {
+  position: relative; border-radius: 22px; padding: 18px;
+  background: linear-gradient(160deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.03) 100%);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 30px 80px -30px rgba(0,0,0,0.75), inset 0 1px 0 rgba(255,255,255,0.08);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+}
+.device .titlebar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.device .titlebar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.8); }
+.device .widget {
+  background: rgba(0,0,0,0.28); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px; padding: 14px;
+}
+.device .widget + .widget { margin-top: 12px; }
+.device .widget .k { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+.device .widget .v { font-size: 1.25rem; font-weight: 800; margin-top: 4px; }
+
+/* Department chips grid (staff-specific landing). */
+.dept-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+@media (max-width: 900px) { .dept-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .dept-grid { grid-template-columns: 1fr; } }
+.dept-chip {
+  display: flex; align-items: center; gap: 12px; padding: 15px 16px;
+  background: var(--panel); border: 1px solid var(--panel-border); border-radius: 16px;
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.12s ease;
+}
+.dept-chip:hover { border-color: rgba(var(--accent-rgb), 0.5); background: var(--panel-strong); transform: translateY(-1px); }
+.dept-chip .ic {
+  width: 34px; height: 34px; flex: none; display: grid; place-items: center;
+  border-radius: 10px; background: rgba(var(--accent-rgb), 0.12); color: var(--accent);
+  border: 1px solid rgba(var(--accent-rgb), 0.25);
+}
+.dept-chip .t { font-weight: 700; font-size: 0.92rem; }
+.dept-chip .s { font-size: 0.76rem; color: var(--text-dim); margin-top: 1px; }
+
+/* Signed-in continue card */
+.continue-strip {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.12) 0%, rgba(var(--accent-rgb), 0.04) 100%);
+  border-radius: 16px; padding: 16px 18px;
+}
 
 /* misc */
 .divider { height: 1px; background: var(--panel-border); border: none; margin: 20px 0; }

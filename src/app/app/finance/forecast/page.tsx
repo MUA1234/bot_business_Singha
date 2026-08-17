@@ -11,6 +11,7 @@ import { dec, decGtZero, decSub, fmtMoney } from "@/lib/money";
 import { computeCashPosition, type CashAccount, type CashMovement } from "@/modules/finance/cash-position";
 import { projectCash, type CashFlowItem } from "@/management/ai-manager/forecast";
 import { expandRecurring, type Cadence } from "@/modules/finance/recurring";
+import { AreaLineChart } from "@/components/charts";
 
 export const metadata = { title: "Cash Forecast — Singha" };
 
@@ -87,6 +88,19 @@ export default async function ForecastPage() {
         <div className="card stat"><div className="k">Opening cash</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmt(openingCash)}</div></div>
         <div className="card stat"><div className="k">Projected close (90d)</div><div className="v" style={{ fontSize: "1.4rem", color: fc.goesNegative ? "var(--danger)" : "var(--ok)" }}>{fmt(fc.closingBalance)}</div></div>
         <div className="card stat"><div className="k">Lowest point</div><div className="v" style={{ fontSize: "1.4rem", color: dec(fc.lowest.balance).isNegative() ? "var(--danger)" : "var(--info)" }}>{fmt(fc.lowest.balance)}</div><div className="d dim">{fc.lowest.date}</div></div>
+      </div>
+
+      <div className="card">
+        <div className="card-title">Projected cash — full 90-day curve</div>
+        <div className="card-sub">The marked point is the trough — pull collections earlier or push payments later to lift it.</div>
+        <div className="mt-2">
+          <AreaLineChart points={fc.points.map((p) => ({ label: p.date.slice(5), value: dec(p.balance).toNumber(), display: fmt(p.balance) }))} />
+        </div>
+        {fc.goesNegative && (
+          <div className="small mt-1" style={{ color: "var(--danger)" }}>
+            ⚠ Projection crosses below zero — trough {fmt(fc.lowest.balance)} on {fc.lowest.date}.
+          </div>
+        )}
       </div>
 
       <div className="card">
