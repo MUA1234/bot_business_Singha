@@ -52,7 +52,7 @@
   against `main`** — it integrates, preserving history: (1) PR #3 compatibility foundation
   (`3224d08`), (2) the Phase-1 stack PRs #4–#12 via tip `509685b`, (3) the external-review
   corrections A–D.
-- **Content commit SHA (ninth review, final):** `__CONTENT_SHA__` — the commit carrying the corrected
+- **Content commit SHA (ninth review, final):** `6b7b6f57d010eafa11b93ece327bc7fa20e4b585` — the commit carrying the corrected
   migration **0067** (the catalog-driven systemic search_path hardening with owner-agnostic fail-closed
   self-verify + the enqueue-vs-item race fix at a single linearization lock with the unconditional item-sum
   guard and the fail-closed freeze trigger), the extended integration suites
