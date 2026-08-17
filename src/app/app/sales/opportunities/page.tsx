@@ -6,6 +6,8 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { summarizePipeline, type Opportunity } from "@/modules/commercial/pipeline-value";
+import { dec, fmtMoney } from "@/lib/money";
+import { BarChart } from "@/components/charts";
 import { createOpportunity, setOpportunityStatus } from "./actions";
 
 export const metadata = { title: "Opportunities — Singha" };
@@ -24,8 +26,9 @@ export default async function OpportunitiesPage() {
   }
 
   const currency = rows[0]?.currency ?? "LKR";
-  const summary = summarizePipeline(rows.map((r): Opportunity => ({ amount: Number(r.amount ?? 0), probability: Number(r.probability ?? 0), status: r.status })));
-  const m = (n: number) => `${currency} ${n.toLocaleString()}`;
+  // Amount strings go straight into the Decimal-based pipeline summary — no float round-trip.
+  const summary = summarizePipeline(rows.map((r): Opportunity => ({ amount: String(r.amount ?? "0"), probability: Number(r.probability ?? 0), status: r.status })));
+  const m = (v: string | number | null | undefined) => fmtMoney(v ?? "0", currency);
 
   return (
     <div className="stack gap-3">
@@ -35,6 +38,21 @@ export default async function OpportunitiesPage() {
         <div className="card stat"><div className="k">Open pipeline</div><div className="v" style={{ fontSize: "1.4rem" }}>{m(summary.openValue)}</div><div className="d dim">{summary.openCount} deals</div></div>
         <div className="card stat"><div className="k">Weighted forecast</div><div className="v" style={{ fontSize: "1.4rem", color: "var(--info)" }}>{m(summary.weightedValue)}</div></div>
         <div className="card stat"><div className="k">Won</div><div className="v" style={{ fontSize: "1.4rem", color: "var(--ok)" }}>{m(summary.wonValue)}</div></div>
+      </div>
+
+      <div className="card">
+        <div className="card-title">Pipeline at a glance</div>
+        <div className="card-sub">If Weighted sits far below Open, raise deal probabilities or prune stale deals.</div>
+        <div className="mt-2">
+          <BarChart
+            valueOnAll
+            data={[
+              { label: `Open (${summary.openCount})`, display: m(summary.openValue), value: dec(summary.openValue).toNumber(), tone: "accent" },
+              { label: "Weighted", display: m(summary.weightedValue), value: dec(summary.weightedValue).toNumber(), tone: "info" },
+              { label: "Won", display: m(summary.wonValue), value: dec(summary.wonValue).toNumber(), tone: "ok" },
+            ]}
+          />
+        </div>
       </div>
 
       <div className="card">
@@ -62,7 +80,7 @@ export default async function OpportunitiesPage() {
                 {rows.map((r) => (
                   <tr key={r.id}>
                     <td style={{ fontWeight: 600 }}>{r.title}</td>
-                    <td className="num">{m(Number(r.amount ?? 0))}</td>
+                    <td className="num">{m(r.amount)}</td>
                     <td className="num">{Number(r.probability ?? 0)}%</td>
                     <td className="dim small">{r.expected_close ?? "—"}</td>
                     <td><span className={`badge ${r.status === "won" ? "ok" : r.status === "lost" ? "danger" : "warn"}`}>{r.status}</span></td>

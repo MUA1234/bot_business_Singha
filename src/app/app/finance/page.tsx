@@ -3,7 +3,9 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { Icon } from "@/components/Icon";
+import { decSub, decSum, fmtMoney } from "@/lib/money";
 import { ageItems, type AgingItem } from "@/modules/finance/aging";
+import { BarChart, agingBars } from "@/components/charts";
 
 export const metadata = { title: "Finance — Singha" };
 
@@ -40,20 +42,21 @@ export default async function FinanceHome() {
   ]);
 
   const currency = sent?.[0]?.currency ?? invoices[0]?.currency ?? "LKR";
-  const quotedValue = (sent ?? []).reduce((s: number, q: any) => s + Number(q.total || 0), 0);
+  const quotedValue = decSum((sent ?? []).map((q: any) => q.total));
 
   // Outstanding = total − settled, aged. Decimal strings throughout (Constitution §8).
   const toItems = (rows: any[]): AgingItem[] =>
     rows.map((r) => ({
       dueDate: r.due_date ?? null,
-      outstanding: String(Number(r.total_amount ?? 0) - Number(r.amount_settled ?? 0)),
+      outstanding: decSub(r.total_amount, r.amount_settled).toFixed(),
     }));
   const now = new Date();
   const ar = ageItems(toItems(invoices), currency, now);
   const ap = ageItems(toItems(bills), currency, now);
+  const fmt = (v: string) => fmtMoney(v, currency);
 
   const tiles = [
-    { k: "Quoted value (sent)", v: `${currency} ${quotedValue.toLocaleString()}`, href: "/app/finance/invoices" },
+    { k: "Quoted value (sent)", v: fmtMoney(quotedValue, currency), href: "/app/finance/invoices" },
     { k: "Sent quotations", v: sent?.length ?? 0, href: "/app/finance/invoices" },
     { k: "Open price confirmations", v: openPrice ?? 0, href: "/app/finance/price-requests" },
   ];
@@ -76,15 +79,27 @@ export default async function FinanceHome() {
       <div className="grid cols-2">
         <Link href="/app/finance/receivables" className="card stat">
           <div className="k">Receivables outstanding</div>
-          <div className="v" style={{ fontSize: "1.5rem", color: "var(--ok)" }}>{currency} {Number(ar.total).toLocaleString()}</div>
-          <div className="d dim">Overdue: {currency} {Number(ar.overdue).toLocaleString()} · 90+: {Number(ar.buckets.d90_plus).toLocaleString()}</div>
+          <div className="v" style={{ fontSize: "1.5rem", color: "var(--ok)" }}>{fmtMoney(ar.total, currency)}</div>
+          <div className="d dim">Overdue: {fmtMoney(ar.overdue, currency)} · 90+: {fmtMoney(ar.buckets.d90_plus)}</div>
         </Link>
         <Link href="/app/finance/receivables" className="card stat">
           <div className="k">Payables outstanding</div>
-          <div className="v" style={{ fontSize: "1.5rem", color: "var(--warn)" }}>{currency} {Number(ap.total).toLocaleString()}</div>
-          <div className="d dim">Overdue: {currency} {Number(ap.overdue).toLocaleString()} · 90+: {Number(ap.buckets.d90_plus).toLocaleString()}</div>
+          <div className="v" style={{ fontSize: "1.5rem", color: "var(--warn)" }}>{fmtMoney(ap.total, currency)}</div>
+          <div className="d dim">Overdue: {fmtMoney(ap.overdue, currency)} · 90+: {fmtMoney(ap.buckets.d90_plus)}</div>
         </Link>
       </div>
+
+      <div className="card">
+        <div className="card-title">Receivables vs payables — by age</div>
+        <div className="card-sub">Chase the amber and red receivable buckets first — the oldest debt is the hardest to collect.</div>
+        <div className="mt-2">
+          <div className="small dim" style={{ marginBottom: 2 }}>Receivables (owed to you)</div>
+          <BarChart data={agingBars(ar.buckets, fmt)} height={120} />
+          <div className="small dim" style={{ marginTop: 8, marginBottom: 2 }}>Payables (you owe)</div>
+          <BarChart data={agingBars(ap.buckets, fmt)} height={120} />
+        </div>
+      </div>
+
       <div className="grid cols-3">
         <Link href="/app/finance/invoices" className="card"><div className="card-title row gap-1"><Icon name="file-text" size={17} /> Invoices</div><p className="card-sub">Billing documents from quotations.</p></Link>
         <Link href="/app/finance/price-requests" className="card"><div className="card-title row gap-1"><Icon name="help-circle" size={17} /> Price Confirmations</div><p className="card-sub">Confirm prices routed to finance.</p></Link>

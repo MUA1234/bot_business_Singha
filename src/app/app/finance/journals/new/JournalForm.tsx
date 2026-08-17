@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useFormState } from "react-dom";
 import { checkDraftJournal, type DraftLine } from "@/accounting/manual-entry";
+import { fmtMoney } from "@/lib/money";
 import { postJournal, type JournalState } from "../actions";
 
 interface AccountOpt {
@@ -71,7 +72,7 @@ export function JournalForm({ accounts, currency }: { accounts: AccountOpt[]; cu
       <div className="row between wrap gap-2">
         <button type="button" className="btn ghost sm" onClick={addLine}>+ Add line</button>
         <div className="small">
-          Debit <b>{currency} {Number(check.totalDebit).toLocaleString()}</b> · Credit <b>{currency} {Number(check.totalCredit).toLocaleString()}</b>{" "}
+          Debit <b>{fmtMoney(check.totalDebit, currency)}</b> · Credit <b>{fmtMoney(check.totalCredit, currency)}</b>{" "}
           {check.balanced ? <span className="badge ok">balanced</span> : <span className="badge danger">unbalanced</span>}
         </div>
       </div>

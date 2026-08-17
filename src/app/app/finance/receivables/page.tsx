@@ -8,6 +8,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { decGtZero, decSub, fmtMoney } from "@/lib/money";
 import { bucketFor, type AgingBucket } from "@/modules/finance/aging";
 
 export const metadata = { title: "Receivables & Payables — Singha" };
@@ -33,7 +34,7 @@ interface Row {
   ref: string;
   party: string;
   currency: string;
-  outstanding: number;
+  outstanding: string; // exact decimal string — never a JS float
   dueDate: string | null;
   bucket: AgingBucket;
 }
@@ -41,7 +42,7 @@ interface Row {
 function toRows(records: any[], refKey: string, partyName: (r: any) => string, now: Date): Row[] {
   return records
     .map((r) => {
-      const outstanding = Number(r.total_amount ?? 0) - Number(r.amount_settled ?? 0);
+      const outstanding = decSub(r.total_amount, r.amount_settled).toFixed();
       return {
         ref: r[refKey] ?? "—",
         party: partyName(r),
@@ -51,7 +52,7 @@ function toRows(records: any[], refKey: string, partyName: (r: any) => string, n
         bucket: bucketFor(r.due_date ?? null, now),
       };
     })
-    .filter((r) => r.outstanding > 0.000001)
+    .filter((r) => decGtZero(r.outstanding))
     .sort((a, b) => BUCKET_RANK[a.bucket] - BUCKET_RANK[b.bucket]);
 }
 
@@ -73,7 +74,7 @@ function Table({ title, rows }: { title: string; rows: Row[] }) {
                   <td className="mono">{r.ref}</td>
                   <td>{r.party}</td>
                   <td className="dim small">{r.dueDate ?? "—"}</td>
-                  <td className="num">{r.currency} {r.outstanding.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  <td className="num">{fmtMoney(r.outstanding, r.currency)}</td>
                   <td><span className={`badge ${r.bucket === "d90_plus" ? "danger" : r.bucket === "current" ? "" : "warn"}`}>{BUCKET_LABEL[r.bucket]}</span></td>
                 </tr>
               ))}

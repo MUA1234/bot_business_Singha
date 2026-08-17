@@ -8,6 +8,7 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { remaining, settlementStatus } from "@/accounting/settlement";
+import { fmtMoney } from "@/lib/money";
 import { postInvoice, settleInvoice } from "../actions";
 
 export const metadata = { title: "Invoice — Singha" };
@@ -39,7 +40,7 @@ export default async function InvoiceDetail({ params }: { params: { id: string }
       <div className="row between">
         <div>
           <h1 className="mono">{inv.invoice_number}</h1>
-          <p className="muted mt-1">{(inv as any).customers?.name ?? "Customer"} · <span className="badge">{inv.status}</span> · {inv.currency} {Number(inv.total_amount ?? 0).toLocaleString()}</p>
+          <p className="muted mt-1">{(inv as any).customers?.name ?? "Customer"} · <span className="badge">{inv.status}</span> · {fmtMoney(inv.total_amount, inv.currency)}</p>
         </div>
         <Link className="btn ghost sm" href="/app/finance/customer-invoices">← Invoices</Link>
       </div>
@@ -51,7 +52,7 @@ export default async function InvoiceDetail({ params }: { params: { id: string }
             <thead><tr><th>Description</th><th className="num">Qty</th><th className="num">Unit</th><th className="num">Amount</th></tr></thead>
             <tbody>
               {(lines ?? []).map((l: any, i: number) => (
-                <tr key={i}><td>{l.description}</td><td className="num">{Number(l.quantity)}</td><td className="num">{Number(l.unit_price).toLocaleString()}</td><td className="num">{Number(l.amount).toLocaleString()}</td></tr>
+                <tr key={i}><td>{l.description}</td><td className="num">{Number(l.quantity)}</td><td className="num">{fmtMoney(l.unit_price)}</td><td className="num">{fmtMoney(l.amount)}</td></tr>
               ))}
             </tbody>
           </table>
@@ -77,7 +78,7 @@ export default async function InvoiceDetail({ params }: { params: { id: string }
                 {incomes.map((a: any) => <option key={a.code} value={a.code}>{a.code} — {a.name}</option>)}
               </select>
             </label>
-            <button className="btn" type="submit">Post {inv.currency} {Number(inv.total_amount ?? 0).toLocaleString()}</button>
+            <button className="btn" type="submit">Post {fmtMoney(inv.total_amount, inv.currency)}</button>
           </form>
         )}
       </div>
@@ -85,7 +86,7 @@ export default async function InvoiceDetail({ params }: { params: { id: string }
       {inv.journal_id && (
         <div className="card">
           <div className="card-title">Record receipt <span className="dim small">(recording only — not a bank transfer)</span></div>
-          <p className="card-sub mt-1">Outstanding: {inv.currency} {Number(outstanding).toLocaleString()}</p>
+          <p className="card-sub mt-1">Outstanding: {fmtMoney(outstanding, inv.currency)}</p>
           {paid ? (
             <div className="empty">Fully settled. ✅</div>
           ) : assets.length < 1 ? (

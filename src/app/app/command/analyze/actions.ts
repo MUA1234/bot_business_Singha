@@ -2,14 +2,14 @@
 
 import { requireAdmin } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { writeAudit } from "@/lib/audit";
 import { makeOpenAiTransport } from "@/ai/openai-transport";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { runManagerObservation } from "@/ai/manager-observation";
 import { planFromObservation } from "@/management/ai-manager/pipeline";
 import { makeSupabaseCostLedger } from "@/db/consumer-store";
 import { buildManagementCase } from "@/management/ai-manager/case";
-import { persistManagementCase } from "@/management/ai-manager/case-store";
+import { caseRow } from "@/management/ai-manager/case-store";
+import { log } from "@/lib/log";
 
 export interface AnalyzeState {
   error?: string;
@@ -53,21 +53,11 @@ export async function analyzeUpdate(_prev: AnalyzeState, formData: FormData): Pr
   const plan = planFromObservation(obsResult.observation);
   const db = supabaseAdmin();
 
-  // Create the detected tasks as `captured` (low-risk). Never anything sensitive.
-  let created = 0;
-  for (const t of plan.tasks.slice(0, 20)) {
-    const { error } = await db.from("tasks").insert({
-      company_id: admin.companyId,
-      title: t.title,
-      description: t.note,
-      status: "captured",
-      requires_evidence: t.requiresEvidence,
-      created_by: admin.userId,
-    });
-    if (!error) created++;
-  }
-
-  // §WP5.1 — persist the durable, evidence-linked, correlation-tied management case.
+  // §WP5.1 + completion P1B — ONE atomic, idempotent boundary persists the management case, its
+  // captured tasks (low-risk only; the RPC forces status), and the audit event. A durability failure
+  // is a HARD failure surfaced to the operator — never log-and-continue. The idempotency identity is
+  // the submitted CONTENT (company + update text), not a constant: resubmitting the same update
+  // returns the original case with zero duplicate tasks.
   const mc = buildManagementCase({
     correlationId,
     companyId: admin.companyId,
@@ -82,16 +72,20 @@ export async function analyzeUpdate(_prev: AnalyzeState, formData: FormData): Pr
       latency_ms: obsResult.run.latency_ms,
     },
   });
-  await persistManagementCase(db, mc, { createdBy: admin.userId, createdTasks: created, requiresHuman: plan.needsApproval });
-
-  await writeAudit({
-    companyId: admin.companyId,
-    actorId: admin.userId,
-    actorType: "ai",
-    action: "manager.analyzed",
-    entityType: "management_observation",
-    payload: { createdTasks: created, requiredAuthority: plan.requiredAuthority, confidence: plan.confidence },
+  const idemKey = `manual:${createHash("sha256").update(`${admin.companyId}\n${update}`).digest("hex")}`;
+  const { data: persisted, error: persistErr } = await db.rpc("create_management_case_atomic", {
+    p_company: admin.companyId,
+    p_idempotency_key: idemKey,
+    p_case: { ...caseRow(mc, { createdBy: admin.userId, createdTasks: 0, requiresHuman: plan.needsApproval }) },
+    p_tasks: plan.tasks.slice(0, 20).map((t) => ({ title: t.title, note: t.note, requires_evidence: t.requiresEvidence })),
+    p_actor: admin.userId,
+    p_audit_action: "manager.analyzed",
   });
+  if (persistErr || !persisted) {
+    log("error", "management case persistence failed", { event: "case.persist_failed", correlationId, companyId: admin.companyId, error: persistErr?.message ?? "no result" });
+    return { error: "Analysis could not be recorded durably — nothing was saved. Try again." };
+  }
+  const created = Number((persisted as { created_tasks?: number }).created_tasks ?? 0);
 
   return {
     result: {

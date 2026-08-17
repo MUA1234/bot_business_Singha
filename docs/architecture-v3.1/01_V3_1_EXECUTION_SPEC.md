@@ -72,19 +72,24 @@ staging UAT.
 
 ## 5. Slice plan (dependency order) — status
 
-| # | Slice | Depends on | Status |
+| # | Slice | Depends on | Status (updated 2026-08-17, completion-program Phase 0) |
 |---|---|---|---|
-| 0 | Baseline + compatibility foundation (flags, contracts, docs) | — | **this session** |
-| 1 | `0048+` correction prerequisite (WP10–WP18) | 0 | **required before any DB-dependent slice** |
-| 2 | Task candidate detection + dedupe + Task Intelligence Profile | 0, (1 for finance-linked) | deferred |
-| 3 | Decision Path Ladder runtime + authority-checked selection | 2, 1 | deferred |
-| 4 | Role-first team formation + resource recommendation | 2, 1 | deferred |
-| 5 | Shared AI Guide / Ask-AI / next actions / scoped visibility | 2 | deferred |
-| 6 | Improvement proposals + outcome measurement (shadow) | 2–5 | deferred |
-| 7 | Manager Mission Control / exception lanes / explorers | 2–6 | deferred |
-| 8 | Responsive/PWA + versioned mobile APIs + EN/SI/TA preference | 7 | deferred |
-| 9 | Runtime model routing / budget / cache / fallback / kill switch / eval | 3–6 | deferred |
-| 10 | Deployment-readiness docs/config only (no hosted action) | all | deferred |
+| 0 | Baseline + compatibility foundation (flags, contracts, docs) | — | **implemented + locally verified** (PR #3) |
+| 1 | `0048+` correction prerequisite (WP10–WP18) | 0 | **implemented + locally verified** as migrations 0048–0067 after ten external-review rounds (PR #13, draft, head `48407bd`); NOT merged/hosted-migrated — owner gates |
+| 2 | Task candidate detection + dedupe + Task Intelligence Profile | 0, (1 for finance-linked) | in completion program (Phase 3.1) — flag has no runtime consumer yet |
+| 3 | Decision Path Ladder runtime + authority-checked selection | 2, 1 | in completion program (Phase 3.2) — flag has no runtime consumer yet |
+| 4 | Role-first team formation + resource recommendation | 2, 1 | in completion program (Phase 3.3) — flag has no runtime consumer yet |
+| 5 | Shared AI Guide / Ask-AI / next actions / scoped visibility | 2 | in completion program (Phase 3.4) — flag has no runtime consumer yet |
+| 6 | Improvement proposals + outcome measurement (shadow) | 2–5 | in completion program (Phase 3.5) — flag has no runtime consumer yet |
+| 7 | Manager Mission Control / exception lanes / explorers | 2–6 | in completion program (Phase 3.6) — flag has no runtime consumer yet |
+| 8 | Responsive/PWA + versioned mobile APIs + EN/SI/TA preference | 7 | in completion program (Phase 3.7) — flag has no runtime consumer yet |
+| 9 | Runtime model routing / budget / cache / fallback / kill switch / eval | 3–6 | in completion program (Phase 4) — flag has no runtime consumer yet |
+| 10 | Deployment-readiness docs/config only (no hosted action) | all | in completion program (Phase 5) |
+
+> Authoritative live tracking of the completion program (branches, SHAs, tests, owner gates):
+> `docs/architecture-v3.1/COMPLETION_LEDGER.md`. A flag is "implemented" only when a real runtime
+> consumer exists behind it and its slice's tests pass; `COMPLETION_INVENTORY.md` §3 machine-checks
+> which flags still have no consumer.
 
 Each deferred slice, when built, must deliver DB/RLS + service/command + event/outbox/worker +
 schema + UI + audit/health + docs + tests as applicable, run the mandatory gates, self-review the

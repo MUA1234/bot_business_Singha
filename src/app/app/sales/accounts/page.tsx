@@ -4,9 +4,11 @@
  * company-scoped, graceful.
  */
 import Link from "next/link";
+import Decimal from "decimal.js";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { dec, decSub, fmtMoney } from "@/lib/money";
 
 export const metadata = { title: "Customer Accounts — Singha" };
 
@@ -27,17 +29,17 @@ export default async function AccountsPage() {
     safe<any>(() => db.from("customer_invoices").select("customer_id, currency, total_amount, amount_settled, status").eq("company_id", p.companyId).not("status", "in", "(paid,cancelled)") as any),
   ]);
 
-  const outByCustomer = new Map<string, { outstanding: number; count: number; currency: string }>();
+  const outByCustomer = new Map<string, { outstanding: Decimal; count: number; currency: string }>();
   for (const inv of invoices) {
-    const cur = outByCustomer.get(inv.customer_id) ?? { outstanding: 0, count: 0, currency: inv.currency ?? "LKR" };
-    cur.outstanding += Number(inv.total_amount ?? 0) - Number(inv.amount_settled ?? 0);
+    const cur = outByCustomer.get(inv.customer_id) ?? { outstanding: dec(0), count: 0, currency: inv.currency ?? "LKR" };
+    cur.outstanding = cur.outstanding.plus(decSub(inv.total_amount, inv.amount_settled));
     cur.count += 1;
     outByCustomer.set(inv.customer_id, cur);
   }
 
   const rows = customers
-    .map((c) => ({ ...c, agg: outByCustomer.get(c.id) ?? { outstanding: 0, count: 0, currency: "LKR" } }))
-    .sort((a, b) => b.agg.outstanding - a.agg.outstanding);
+    .map((c) => ({ ...c, agg: outByCustomer.get(c.id) ?? { outstanding: dec(0), count: 0, currency: "LKR" } }))
+    .sort((a, b) => b.agg.outstanding.comparedTo(a.agg.outstanding));
 
   return (
     <div className="stack gap-3">
@@ -56,7 +58,7 @@ export default async function AccountsPage() {
                     <td style={{ fontWeight: 600 }}>{c.name}</td>
                     <td className="dim small">{c.email ?? c.phone ?? "—"}</td>
                     <td className="num">{c.agg.count}</td>
-                    <td className="num" style={{ color: c.agg.outstanding > 0 ? "var(--warn)" : undefined }}>{c.agg.currency} {c.agg.outstanding.toLocaleString()}</td>
+                    <td className="num" style={{ color: c.agg.outstanding.greaterThan(0) ? "var(--warn)" : undefined }}>{fmtMoney(c.agg.outstanding, c.agg.currency)}</td>
                     <td><Link className="btn ghost sm" href={`/app/sales/accounts/${c.id}`}>Open</Link></td>
                   </tr>
                 ))}

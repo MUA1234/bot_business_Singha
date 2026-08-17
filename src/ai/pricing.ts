@@ -14,6 +14,8 @@ export interface TokenPrice {
   output: number; // USD per 1,000,000 output tokens
 }
 
+import Decimal from "decimal.js";
+
 type Env = Record<string, string | undefined>;
 
 function envPrice(env: Env, key: string): number | null {
@@ -40,6 +42,8 @@ export function priceTable(env: Env = process.env): Record<string, TokenPrice> {
 /**
  * Cost as a fixed-precision decimal string (never a float in the ledger). Unknown
  * model → "0" (explicit, auditable). Prices are injectable for testing.
+ * Computed in Decimal — the tokens×rate products and their sum must not accumulate float
+ * error before landing in ai_runs.cost_usd (money, aggregated later for budgets).
  */
 export function computeCostUsd(
   model: string,
@@ -49,6 +53,9 @@ export function computeCostUsd(
 ): string {
   const price = prices[model];
   if (!price) return "0";
-  const cost = (inputTokens * price.input + outputTokens * price.output) / 1_000_000;
-  return cost.toFixed(6);
+  return new Decimal(inputTokens)
+    .times(String(price.input))
+    .plus(new Decimal(outputTokens).times(String(price.output)))
+    .div(1_000_000)
+    .toFixed(6);
 }

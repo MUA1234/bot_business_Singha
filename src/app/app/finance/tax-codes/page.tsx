@@ -6,6 +6,7 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { taxAmount } from "@/accounting/tax";
+import { fmtMoney } from "@/lib/money";
 import { createTaxCode } from "./actions";
 
 export const metadata = { title: "Tax Codes — Singha" };
@@ -46,7 +47,7 @@ export default async function TaxCodesPage() {
                     <td className="mono" style={{ fontWeight: 600 }}>{r.code}</td>
                     <td>{r.name}</td>
                     <td className="num">{Number(r.rate)}%</td>
-                    <td className="num dim">{Number(taxAmount("1000", Number(r.rate), "LKR")).toLocaleString()}</td>
+                    <td className="num dim">{fmtMoney(taxAmount("1000", Number(r.rate), "LKR"))}</td>
                   </tr>
                 ))}
               </tbody>

@@ -84,7 +84,9 @@ export async function settleBill(formData: FormData): Promise<void> {
   // §WP2 STRICT: recording a supplier payment requires finance.payment.record.
   let p: SessionProfile;
   try { p = await requireCapabilityStrict("finance.payment.record"); } catch { return; }
-  const amount = Number(amountMoney.toString()); // validated decimal; RPC arg stays numeric
+  // PostgREST accepts a canonical decimal STRING for a Postgres numeric arg — never round-trip
+  // money through a JS float on its way to the ledger.
+  const amount = amountMoney.toString();
 
   const idemKey = resolveIdempotencyKey(String(formData.get("idem_token") ?? ""), [
     "settle_supplier_bill", id, amountMoney.toString(), new Date().toISOString().slice(0, 10),

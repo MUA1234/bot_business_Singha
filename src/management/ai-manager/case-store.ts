@@ -1,12 +1,11 @@
 /**
- * Persist a durable management case (NEXT_PHASE_DEVELOPER_BRIEF §WP5.1). The row
- * mapping is pure (`caseRow`, exported for testing); the insert is graceful — a
- * missing table (pre-0028) or error is logged, never thrown, so an AI analysis is
- * never brought down by a persistence gap.
+ * Management-case row mapping (NEXT_PHASE_DEVELOPER_BRIEF §WP5.1). `caseRow` is the pure map from a
+ * ManagementCase to its DB shape; PERSISTENCE now goes exclusively through the atomic, idempotent,
+ * service-only `create_management_case_atomic` RPC (migration 0068) — the former log-and-continue
+ * `persistManagementCase` helper was removed (completion P1B): a durability failure must fail the
+ * analysis, and the case + its tasks + the audit event must commit in ONE transaction.
  */
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ManagementCase } from "@/management/ai-manager/case";
-import { log } from "@/lib/log";
 
 export interface CaseExtras {
   createdBy: string | null;
@@ -35,9 +34,4 @@ export function caseRow(c: ManagementCase, extra: CaseExtras): Record<string, un
     created_tasks: extra.createdTasks,
     created_by: extra.createdBy,
   };
-}
-
-export async function persistManagementCase(db: SupabaseClient, c: ManagementCase, extra: CaseExtras): Promise<void> {
-  const { error } = await db.from("management_cases").insert(caseRow(c, extra));
-  if (error) log("error", "management_cases insert failed", { event: "case.persist_failed", correlationId: c.correlationId, error: error.message });
 }

@@ -15,13 +15,15 @@ async function requirePricer() {
 export async function resolvePrice(formData: FormData): Promise<void> {
   const p = await requirePricer();
   const confirmationId = String(formData.get("confirmation_id") ?? "");
-  const price = Number(String(formData.get("price") ?? ""));
-  if (!confirmationId || !isFinite(price) || price < 0) return;
+  // Money never passes through a JS float: validate the raw input as a decimal string and hand the
+  // canonical string down — the quotation currency is applied inside resolvePriceConfirmation.
+  const raw = String(formData.get("price") ?? "").trim();
+  if (!confirmationId || !/^\d+(\.\d+)?$/.test(raw)) return;
 
   await resolvePriceConfirmation({
     companyId: p.companyId,
     confirmationId,
-    resolvedPrice: price,
+    resolvedPrice: raw,
     userId: p.userId,
   });
 

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { dec, fmtMoney } from "@/lib/money";
 import { suggestMatches, type BankTxn, type ReconCandidate } from "@/modules/finance/reconcile";
 import { importBankTransactions, confirmMatch } from "./actions";
 
@@ -89,7 +90,7 @@ export default async function ReconciliationPage() {
                     <tr key={s.bankTxnId}>
                       <td className="dim small">{t.date}</td>
                       <td>{t.description ?? "—"}</td>
-                      <td className="num">{t.currency} {Number(t.amount).toLocaleString()}</td>
+                      <td className="num">{fmtMoney(t.amount, t.currency)}</td>
                       <td>
                         {s.candidateId ? (
                           <div className="row gap-1">
@@ -98,7 +99,7 @@ export default async function ReconciliationPage() {
                               <input type="hidden" name="bank_txn_id" value={s.bankTxnId} />
                               <input type="hidden" name="target_type" value={s.candidateKind ?? ""} />
                               <input type="hidden" name="target_id" value={s.candidateId} />
-                              <input type="hidden" name="amount" value={Math.abs(Number(t.amount))} />
+                              <input type="hidden" name="amount" value={dec(t.amount).abs().toFixed(2)} />
                               <button className="btn ghost sm" type="submit">Confirm</button>
                             </form>
                           </div>

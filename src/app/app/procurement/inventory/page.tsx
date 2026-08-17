@@ -6,6 +6,7 @@
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { fmtMoney } from "@/lib/money";
 import { needsReorder, reorderList, stockValuation, type StockItem } from "@/modules/procurement/inventory";
 import { createItem, moveStock } from "./actions";
 
@@ -31,7 +32,7 @@ export default async function InventoryPage() {
       <div><h1>Inventory</h1><p className="muted mt-1">Stock on hand, reorder points and valuation.</p></div>
 
       <div className="grid cols-2">
-        <div className="card stat"><div className="k">Stock valuation</div><div className="v" style={{ fontSize: "1.5rem" }}>{currency} {Number(valuation).toLocaleString()}</div></div>
+        <div className="card stat"><div className="k">Stock valuation</div><div className="v" style={{ fontSize: "1.5rem" }}>{fmtMoney(valuation, currency)}</div></div>
         <div className="card stat"><div className="k">Below reorder</div><div className="v" style={{ fontSize: "1.5rem", color: reorder ? "var(--danger)" : "var(--ok)" }}>{reorder}</div></div>
       </div>
 
@@ -62,7 +63,7 @@ export default async function InventoryPage() {
                       <td><div style={{ fontWeight: 600 }}>{r.name}</div><div className="small dim mono">{r.sku ?? ""}</div></td>
                       <td className="num">{low ? <span className="badge danger">{Number(r.quantity_on_hand)} {r.unit ?? ""}</span> : `${Number(r.quantity_on_hand)} ${r.unit ?? ""}`}</td>
                       <td className="num dim">{Number(r.reorder_level)}</td>
-                      <td className="num">{r.currency} {Number(r.unit_cost).toLocaleString()}</td>
+                      <td className="num">{fmtMoney(r.unit_cost, r.currency)}</td>
                       <td>
                         <form action={moveStock} className="row gap-1">
                           <input type="hidden" name="item_id" value={r.id} />

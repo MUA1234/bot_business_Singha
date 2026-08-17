@@ -35,7 +35,9 @@ export async function postJournal(_prev: JournalState, formData: FormData): Prom
   if (!check.ready) return { error: check.issues[0] ?? "Journal is not valid." };
 
   const payload = lines
-    .filter((l) => l.account_code.trim() !== "" && (Number(l.debit || 0) > 0 || Number(l.credit || 0) > 0))
+    // Exact string-decimal positivity test (a non-negative decimal is > 0 iff it has a non-zero
+    // digit) — journal-line filtering must never float the amounts it decides on.
+    .filter((l) => l.account_code.trim() !== "" && (/[1-9]/.test(String(l.debit ?? "")) || /[1-9]/.test(String(l.credit ?? ""))))
     .map((l) => ({ account_code: l.account_code.trim(), debit: String(l.debit || "0"), credit: String(l.credit || "0"), description: l.description ?? null }));
 
   // §WP-B: manual journals carry a deterministic caller idempotency key; audit is in-RPC.

@@ -6,6 +6,7 @@
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { fmtMoney } from "@/lib/money";
 import { decideExpense, reimburseExpense } from "./actions";
 
 export const metadata = { title: "Expense Claims — Singha" };
@@ -44,7 +45,7 @@ export default async function ExpensesPage() {
                   <tr key={c.id}>
                     <td style={{ fontWeight: 600 }}>{c.employees?.name ?? "—"}</td>
                     <td>{c.purpose}</td>
-                    <td className="num">{c.currency} {Number(c.amount).toLocaleString()}</td>
+                    <td className="num">{fmtMoney(c.amount, c.currency)}</td>
                     <td><span className={`badge ${c.status === "reimbursed" ? "ok" : c.status === "approved" ? "info" : c.status === "rejected" ? "danger" : "warn"}`}>{c.status}</span></td>
                     <td>
                       {c.status === "submitted" && (

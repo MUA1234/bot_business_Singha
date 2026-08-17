@@ -9,6 +9,7 @@
  * NEVER lets the AI self-authorise sensitive actions (Constitution §6).
  */
 import { AuthorityLevel, type DecisionProposal } from "@/schemas/management";
+import { dec } from "@/lib/money";
 
 export type Routing = "auto" | "execute_routine" | "require_approval" | "reject";
 type Level = (typeof LEVELS)[number];
@@ -63,10 +64,15 @@ export interface RouteResult {
   reasons: string[];
 }
 
-/** Compare two decimal-string amounts of the same currency. Returns a>b. */
+/**
+ * Compare two decimal-string amounts of the same currency. Returns a>b. EXACT Decimal comparison —
+ * this feeds an authority decision, so it must never round through a JS float (a float compare
+ * misorders amounts once they exceed 2^53 minor units or differ below float precision). Malformed
+ * amounts throw → the caller's proposal fails validation instead of silently passing authority.
+ */
 function exceeds(a: { amount: string; currency: string }, max: { amount: string; currency: string }): boolean {
   if (a.currency !== max.currency) return true; // mismatched currency ⇒ escalate (fail-safe)
-  return Number(a.amount) > Number(max.amount);
+  return dec(a.amount).greaterThan(dec(max.amount));
 }
 
 export function routeDecision(proposal: DecisionProposal, ctx: RouteContext = {}): RouteResult {

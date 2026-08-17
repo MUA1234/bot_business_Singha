@@ -7,6 +7,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { computeCapacityDetail, type CapacityTask } from "@/modules/work/capacity-detail";
+import { HBarChart } from "@/components/charts";
 import { recomputeCapacity } from "./actions";
 
 export const metadata = { title: "Capacity — Singha" };
@@ -59,6 +60,10 @@ export default async function CapacityPage() {
 
   const statusBadge = (s: string) => (s === "overloaded" ? "danger" : s === "underallocated" ? "info" : "ok");
 
+  // Chart scaling only: ∞ utilization (open work but no net hours) draws as the longest bar;
+  // the displayed value stays the exact table figure ("∞"). Percentages are not money.
+  const maxUtil = Math.max(100, ...rows.map((r) => (Number.isFinite(r.cap.utilizationPct) ? r.cap.utilizationPct : 0)));
+
   return (
     <div className="stack gap-3">
       <div className="row between">
@@ -68,6 +73,29 @@ export default async function CapacityPage() {
         </div>
         <form action={recomputeCapacity}><button className="btn ghost sm" type="submit">Recompute snapshots</button></form>
       </div>
+
+      {rows.length > 0 && (
+        <div className="card">
+          <div className="card-title">Utilization by person</div>
+          <div className="card-sub">Rebalance work from the red (overloaded) bars onto the dim (under-allocated) ones.</div>
+          <div className="mt-2">
+            <HBarChart
+              data={rows.map((r) => ({
+                label: r.name,
+                display: Number.isFinite(r.cap.utilizationPct) ? `${r.cap.utilizationPct}%` : "∞",
+                value: Number.isFinite(r.cap.utilizationPct) ? r.cap.utilizationPct : maxUtil,
+                // Tone follows the SAME engine status the table badges use (overload 100% / under 60%),
+                // plus an approaching-overload band above 85% within "healthy".
+                tone:
+                  r.cap.status === "overloaded" ? "danger"
+                  : r.cap.status === "underallocated" ? "dim"
+                  : r.cap.utilizationPct > 85 ? "warn"
+                  : "accent",
+              }))}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="card">
         {rows.length === 0 ? (
