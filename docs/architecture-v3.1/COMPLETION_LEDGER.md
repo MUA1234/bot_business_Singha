@@ -117,8 +117,9 @@
   `MANAGEMENT_PROMPT_VERSION` went `mgmt-1.0` → **`mgmt-1.1`** — recorded AI decisions must trace to
   the exact prompt that produced them.
 
-### Slice UI3 — owner-control landing copy (merged to `main`, PR #19 → `6a1a353`)
-- **Branch:** `feature/owner-control-copy` (base `f9eafb2`), commit `8edfbe6`.
+### Slice UI3 — landing copy: reader-control voice (merged to `main`, PR #19 → `6a1a353`, then the
+audience correction PR #20 → `728eab1`)
+- **Branch:** `feature/owner-control-copy` (base `f9eafb2`), commits `8edfbe6` + `4bb00bd`.
 - **Scope:** landing voice moved from product pitch to reader-control — outcome-for-you section
   titles; nav anchor `#how` → `#control` ("What you control"); login tagline, admin welcome line
   (which also still carried the pre-rebrand "Singha platform" name) and the site meta description
@@ -134,9 +135,14 @@
 - **Claims kept tied to implemented behaviour:** WhatsApp orders/quotations, authority-limited
   approvals with recorded decisions, double-entry core with no silent edits, department-scoped
   access, assistant observes/proposes only.
-- **Gates:** typecheck ✓ lint 0 errors ✓ build ✓ `npm run verify` **438 unit (80 files)** ✓;
-  production build rendered headlessly and read.
-- **No behaviour, permission, schema or migration change** (copy + one anchor id).
+- **Legibility defect found by rendering and reading (not by assumption):** the one line of prose
+  that sits directly on the living background was unreadable over the video's bright passages — it
+  now gets the same smoked ground as every other panel (new `.on-bg` utility, built from the
+  existing `--panel` / `--panel-border` / `--panel-blur` tokens).
+- **Gates (both commits):** typecheck ✓ lint 0 errors ✓ build ✓ `npm run verify` **438 unit
+  (80 files)** ✓; production build rendered headlessly and read at each pass.
+- **No behaviour, permission, schema or migration change** (copy, one anchor id, one session-role
+  branch on the signed-in strip, one CSS utility).
 
 ## Deferred (deliberate, owner-visible)
 
