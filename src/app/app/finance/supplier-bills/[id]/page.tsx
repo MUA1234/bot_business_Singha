@@ -11,7 +11,7 @@ import { remaining, settlementStatus } from "@/accounting/settlement";
 import { fmtMoney } from "@/lib/money";
 import { postBill, settleBill } from "../actions";
 
-export const metadata = { title: "Bill — Singha" };
+export const metadata = { title: "Bill — Singha Central" };
 
 export default async function BillDetail({ params }: { params: { id: string } }) {
   const p = await requireDepartment("finance");

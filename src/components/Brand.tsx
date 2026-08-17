@@ -10,7 +10,7 @@ export function Brand({ variant = "lion", size = 34 }: { variant?: "lion" | "wor
   return (
     <span className="brand">
       <img src="/brand/lion.png" alt="Singha" style={{ height: size }} />
-      <span className="name">SINGHA</span>
+      <span className="name">SINGHA CENTRAL</span>
     </span>
   );
 }

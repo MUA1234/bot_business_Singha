@@ -8,7 +8,7 @@ import { loadPostedJournals } from "@/lib/ledger-report";
 import { decSub, fmtMoney } from "@/lib/money";
 import { trialBalance, balanceSheet } from "@/accounting/trial-balance";
 
-export const metadata = { title: "Balance Sheet — Singha" };
+export const metadata = { title: "Balance Sheet — Singha Central" };
 
 export default async function BalanceSheetPage() {
   const p = await requireDepartment("finance");

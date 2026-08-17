@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { Icon } from "@/components/Icon";
 
-export const metadata = { title: "Admin — Singha" };
+export const metadata = { title: "Admin — Singha Central" };
 
 async function count(table: string, companyId: string, extra?: (q: any) => any): Promise<number> {
   let q = supabaseAdmin().from(table).select("id", { count: "exact", head: true }).eq("company_id", companyId);

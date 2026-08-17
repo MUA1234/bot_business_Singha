@@ -8,7 +8,7 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
 
-export const metadata = { title: "Journals — Singha" };
+export const metadata = { title: "Journals — Singha Central" };
 
 export default async function JournalsPage() {
   const p = await requireDepartment("finance");

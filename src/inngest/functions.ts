@@ -118,7 +118,7 @@ export const taskFollowUpsSchedule = inngest.createFunction(
   async () => runCron("/api/cron/follow-ups"),
 );
 
-/** AI manager monitoring every 10 minutes (its own cost/batch limits apply downstream). */
+/** conversation analysis sweep every 10 minutes (its own cost/batch limits apply downstream). */
 export const aiMonitorSchedule = inngest.createFunction(
   { id: "ai-manager-monitor" },
   { cron: "*/10 * * * *" },

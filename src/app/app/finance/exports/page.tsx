@@ -1,7 +1,7 @@
 import { requireDepartment } from "@/lib/auth";
 import { Icon } from "@/components/Icon";
 
-export const metadata = { title: "Excel Exports — Singha" };
+export const metadata = { title: "Excel Exports — Singha Central" };
 
 const EXPORTS = [
   { kind: "quotations", label: "Quotations", desc: "All quotations with totals and status." },

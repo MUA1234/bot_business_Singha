@@ -6,7 +6,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
-export const metadata = { title: "Human Resources — Singha" };
+export const metadata = { title: "Human Resources — Singha Central" };
 
 async function count(run: () => Promise<{ count: number | null }>): Promise<number> {
   try { return (await run()).count ?? 0; } catch { return 0; }

@@ -11,7 +11,7 @@ import { dec, fmtMoney } from "@/lib/money";
 import { suggestMatches, type BankTxn, type ReconCandidate } from "@/modules/finance/reconcile";
 import { importBankTransactions, confirmMatch } from "./actions";
 
-export const metadata = { title: "Reconciliation — Singha" };
+export const metadata = { title: "Reconciliation — Singha Central" };
 
 async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
   try {

@@ -11,7 +11,7 @@ function SubmitButton() {
 }
 
 /**
- * Paste a business update → the Senior AI Manager observes it, captures follow-up
+ * Paste a business update → the business analysis assistant observes it, captures follow-up
  * tasks, and flags what needs human approval. It proposes; it never executes.
  */
 export function AnalyzeForm() {

@@ -1,7 +1,7 @@
 /**
  * Lead scoring / qualification (Architecture V2 change plan §9.1). Pure and
  * deterministic: turns a lead's stage, value and recency into a 0–100 score and a
- * hot/warm/cold grade so sales (and the AI manager) can prioritise follow-up. It
+ * hot/warm/cold grade so sales (and the analysis assistant) can prioritise follow-up. It
  * ranks attention only — it never contacts anyone or changes a record.
  */
 export type LeadStage = "new" | "contacted" | "qualified" | "proposal" | "won" | "lost";

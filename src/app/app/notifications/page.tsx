@@ -9,7 +9,7 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { unreadCount } from "@/lib/notify";
 import { markRead, markAllRead } from "./actions";
 
-export const metadata = { title: "Notifications — Singha" };
+export const metadata = { title: "Notifications — Singha Central" };
 
 export default async function NotificationsPage() {
   const p = await requireProfile();

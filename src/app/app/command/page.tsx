@@ -27,7 +27,7 @@ import { AreaLineChart, BarChart, agingBars } from "@/components/charts";
 import { projectCash, type CashFlowItem } from "@/management/ai-manager/forecast";
 import { buildBriefing } from "@/management/ai-manager/briefing";
 
-export const metadata = { title: "Command Centre — Singha" };
+export const metadata = { title: "Command Centre — Singha Central" };
 
 /**
  * Completion P1C — a failed query is a DEGRADED page, never a silent []. Each failure is logged

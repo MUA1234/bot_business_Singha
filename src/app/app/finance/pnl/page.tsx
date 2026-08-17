@@ -8,7 +8,7 @@ import { loadPostedJournals } from "@/lib/ledger-report";
 import { dec, decSub, fmtMoney } from "@/lib/money";
 import { trialBalance, profitAndLoss } from "@/accounting/trial-balance";
 
-export const metadata = { title: "Profit & Loss — Singha" };
+export const metadata = { title: "Profit & Loss — Singha Central" };
 
 export default async function PnlPage() {
   const p = await requireDepartment("finance");

@@ -3,7 +3,7 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 
-export const metadata = { title: "Sales — Singha" };
+export const metadata = { title: "Sales — Singha Central" };
 
 async function count(table: string, companyId: string, extra?: (q: any) => any) {
   let q = supabaseReadClient().from(table).select("id", { count: "exact", head: true }).eq("company_id", companyId);

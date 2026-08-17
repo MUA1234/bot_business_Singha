@@ -13,7 +13,7 @@ import { projectCash, type CashFlowItem } from "@/management/ai-manager/forecast
 import { expandRecurring, type Cadence } from "@/modules/finance/recurring";
 import { AreaLineChart } from "@/components/charts";
 
-export const metadata = { title: "Cash Forecast — Singha" };
+export const metadata = { title: "Cash Forecast — Singha Central" };
 
 async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
   try {

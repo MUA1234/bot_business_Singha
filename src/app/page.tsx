@@ -38,14 +38,14 @@ export default async function Home() {
         </div>
 
         <div style={{ position: "relative" }}>
-          <span className="eyebrow">Singha Business Control</span>
+          <span className="eyebrow">Singha Central</span>
           <h1 className="mt-2">
-            Your whole business,<br />one agentic control&nbsp;room.
+            Every part of your business,<br />running in one&nbsp;place.
           </h1>
           <p className="muted mt-3" style={{ fontSize: "1.02rem", maxWidth: 520 }}>
-            Customer WhatsApp messages become tracked orders and branded quotations on their own.
-            You and your team step in only where judgement is needed — pricing confirmations,
-            approvals, exceptions — each person inside their own department&apos;s secure dashboard.
+            Finance, operations, people, procurement, compliance, fleet and sales — one system, one
+            record, one set of rules. Work arrives from your team and your customers, and whatever
+            needs a decision is routed to the person who holds the authority to make it.
           </p>
 
           {profile ? (
@@ -58,7 +58,7 @@ export default async function Home() {
                   {dept ? `${dept.label} — your workspace is ready.` : "Your workspace is ready."}
                 </div>
               </div>
-              <Link href={deptHome} className="btn">Continue to {dept ? dept.label : "your dashboard"}</Link>
+              <Link href={deptHome} className="btn">Continue to {dept ? dept.label : "your workspace"}</Link>
             </div>
           ) : (
             <div className="row gap-2 mt-4 wrap">
@@ -74,7 +74,7 @@ export default async function Home() {
             <span className="badge">today</span>
           </div>
           <div className="widget">
-            <div className="k">Quotations sent this week</div>
+            <div className="k">Work items handled this week</div>
             <div className="row between" style={{ alignItems: "flex-end" }}>
               <div className="v">18</div>
               {/* decorative single-hue mini bars: thin marks, rounded data ends */}
@@ -87,10 +87,10 @@ export default async function Home() {
             </div>
           </div>
           <div className="widget">
-            <div className="k">Awaiting a human decision</div>
+            <div className="k">Awaiting a decision</div>
             <div className="row between">
               <div className="v">3</div>
-              <span className="badge warn">price confirmations</span>
+              <span className="badge warn">needs authority</span>
             </div>
           </div>
           <div className="widget">
@@ -106,7 +106,7 @@ export default async function Home() {
 
       <section id="departments" className="mt-4">
         <div className="row between mt-2" style={{ marginBottom: 12 }}>
-          <h2>Built for each person on the team</h2>
+          <h2>Every department, one system</h2>
         </div>
         <div className="dept-grid">
           {DEPARTMENTS.map((d) => (
@@ -126,16 +126,27 @@ export default async function Home() {
 
       <section id="how" className="grid cols-3 mt-4">
         <div className="card">
-          <div className="card-title row gap-1"><Icon name="shopping-cart" size={18} /> WhatsApp orders</div>
-          <p className="card-sub mt-1">Every customer message becomes a tracked order and conversation — nothing typed twice.</p>
+          <div className="card-title row gap-1"><Icon name="clipboard" size={18} /> One record of the business</div>
+          <p className="card-sub mt-1">Orders, invoices, payments, tasks, staff, suppliers, contracts and vehicles in a single company-scoped system — with an audit trail behind every change.</p>
         </div>
         <div className="card">
-          <div className="card-title row gap-1"><Icon name="file-text" size={18} /> Auto quotations</div>
-          <p className="card-sub mt-1">Priced from your catalog on the Singha template. Uncertain prices route to a person for one-tap confirmation.</p>
+          <div className="card-title row gap-1"><Icon name="shield" size={18} /> Authority, enforced</div>
+          <p className="card-sub mt-1">Approvals, pricing and payments follow your authority limits. Nothing sensitive moves until the right person decides — and the decision is recorded.</p>
         </div>
         <div className="card">
-          <div className="card-title row gap-1"><Icon name="shield" size={18} /> Human-controlled AI</div>
-          <p className="card-sub mt-1">The AI observes and proposes. Money, approvals and anything sensitive always wait for a person with the authority.</p>
+          <div className="card-title row gap-1"><Icon name="wallet" size={18} /> Books that hold up</div>
+          <p className="card-sub mt-1">A double-entry accounting core with exact decimal money. Posted history is never edited — corrections are controlled reversals.</p>
+        </div>
+      </section>
+
+      <section className="grid cols-2 mt-3">
+        <div className="card">
+          <div className="card-title row gap-1"><Icon name="shopping-cart" size={18} /> Work arrives on its own</div>
+          <p className="card-sub mt-1">Customer WhatsApp messages become tracked orders and quotations without anyone retyping them. Uncertain prices route to a person for a one-tap confirmation.</p>
+        </div>
+        <div className="card">
+          <div className="card-title row gap-1"><Icon name="users" size={18} /> Each person sees their own work</div>
+          <p className="card-sub mt-1">Your admin creates the login; the system decides what that person can see and do. The assistant observes and proposes — it never acts on its own.</p>
         </div>
       </section>
 

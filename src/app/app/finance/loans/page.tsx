@@ -8,7 +8,7 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
 import { createLoan } from "./actions";
 
-export const metadata = { title: "Loans — Singha" };
+export const metadata = { title: "Loans — Singha Central" };
 
 async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
   try {

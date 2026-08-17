@@ -7,7 +7,7 @@ import { decSub, decSum, fmtMoney } from "@/lib/money";
 import { ageItems, type AgingItem } from "@/modules/finance/aging";
 import { BarChart, agingBars } from "@/components/charts";
 
-export const metadata = { title: "Finance — Singha" };
+export const metadata = { title: "Finance — Singha Central" };
 
 /** Read-only query that never throws (missing table → []). */
 async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {

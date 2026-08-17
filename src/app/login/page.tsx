@@ -4,7 +4,7 @@ import { homePathFor } from "@/lib/departments";
 import { redirect } from "next/navigation";
 import { LoginForm } from "./LoginForm";
 
-export const metadata = { title: "Sign in — Singha" };
+export const metadata = { title: "Sign in — Singha Central" };
 
 export default async function LoginPage() {
   const existing = await getProfile();
@@ -16,8 +16,8 @@ export default async function LoginPage() {
         <div className="stack gap-2 center" style={{ textAlign: "center" }}>
           <Brand size={44} />
           <div>
-            <h1 style={{ fontSize: "1.5rem" }}>Business Control</h1>
-            <p className="muted mt-1">Sign in to your department dashboard.</p>
+            <h1 style={{ fontSize: "1.5rem" }}>Sign in</h1>
+            <p className="muted mt-1">Your workspace, scoped to your department.</p>
           </div>
         </div>
         <div className="card pad-lg">

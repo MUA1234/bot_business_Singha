@@ -1,6 +1,6 @@
 /**
  * Management Cases (§WP5.1). Admin-only, read-only view of the durable, evidence-linked
- * records the Senior AI Manager produces on each analysis. Company-scoped; graceful if
+ * records the business analysis assistant produces on each analysis. Company-scoped; graceful if
  * migration 0028 has not been applied yet.
  */
 import Link from "next/link";
@@ -8,7 +8,7 @@ import { requireAdmin } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 
-export const metadata = { title: "Management Cases — Singha" };
+export const metadata = { title: "Management Cases — Singha Central" };
 
 function list(v: unknown): string[] {
   return Array.isArray(v) ? (v as string[]) : [];

@@ -11,7 +11,7 @@ import { fmtMoney } from "@/lib/money";
 import { scoreLead, type LeadStage } from "@/modules/commercial/lead-scoring";
 import { createLead, setLeadStage } from "./actions";
 
-export const metadata = { title: "Leads — Singha" };
+export const metadata = { title: "Leads — Singha Central" };
 
 const STAGES: LeadStage[] = ["new", "contacted", "qualified", "proposal", "won", "lost"];
 const gradeBadge = (g: string) => (g === "hot" ? "danger" : g === "warm" ? "warn" : "");

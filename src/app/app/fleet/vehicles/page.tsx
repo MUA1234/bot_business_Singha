@@ -7,7 +7,7 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { createVehicle } from "./actions";
 
-export const metadata = { title: "Vehicles — Singha" };
+export const metadata = { title: "Vehicles — Singha Central" };
 
 export default async function VehiclesPage() {
   const p = await requireDepartment("fleet");

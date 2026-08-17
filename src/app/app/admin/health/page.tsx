@@ -12,7 +12,7 @@ import { probeCount, metricLabel, metricState, metricNumber } from "@/lib/metric
 import { buildAlerts } from "@/management/ai-manager/alerts";
 import { findUnbalancedJournals } from "@/modules/finance/ledger-integrity";
 
-export const metadata = { title: "System Health — Singha" };
+export const metadata = { title: "System Health — Singha Central" };
 
 async function rows<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
   try {

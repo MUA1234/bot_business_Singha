@@ -9,7 +9,7 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { renewalStatus } from "@/management/ai-manager/renewals";
 import { createContract } from "./actions";
 
-export const metadata = { title: "Contracts — Singha" };
+export const metadata = { title: "Contracts — Singha Central" };
 
 export default async function ContractsPage() {
   const p = await requireDepartment("legal");

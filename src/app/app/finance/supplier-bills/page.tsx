@@ -9,7 +9,7 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
 import { createBill } from "./actions";
 
-export const metadata = { title: "Supplier Bills — Singha" };
+export const metadata = { title: "Supplier Bills — Singha Central" };
 
 export default async function SupplierBillsPage() {
   const p = await requireDepartment("finance");

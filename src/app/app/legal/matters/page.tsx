@@ -7,7 +7,7 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { createMatter, setMatterStatus } from "./actions";
 
-export const metadata = { title: "Legal Matters — Singha" };
+export const metadata = { title: "Legal Matters — Singha Central" };
 const NEXT: Record<string, string[]> = { open: ["on_hold", "closed"], on_hold: ["open", "closed"], closed: ["open"] };
 
 export default async function MattersPage() {

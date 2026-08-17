@@ -10,12 +10,12 @@ import { requireProfile } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { analyzeConversation } from "./actions";
 
-export const metadata = { title: "Conversation — Singha" };
+export const metadata = { title: "Conversation — Singha Central" };
 
 const ERRORS: Record<string, string> = {
   ai_off: "AI gateway not configured (OPENAI_API_KEY).",
-  ai_error: "The AI manager could not analyse this conversation.",
-  forbidden: "Only an admin can run the AI manager.",
+  ai_error: "This conversation could not be analysed.",
+  forbidden: "Only an admin can run an analysis.",
   not_found: "Conversation not found.",
 };
 
@@ -57,7 +57,7 @@ export default async function ThreadPage({ params, searchParams }: { params: { i
       </div>
 
       {searchParams.captured !== undefined && (
-        <div className="notice ok">🧠 AI Manager captured {searchParams.captured} task(s) from this conversation — see <Link href="/app/operations/tasks">Operations → Tasks</Link>. It observed only; nothing was sent to the customer.</div>
+        <div className="notice ok">Analysis captured {searchParams.captured} task(s) from this conversation — see <Link href="/app/operations/tasks">Operations → Tasks</Link>. It read the thread only; nothing was sent to the customer.</div>
       )}
       {searchParams.err && <div className="notice err">{ERRORS[searchParams.err] ?? "Something went wrong."}</div>}
 

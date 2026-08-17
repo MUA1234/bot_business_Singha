@@ -8,7 +8,7 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { JournalForm } from "./JournalForm";
 
-export const metadata = { title: "New Journal — Singha" };
+export const metadata = { title: "New Journal — Singha Central" };
 
 export default async function NewJournalPage() {
   const p = await requireDepartment("finance");

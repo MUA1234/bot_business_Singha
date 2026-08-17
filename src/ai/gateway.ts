@@ -24,7 +24,7 @@ export const MODEL_ROUTES = {
   extraction_hard: { model: "gpt-5.6-sol", maxTokens: 4000 },
   // Customer-facing WhatsApp order intake (collect details, never price).
   quotation: { model: "gpt-5.6-sol", maxTokens: 2000 },
-  // Senior AI Manager: observe a business update → structured ManagementObservation.
+  // business analysis assistant: observe a business update → structured ManagementObservation.
   management: { model: "gpt-5.6-sol", maxTokens: 4000 },
 } as const;
 export type RouteName = keyof typeof MODEL_ROUTES;

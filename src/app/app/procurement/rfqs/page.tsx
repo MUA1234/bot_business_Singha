@@ -8,7 +8,7 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { createRfq } from "./actions";
 
-export const metadata = { title: "RFQs — Singha" };
+export const metadata = { title: "RFQs — Singha Central" };
 
 export default async function RfqsPage() {
   const p = await requireDepartment("procurement");

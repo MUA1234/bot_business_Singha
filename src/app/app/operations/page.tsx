@@ -10,7 +10,7 @@ import { detectTaskExceptions, type TaskLike } from "@/management/ai-manager/exc
 import { BarChart, type BarDatum } from "@/components/charts";
 import { TASK_STATES } from "@/modules/work/task-lifecycle";
 
-export const metadata = { title: "Operations — Singha" };
+export const metadata = { title: "Operations — Singha Central" };
 const TERMINAL = new Set(["completed", "cancelled"]);
 
 export default async function OperationsHome() {

@@ -10,7 +10,7 @@ import { dec, fmtMoney } from "@/lib/money";
 import { BarChart } from "@/components/charts";
 import { createOpportunity, setOpportunityStatus } from "./actions";
 
-export const metadata = { title: "Opportunities — Singha" };
+export const metadata = { title: "Opportunities — Singha Central" };
 
 export default async function OpportunitiesPage() {
   const p = await requireDepartment("sales");

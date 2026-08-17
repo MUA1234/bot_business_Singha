@@ -5,7 +5,7 @@ import { fmtMoney } from "@/lib/money";
 import { AddProductForm } from "./AddProductForm";
 import { setProductActive } from "./actions";
 
-export const metadata = { title: "Products & Prices — Singha" };
+export const metadata = { title: "Products & Prices — Singha Central" };
 
 export default async function CatalogPage() {
   const p = await requireProfile();

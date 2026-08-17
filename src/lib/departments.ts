@@ -32,7 +32,7 @@ export const DEPARTMENTS: Department[] = [
     nav: [
       { href: "/app/admin", label: "Overview", icon: "home" },
       { href: "/app/command", label: "Command Centre", icon: "gauge" },
-      { href: "/app/command/analyze", label: "AI Manager", icon: "shield" },
+      { href: "/app/command/analyze", label: "Analysis", icon: "shield" },
       { href: "/app/admin/objectives", label: "Objectives", icon: "target" },
       { href: "/app/admin/employees", label: "Employees", icon: "users" },
       { href: "/app/admin/health", label: "System Health", icon: "shield" },

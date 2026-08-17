@@ -4,7 +4,7 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { quoteUrl } from "@/lib/quotations";
 import { fmtMoney } from "@/lib/money";
 
-export const metadata = { title: "Quotations — Singha" };
+export const metadata = { title: "Quotations — Singha Central" };
 
 const STATUS_CLASS: Record<string, string> = {
   draft: "",

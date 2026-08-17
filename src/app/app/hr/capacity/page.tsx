@@ -10,7 +10,7 @@ import { computeCapacityDetail, type CapacityTask } from "@/modules/work/capacit
 import { HBarChart } from "@/components/charts";
 import { recomputeCapacity } from "./actions";
 
-export const metadata = { title: "Capacity — Singha" };
+export const metadata = { title: "Capacity — Singha Central" };
 const CONTRACTED = 40; // default weekly hours until employee_profiles is populated
 const RESERVED = 4; // operational reserve (meetings/recurring)
 

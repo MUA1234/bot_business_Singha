@@ -12,7 +12,7 @@ import { fmtMoney } from "@/lib/money";
 import { addPoLine, recordLineReceipt } from "../actions";
 import { ThreeWayCheck } from "./ThreeWayCheck";
 
-export const metadata = { title: "Purchase Order — Singha" };
+export const metadata = { title: "Purchase Order — Singha Central" };
 
 export default async function PurchaseOrderDetail({ params }: { params: { id: string } }) {
   const p = await requireDepartment("procurement");

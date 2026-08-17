@@ -11,7 +11,7 @@ import { scorePriority } from "@/management/ai-manager/priority";
 import { requestLeave } from "@/app/app/hr/staff/actions";
 import { submitExpense } from "@/app/app/finance/expenses/actions";
 
-export const metadata = { title: "My Work — Singha" };
+export const metadata = { title: "My Work — Singha Central" };
 
 async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
   try {

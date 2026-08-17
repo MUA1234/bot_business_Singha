@@ -5,7 +5,7 @@ import { Icon } from "@/components/Icon";
 import { CreateEmployeeForm } from "./CreateEmployeeForm";
 import { setEmployeeActive, setEmployeePassword } from "./actions";
 
-export const metadata = { title: "Employees — Singha Admin" };
+export const metadata = { title: "Employees — Singha Central" };
 
 interface Row {
   id: string;
