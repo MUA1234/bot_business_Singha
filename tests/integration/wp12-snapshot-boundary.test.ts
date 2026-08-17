@@ -146,6 +146,25 @@ describe.skipIf(!enabled)("0066 snapshot + delete + exact-owner boundary (live, 
     }
   });
 
+  it("CASCADE regression pin: the capability user deletes a draft AND an awaiting_price quotation WITH items — parent and children both go", async () => {
+    // The ON DELETE CASCADE child deletes run in the security context of the quotation_items table
+    // OWNER (PostgreSQL RI semantics), which is the trusted delivery owner, so the fail-closed
+    // freeze guard's NULL branch is never reached for an authorised parent delete. Migration 0067
+    // asserts that ownership invariant fail-closed; this test pins the end-to-end behaviour — if the
+    // invariant ever broke, the cascade would 42501 here.
+    for (const st of ["draft", "awaiting_price"]) {
+      const { quo } = await seedQuotation(st);
+      await q(`insert into quotation_items (quotation_id, company_id, description, quantity, currency) values ($1,$2,'c1',1,'LKR')`, [quo, co]);
+      await q(`insert into quotation_items (quotation_id, company_id, description, quantity, unit_price, currency, line_total, status) values ($1,$2,'c2',2,'5','LKR','10','priced')`, [quo, co]);
+      const r = await runAs("auth", `delete from quotations where id=$1 and company_id=$2`, [quo, co]);
+      expect(r.ok, `${st} with items: ${r.message}`).toBe(true);
+      expect(r.rowCount).toBe(1);
+      expect(await existsQuo(quo)).toBe(false);
+      const kids = (await q(`select count(*)::int c from quotation_items where quotation_id=$1`, [quo])).rows[0].c;
+      expect(kids, `${st}: children must cascade`).toBe(0);
+    }
+  });
+
   it("the trusted owner may delete a queued quotation (maintenance override)", async () => {
     const { quo } = await seedQuotation("queued");
     await q(`delete from quotations where id=$1`, [quo]); // owner context — no throw

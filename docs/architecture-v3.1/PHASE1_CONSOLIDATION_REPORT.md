@@ -1,11 +1,11 @@
 # Phase 1 — 0048+ Security/Accounting Corrections — Consolidation Report
 
 > Blocking prerequisite for the V3.1 program. This report is the verification evidence for the
-> correction phase (work packages WP10–WP18) **as revised after nine external reviews** — migrations
+> correction phase (work packages WP10–WP18) **as revised after ten external reviews** — migrations
 > **0048–0067**. Per-WP detail is in `docs/architecture-v3.1/PHASE1_CORRECTIONS_LEDGER.md`;
 > authoritative applied-state is in `docs/architecture-v2/MIGRATION_STATE.md`.
 >
-> **Phase 1 verdict: CHANGES REQUESTED (nine times) → corrected; awaiting the FINAL external review.**
+> **Phase 1 verdict: CHANGES REQUESTED (ten times) → corrected; awaiting the FINAL external approval.**
 > The first review found blocking defects in WP12/WP15/WP11 + a branch-integration problem (fixed:
 > 0056–0058); the second asked for deeper WP12 outbox reconciliation, WP11 composite DB constraints +
 > money fail-close, WP15 function-privilege, and doc/deployment accuracy (fixed: 0059–0060 + code +
@@ -38,7 +38,14 @@
 > + docs — see §14); the ninth generalized the eighth's own finding into a systemic follow-up (the
 > `pg_temp` search_path class was not WP12-specific — accounting/approval/identity-RLS/journal/settlement/
 > fingerprint functions carried unsafe paths) and asked for a catalog-driven audit + a permanent gate, plus
-> a fix for a quotation-item vs atomic-enqueue race (fixed: **0067** + tests + hosted-prep + docs — see §15).
+> a fix for a quotation-item vs atomic-enqueue race (fixed: **0067** + tests + hosted-prep + docs — see §15);
+> the tenth (the SECOND AND FINAL bounded correction loop, still 0067 — reconfirmed never applied outside
+> disposable databases) found the safe-path predicate accepted attacker-controlled leading schemas, the item
+> guard missed NULL `line_total` and currency-mismatched items, and predicted a draft-deletion cascade
+> regression — fixed with STRICT-CANONICAL path equality at all four predicate sites, a COMPLETE-snapshot
+> item guard mirrored by the app pricing flow, and live-PostgreSQL evidence that the cascade regression
+> does not occur (RI cascade runs as the table owner) pinned by a fail-closed ownership assertion +
+> regression tests (see §16).
 > **WP11, WP12 and WP15 are not
 > "done" until a review approves them.**
 >
@@ -52,15 +59,17 @@
   against `main`** — it integrates, preserving history: (1) PR #3 compatibility foundation
   (`3224d08`), (2) the Phase-1 stack PRs #4–#12 via tip `509685b`, (3) the external-review
   corrections A–D.
-- **Content commit SHA (ninth review, final):** `6b7b6f57d010eafa11b93ece327bc7fa20e4b585` — the commit carrying the corrected
-  migration **0067** (the catalog-driven systemic search_path hardening with owner-agnostic fail-closed
-  self-verify + the enqueue-vs-item race fix at a single linearization lock with the unconditional item-sum
-  guard and the fail-closed freeze trigger), the extended integration suites
-  (`search-path-safety.test.ts` 9 tests, `wp12-enqueue-item-race.test.ts` 11 tests), the first-occurrence
-  hosted search_path check + hardening scripts, and docs. It incorporates the pre-submission
-  adversarial-security pass's findings (see §15.4). (A commit cannot embed its own hash; this SHA is
-  stamped by the immediately following commit on the branch tip.)
-- **Prior content commits:** ninth review pre-adversarial-fix `87528d5` (initial 0067); eighth review `9c51b2c` (migration 0066 + snapshot/delete-boundary +
+- **Content commit SHA (tenth review, final):** `__CONTENT_SHA__` — the commit carrying the tenth-round
+  corrections to migration **0067** (STRICT-CANONICAL search_path predicate at all four sites; the
+  COMPLETE-snapshot item guard incl. NULL-`line_total` and quotation-currency match; the cascade-trust
+  ownership assertion), the app pricing-flow mirror (`refreshQuotationStatus` / `priceQuotation` /
+  `resolvePriceConfirmation` in `src/lib/quotations.ts`), the extended integration suites
+  (`search-path-safety.test.ts` 10 tests, `wp12-enqueue-item-race.test.ts` 13 tests,
+  `wp12-snapshot-boundary.test.ts` +1 cascade pin), the strict-canonical hosted check + hardening
+  scripts, and docs. (A commit cannot embed its own hash; this SHA is stamped by the immediately
+  following commit on the branch tip.)
+- **Prior content commits:** ninth review `6b7b6f5` (adversarial-pass corrections to 0067; stamped by
+  `3991384`) and pre-adversarial-fix `87528d5` (initial 0067); eighth review `9c51b2c` (migration 0066 + snapshot/delete-boundary +
   search_path/pg_temp hardening + message_outbox freeze + tests + docs);
   seventh review `5e5f42a` (migration 0065 + claim/INSERT-boundary tests + docs);
   sixth review `6af1bae` (migration 0064 + real-role adversarial test + docs);
@@ -148,8 +157,8 @@ Database gates (disposable PostgreSQL 16 + Supabase-compat shim):
 
 | Path | Result |
 |---|---|
-| Fresh DB — `npm run migrate` `0001→0067` then `npm run test:integration` | pass — **41 files / 317 tests** (incl. the 0067 owner-agnostic search-path gate + gate-discrimination proofs + cross-domain pg_temp adversarial suite; the 0067 enqueue-vs-item race suite — both commit orders, the deterministic AB-BA-window no-deadlock proof, delete-to-zero → `stale`, unpriced late item → `stale`, raw no-claims service_role 42501; the 0066 snapshot-boundary suite — signature-exact owner check vs a fake `enqueue_quotation_outbox(int)` overload, DELETE boundary across authenticated/service_role/custom, frozen quotation + `quotation_items`, and a GENUINE two-connection claim-vs-delete/mutate race — the 0065 claim + INSERT-boundary suites, the 0064 delivery-boundary suite, the 0063 atomic-enqueue two-connection races, and the 0062 signature-exact allowlist + 42501 suite) |
-| Upgrade path — staged at `0058` + representative legacy data (a company-consistent approval request+event in a **catalogue** currency `LKR` **and** one in a **non-catalogue** currency `XYZ`, a queued quotation with a **sent** outbox row, and a `ready` quotation), then `0059→0067` applied | pass — **41 files / 317 tests**; the composite FKs (0060) VALIDATE over the legacy data, the `LKR` event **approves**, the `XYZ` event **fails closed**, the legacy sent-outbox **reconciles**, the 0062 lockdown holds, a stale `ready` quotation row is unclaimable, a direct service-role/custom-role `ready→queued` is refused, a queued quotation is frozen and undeletable, and the legacy `ready` quotation is **atomically enqueued** on the upgraded DB |
+| Fresh DB — `npm run migrate` `0001→0067` then `npm run test:integration` | pass — **41 files / 321 tests** (incl. the 0067 STRICT-canonical owner-agnostic search-path gate + gate-discrimination proofs [foreign-owned unsafe fn, duplicated pg_temp, attacker-writable schema leading a pg_temp-last path] + cross-domain pg_temp adversarial suite; the 0067 enqueue-vs-item race suite — both commit orders, the deterministic AB-BA-window no-deadlock proof, delete-to-zero → `stale`, unpriced late item → `stale`, priced-with-NULL-line_total → `stale`, currency-mismatched priced item → `stale`, raw no-claims service_role 42501 for UPDATE and DELETE; the draft/awaiting_price-with-items cascade-delete regression pin; the 0066 snapshot-boundary suite — signature-exact owner check vs a fake `enqueue_quotation_outbox(int)` overload, DELETE boundary across authenticated/service_role/custom, frozen quotation + `quotation_items`, and a GENUINE two-connection claim-vs-delete/mutate race — the 0065 claim + INSERT-boundary suites, the 0064 delivery-boundary suite, the 0063 atomic-enqueue two-connection races, and the 0062 signature-exact allowlist + 42501 suite) |
+| Upgrade path — staged at `0058` + representative legacy data (a company-consistent approval request+event in a **catalogue** currency `LKR` **and** one in a **non-catalogue** currency `XYZ`, a queued quotation with a **sent** outbox row, and a `ready` quotation), then `0059→0067` applied | pass — **41 files / 321 tests**; the composite FKs (0060) VALIDATE over the legacy data, the `LKR` event **approves**, the `XYZ` event **fails closed**, the legacy sent-outbox **reconciles**, the 0062 lockdown holds, a stale `ready` quotation row is unclaimable, a direct service-role/custom-role `ready→queued` is refused, a queued quotation is frozen and undeletable, and the legacy `ready` quotation is **atomically enqueued** on the upgraded DB |
 
 Each external-review adversarial test was confirmed to **fail against the reviewed tip `509685b`**
 and pass after the correction. Second-review additions: WP15 function-privilege (authenticated →
@@ -161,7 +170,7 @@ vs inconsistent reconciliation (never `already_sent` with `sent=false`); currenc
 `enqueue_outbox_row` RPC** (one `enqueued`, one `duplicate`, exactly one row) — the same RPC the real
 `enqueueOutbox` wrapper invokes (`tests/outbox-enqueue.test.ts`).
 
-Adversarial & concurrency coverage is included in the 317 integration tests: the permanent owner-agnostic search_path gate (proven to catch a foreign-owned unsafe function and a duplicated-`pg_temp` path) + cross-domain pg_temp adversarial suite (capability/company identity cannot be forged via temp memberships/profiles; an approval cannot be forced via a temp approval_requests; journal internals stay service-only + unshadowable) and the genuine two-connection enqueue-vs-item-mutation race — both commit orders, a deterministic AB-BA-window no-deadlock proof, delete-to-zero → `stale`, an unpriced late item → `stale`, and raw no-claims `service_role` refused fail-closed (0067); the signature-exact owner check (a fake `enqueue_quotation_outbox(int)` overload owned by another role cannot flip it), the DELETE boundary (queued/terminal/outbox-history quotations undeletable by non-owners), the frozen queued snapshot (quotation + `quotation_items` immutable to non-owners), and a GENUINE two-connection claim-vs-delete/mutate race (0066); the quotation-aware claim boundary (a stale `ready` row is unclaimable by the service-role drain) and the direct-INSERT boundary + positive-owner allowlist (authenticated, service-role AND a bespoke custom role refused a fabricating INSERT and a privileged UPDATE) (0065); the RPC-only delivery-transition boundary (authenticated + service-role direct writes refused) and exact-payload recovery (0064); the atomic quotation
+Adversarial & concurrency coverage is included in the 321 integration tests: the permanent STRICT-canonical owner-agnostic search_path gate (proven to catch a foreign-owned unsafe function, a duplicated-`pg_temp` path, AND an attacker-writable schema leading a pg_temp-last path) + cross-domain pg_temp adversarial suite (capability/company identity cannot be forged via temp memberships/profiles; an approval cannot be forced via a temp approval_requests; journal internals stay service-only + unshadowable) and the genuine two-connection enqueue-vs-item-mutation race — both commit orders, a deterministic AB-BA-window no-deadlock proof, delete-to-zero → `stale`, an unpriced late item → `stale`, a priced-with-NULL-line_total item → `stale`, a currency-mismatched priced item → `stale`, raw no-claims `service_role` refused fail-closed (UPDATE and DELETE), and the draft/awaiting_price-with-items cascade-delete pin (0067); the signature-exact owner check (a fake `enqueue_quotation_outbox(int)` overload owned by another role cannot flip it), the DELETE boundary (queued/terminal/outbox-history quotations undeletable by non-owners), the frozen queued snapshot (quotation + `quotation_items` immutable to non-owners), and a GENUINE two-connection claim-vs-delete/mutate race (0066); the quotation-aware claim boundary (a stale `ready` row is unclaimable by the service-role drain) and the direct-INSERT boundary + positive-owner allowlist (authenticated, service-role AND a bespoke custom role refused a fabricating INSERT and a privileged UPDATE) (0065); the RPC-only delivery-transition boundary (authenticated + service-role direct writes refused) and exact-payload recovery (0064); the atomic quotation
 enqueue race (two real connections: terminal-vs-enqueue and duplicate-finaliser) + the DB-boundary
 quotation lifecycle trigger (WP12, 0063); SECURITY DEFINER
 service-only lockdown + `42501` direct-call proofs + an allowlist over ALL such functions (WP-sec, 0062);
@@ -530,7 +539,59 @@ fail against the pre-correction 0067 — they discriminate) and
 `tests/integration/search-path-safety.test.ts` (9 — the permanent owner-agnostic gate + gate-discrimination
 proofs + cross-domain pg_temp adversarial).
 
+## 16. Tenth review — the SECOND AND FINAL bounded correction loop
+
+Three findings at head `3991384`; migration 0067 was edited in place after reconfirming (via
+`MIGRATION_STATE.md`: hosted DB at 0038–0041 only, owner-applied 2026-08-07; this process has applied
+nothing hosted) that **0067 has never existed outside disposable databases**.
+
+1. **F1 (BLOCKER) — the gate accepted attacker-controlled schemas.** A pg_temp-last predicate passes
+   `attacker_schema, pg_catalog, public, pg_temp`, and if an API role can CREATE in `attacker_schema`
+   (block 1a only guards `public`/`extensions`), relations resolve there first; a foreign-owned function
+   with that path also passed the owner-agnostic self-verify. Fixed with **STRICT CANONICAL EQUALITY** at
+   all four predicate sites — migration self-verify, permanent gate, hosted check, hosted hardening
+   self-verify: safe iff the parsed path (btrim + strip enclosing identifier quotes per element) is
+   EXACTLY `pg_catalog, extensions, public, pg_temp`. Strict equality subsumes missing-path, `$user`,
+   duplicated-pg_temp and every foreign-schema shape. Evidence: the in-suite gate test plants exactly the
+   finding's shape (attacker-writable schema granted CREATE to `authenticated`, foreign-owned SECDEF fn,
+   pg_temp last) and the gate flags it; the migration-block simulation under a non-superuser role ABORTS
+   naming `atk_path_fn()`; the prior foreign-owner/duplicate-pg_temp discrimination tests still pass;
+   `ALTER … SET search_path` was confirmed to store the exact canonical string the parser compares.
+2. **F2 (BLOCKER) — incomplete item snapshot.** `SUM(line_total)` skips NULL, so a
+   priced-with-NULL-`line_total` item rode an under-counted total (concretely: total 0 with a priced
+   10-unit_price item → enqueued a `LKR 0.00` message); and an item priced in a catalogue currency ≠ the
+   quotation currency passed on numeric equality while the public quotation renders every line in the
+   quotation currency. The enqueue guard now refuses (→ `stale`) ANY incomplete line: `status <>
+   'priced'`, NULL `unit_price`, NULL `line_total`, or `upper(btrim(item.currency))` ≠ the LOCKED
+   quotation currency. Mirrored 1:1 in the app: `refreshQuotationStatus` treats those items as awaiting
+   (fetching the quotation currency; quotation-missing → awaiting), `priceQuotation` auto-prices ONLY
+   from a same-currency catalogue entry — a mismatched match is routed to a HUMAN price confirmation
+   posed in the quotation currency — and `resolvePriceConfirmation` stamps the resolved item to the
+   quotation currency, so a pre-existing mismatched item exits via the human flow instead of sticking.
+   No float anywhere; no conversion of any kind. Discriminating tests (both FAIL against the ninth-round
+   build): NULL-line_total → `stale` + zero rows + still `ready`; LKR quotation with a numerically-equal
+   USD item → `stale` + zero rows; the same-currency control still enqueues; all prior concurrency
+   outcomes unchanged.
+3. **F3 (MATERIAL-predicted) — draft-deletion cascade regression: DOES NOT REPRODUCE.** Attempted first,
+   as instructed, on disposable PostgreSQL 16: an authenticated capability holder's DELETE of a draft
+   quotation WITH an item succeeded. Mechanism (probed live): PostgreSQL executes ON DELETE CASCADE
+   referential actions in the security context of the REFERENCING TABLE'S OWNER — inside the item
+   trigger, `current_user` = the `quotation_items` owner (observed `current_user=postgres`,
+   `pg_trigger_depth()=2`, guard NULL), which IS the trusted delivery owner, so the trusted early-return
+   fires before the fail-closed NULL branch. The trust is non-spoofable: client DML (including a trigger
+   an attacker attaches to their own temp table) always runs as the attacker's `current_user`, never the
+   table owner's — verified by the still-refused no-claims direct UPDATE/DELETE tests. Shipped: a
+   fail-closed migration assertion (2a″) that `quotations`/`quotation_items` owner == the exact 9-arg
+   `enqueue_quotation_outbox` owner (divergence would break legitimate deletes — simulated: re-owning
+   `quotation_items` ABORTS naming table+owners), and regression tests pinning draft AND awaiting_price
+   deletes WITH items (parent + children gone) alongside the unchanged frozen-parent / cross-company /
+   no-claims refusals.
+
+A final adversarial review focused only on these three corrections was launched against this exact
+working tree as the loop's last step, per the tenth review's instruction; its verdict is recorded in the
+dated note at the end of the corrections ledger.
+
 _Phase status: **verified on disposable PostgreSQL 16 (fresh 0001→0067 + upgrade 0058→0067 with legacy
 data); not fully verified on hosted infrastructure** (no staging/production application; GitHub Actions
-obtained no runner). Nine external reviews returned CHANGES REQUESTED; all corrected. **Awaiting the
-final external review — STOP.**_
+obtained no runner). Ten external reviews returned CHANGES REQUESTED; all corrected within the two
+permitted bounded loops. **Awaiting the FINAL external approval — STOP.**_

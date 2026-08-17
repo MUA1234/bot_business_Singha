@@ -60,10 +60,12 @@ begin
     n := n + 1;
   end loop;
 
-  -- (2) Self-verify: no residual unsafe signature. Unsafe = path unset, `$user` present, or the FIRST
-  -- occurrence of `pg_temp` not being the FINAL element (resolution uses the first occurrence, so a
-  -- leading pg_temp still wins even when another pg_temp sits at the end). Owner-scoped = the whole
-  -- in-scope set, because guard (0) proved every targeted function shares this single owner.
+  -- (2) Self-verify: no residual signature without EXACTLY the canonical parsed path
+  -- `pg_catalog, extensions, public, pg_temp` (elements compared after trimming whitespace and enclosing
+  -- identifier quotes). Strict equality is deliberate — "pg_temp last" alone would still accept a path
+  -- leading with a non-canonical (possibly attacker-writable) schema, and a duplicated leading pg_temp.
+  -- Owner-scoped = the whole in-scope set, because guard (0) proved every targeted function shares this
+  -- single owner.
   residual := 0;
   for r in
     select p.oid,
@@ -77,9 +79,8 @@ begin
   loop
     sp := r.search_path;
     if sp is null
-       or position('$user' in sp) > 0
-       or (select array_position(a, 'pg_temp') is distinct from cardinality(a)
-             from (select array_agg(btrim(x)) as a
+       or (select a is distinct from array['pg_catalog','extensions','public','pg_temp']
+             from (select array_agg(regexp_replace(btrim(x), '^"([^"]*)"$', '\1')) as a
                      from unnest(string_to_array(substr(sp, 13), ',')) x) t) then
       residual := residual + 1;
     end if;

@@ -182,6 +182,40 @@ describe.skipIf(!enabled)("0067 enqueue vs item-mutation race (live, two connect
     expect(await statusOf(quo)).toBe("ready");
   });
 
+  it("a PRICED item with a NULL line_total blocks enqueue (`stale`): SUM skips NULL, so total 0 would otherwise ride", async () => {
+    // status='priced' + non-null unit_price + NULL line_total — SUM(line_total)=0 equals the stored
+    // total 0, so the pre-correction sum-only check would have enqueued a 0-total message for a priced item.
+    const conv = (await setup.query(`insert into wa_conversations (company_id, customer_wa_id, status) values ($1,$2,'quoting') returning id`, [co, "9471" + rnd()])).rows[0].id;
+    const ord = (await setup.query(`insert into orders (company_id, conversation_id, customer_phone, status) values ($1,$2,'9471','new') returning id`, [co, conv])).rows[0].id;
+    const quo = (await setup.query(`insert into quotations (company_id, order_id, quote_number, currency, status, total, public_token) values ($1,$2,$3,'LKR','ready','0',$4) returning id`, [co, ord, "SQ-" + rnd(), "tok_" + rnd()])).rows[0].id;
+    await setup.query(`insert into quotation_items (quotation_id, company_id, description, quantity, unit_price, currency, status) values ($1,$2,'nullline',1,'10','LKR','priced')`, [quo, co]);
+    const key = "k_" + rnd();
+    const r = await cA.query(ENQ, [co, quo, key, "0"]);
+    expect(r.rows[0].v).toBe("stale"); // incomplete snapshot line (NULL line_total) → refuse
+    expect(await rowsFor(key)).toBe(0);
+    expect(await statusOf(quo)).toBe("ready");
+  });
+
+  it("a priced item in a DIFFERENT currency blocks enqueue (`stale`) even when the numeric sum matches", async () => {
+    // LKR quotation, USD item whose line_total numerically equals the stored total — the public
+    // quotation would render 'LKR 100.00' for a USD-priced line; it must never send.
+    const conv = (await setup.query(`insert into wa_conversations (company_id, customer_wa_id, status) values ($1,$2,'quoting') returning id`, [co, "9471" + rnd()])).rows[0].id;
+    const ord = (await setup.query(`insert into orders (company_id, conversation_id, customer_phone, status) values ($1,$2,'9471','new') returning id`, [co, conv])).rows[0].id;
+    const quo = (await setup.query(`insert into quotations (company_id, order_id, quote_number, currency, status, total, public_token) values ($1,$2,$3,'LKR','ready','100',$4) returning id`, [co, ord, "SQ-" + rnd(), "tok_" + rnd()])).rows[0].id;
+    await setup.query(`insert into quotation_items (quotation_id, company_id, description, quantity, unit_price, currency, line_total, status) values ($1,$2,'usd',1,'100','USD','100','priced')`, [quo, co]);
+    const key = "k_" + rnd();
+    const r = await cA.query(ENQ, [co, quo, key, "100"]);
+    expect(r.rows[0].v).toBe("stale"); // currency-mismatched line → refuse (no conversion, no float)
+    expect(await rowsFor(key)).toBe(0);
+    expect(await statusOf(quo)).toBe("ready");
+    // and the valid same-currency shape still enqueues (control)
+    const { quo: quoOk } = await seedReadyWithItems(co, "100", ["100"]);
+    const keyOk = "k_" + rnd();
+    expect((await cA.query(ENQ, [co, quoOk, keyOk, "100"])).rows[0].v).toBe("enqueued");
+    expect(await rowsFor(keyOk)).toBe(1);
+    expect(await statusOf(quoOk)).toBe("queued");
+  });
+
   it("FAIL CLOSED: a raw service_role session with NO JWT claims cannot mutate quotation_items in any status (42501)", async () => {
     // BYPASSRLS + no claims = the caller the guard cannot classify; 0066 treated the NULL guard result as
     // "not frozen" (silent bypass of the queued freeze). 0067 refuses it outright — queued AND pre-queue.
@@ -201,6 +235,12 @@ describe.skipIf(!enabled)("0067 enqueue vs item-mutation race (live, two connect
       try { await cC.query(`update quotation_items set line_total='99' where id=$1 and company_id=$2`, [itemIds[0], co]); }
       catch (e) { postQueue = (e as { code?: string }).code; }
       expect(postQueue).toBe("42501"); // the 0066 fail-open path (NULL → skip freeze) is closed
+      // and a direct item DELETE by the same unclassifiable session is refused too (NOT waved through
+      // like the authorised parent cascade, which runs as the table owner — a different current_user)
+      let delCode: string | undefined;
+      try { await cC.query(`delete from quotation_items where id=$1 and company_id=$2`, [itemIds[0], co]); }
+      catch (e) { delCode = (e as { code?: string }).code; }
+      expect(delCode).toBe("42501");
       expect((await setup.query(`select line_total from quotation_items where id=$1`, [itemIds[0]])).rows[0].line_total).toBe("30.00");
     } finally {
       await cC.end().catch(() => {});

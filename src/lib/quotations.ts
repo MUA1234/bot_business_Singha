@@ -74,6 +74,12 @@ function formatMoney(total: string | number | null | undefined): string {
   return `${int.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${frac}`;
 }
 
+// Currency comparison used for item completeness — trim (char(3) padding) + case only. Deliberately NO
+// conversion of any kind: two currencies either match or the item goes to the human pricing flow.
+function normalizeCurrency(c: string | null | undefined): string {
+  return String(c ?? "").trim().toUpperCase();
+}
+
 /**
  * Create an order + quotation + items from a captured request, then price it.
  * Returns the quotation id and whether it is fully priced (ready) or awaiting a
@@ -149,6 +155,16 @@ export async function priceQuotation(
 ): Promise<boolean> {
   const db = supabaseAdmin();
 
+  // The quotation's currency governs the whole document: the public quotation renders every item in it,
+  // and the enqueue guard (migration 0067) refuses any item whose currency disagrees with it.
+  const { data: quo } = await db
+    .from("quotations")
+    .select("currency")
+    .eq("id", quotationId)
+    .eq("company_id", companyId)
+    .single();
+  const qCurrency = normalizeCurrency(quo?.currency);
+
   const { data: catalog } = await db
     .from("product_catalog")
     .select("id, name, unit_price, currency")
@@ -170,13 +186,16 @@ export async function priceQuotation(
       return name && (desc === name || desc.includes(name) || name.includes(desc));
     });
 
-    if (match) {
+    // Auto-price ONLY from a catalogue entry in the QUOTATION's currency. A price in any other
+    // currency is NOT copied (no implicit conversion — that would silently misprice the document);
+    // it is routed to a human price confirmation in the quotation's currency instead.
+    if (match && normalizeCurrency(match.currency) === qCurrency && qCurrency !== "") {
       const line = new Decimal(match.unit_price).times(it.quantity || 1).toFixed(2);
       await db
         .from("quotation_items")
         .update({
           unit_price: match.unit_price,
-          currency: match.currency,
+          currency: qCurrency,
           line_total: line,
           status: "priced",
           catalog_id: match.id,
@@ -184,7 +203,8 @@ export async function priceQuotation(
         .eq("id", it.id)
         .eq("company_id", companyId);
     } else {
-      // Ensure a single open confirmation for this item.
+      // Ensure a single open confirmation for this item — priced in the QUOTATION currency (that is
+      // the currency the confirmed number will be used in; the item's own stale currency is not shown).
       const { data: existing } = await db
         .from("price_confirmations")
         .select("id")
@@ -199,7 +219,7 @@ export async function priceQuotation(
           department: routeDepartment,
           description: it.description,
           quantity: it.quantity || 1,
-          currency: it.currency ?? "LKR",
+          currency: qCurrency || (it.currency ?? "LKR"),
           status: "open",
         });
       }
@@ -219,13 +239,34 @@ export async function priceQuotation(
  */
 export async function refreshQuotationStatus(companyId: string, quotationId: string): Promise<boolean> {
   const db = supabaseAdmin();
+  // The quotation currency is part of item completeness: an item priced in a different currency (e.g. a
+  // catalogue currency copied before this rule existed) must NOT count as ready — the public quotation
+  // renders every item in the quotation currency, and the enqueue guard (0067) refuses the mismatch.
+  const { data: quo } = await db
+    .from("quotations")
+    .select("currency")
+    .eq("id", quotationId)
+    .eq("company_id", companyId)
+    .single();
+  if (!quo) return true; // quotation gone (concurrent delete) → nothing to mark ready; treat as awaiting
+  const qCurrency = normalizeCurrency(quo.currency);
+
   const { data: items } = await db
     .from("quotation_items")
-    .select("unit_price, line_total, status")
+    .select("unit_price, line_total, status, currency")
     .eq("quotation_id", quotationId)
     .eq("company_id", companyId);
 
-  const awaiting = (items ?? []).some((i: any) => i.status !== "priced" || i.unit_price == null);
+  // COMPLETE item = priced + non-null unit_price + non-null line_total + quotation-currency match.
+  // Anything less keeps the quotation in `awaiting_price` (the human pricing flow) — mirrored 1:1 by the
+  // DB-level enqueue guard, which returns `stale` for the same conditions (no float, no conversion).
+  const awaiting = (items ?? []).some(
+    (i: any) =>
+      i.status !== "priced" ||
+      i.unit_price == null ||
+      i.line_total == null ||
+      normalizeCurrency(i.currency) !== qCurrency,
+  );
   let subtotal = new Decimal(0);
   for (const i of items ?? []) if (i.line_total != null) subtotal = subtotal.plus(i.line_total);
 
@@ -437,10 +478,25 @@ export async function resolvePriceConfirmation(input: {
     .eq("company_id", input.companyId)
     .single();
 
+  // The human confirms the price in the QUOTATION's currency (that is how the confirmation was posed and
+  // how the public quotation renders the line), so the resolution stamps the item to that currency — a
+  // stale catalogue-copied currency would otherwise keep the quotation out of `ready` forever.
+  const { data: quoForCurrency } = await db
+    .from("quotations")
+    .select("currency")
+    .eq("id", conf.quotation_id)
+    .eq("company_id", input.companyId)
+    .single();
+
   const line = new Decimal(input.resolvedPrice).times(item?.quantity || 1).toFixed(2);
   await db
     .from("quotation_items")
-    .update({ unit_price: input.resolvedPrice, line_total: line, status: "priced" })
+    .update({
+      unit_price: input.resolvedPrice,
+      line_total: line,
+      status: "priced",
+      ...(quoForCurrency?.currency ? { currency: normalizeCurrency(quoForCurrency.currency) } : {}),
+    })
     .eq("id", conf.quotation_item_id)
     .eq("company_id", input.companyId);
 

@@ -710,7 +710,7 @@ was REFUTED empirically before closing: PostgreSQL never resolves FUNCTION names
 only relations and types — so a planted `pg_temp.digest(text,text)` is not reachable from an unqualified
 call (probe: constant-`\x00` temp digest planted; the helper still returned the true SHA-256).
 
-## Verification (disposable PostgreSQL 16, this session)
+## Verification (ninth round, disposable PostgreSQL 16 — superseded by the tenth-round table below)
 
 | Gate | Result |
 |---|---|
@@ -726,12 +726,80 @@ call (probe: constant-`\x00` temp digest planted; the helper still returned the 
 | 0067 fail-closed simulations (scratch DBs) | foreign-owned unsafe fn + non-superuser migration role → ABORT naming `foreign_unsafe()`; owner-role granted → hardened, clean pass; `authenticated` granted membership in a CREATE-holding role → ABORT naming the SET ROLE path |
 | hosted hotfix (0041-staged disposable DB) | EXECUTE: exposure before (`exposed=t`, 3 functions) → locked after (`still_exposed=0`, COMMIT); simulated residual → RAISE + ROLLBACK. search_path (re-run with the first-occurrence predicate): 19/19 unsafe before (+ a planted poisoned `pg_temp,…,pg_temp` path flagged → 20/20) → 0 after with COMMIT; a planted second-owner fn → ABORT + ROLLBACK, unsafe count unchanged |
 
-_Numbers above are the **ninth review increment** (integration branch, migrations 0048–0067).
-Earlier rounds — eighth (0066, 39 files / 297 tests, unit 419); seventh (0065, 38 files / 267 tests, unit 419); sixth (0064, 37 files / 224 tests, unit 419); fifth (0063, 36 files / 207 tests, unit
-419); fourth (0062, 35 files / 190 tests, unit 426); third (0061, 34 files / 182 tests, unit 420); second
-(0060, 34 files / 180 tests, unit 410); first (0058, 33 files / 173 tests, unit 405); first pass (0055,
-unit 374) — are superseded. **GitHub Actions obtained no runner on any run**; all evidence is local
-disposable PostgreSQL 16 — no CI-pass is claimed._
+## Tenth external review — the SECOND AND FINAL bounded correction loop (0067 edited in place)
+
+Verdict at head `3991384`: CHANGES REQUESTED, three findings. Precondition satisfied first: 0067 was
+reconfirmed **never applied outside disposable databases** (hosted at 0038–0041 only, owner-applied
+2026-08-07; nothing hosted by this process) → edited in place, no 0068.
+
+1. **F1 (BLOCKER) — gate accepted attacker-controlled schemas.** The pg_temp-last predicate passed
+   `attacker_schema, pg_catalog, public, pg_temp`; with CREATE on `attacker_schema` granted to an API
+   role (1a guards only `public`/`extensions`), relations resolve from the attacker schema first, and a
+   foreign-owned function with that path also slid through the owner-agnostic self-verify. FIX: STRICT
+   CANONICAL EQUALITY at all four sites — 0067 (1b) self-verify, `search-path-safety.test.ts`,
+   `hosted_secdef_searchpath_check.sql`, `hosted_secdef_searchpath_hardening.sql` — safe iff the parsed
+   path (btrim + strip enclosing identifier quotes) is EXACTLY `pg_catalog, extensions, public, pg_temp`
+   (subsumes missing-path/`$user`/duplicated-pg_temp/foreign-schema at once). Evidence: the permanent
+   gate plants the exact finding shape (schema with CREATE granted to `authenticated`, foreign-owned
+   SECDEF fn, pg_temp last) and flags it; the (1b) simulation under a non-superuser role ABORTS naming
+   `atk_path_fn()`; both prior discrimination tests (foreign-owner `search_path=public`, duplicated
+   pg_temp) still flag; `ALTER … SET` confirmed to store the exact string the parser compares.
+2. **F2 (BLOCKER) — incomplete item snapshot.** `SUM(line_total)` skips NULL (a priced item with NULL
+   `line_total` rode an under-counted total — e.g. total 0 enqueued `LKR 0.00` for a priced item), and a
+   catalogue-copied item currency ≠ the quotation currency passed on numeric equality while the public
+   quotation renders lines in the quotation currency. FIX (DB): the enqueue guard refuses (→ `stale`) any
+   item with `status <> 'priced'`, NULL `unit_price`, NULL `line_total`, or
+   `upper(btrim(currency))` ≠ the LOCKED quotation currency. FIX (app, mirrored 1:1, no float, no
+   conversion): `refreshQuotationStatus` treats exactly those items as awaiting (fetches the quotation
+   currency; missing quotation → awaiting); `priceQuotation` auto-prices ONLY from a same-currency
+   catalogue entry — a mismatched match goes to a HUMAN price confirmation posed in the quotation
+   currency; `resolvePriceConfirmation` stamps the resolved item to the quotation currency, so a
+   pre-existing mismatched item exits via the human flow (no stuck state). Discriminating tests (both
+   FAIL on the ninth-round build): priced+NULL-line_total+total-0 → `stale`/0 rows/still `ready`; LKR
+   quotation + numerically-equal USD item → `stale`/0 rows; same-currency control enqueues; concurrency
+   outcomes unchanged.
+3. **F3 (predicted MATERIAL regression) — DOES NOT REPRODUCE.** Reproduction was attempted FIRST, as
+   instructed: on disposable PostgreSQL 16, a capability holder's DELETE of a draft quotation WITH an
+   item SUCCEEDED. Probed mechanism: Postgres runs ON DELETE CASCADE referential actions as the
+   REFERENCING TABLE'S OWNER (observed in-trigger: `current_user=postgres`, `pg_trigger_depth()=2`,
+   guard NULL yet unreached) — the owner IS the trusted delivery owner, so the trusted branch precedes
+   the fail-closed NULL branch. Non-spoofable: client DML (incl. attacker temp-table triggers) never
+   acquires the table owner's `current_user` (pinned by the still-refused no-claims direct UPDATE/DELETE
+   tests). SHIPPED: fail-closed 0067 assertion (2a″) that `quotations`/`quotation_items` owner == the
+   exact 9-arg `enqueue_quotation_outbox` owner (simulated divergence ABORTS naming table+owners), and
+   the demanded regression pins — draft AND awaiting_price quotations WITH items deleted by the
+   capability holder (parent + children), frozen-parent/cross-company/no-claims refusals unchanged.
+
+Final focused adversarial review (this loop): launched against this exact working tree as the last step
+of the loop; its verdict is recorded in the dated note appended at the end of this file (a follow-up
+docs-only commit, since the review ran concurrently with final verification).
+
+## Verification (tenth round, disposable PostgreSQL 16, this session)
+
+| Gate | Result |
+|---|---|
+| `git diff --check` | pass |
+| `npm run secret-scan` | pass |
+| `npm run migration-lint` | pass — **67 migrations, sequential 0001–0067** |
+| `npm run typecheck` | pass |
+| `npm run lint` | pass (0 errors; pre-existing `<img>` warnings only) |
+| `npm test` (unit) | pass — **419 (79 files)** (the `priceQuotation`/`refreshQuotationStatus`/`resolvePriceConfirmation` changes break nothing) |
+| `npm run audit-check` | pass (2 approved exceptions) |
+| `npm run build` | pass |
+| Targeted discrimination vs the ninth-round build | exactly the 2 new F2 tests FAIL there (NULL-line_total; USD item); the F1 gate flags the planted attacker-schema shape; all 4 ninth-round discriminators still fail there |
+| `npm run test:integration` — **fresh** 0001→0067 | pass — **41 files / 321 tests** |
+| `npm run test:integration` — **upgrade** 0058(+legacy)→0067 | pass — **41 files / 321 tests** |
+| 0067 fail-closed simulations | attacker-schema pg_temp-last fn (non-superuser) → ABORT naming `atk_path_fn()`; foreign-owner `search_path=public` → ABORT naming it; membership-granted owner → hardened, clean pass; SET-ROLE-reachable CREATE → ABORT naming the path; `quotation_items` re-owned → 2a″ ABORT naming table+owners; aligned state → pass |
+| hosted search-path scripts (0041-staged, STRICT predicate) | before **19/19 unsafe**; + planted attacker-schema fn + second-owner fn → check flags both (21/21); hardening → ABORT+ROLLBACK on multi-owner, count unchanged; after dropping the second owner → COMMIT, 20 pinned (incl. the attacker-schema fn re-pinned) → final **0/20** |
+| 0041 EXECUTE privilege hotfix (0041-staged) | before: service-only functions exposed; `hosted_secdef_emergency_revoke.sql` → COMMIT; after: service-only set `exposed = f` (3/3) while the intended-API RLS helpers keep authenticated EXECUTE by design; a re-granted service-only fn is re-closed idempotently on a second run (COMMIT → exposed back to 0) |
+
+_Numbers above are the **tenth review increment** (integration branch, migrations 0048–0067).
+Earlier rounds — ninth (0067 initial+adversarial pass, 41 files / 317 tests, unit 419); eighth (0066, 39
+files / 297 tests, unit 419); seventh (0065, 38 files / 267 tests, unit 419); sixth (0064, 37 files / 224
+tests, unit 419); fifth (0063, 36 files / 207 tests, unit 419); fourth (0062, 35 files / 190 tests, unit
+426); third (0061, 34 files / 182 tests, unit 420); second (0060, 34 files / 180 tests, unit 410); first
+(0058, 33 files / 173 tests, unit 405); first pass (0055, unit 374) — are superseded. **GitHub Actions
+obtained no runner on any run**; all evidence is local disposable PostgreSQL 16 — no CI-pass is claimed._
 
 Toolchain: Node v22.22.2, npm 10.9.7, PostgreSQL 16.13. No hosted migration applied; no feature flag
 enabled.

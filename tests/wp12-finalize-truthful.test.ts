@@ -89,7 +89,7 @@ function seed(status: string, opts: { priced?: boolean; outbox?: string; total?:
   H.box.store = {
     quotations: { q1: { id: "q1", company_id: "co", quote_number: "SQ-1", currency: "LKR", total: opts.total ?? 100, status, public_token: "tok", order_id: "o1" } },
     orders: { o1: { id: "o1", company_id: "co", customer_phone: "94711", customer_name: "C", conversation_id: "cv1" } },
-    items: [{ quotation_id: "q1", company_id: "co", unit_price: priced ? 100 : null, line_total: priced ? 100 : null, status: priced ? "priced" : "needs_confirmation" }],
+    items: [{ quotation_id: "q1", company_id: "co", unit_price: priced ? 100 : null, line_total: priced ? 100 : null, status: priced ? "priced" : "needs_confirmation", currency: "LKR" }],
     message_outbox: {} as any,
   };
   if (opts.outbox) H.box.store.message_outbox[OB_KEY] = { id: OB_KEY, company_id: "co", idempotency_key: OB_KEY, source_type: "quotation", source_id: "q1", status: opts.outbox };

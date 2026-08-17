@@ -32,13 +32,17 @@
 --         enqueue commits `queued` — is refused 42501 by the freeze guard (READ COMMITTED re-evaluation).
 --     (b) `enqueue_quotation_outbox`, under that parent lock, requires — UNCONDITIONALLY, on the `ready`
 --         path — the caller's expected total to equal the authoritative live SUM(line_total) of the
---         quotation's items, and refuses (also `stale`) if ANY item is unpriced (`status <> 'priced'` or
---         NULL `unit_price` — exactly the predicate `refreshQuotationStatus` uses to keep a quotation out
---         of `ready`). There is NO item-count exemption: deleting ALL items of a `ready` quotation makes
---         the live sum 0, which no longer matches a non-zero expected total → `stale` (the pre-submission
---         adversarial pass showed the earlier `v_item_count > 0` guard let a delete-to-zero race ship a
---         customer-facing total backed by zero items). A quotation that never had items enqueues only with
---         an expected total of 0 — the degenerate seed case, impossible for a real priced quotation.
+--         quotation's items, and refuses (also `stale`) if ANY item is an incomplete snapshot line:
+--         `status <> 'priced'`, NULL `unit_price`, NULL `line_total` (SUM silently skips NULL — a priced
+--         item with a NULL line_total would ride an under-counted total), or a currency different from
+--         the LOCKED quotation currency (the public quotation renders every line in the quotation
+--         currency; a numeric match in the wrong currency must never send) — exactly the completeness
+--         predicate `refreshQuotationStatus` uses to keep a quotation out of `ready`. There is NO
+--         item-count exemption: deleting ALL items of a `ready` quotation makes the live sum 0, which no
+--         longer matches a non-zero expected total → `stale` (the pre-submission adversarial pass showed
+--         the earlier `v_item_count > 0` guard let a delete-to-zero race ship a customer-facing total
+--         backed by zero items). A quotation that never had items enqueues only with an expected total
+--         of 0 — the degenerate seed case, impossible for a real priced quotation.
 --     Numeric/Decimal correctness is preserved (all DB numeric; no float). enqueue keeps its exact
 --     signature, SECURITY DEFINER owner, hardened search_path, service-role-only EXECUTE, and every existing
 --     result/exact-payload-recovery semantic.
@@ -116,7 +120,19 @@ grant execute on function public._quotation_status_for_guard(uuid,uuid) to publi
 -- Now: the trusted owner is exempt as before; a caller the guard cannot vouch for is refused ANY
 -- quotation_items write regardless of parent status (PostgREST paths always carry claims; owner
 -- maintenance is exempt; nothing legitimate is lost). Same body otherwise; schema-qualified;
--- pg_temp-pinned to the 0067 standard path.
+-- pg_temp-pinned to the canonical path.
+--
+-- CASCADE-DELETE COMPATIBILITY (verified on live PostgreSQL 16): deleting a quotation (an authorised
+-- pre-queue delete that already passed `quotations_enforce_delete_boundary`) cascades to its items via
+-- the `quotation_items.quotation_id … ON DELETE CASCADE` FK. PostgreSQL executes referential-action
+-- queries in the security context of the REFERENCING TABLE'S OWNER (`current_user` becomes the
+-- `quotation_items` owner inside this trigger; observed empirically: current_user=owner,
+-- pg_trigger_depth()=2, guard=NULL), so the cascade takes the trusted-owner branch below and the
+-- fail-closed NULL branch is never reached for it — parent AND items delete cleanly. This trust is
+-- NON-SPOOFABLE: client-initiated DML (including a trigger an attacker attaches to their own temp
+-- table) always runs with the attacker's `current_user`, never the table owner's. The invariant the
+-- trust rests on — quotations/quotation_items owner == the delivery-function owner — is ASSERTED
+-- fail-closed in (2a″) below.
 -- ─────────────────────────────────────────────────────────────────────────────
 create or replace function public.quotation_items_enforce_frozen()
 returns trigger language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$   -- SECURITY INVOKER
@@ -151,8 +167,37 @@ begin
 end $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- (2a″) FAIL CLOSED: pin the ownership invariant the cascade trust (2a′) rests on. The authorised
+-- quotations→quotation_items ON DELETE CASCADE is exempt from the fail-closed freeze ONLY because the RI
+-- action runs as the `quotation_items` table owner and that owner IS the trusted delivery owner
+-- (`_is_quotation_delivery_owner()` resolves the owner of the exact 9-arg `enqueue_quotation_outbox`).
+-- If either table were ever re-owned away from the delivery-function owner, the cascade would stop being
+-- trusted and every legitimate draft/awaiting_price delete of an itemised quotation would fail 42501.
+-- Refuse to record this migration as applied in that state.
+-- ─────────────────────────────────────────────────────────────────────────────
+do $$
+declare fn_owner oid; t regclass; t_owner oid;
+begin
+  select p.proowner into fn_owner
+    from pg_catalog.pg_proc p
+   where p.oid = pg_catalog.to_regprocedure(
+     'public.enqueue_quotation_outbox(uuid,uuid,text,text,text,numeric,text,text,text)');
+  if fn_owner is null then
+    raise exception '0067 fail-closed: the exact 9-arg public.enqueue_quotation_outbox is missing — WP12 delivery state is inconsistent';
+  end if;
+  foreach t in array array['public.quotations'::regclass, 'public.quotation_items'::regclass] loop
+    select c.relowner into t_owner from pg_catalog.pg_class c where c.oid = t;
+    if t_owner is distinct from fn_owner then
+      raise exception '0067 fail-closed: % is owned by % but the delivery functions are owned by % — the authorised ON DELETE CASCADE would no longer run as the trusted owner (the fail-closed freeze would refuse legitimate pre-queue deletes). Align ownership before applying.',
+        t, t_owner::regrole, fn_owner::regrole;
+    end if;
+  end loop;
+end $$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- (2b) enqueue_quotation_outbox: add the authoritative item-state guard. Replaces the 0064 body; the ONLY
--- behavioural additions are the item-row lock + itemised-total validation on the `ready` path. Every other
+-- behavioural addition is the item-snapshot validation on the `ready` path (no item-row locks — see the
+-- Correction 2 header for why locking child rows here would deadlock). Every other
 -- result and the EXACT-payload recovery are preserved verbatim. Schema-qualified + pg_temp-pinned.
 -- ─────────────────────────────────────────────────────────────────────────────
 create or replace function public.enqueue_quotation_outbox(
@@ -164,7 +209,7 @@ declare
   v_status text; v_total numeric; v_currency text;
   v_company uuid; v_src_type text; v_src_id uuid; v_n int;
   v_channel text; v_recipient text; v_body text; v_purpose text; v_found boolean;
-  v_item_unpriced int; v_item_total numeric;
+  v_item_bad int; v_item_total numeric;
 begin
   -- Linearization point: lock the company-scoped quotation row (parent BEFORE child items).
   select status, total, currency into v_status, v_total, v_currency
@@ -205,17 +250,25 @@ begin
   --
   -- UNCONDITIONAL: the expected total must equal the live SUM(line_total) — there is NO item-count
   -- exemption (deleting ALL items leaves sum 0, which cannot match a non-zero total → `stale`; a
-  -- never-itemised quotation enqueues only at total 0, the degenerate case). And NO item may be unpriced
-  -- (same predicate `refreshQuotationStatus` uses to hold a quotation out of `ready`): an item slipped in
-  -- after the price refresh but before this call must re-enter the pricing flow, not ride an old body.
+  -- never-itemised quotation enqueues only at total 0, the degenerate case). And EVERY item must be a
+  -- COMPLETE snapshot line (the same completeness predicate `refreshQuotationStatus` uses to hold a
+  -- quotation out of `ready`): `status = 'priced'`, non-null `unit_price`, non-null `line_total`
+  -- (SUM silently ignores NULL — a priced-with-NULL-line_total item would otherwise ride an
+  -- under-counted total), and a currency equal to the LOCKED quotation currency (the public quotation
+  -- renders every line in the quotation currency; the catalogue-pricing path historically could copy a
+  -- catalogue currency onto an item — a numeric match in the wrong currency must never send). Anything
+  -- incomplete must re-enter the pricing flow, not ride an old body. No float; no conversion.
   -- NOTE (forward-risk): `quotations.tax_amount` is currently a dormant column (never set non-zero); if
   -- tax is ever wired so `total = subtotal + tax`, this check must compare `p_expected_total` against
   -- `subtotal` (or `SUM(line_total) + tax`), not the bare item sum.
-  select count(*) filter (where status is distinct from 'priced' or unit_price is null),
+  select count(*) filter (where status is distinct from 'priced'
+                             or unit_price is null
+                             or line_total is null
+                             or upper(btrim(currency)) is distinct from upper(btrim(v_currency))),
          coalesce(sum(line_total), 0)
-    into v_item_unpriced, v_item_total
+    into v_item_bad, v_item_total
     from public.quotation_items where quotation_id = p_quotation and company_id = p_company;
-  if v_item_unpriced > 0 or p_expected_total is distinct from v_item_total then
+  if v_item_bad > 0 or p_expected_total is distinct from v_item_total then
     return 'stale';
   end if;
 
@@ -292,12 +345,16 @@ end $$;
 -- different owner (e.g. the hosted 0038–0041 functions applied via the SQL editor) while the disposable
 -- CI database, where one session owns everything, still reported success.
 --
--- SELF-VERIFY (owner-agnostic, fail-closed): after the loop, NO non-extension SECURITY DEFINER / trigger
--- function in `public` may remain with an unsafe path, REGARDLESS of owner — unsafe = no search_path, a
--- `$user` entry, or `pg_temp` whose FIRST occurrence is not the final element (a leading `pg_temp` wins
--- resolution even if another `pg_temp` sits at the end). Any residual aborts the migration and names the
--- functions — the owner then applies docs/architecture-v2/hosted_secdef_searchpath_hardening.sql as the
--- true owner. A silent partial hardening is thereby impossible.
+-- SELF-VERIFY (owner-agnostic, fail-closed): after the loop, EVERY non-extension SECURITY DEFINER /
+-- trigger function in `public` — REGARDLESS of owner — must carry EXACTLY the canonical parsed path
+-- `pg_catalog, extensions, public, pg_temp` (elements compared after trimming whitespace and identifier
+-- quotes). Anything else aborts the migration naming the function(s). This is deliberately STRICTER than
+-- "pg_temp last": a pg_temp-last path can still lead with an attacker-writable schema
+-- (`attacker_schema, pg_catalog, public, pg_temp`) that wins relation resolution — the fail-closed CREATE
+-- check in (1a) guards only the canonical trusted schemas, so ONLY the canonical path is acceptable. It
+-- also subsumes the `$user` and duplicated-pg_temp cases (neither can equal the canonical array). The
+-- owner then applies docs/architecture-v2/hosted_secdef_searchpath_hardening.sql as the true owner for
+-- anything this session could not alter. A silent partial hardening is thereby impossible.
 --
 -- Path-order note (reviewed): `extensions` precedes `public` so pgcrypto et al. resolve for finance
 -- fingerprints; an extension object can therefore shadow a like-named `public` relation inside hardened
@@ -323,7 +380,8 @@ begin
   end loop;
   raise notice '0067: hardened search_path (pg_catalog, extensions, public, pg_temp) on % application SECURITY DEFINER / trigger function(s)', n;
 
-  -- Owner-agnostic residual check: fail closed if ANY in-scope function is still unsafe.
+  -- Owner-agnostic residual check: fail closed unless EVERY in-scope function carries EXACTLY the
+  -- canonical parsed path (trim whitespace + strip enclosing identifier quotes per element).
   select string_agg(sig, ', ' order by sig) into bad
   from (
     select p.oid::regprocedure::text as sig,
@@ -337,13 +395,12 @@ begin
   ) f
   cross join lateral (
     select case when f.sp is null then null
-                else (select array_agg(btrim(x)) from unnest(string_to_array(substr(f.sp, 13), ',')) x) end as elems
+                else (select array_agg(regexp_replace(btrim(x), '^"([^"]*)"$', '\1'))
+                        from unnest(string_to_array(substr(f.sp, 13), ',')) x) end as elems
   ) e
-  where f.sp is null
-     or f.sp like '%$user%'
-     or e.elems is null
-     or array_position(e.elems, 'pg_temp') is distinct from cardinality(e.elems);
+  where e.elems is null
+     or e.elems is distinct from array['pg_catalog','extensions','public','pg_temp'];
   if bad is not null then
-    raise exception '0067 fail-closed: search_path hardening left unsafe function(s) this session could not alter: %. Apply docs/architecture-v2/hosted_secdef_searchpath_hardening.sql as their owner, then re-run migrations.', bad;
+    raise exception '0067 fail-closed: search_path hardening left function(s) without the exact canonical path (pg_catalog, extensions, public, pg_temp): %. Apply docs/architecture-v2/hosted_secdef_searchpath_hardening.sql as their owner, then re-run migrations.', bad;
   end if;
 end $$;

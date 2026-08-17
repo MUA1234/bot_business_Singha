@@ -95,24 +95,26 @@ DEFINER / trigger function to `pg_catalog, extensions, public, pg_temp`), but un
 hosted DB the already-hosted functions remain shadowable. Two prepared, **not-executed** artifacts:
 
 3. **`hosted_secdef_searchpath_check.sql`** — READ-ONLY. Lists every application SECURITY DEFINER / trigger
-   function in `public` (excluding extension-owned) with its `search_path`, and flags any whose FIRST
-   occurrence of `pg_temp` is not the FINAL element (or that lists `$user`, or has none) — resolution uses
-   the first occurrence, so `pg_temp, …, pg_temp` is unsafe despite ending in `pg_temp`. Safe to run
-   against hosted at any time; mutates nothing.
+   function in `public` (excluding extension-owned) with its `search_path`, and flags any whose parsed
+   path is not EXACTLY the canonical `pg_catalog, extensions, public, pg_temp` (STRICT equality — tenth
+   review: "pg_temp last" alone would still accept a path LEADING with an attacker-writable schema, which
+   wins relation resolution; strict equality also subsumes the missing-path, `$user` and duplicated-pg_temp
+   cases). Safe to run against hosted at any time; mutates nothing.
    *Evidence (disposable PostgreSQL 16 staged at 0041, mirroring the hosted 0038–0041 state):* **19 of 19**
-   application SECURITY DEFINER / trigger functions report `unsafe = true`; a planted poisoned
-   `pg_temp, pg_catalog, public, pg_temp` path is also flagged (→ 20/20).
+   application SECURITY DEFINER / trigger functions report `unsafe = true`; a planted
+   `attacker_x, pg_catalog, public, pg_temp` (pg_temp-last!) path is also flagged.
 4. **`hosted_secdef_searchpath_hardening.sql`** — mutation; **owner approval REQUIRED before execution.**
    Catalog-driven and **self-verifying**: it targets the EXACT `regprocedure` identities present, ABORTS if
    the targeted functions do not share ONE owner or that owner is an API role, alters **only** `search_path`
    (never body/owner/args/return/SECURITY-DEFINER/ACL), then RE-VERIFIES in the same transaction that every
-   targeted signature now passes the same first-occurrence predicate — RAISING (rolling back the whole
-   transaction) on any residual unsafe signature, so a partial hardening can never be committed.
-   *Evidence (0041-staged disposable DB, re-run with the first-occurrence predicate):*
-   before → **19 unsafe** (+1 planted poisoned path → 20); running it → `hosted hardening OK: 20 … pinned;
-   zero residual unsafe` with COMMIT; after → **0 unsafe**; a planted second-owner function makes the
-   owner-consistency guard RAISE `ABORTED: … do not share ONE owner` and ROLL BACK with the unsafe count
-   unchanged (nothing committed). Applying migration **0067** afterwards is a
+   targeted signature now carries EXACTLY the canonical path — RAISING (rolling back the whole
+   transaction) on any residual, so a partial hardening can never be committed.
+   *Evidence (0041-staged disposable DB, re-run with the strict-canonical predicate):*
+   before → **19 unsafe** (+1 planted attacker-schema path → 20/20 with a second-owner plant → 21/21);
+   the second-owner plant makes the owner-consistency guard RAISE `ABORTED: … do not share ONE owner` and
+   ROLL BACK with the unsafe count unchanged (nothing committed); after dropping it → `hosted hardening
+   OK: 20 … pinned; zero residual unsafe` with COMMIT; final check → **0 unsafe / 20** (the planted
+   attacker-schema function re-pinned to canonical). Applying migration **0067** afterwards is a
    no-op on these functions (same end-state).
 
 > Fail-closed note: migration 0067 (and any hosted apply of it) ABORTS if `anon`/`authenticated`/

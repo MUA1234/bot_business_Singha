@@ -85,22 +85,51 @@ describe.skipIf(!enabled)("0067 search_path safety gate + cross-domain pg_temp a
       and (p.prosecdef or p.prorettype='pg_catalog.trigger'::regtype)
       and not exists (select 1 from pg_depend d where d.classid='pg_proc'::regclass and d.objid=p.oid and d.deptype='e')
     order by 1`;
-  // Unsafe = no search_path, `$user` present, or the FIRST occurrence of pg_temp not being the FINAL
-  // element (resolution uses the FIRST occurrence, so `pg_temp, …, pg_temp` is unsafe despite ending
-  // in pg_temp — a last-element-only check would miss it).
+  // STRICT canonical predicate: safe ONLY when the parsed path is EXACTLY
+  //   pg_catalog, extensions, public, pg_temp
+  // (elements trimmed; enclosing identifier quotes stripped). Strictly stronger than "pg_temp last":
+  // a pg_temp-last path can still LEAD with an attacker-writable schema (which wins relation
+  // resolution), and `pg_temp, …, pg_temp` ends in pg_temp while a leading pg_temp still wins.
+  // Exact equality subsumes missing-path, $user, duplicated-pg_temp and foreign-schema cases at once.
+  const CANONICAL = ["pg_catalog", "extensions", "public", "pg_temp"];
   const isUnsafe = (sp: string | null): boolean => {
     if (!sp) return true;
-    if (/\$user/.test(sp)) return true;
-    const list = sp.replace(/^search_path=/, "").split(",").map((s) => s.trim());
-    return list.indexOf("pg_temp") !== list.length - 1;
+    const list = sp
+      .replace(/^search_path=/, "")
+      .split(",")
+      .map((s) => s.trim())
+      .map((s) => s.replace(/^"([^"]*)"$/, "$1"));
+    return list.length !== CANONICAL.length || list.some((s, i) => s !== CANONICAL[i]);
   };
 
   // ── the permanent gate ──
-  it("GATE: every non-extension SECURITY DEFINER / trigger function in public (ANY owner) pins pg_temp last-and-only-last with no $user", async () => {
+  it("GATE: every non-extension SECURITY DEFINER / trigger function in public (ANY owner) carries EXACTLY the canonical search_path", async () => {
     const rows = (await q(GATE_SQL)).rows as Array<{ sig: string; sp: string | null }>;
     expect(rows.length).toBeGreaterThan(30); // sanity: the audit actually found the functions
     const unsafe = rows.filter((r) => isUnsafe(r.sp));
-    expect(unsafe.map((r) => r.sig), `unsafe search_path on: ${unsafe.map((r) => r.sig).join(", ")}`).toEqual([]);
+    expect(unsafe.map((r) => r.sig), `non-canonical search_path on: ${unsafe.map((r) => r.sig).join(", ")}`).toEqual([]);
+  });
+
+  it("GATE catches a foreign-owned function leading with an attacker-writable schema before pg_temp", async () => {
+    await client.query("savepoint atk");
+    try {
+      // an attacker-WRITABLE schema (CREATE granted to the API role) placed FIRST in an otherwise
+      // pg_temp-last path — the exact shape a last-element-only predicate would wrongly accept
+      const foreignOwner = "atk_o_" + rnd();
+      await client.query(`create role ${foreignOwner} nologin`);
+      await client.query(`create schema attacker_schema`);
+      await client.query(`grant create, usage on schema attacker_schema to authenticated`);
+      await client.query(
+        `create function public.__gate_probe_atk() returns int language sql security definer set search_path = attacker_schema, pg_catalog, public, pg_temp as 'select 1'`,
+      );
+      await client.query(`alter function public.__gate_probe_atk() owner to ${foreignOwner}`);
+      const rows = (await client.query(GATE_SQL)).rows as Array<{ sig: string; sp: string | null }>;
+      const probe = rows.find((r) => r.sig.includes("__gate_probe_atk"));
+      expect(probe, "gate population must include the foreign-owned function").toBeDefined();
+      expect(isUnsafe(probe!.sp)).toBe(true); // non-canonical leading schema → flagged despite pg_temp-last
+    } finally {
+      await client.query("rollback to savepoint atk"); // drops role, schema, function
+    }
   });
 
   it("GATE catches a foreign-owned unsafe function (the owner-filter blind spot is closed)", async () => {

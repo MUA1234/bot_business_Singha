@@ -45,7 +45,16 @@ Any AI coding agent (Claude Code, Codex, or other) must follow the same rules.
 > parent FOR UPDATE; enqueue takes NO item-row locks — one lock object cannot deadlock — and requires the
 > expected total to equal the live `SUM(line_total)` UNCONDITIONALLY with no item-count exemption, refusing
 > unpriced items, returning `stale` on any divergence; the freeze guard FAILS CLOSED on an unclassifiable
-> caller such as raw `service_role` without JWT claims). Owner-approved
+> caller such as raw `service_role` without JWT claims). The tenth review (the SECOND AND FINAL bounded
+> correction loop, still migration 0067 — reconfirmed never applied outside disposable databases) made the
+> safe-path predicate STRICT CANONICAL EQUALITY at all four sites (a pg_temp-last path can still lead with
+> an attacker-writable schema), extended the enqueue item guard to a COMPLETE snapshot line (priced +
+> non-NULL unit_price + non-NULL line_total + item currency equal to the locked quotation currency,
+> mirrored by `refreshQuotationStatus`/`priceQuotation`/`resolvePriceConfirmation` — no conversion), and
+> established with live-PostgreSQL evidence that the predicted draft-deletion cascade regression does not
+> occur (RI cascade runs as the `quotation_items` table owner = the trusted delivery owner) — that
+> ownership invariant is now asserted fail-closed by the migration and pinned by regression tests.
+> Owner-approved
 > hosted search_path check + self-verifying hardening scripts are prepared, not executed. Because the
 > already-hosted 0038–0041 functions may be
 > `authenticated`-executable, a read-only privilege check + a self-verifying, owner-approval-required

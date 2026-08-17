@@ -80,10 +80,26 @@
 > unclassifiable caller (raw `service_role` with no JWT claims), so a queued outbox snapshot can never
 > disagree with committed items (owner-approved hosted search_path check + self-verifying hardening
 > scripts prepared, not executed) — see
-> `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`) on
-> `feature/v3-1-phase-1-external-review-fixes`, now **awaiting the FINAL external review** — do not
-> begin V3.1 Phase 2 until it is approved. Verified counts: **unit 419 (79 files); integration 41
-> files / 317 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
+> `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`; tenth (the SECOND AND FINAL bounded
+> correction loop, still migration 0067 — reconfirmed never applied outside disposable databases): (a) the
+> safe-path predicate at all four sites (migration self-verify, permanent gate, hosted check, hosted
+> hardening) is now STRICT CANONICAL EQUALITY — only the exact parsed path `pg_catalog, extensions,
+> public, pg_temp` passes, because a merely-pg_temp-last path can still LEAD with an attacker-writable
+> schema that wins relation resolution; (b) the enqueue item guard requires a COMPLETE snapshot line —
+> `status='priced'`, non-NULL `unit_price`, non-NULL `line_total` (SUM skips NULL), and item currency
+> equal to the LOCKED quotation currency (a numeric match in the wrong currency never sends) — mirrored
+> 1:1 by `refreshQuotationStatus`, with `priceQuotation` auto-pricing only from a same-currency catalogue
+> entry (else a human price confirmation posed in the quotation currency) and `resolvePriceConfirmation`
+> stamping the item to the quotation currency (no float, no conversion); and (c) the predicted
+> draft-deletion cascade regression was REPRODUCED-AS-NOT-OCCURRING on live PostgreSQL 16 — RI cascade
+> queries run in the security context of the `quotation_items` TABLE OWNER (observed: current_user=owner,
+> depth=2, guard NULL but unreached), which is the trusted delivery owner, so authorised pre-queue deletes
+> of itemised quotations cascade cleanly; that ownership invariant (tables owner == exact 9-arg
+> `enqueue_quotation_outbox` owner) is now ASSERTED fail-closed by the migration and pinned by regression
+> tests) on
+> `feature/v3-1-phase-1-external-review-fixes`, now **awaiting the FINAL external approval** — do not
+> begin V3.1 Phase 2 until it is granted. Verified counts: **unit 419 (79 files); integration 41
+> files / 321 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
 > `PHASE1_CORRECTIONS_LEDGER.md`.
 >
 > **Superseded-document rule:** A coding agent MUST NOT rely on any instruction that
