@@ -30,7 +30,11 @@ export default async function HealthPage() {
   const [failedEvents, unprocessedEvents, deadLetters, outboxFailed, outboxPending, aiRuns, audits] = await Promise.all([
     probeCount(() => db.from("source_events").select("id", { count: "exact", head: true }).eq("company_id", cid).eq("status", "failed") as any),
     probeCount(() => db.from("source_events").select("id", { count: "exact", head: true }).eq("company_id", cid).in("status", ["received", "processing"]) as any),
-    probeCount(() => db.from("dead_letter_events").select("id", { count: "exact", head: true }).is("resolved_at", null) as any),
+    // company_id scope is NOT optional here: `db` is the service-role client, which bypasses RLS
+    // while RLS_READS is off, so an unscoped count returns every tenant's dead letters. It feeds
+    // classifyHealth/buildAlerts below, so another company's incident used to drive this company's
+    // dashboard to CRITICAL.
+    probeCount(() => db.from("dead_letter_events").select("id", { count: "exact", head: true }).eq("company_id", cid).is("resolved_at", null) as any),
     probeCount(() => db.from("message_outbox").select("id", { count: "exact", head: true }).eq("company_id", cid).in("status", ["failed", "dead"]) as any),
     probeCount(() => db.from("message_outbox").select("id", { count: "exact", head: true }).eq("company_id", cid).eq("status", "pending") as any),
     rows<any>(() => db.from("ai_runs").select("cost_usd, validation_ok").eq("company_id", cid).limit(2000) as any),

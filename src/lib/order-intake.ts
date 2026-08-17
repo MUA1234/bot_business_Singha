@@ -18,6 +18,7 @@ import { enqueueOutbox } from "@/lib/outbox-enqueue";
 import { drainOutbox } from "@/events/outbox-drain";
 import { createQuotationFromItems, tryFinalizeAndSend } from "@/lib/quotations";
 import { DEFAULT_COMPANY_ID } from "@/lib/constants";
+import { log } from "@/lib/log";
 
 interface ConvState {
   name?: string | null;
@@ -184,7 +185,23 @@ export async function handleCustomerMessage(input: {
   // than sending directly — a transport/provider failure can never lose or double-send it.
   // A best-effort inline drain delivers it promptly; the outbox sweep is the recovery path.
   // Delivery is at-least-once (the outbox idempotency key makes a redelivery a no-op).
-  await enqueueOutbox({ channel: "whatsapp", companyId, recipient: from, body: reply, dedupeKey: `wa_reply:${input.waMessageId}` });
+  const enqueued = await enqueueOutbox({ channel: "whatsapp", companyId, recipient: from, body: reply, dedupeKey: `wa_reply:${input.waMessageId}` });
+
+  // Migration 0058 exists because writing the outbound history row before the message is durably
+  // queued makes the thread claim a delivery that never happened. That rule was applied to the
+  // quotation path and not to this one: the enqueue result used to be discarded, so an
+  // "unavailable" outbox (RPC missing or erroring) still rendered a sent-looking message to staff.
+  // Record the reply ONLY when it is durably queued; otherwise leave the inbound unhandled so the
+  // message is retried rather than silently dropped with a false record of having answered.
+  if (enqueued === "unavailable") {
+    log("error", "reply not recorded — outbox unavailable", {
+      event: "order_intake.reply_not_queued",
+      conversationId,
+      companyId,
+    });
+    return { status };
+  }
+
   await db.from("wa_messages").insert({
     conversation_id: conversationId, company_id: companyId, direction: "outbound", body: reply, wa_message_id: null,
   });
