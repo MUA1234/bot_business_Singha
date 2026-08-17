@@ -60,7 +60,11 @@ export async function runManagerObservation(
   ledger?: CostLedger,
 ): Promise<ManagerObservationResult> {
   const { model, maxTokens } = MODEL_ROUTES.management;
-  const user = `Analyse this business update and return a ManagementObservation JSON only.\n\n${wrapUntrusted(input.update, "upd")}`;
+  // Randomised per run, like the gateway (src/ai/gateway.ts). A CONSTANT fence id would tell an
+  // attacker the exact closing tag to emit inside their own text, so anything after it reads as
+  // though it were outside the untrusted block — the "close the tag" injection prompts.ts warns of.
+  const fenceId = randomUUID().slice(0, 8);
+  const user = `Analyse this business update and return a ManagementObservation JSON only.\n\n${wrapUntrusted(input.update, fenceId)}`;
 
   const base: Omit<AiRunRecord, "validation_ok" | "confidence_overall"> = {
     ai_run_id: `ai_${randomUUID()}`,
