@@ -52,7 +52,7 @@
   against `main`** — it integrates, preserving history: (1) PR #3 compatibility foundation
   (`3224d08`), (2) the Phase-1 stack PRs #4–#12 via tip `509685b`, (3) the external-review
   corrections A–D.
-- **Content commit SHA (ninth review):** `__CONTENT_SHA__` — the commit carrying migration **0067** (the
+- **Content commit SHA (ninth review):** `87528d5d80f4e6cbbdf287898577dfe5d6a8d9ab` — the commit carrying migration **0067** (the
   catalog-driven systemic search_path hardening + the enqueue-vs-item-mutation race fix), the two new
   integration suites (`search-path-safety.test.ts`, `wp12-enqueue-item-race.test.ts`), the hosted search_path
   check + hardening scripts, and docs. (A commit cannot embed its own hash; this SHA is stamped by the
