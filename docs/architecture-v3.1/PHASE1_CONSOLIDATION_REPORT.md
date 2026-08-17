@@ -59,7 +59,7 @@
   against `main`** — it integrates, preserving history: (1) PR #3 compatibility foundation
   (`3224d08`), (2) the Phase-1 stack PRs #4–#12 via tip `509685b`, (3) the external-review
   corrections A–D.
-- **Content commit SHA (tenth review, final):** `__CONTENT_SHA__` — the commit carrying the tenth-round
+- **Content commit SHA (tenth review, final):** `3312d7d2a5a743530b3f05d5dc441a2c63b8de34` — the commit carrying the tenth-round
   corrections to migration **0067** (STRICT-CANONICAL search_path predicate at all four sites; the
   COMPLETE-snapshot item guard incl. NULL-`line_total` and quotation-currency match; the cascade-trust
   ownership assertion), the app pricing-flow mirror (`refreshQuotationStatus` / `priceQuotation` /
