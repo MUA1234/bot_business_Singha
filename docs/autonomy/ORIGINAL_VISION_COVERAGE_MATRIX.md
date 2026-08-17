@@ -10,16 +10,40 @@ Generated at: 2026-08-17
 
 | Status | Count |
 |---|---|
-| absent | 7 |
-| locally_verified | 5 |
+| absent | 44 |
+| foundation_only | 23 |
+| locally_verified | 12 |
 | specified | 5 |
-| foundation_only | 2 |
-| blocked_owner | 1 |
+| blocked_owner | 3 |
 | implementation_in_progress | 1 |
+| deliberately_deferred | 1 |
 
-**Registered:** 21 · **Complete (any verification level):** 5 · **Not complete:** 16
+**Registered:** 89 · **Complete (any verification level):** 12 · **Not complete:** 77
 
-Requirement groups present in the register: AIM, AST, FOUND, INT, IP, LNG, MEM, MOD
+## Per approved group — no group is omitted from totals
+
+| Group | Registered | Complete | Remaining |
+|---|---|---|---|
+| AIM | 8 | 1 | 7 |
+| AST | 1 | 0 | 1 |
+| COM | 8 | 1 | 7 |
+| CRM | 5 | 0 | 5 |
+| CTL | 4 | 1 | 3 |
+| FIN | 8 | 3 | 5 |
+| FOUND | 6 | 4 | 2 |
+| GOV | 6 | 0 | 6 |
+| IMP | 3 | 0 | 3 |
+| INT | 1 | 0 | 1 |
+| IP | 1 | 0 | 1 |
+| LNG | 1 | 0 | 1 |
+| MEM | 1 | 0 | 1 |
+| MOB | 4 | 0 | 4 |
+| MOD | 2 | 0 | 2 |
+| OPS | 8 | 1 | 7 |
+| PRJ | 5 | 0 | 5 |
+| RSK | 6 | 0 | 6 |
+| SCH | 6 | 1 | 5 |
+| WRK | 5 | 0 | 5 |
 
 ## Requirements
 
@@ -34,39 +58,96 @@ Requirement groups present in the register: AIM, AST, FOUND, INT, IP, LNG, MEM, 
 | AIM-007 | AI Guide next actions | P1 | **foundation_only** | src/app/app/command/analyze/actions.ts (computed once, rendered, never persisted) | none | flag activation |
 | AIM-008 | Outcome measurement and improvement loop | P2 | **absent** | none | none | — |
 | AST-001 | Asset Intelligence — registry, custody, reservations, utilization, optimization | P1 | **specified** | none | none | approval of the specification before implementation |
+| COM-001 | WhatsApp text inbound and outbound with truthful delivery | P0 | **locally_verified** | src/app/api/webhooks/whatsapp/route.ts; src/app/api/cron/outbox/route.ts | 1ebaa80 | — |
+| COM-002 | Voice-note intake | P2 | **absent** | none | none | transcription provider selection |
+| COM-003 | Image and document intake with evidence preservation | P1 | **absent** | none | none | — |
+| COM-004 | Email intake and send | P2 | **absent** | src/app/api/webhooks/email/route.ts returns 501 | none | email provider selection and credentials |
+| COM-005 | Calendar and meeting events | P2 | **absent** | none | none | connector approval |
+| COM-006 | Approved data connectors (Google Sheets and similar) | P2 | **absent** | none | none | connector approval and credentials |
+| COM-007 | Human handover, opt-out and communication preferences | P1 | **absent** | none | none | — |
+| COM-008 | Live voice (future) | P3 | **deliberately_deferred** | none | none | explicit approval before any work begins |
+| CRM-001 | Canonical customer identity | P0 | **foundation_only** | src/app/app/sales/customers/page.tsx | none | — |
+| CRM-002 | Canonical supplier identity | P0 | **foundation_only** | src/app/app/procurement/suppliers | 1ebaa80 | — |
+| CRM-003 | Consultant and service-provider registry | P1 | **absent** | none | none | — |
+| CRM-004 | Counterparty performance, reliability and history | P2 | **absent** | none | none | — |
+| CRM-005 | Compliance and insurance status per counterparty | P1 | **absent** | none | none | — |
+| CTL-001 | Exception-led operational overview | P0 | **locally_verified** | src/app/app/command/page.tsx | 1ebaa80 | — |
+| CTL-002 | Cross-company portfolio overview | P2 | **absent** | none | none | — |
+| CTL-003 | Integration and AI/model health on the control surface | P1 | **foundation_only** | src/app/app/admin/health/page.tsx | 1ebaa80 | — |
+| CTL-004 | Explainable business-health score | P2 | **absent** | none | none | — |
+| FIN-001 | Bank and cash position | P0 | **locally_verified** | src/app/app/command/page.tsx; src/app/app/finance/accounts/page.tsx | 1ebaa80 | — |
+| FIN-002 | Receivables and payables with ageing | P0 | **locally_verified** | src/app/app/finance/receivables/page.tsx; src/app/app/command/page.tsx | 1ebaa80 | — |
+| FIN-003 | Rolling cash-flow forecast | P0 | **locally_verified** | src/app/app/command/page.tsx | 1ebaa80 | — |
+| FIN-004 | Commitments and expected payments | P1 | **absent** | none | none | — |
+| FIN-005 | Taxes and professional-review opportunities | P1 | **foundation_only** | none | none | authorised finance reviewer identity |
+| FIN-006 | Budget versus actual and scenario analysis | P1 | **absent** | none | none | — |
+| FIN-007 | Funding requirements and investments | P2 | **absent** | none | none | — |
+| FIN-008 | Payment intelligence and evidence | P0 | **foundation_only** | src/app/app/finance/reconciliation/page.tsx | 1ebaa80 | — |
 | FOUND-001 | Durable inbound processing with leases, bounded retry and dead-letter | P0 | **locally_verified** | src/app/api/cron/inbound-sweeper/route.ts | 1ebaa80 | hosted migration application |
 | FOUND-002 | Worker fairness by eligibility rather than ordering | P0 | **locally_verified** | src/app/api/cron/inbound-sweeper/route.ts | 1ebaa80 | — |
 | FOUND-003 | Production-reachable staff and finance intake | P0 | **absent** | none | none | — |
 | FOUND-004 | Deterministic company-scoped authority engine | P0 | **locally_verified** | src/management/ai-manager/pipeline.ts (planFromObservation) | 079fbb8 | sign-off on the impact-to-level mapping, or replacement by authority_rules-driven mapping |
 | FOUND-005 | AI trust boundary — untrusted output cannot decide identity, scope or authority | P0 | **locally_verified** | src/ai/manager-observation.ts; src/ai/quotation.ts | 7669ce1 | — |
 | FOUND-006 | Service-role and RLS read/write cutover | P0 | **foundation_only** | src/lib/supabase/read.ts (shim returns the ADMIN client while flags are OFF) | none | flag activation |
+| GOV-001 | Management directives with response obligations | P1 | **absent** | none | none | — |
+| GOV-002 | Directive acknowledgement and escalation | P1 | **absent** | none | none | — |
+| GOV-003 | Conflicting-instruction detection and resolution | P1 | **absent** | none | none | — |
+| GOV-004 | Board-reserved matters and emergency suspension | P0 | **absent** | none | none | definition of the reserved-matter list |
+| GOV-005 | Human override, appeal and separation of duties | P0 | **foundation_only** | none | none | — |
+| GOV-006 | Governance audit trail | P1 | **foundation_only** | src/app/app/admin/audit/page.tsx | none | — |
+| IMP-001 | Outcome recording against recommendations | P1 | **absent** | none | none | — |
+| IMP-002 | Staff feedback and lessons learned | P2 | **absent** | none | none | — |
+| IMP-003 | Versioned playbooks and prompt/evaluation improvement with human approval | P1 | **absent** | none | none | private repository/package decision for proprietary playbooks |
 | INT-001 | Integration Gateway and connector registry | P1 | **absent** | none | none | — |
 | IP-001 | Public-repository IP boundary | P1 | **implementation_in_progress** | scripts/autonomy/check-ip-boundary.mjs | none | decision on a private repository or package for proprietary prompts and evaluation data |
 | LNG-001 | Multilingual English / Sinhala / Tamil | P2 | **specified** | none | none | approval of the specification before implementation |
 | MEM-001 | Organizational memory and evidence provenance | P1 | **absent** | none | none | — |
+| MOB-001 | Responsive mobile experience | P1 | **foundation_only** | src/app/globals.css; src/app/layout.tsx | none | — |
+| MOB-002 | Progressive web app with offline-safe behaviour | P2 | **absent** | none | none | — |
+| MOB-003 | Versioned mobile APIs and push-notification readiness | P2 | **absent** | none | none | — |
+| MOB-004 | Accessibility and Sinhala/Tamil rendering | P1 | **absent** | none | none | — |
 | MOD-001 | Live-model evaluation path | P1 | **blocked_owner** | tests/campaign/live-eval.test.ts (evaluation-only; no production path) | 079fbb8 | ANTHROPIC_API_KEY supplied privately via local/staging secret configuration |
 | MOD-002 | Customer-facing model calls recorded in the cost ledger | P2 | **absent** | none | none | — |
+| OPS-001 | Health, observability and error visibility | P0 | **locally_verified** | src/app/api/health/route.ts; src/app/app/admin/health/page.tsx | 1ebaa80 | — |
+| OPS-002 | Audit search | P1 | **foundation_only** | src/app/app/admin/audit/page.tsx | none | — |
+| OPS-003 | Backup, restore and rollback drills | P0 | **absent** | none | none | hosted environment access to rehearse against |
+| OPS-004 | Staging UAT and browser role testing | P0 | **blocked_owner** | none | none | staging environment plus credentials |
+| OPS-005 | Feature-flag rollout control | P1 | **foundation_only** | src/config/flags.ts | none | flag activation per slice |
+| OPS-006 | Model and provider configuration with cost monitoring | P1 | **foundation_only** | src/ai/gateway.ts MODEL_ROUTES | none | provider selection and credentials |
+| OPS-007 | Incident response and business continuity | P1 | **absent** | none | none | — |
+| OPS-008 | Monitored production pilot | P0 | **blocked_owner** | none | none | owner approval of merge, hosted migration, flags and promotion |
+| PRJ-001 | Reusable project registry with lifecycle states | P1 | **foundation_only** | src/app/app/operations | none | — |
+| PRJ-002 | Objectives, milestones and stage gates | P1 | **foundation_only** | src/app/app/admin/objectives/page.tsx | none | — |
+| PRJ-003 | Project budgets, forecasts and resource requirements | P1 | **absent** | none | none | — |
+| PRJ-004 | Project risks, decisions and scenario comparison | P2 | **absent** | none | none | — |
+| PRJ-005 | Portfolio prioritisation | P2 | **absent** | none | none | — |
+| RSK-001 | Risk register with owner, evidence and due dates | P1 | **absent** | none | none | — |
+| RSK-002 | Contracts register with renewal dates | P1 | **foundation_only** | src/app/app/legal/contracts/page.tsx | 1ebaa80 | — |
+| RSK-003 | Licences and permits with expiry | P1 | **foundation_only** | src/app/app/legal/licences/page.tsx | 1ebaa80 | — |
+| RSK-004 | Insurance register and renewals | P1 | **absent** | none | none | — |
+| RSK-005 | Incidents and statutory obligations | P1 | **absent** | none | none | — |
+| RSK-006 | Sri Lankan-context advisory sources and human legal review | P1 | **absent** | none | none | identification of authorised legal reviewer and approved sources |
+| SCH-001 | Continuous task discovery | P1 | **foundation_only** | src/app/api/cron/ai-monitor/route.ts | 1ebaa80 | — |
+| SCH-002 | SLAs, 24/48-hour follow-ups and reminders | P1 | **foundation_only** | src/app/api/cron/follow-ups/route.ts | 1ebaa80 | — |
+| SCH-003 | Leave and workload-aware scheduling | P2 | **absent** | none | none | — |
+| SCH-004 | Escalation and missed-response recovery | P1 | **foundation_only** | src/app/api/cron/follow-ups/route.ts | none | — |
+| SCH-005 | Handovers and meeting-action extraction | P2 | **absent** | none | none | — |
+| SCH-006 | Overdue evidence enforcement | P1 | **locally_verified** | src/app/app/operations/tasks/actions.ts | 1ebaa80 | — |
+| WRK-001 | Attendance, availability, leave, sickness and travel | P1 | **foundation_only** | src/app/app/hr/leave | none | — |
+| WRK-002 | Current and future workload with historical capacity | P1 | **foundation_only** | src/app/app/hr/capacity/page.tsx | none | — |
+| WRK-003 | Skills, certifications and expiry | P1 | **foundation_only** | src/app/app/hr/staff | none | — |
+| WRK-004 | Strengths, development needs and coaching | P2 | **absent** | none | none | privacy review of private-versus-manager-visible coaching |
+| WRK-005 | Fair assignment and internal/external team formation | P1 | **absent** | none | none | flag activation |
 
 ## Groups not yet expanded into individual records
 
 These are counted as **unregistered**, not as complete. Expanding them is register work, not a
 completion claim.
 
-- GOV-* Executive Governor and Governance Constitution
-- WRK-* workforce, capacity and coaching
-- PRJ-* projects and portfolio intelligence
-- FIN-* financial-management intelligence beyond the existing accounting core
-- CRM-* customer, supplier and provider intelligence
-- SCH-* scheduling, reminders and handover
-- COM-* multimodal communication (voice notes, images, documents, email, calendar)
-- CTL-* Mission Control
-- IMP-* outcome measurement and improvement beyond AIM-008
-- RSK-* risk, legal and compliance
-- MOB-* mobile and PWA
-- OPS-* deployment, backup/restore, staging UAT and production readiness
+_none_
 
 ## Honest reading of this table
 
 The program is **not** code-complete while any requirement is `absent`, `foundation_only`,
 `implementation_in_progress` or `implemented_unverified`, or while any group above remains
-unexpanded. Current unaccepted count: **10**; unexpanded groups: **12**.
+unexpanded. Current unaccepted count: **68**; unexpanded groups: **0**.

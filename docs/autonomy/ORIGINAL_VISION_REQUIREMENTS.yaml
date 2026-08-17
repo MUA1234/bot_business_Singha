@@ -13,10 +13,9 @@
 #   * A schema contract, a feature flag, a type, a doc, a prompt or a fixture is NOT implementation.
 #   * Percentages are never evidence.
 #
-# POPULATION STATE: this register covers the requirement groups that this session could establish
-# from CODE, not from documents. Groups still to be expanded from the Original Vision Program are
-# listed at the bottom under `_pending_population` — they are absent from the register, and the
-# audit reports that rather than letting silence read as completeness.
+# POPULATION STATE: all owner-approved groups are expanded into individual records. `_pending_population`
+# is a HARD AUDIT FAILURE — see scripts/autonomy/audit-requirements.mjs. Statuses are set by
+# INSPECTING RUNTIME CODE, never from a document, a feature flag or a schema contract.
 
 requirements:
 
@@ -488,19 +487,1455 @@ requirements:
     blocker: none
     residual_risks: The repository is public today and system prompts are committed in it.
 
-# Groups from the Original Vision Program that are NOT yet expanded into individual requirement
-# records. They are listed so their absence is visible and counted, rather than being mistaken for
-# completeness. Expanding these is the next register slice.
-_pending_population:
-  - GOV-* Executive Governor and Governance Constitution
-  - WRK-* workforce, capacity and coaching
-  - PRJ-* projects and portfolio intelligence
-  - FIN-* financial-management intelligence beyond the existing accounting core
-  - CRM-* customer, supplier and provider intelligence
-  - SCH-* scheduling, reminders and handover
-  - COM-* multimodal communication (voice notes, images, documents, email, calendar)
-  - CTL-* Mission Control
-  - IMP-* outcome measurement and improvement beyond AIM-008
-  - RSK-* risk, legal and compliance
-  - MOB-* mobile and PWA
-  - OPS-* deployment, backup/restore, staging UAT and production readiness
+
+  # ── GOV — Executive Governor and Governance Constitution ────────────────────────────────────
+  - id: GOV-001
+    title: Management directives with response obligations
+    description: The system issues directives to named humans and records an obligation to respond within a stated window.
+    business_outcome: A decision the business needs does not sit unanswered because nobody was formally asked.
+    phase: stage3
+    priority: P1
+    dependencies: [AIM-003, FOUND-004]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Requires AIM-003 truthful routing first; a directive with no recipient is the defect this program already found.
+  - id: GOV-002
+    title: Directive acknowledgement and escalation
+    description: Acknowledgement is recorded; an unacknowledged or overdue directive escalates up a defined chain.
+    business_outcome: Silence is treated as a risk signal rather than as consent.
+    phase: stage3
+    priority: P1
+    dependencies: [GOV-001, SCH-004]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: none
+  - id: GOV-003
+    title: Conflicting-instruction detection and resolution
+    description: Two contradictory instructions about the same object are detected, surfaced, and resolved by a human with a recorded reason.
+    business_outcome: Staff are not caught between two managers.
+    phase: stage3
+    priority: P1
+    dependencies: [MEM-001]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Campaign scenario AMB-02 exists for this and is currently untestable — no conflict-detection layer.
+  - id: GOV-004
+    title: Board-reserved matters and emergency suspension
+    description: A defined class of matters is reserved to the owner/board; an emergency suspension can halt automated activity immediately.
+    business_outcome: The business keeps a stop button and a reserved-decision list that no automation can cross.
+    phase: stage3
+    priority: P0
+    dependencies: [FOUND-004]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: definition of the reserved-matter list
+    blocker: none
+    residual_risks: none
+  - id: GOV-005
+    title: Human override, appeal and separation of duties
+    description: Any automated decision can be overridden by an authorised human with a recorded reason and an appeal path; SoD is enforced on approvals.
+    business_outcome: A person, not a system, has the last word — and no one approves their own benefit.
+    phase: stage3
+    priority: P0
+    dependencies: [FOUND-004]
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: approval_actions; approval_requests
+    service_evidence: src/policy/authority.ts checkSeparationOfDuties (NO production caller)
+    ui_evidence: none
+    test_evidence: tests/approval-progress.test.ts (pure logic only)
+    security_evidence: SoD logic exists and is tested but is not wired to a runtime path
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: checkSeparationOfDuties and checkAuthority are dead code in production.
+  - id: GOV-006
+    title: Governance audit trail
+    description: Every directive, acknowledgement, escalation, override and reserved-matter decision is audited and searchable.
+    business_outcome: The governance story can be reconstructed after the fact.
+    phase: stage3
+    priority: P1
+    dependencies: [GOV-001]
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/app/admin/audit/page.tsx
+    database_evidence: audit_events
+    service_evidence: src/lib/audit.ts
+    ui_evidence: src/app/app/admin/audit/page.tsx
+    test_evidence: tests/audit-format.test.ts
+    security_evidence: append-only audit of privileged and AI actions
+    audit_health_evidence: audit page
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Audit exists generally; governance-specific events do not because GOV-001..005 do not.
+
+  # ── WRK — workforce intelligence ────────────────────────────────────────────────────────────
+  - id: WRK-001
+    title: Attendance, availability, leave, sickness and travel
+    description: A person's availability is derived from leave, sickness, travel and working hours.
+    business_outcome: Work is not assigned to someone who is not there.
+    phase: stage4
+    priority: P1
+    dependencies: []
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/app/hr/leave
+    database_evidence: leave_requests
+    service_evidence: src/modules/workforce
+    ui_evidence: src/app/app/hr/leave
+    test_evidence: tests/leave.test.ts
+    security_evidence: department-gated HR surfaces
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Leave exists; attendance, travel and working-hours modelling do not, and nothing consumes availability for assignment.
+  - id: WRK-002
+    title: Current and future workload with historical capacity
+    description: Capacity snapshots per person per week with planned versus actual versus remaining effort.
+    business_outcome: Overload and idle capacity are both visible before they bite.
+    phase: stage4
+    priority: P1
+    dependencies: [WRK-001]
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/app/hr/capacity/page.tsx
+    database_evidence: capacity_snapshots
+    service_evidence: src/management/ai-manager/exceptions.ts detectCapacityExceptions
+    ui_evidence: src/app/app/hr/capacity/page.tsx
+    test_evidence: tests/capacity.test.ts
+    security_evidence: HR department gate
+    audit_health_evidence: Command Centre capacity exceptions
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Utilisation uses hardcoded 40/4 weekly hours rather than contracted hours per person.
+  - id: WRK-003
+    title: Skills, certifications and expiry
+    description: Skills and certifications per person, with expiry driving renewal tasks.
+    business_outcome: Nobody is assigned work they are not certified to do, and expiries are caught early.
+    phase: stage4
+    priority: P1
+    dependencies: [WRK-001]
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/app/hr/staff
+    database_evidence: employees skills columns
+    service_evidence: none
+    ui_evidence: src/app/app/hr/staff
+    test_evidence: none
+    security_evidence: HR gate
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Skills are stored and displayed; no expiry logic and no consumer for assignment.
+  - id: WRK-004
+    title: Strengths, development needs and coaching
+    description: Per-person strengths and development needs derived from outcomes, with private coaching separated from manager-visible guidance.
+    business_outcome: People improve, and coaching does not become surveillance.
+    phase: stage4
+    priority: P2
+    dependencies: [IMP-001, WRK-002]
+    status: absent
+    feature_flag: V3_1_AI_GUIDE
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: privacy review of private-versus-manager-visible coaching
+    blocker: none
+    residual_risks: Sensitive; needs an explicit visibility model before implementation.
+  - id: WRK-005
+    title: Fair assignment and internal/external team formation
+    description: Work is proposed to people by capability, availability and fairness, with external providers considered where internal capacity is absent.
+    business_outcome: Assignment is defensible rather than habitual.
+    phase: stage4
+    priority: P1
+    dependencies: [WRK-002, WRK-003, CRM-003, AIM-006]
+    status: absent
+    feature_flag: V3_1_TEAM_FORMATION
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: src/schemas/v3_1/team-formation.ts (contract only)
+    ui_evidence: none
+    test_evidence: tests/v3_1-contracts.test.ts
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: flag activation
+    blocker: none
+    residual_risks: none
+
+  # ── PRJ — projects and portfolio ────────────────────────────────────────────────────────────
+  - id: PRJ-001
+    title: Reusable project registry with lifecycle states
+    description: Projects registry covering proposed, current, paused and completed, reusable across companies.
+    business_outcome: Work has a home, and past projects remain available as precedent.
+    phase: stage4
+    priority: P1
+    dependencies: []
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/app/operations
+    database_evidence: projects
+    service_evidence: none
+    ui_evidence: tasks carry project_id
+    test_evidence: none
+    security_evidence: company-scoped project FK on tasks
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: The table exists and tasks reference it; there is no project registry UI or lifecycle.
+  - id: PRJ-002
+    title: Objectives, milestones and stage gates
+    description: Objectives with milestones, dependencies and stage gates that must be passed to progress.
+    business_outcome: Progress is measured against commitments, not activity.
+    phase: stage4
+    priority: P1
+    dependencies: [PRJ-001]
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/app/admin/objectives/page.tsx
+    database_evidence: objectives
+    service_evidence: src/management/ai-manager/objective-status.ts
+    ui_evidence: src/app/app/admin/objectives/page.tsx
+    test_evidence: tests/objective-status.test.ts
+    security_evidence: admin gate
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Objectives exist standalone; no milestones, dependencies or stage gates, and no link to projects.
+  - id: PRJ-003
+    title: Project budgets, forecasts and resource requirements
+    description: Budget versus actual per project with forecast and the people/assets a project requires.
+    business_outcome: A project's cost and resourcing are known before it overruns.
+    phase: stage4
+    priority: P1
+    dependencies: [PRJ-001, FIN-006, WRK-002]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: none
+  - id: PRJ-004
+    title: Project risks, decisions and scenario comparison
+    description: Per-project risk and decision log, with scenario comparison between options.
+    business_outcome: Choices are recorded with their reasoning and can be revisited.
+    phase: stage4
+    priority: P2
+    dependencies: [PRJ-002, RSK-001]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: none
+  - id: PRJ-005
+    title: Portfolio prioritisation
+    description: Ranking across projects by value, risk, capacity and dependency.
+    business_outcome: The business works on the right things, not merely the loudest.
+    phase: stage4
+    priority: P2
+    dependencies: [PRJ-003, PRJ-004]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Ranking weights are proprietary — see IP-001 before committing any weighting.
+
+  # ── FIN — financial-management intelligence ─────────────────────────────────────────────────
+  - id: FIN-001
+    title: Bank and cash position
+    description: Consolidated bank and cash balances per currency, derived from accounts and non-void payments.
+    business_outcome: The owner knows what money exists right now.
+    phase: stage4
+    priority: P0
+    dependencies: []
+    status: locally_verified
+    feature_flag: none
+    runtime_entrypoint: src/app/app/command/page.tsx; src/app/app/finance/accounts/page.tsx
+    database_evidence: bank_accounts; cash_accounts; payments
+    service_evidence: src/modules/finance/cash-position.ts
+    ui_evidence: Command Centre cash tile; finance accounts page
+    test_evidence: tests/cash-position.test.ts
+    security_evidence: company-scoped queries; admin/finance gates
+    audit_health_evidence: Command Centre degraded-source banner on query failure
+    last_verified_sha: 1ebaa80
+    last_verified_at: 2026-08-17
+    owner_gate: none
+    blocker: none
+    residual_risks: Currency is inferred from the first row rather than from a company base-currency setting.
+  - id: FIN-002
+    title: Receivables and payables with ageing
+    description: Outstanding customer invoices and supplier bills, aged into buckets with overdue flagged.
+    business_outcome: Money owed and money due are visible before they become a problem.
+    phase: stage4
+    priority: P0
+    dependencies: []
+    status: locally_verified
+    feature_flag: none
+    runtime_entrypoint: src/app/app/finance/receivables/page.tsx; src/app/app/command/page.tsx
+    database_evidence: customer_invoices; supplier_bills
+    service_evidence: src/modules/finance/aging.ts
+    ui_evidence: receivables page; Command Centre ageing charts
+    test_evidence: tests/aging.test.ts; tests/money-adversarial.test.ts
+    security_evidence: company-scoped; exact decimal outstanding via decSub
+    audit_health_evidence: overdue drives Command Centre exceptions
+    last_verified_sha: 1ebaa80
+    last_verified_at: 2026-08-17
+    owner_gate: none
+    blocker: none
+    residual_risks: none known
+  - id: FIN-003
+    title: Rolling cash-flow forecast
+    description: Forward projection from open invoices in and bills out over a horizon, with the trough identified.
+    business_outcome: A cash shortfall is seen weeks before it arrives.
+    phase: stage4
+    priority: P0
+    dependencies: [FIN-001, FIN-002]
+    status: locally_verified
+    feature_flag: none
+    runtime_entrypoint: src/app/app/command/page.tsx
+    database_evidence: customer_invoices; supplier_bills; bank_accounts
+    service_evidence: src/management/ai-manager/forecast.ts
+    ui_evidence: Command Centre 90-day cash chart with trough marker
+    test_evidence: tests/forecast.test.ts
+    security_evidence: company-scoped; exact decimal
+    audit_health_evidence: goesNegative surfaces in the briefing
+    last_verified_sha: 1ebaa80
+    last_verified_at: 2026-08-17
+    owner_gate: none
+    blocker: none
+    residual_risks: Commitments and payroll are not modelled, so the forecast is invoice/bill-only.
+  - id: FIN-004
+    title: Commitments and expected payments
+    description: Purchase orders and contractual commitments feed expected outflows alongside invoices.
+    business_outcome: The forecast reflects what the business has promised, not only what is invoiced.
+    phase: stage4
+    priority: P1
+    dependencies: [FIN-003]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: purchase_orders exists but does not feed the forecast
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: none
+  - id: FIN-005
+    title: Taxes and professional-review opportunities
+    description: Tax treatment surfaced with uncertain cases routed to authorised finance review.
+    business_outcome: Tax positions are deliberate, and uncertainty reaches a professional.
+    phase: stage4
+    priority: P1
+    dependencies: []
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: tax fields on invoices/bills
+    service_evidence: src/modules/finance/tax.ts
+    ui_evidence: none
+    test_evidence: tests/tax.test.ts
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: authorised finance reviewer identity
+    blocker: none
+    residual_risks: Tax helpers are pure and tested but nothing routes an uncertain treatment to a human.
+  - id: FIN-006
+    title: Budget versus actual and scenario analysis
+    description: Budgets per period and per project compared with actuals, with what-if scenarios.
+    business_outcome: Variance is caught in the period it happens.
+    phase: stage4
+    priority: P1
+    dependencies: [FIN-003]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: none
+  - id: FIN-007
+    title: Funding requirements and investments
+    description: Funding gap derived from the forecast, and an investment register.
+    business_outcome: The business asks for funding before it is urgent.
+    phase: stage4
+    priority: P2
+    dependencies: [FIN-003, FIN-006]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: none
+  - id: FIN-008
+    title: Payment intelligence and evidence
+    description: Payments recorded against evidence, matched to bills/invoices, reconciled to bank lines; recording a payment is never a transfer.
+    business_outcome: Every payment is supported and reconcilable.
+    phase: stage4
+    priority: P0
+    dependencies: []
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/app/finance/reconciliation/page.tsx
+    database_evidence: payments; bank_transactions; settlement RPCs
+    service_evidence: src/modules/finance/reconciliation.ts; src/accounting
+    ui_evidence: reconciliation page; supplier-bill settlement
+    test_evidence: tests/integration/settlement.test.ts; tests/bank-import.test.ts
+    security_evidence: settlement via authenticated RPC with idempotency; bank-detail maker-checker (0045)
+    audit_health_evidence: audit events on settlement
+    last_verified_sha: 1ebaa80
+    last_verified_at: 2026-08-17
+    owner_gate: none
+    blocker: none
+    residual_risks: Evidence is not required at the point of payment recording; FOUND-003 will introduce the evidence-first path.
+
+  # ── CRM — customers, suppliers, providers ───────────────────────────────────────────────────
+  - id: CRM-001
+    title: Canonical customer identity
+    description: One customer record per real customer, with channel identities (WhatsApp number, email) attached and duplicates detected.
+    business_outcome: A customer is one person to the business, however they make contact.
+    phase: stage4
+    priority: P0
+    dependencies: []
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/app/sales/customers/page.tsx
+    database_evidence: customers; wa_conversations.customer_wa_id
+    service_evidence: none
+    ui_evidence: sales customers pages
+    test_evidence: none
+    security_evidence: company-scoped
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: A WhatsApp sender is never resolved to a customer record; there is no duplicate detection. FOUND-003 depends on this.
+  - id: CRM-002
+    title: Canonical supplier identity
+    description: Supplier records with channel identities, duplicate detection and bank-detail change control.
+    business_outcome: Payments go to the supplier the business means.
+    phase: stage4
+    priority: P0
+    dependencies: []
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/app/procurement/suppliers
+    database_evidence: suppliers; supplier bank-change maker-checker (0045)
+    service_evidence: none
+    ui_evidence: procurement supplier pages
+    test_evidence: tests/integration/bank-maker-checker.test.ts
+    security_evidence: bank-detail changes require a second person
+    audit_health_evidence: audit on bank change
+    last_verified_sha: 1ebaa80
+    last_verified_at: 2026-08-17
+    owner_gate: none
+    blocker: none
+    residual_risks: No channel identities and no duplicate detection.
+  - id: CRM-003
+    title: Consultant and service-provider registry
+    description: External providers with capabilities, service areas, capacity, prices, compliance and insurance.
+    business_outcome: External help can be found and vetted without a phone tree.
+    phase: stage4
+    priority: P1
+    dependencies: [CRM-002]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Required by WRK-005 external team formation and by AST-001 maintenance providers.
+  - id: CRM-004
+    title: Counterparty performance, reliability and history
+    description: Communication and assignment history per counterparty, with reliability derived from outcomes.
+    business_outcome: Repeat decisions use evidence rather than memory.
+    phase: stage4
+    priority: P2
+    dependencies: [CRM-001, CRM-002, CRM-003, IMP-001]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Scoring weights are proprietary — see IP-001.
+  - id: CRM-005
+    title: Compliance and insurance status per counterparty
+    description: Expiry-tracked compliance and insurance documents that gate ordering and assignment.
+    business_outcome: The business does not order from an uninsured or lapsed provider.
+    phase: stage4
+    priority: P1
+    dependencies: [CRM-003, RSK-004]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Campaign scenario CNF-02 exists for this and currently escalates only from a supplied risk label.
+
+  # ── SCH — proactive management ──────────────────────────────────────────────────────────────
+  - id: SCH-001
+    title: Continuous task discovery
+    description: A scheduled sweep discovers follow-up work from conversations and events without a human asking.
+    business_outcome: Work is found rather than remembered.
+    phase: stage3
+    priority: P1
+    dependencies: [AIM-002]
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/api/cron/ai-monitor/route.ts
+    database_evidence: wa_conversations.ai_analyzed_at
+    service_evidence: src/management/ai-manager/analyze-conversation.ts
+    ui_evidence: src/app/app/command/cases/page.tsx
+    test_evidence: tests/integration/ai-case-atomic.test.ts
+    security_evidence: CRON_SECRET gate; service-only persistence
+    audit_health_evidence: monitor.analyzed audit events
+    last_verified_sha: 1ebaa80
+    last_verified_at: 2026-08-17
+    owner_gate: none
+    blocker: none
+    residual_risks: Discovery works but produces duplicates (AIM-002) and routes to nobody (AIM-003).
+  - id: SCH-002
+    title: SLAs, 24/48-hour follow-ups and reminders
+    description: Time-based follow-up rules with reminders to the responsible person.
+    business_outcome: Commitments are chased automatically.
+    phase: stage3
+    priority: P1
+    dependencies: [AIM-003]
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/api/cron/follow-ups/route.ts
+    database_evidence: tasks due_date; message_outbox
+    service_evidence: src/modules/work/follow-up.ts
+    ui_evidence: none
+    test_evidence: tests/follow-up.test.ts
+    security_evidence: CRON_SECRET gate; outbox enqueue only
+    audit_health_evidence: enqueued counts
+    last_verified_sha: 1ebaa80
+    last_verified_at: 2026-08-17
+    owner_gate: none
+    blocker: none
+    residual_risks: Selects only tasks with an assignee, so every AI-created task is excluded; no branch for the captured state.
+  - id: SCH-003
+    title: Leave and workload-aware scheduling
+    description: Follow-ups and assignments respect availability and current load.
+    business_outcome: Reminders do not chase someone on leave.
+    phase: stage4
+    priority: P2
+    dependencies: [SCH-002, WRK-001, WRK-002]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: none
+  - id: SCH-004
+    title: Escalation and missed-response recovery
+    description: An unanswered follow-up escalates to a defined next person, and a missed response is recovered rather than dropped.
+    business_outcome: Nothing dies of silence.
+    phase: stage3
+    priority: P1
+    dependencies: [SCH-002]
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/api/cron/follow-ups/route.ts
+    database_evidence: tasks status escalated
+    service_evidence: src/modules/work/follow-up.ts escalation branch
+    ui_evidence: none
+    test_evidence: tests/follow-up.test.ts
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Escalates to company admins generically rather than to a defined chain.
+  - id: SCH-005
+    title: Handovers and meeting-action extraction
+    description: Structured handover between people or shifts, and actions extracted from meetings.
+    business_outcome: Context survives a change of hands.
+    phase: stage5
+    priority: P2
+    dependencies: [COM-005, AIM-003]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: none
+  - id: SCH-006
+    title: Overdue evidence enforcement
+    description: A task requiring evidence cannot be completed without it, and overdue evidence is chased.
+    business_outcome: "Done" means demonstrably done.
+    phase: stage3
+    priority: P1
+    dependencies: []
+    status: locally_verified
+    feature_flag: none
+    runtime_entrypoint: src/app/app/operations/tasks/actions.ts
+    database_evidence: tasks.requires_evidence; task evidence records
+    service_evidence: src/modules/work/task-lifecycle.ts
+    ui_evidence: src/app/app/operations/tasks/[id]/page.tsx
+    test_evidence: tests/task-lifecycle.test.ts
+    security_evidence: authorizeOnTask company-scoped access
+    audit_health_evidence: audit on completion
+    last_verified_sha: 1ebaa80
+    last_verified_at: 2026-08-17
+    owner_gate: none
+    blocker: none
+    residual_risks: none known
+
+  # ── COM — communications ────────────────────────────────────────────────────────────────────
+  - id: COM-001
+    title: WhatsApp text inbound and outbound with truthful delivery
+    description: Official Cloud API only; signature-verified inbound, persist-first, outbox-based outbound that never claims delivery it did not achieve.
+    business_outcome: Customer messages are never lost and never falsely marked sent.
+    phase: stage5
+    priority: P0
+    dependencies: [FOUND-001]
+    status: locally_verified
+    feature_flag: WHATSAPP_ASYNC
+    runtime_entrypoint: src/app/api/webhooks/whatsapp/route.ts; src/app/api/cron/outbox/route.ts
+    database_evidence: message_outbox; wa_messages; migrations 0055/0058/0063-0066
+    service_evidence: src/events/outbox-drain.ts; src/lib/quotations.ts
+    ui_evidence: src/app/app/messages
+    test_evidence: tests/integration/wp12-quotation-delivery.test.ts; outbox-claim; wp12-atomic-enqueue
+    security_evidence: timing-safe signature verification; delivery transitions RPC-only via DB trigger
+    audit_health_evidence: outbox status; admin outbox page with replay
+    last_verified_sha: 1ebaa80
+    last_verified_at: 2026-08-17
+    owner_gate: none
+    blocker: none
+    residual_risks: Non-text messages are silently discarded (COM-002/003).
+  - id: COM-002
+    title: Voice-note intake
+    description: Voice notes are persisted, transcribed and processed through the same untrusted-input pipeline.
+    business_outcome: A customer who speaks rather than types is still served.
+    phase: stage5
+    priority: P2
+    dependencies: [COM-001, FOUND-003]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: transcription provider selection
+    blocker: none
+    residual_risks: Currently dropped with no record — a receipt or instruction vanishes without trace.
+  - id: COM-003
+    title: Image and document intake with evidence preservation
+    description: Images and documents are stored as evidence, linked to their source event, and processed.
+    business_outcome: A photographed receipt becomes a record rather than nothing.
+    phase: stage5
+    priority: P1
+    dependencies: [COM-001, FOUND-003]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: documents table exists but no inbound path writes to it
+    service_evidence: src/documents
+    ui_evidence: none
+    test_evidence: tests/documents-path.test.ts (path helper only)
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Blocks FOUND-003's evidence-preservation requirement for photographed receipts.
+  - id: COM-004
+    title: Email intake and send
+    description: Inbound email ingestion and outbound email through an approved provider.
+    business_outcome: The business is reachable by email, not only WhatsApp.
+    phase: stage5
+    priority: P2
+    dependencies: [FOUND-003]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: src/app/api/webhooks/email/route.ts returns 501
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: /api/health reports email not_configured
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: email provider selection and credentials
+    blocker: no provider chosen
+    residual_risks: The route is an honest 501 stub, not a silent failure.
+  - id: COM-005
+    title: Calendar and meeting events
+    description: Approved calendar integration for meetings, availability and action extraction.
+    business_outcome: Scheduling reflects reality.
+    phase: stage5
+    priority: P2
+    dependencies: [INT-001]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: connector approval
+    blocker: none
+    residual_risks: none
+  - id: COM-006
+    title: Approved data connectors (Google Sheets and similar)
+    description: Read/write connectors to approved external data sources through the Integration Gateway.
+    business_outcome: Existing spreadsheets keep working while the system takes over.
+    phase: stage5
+    priority: P2
+    dependencies: [INT-001]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: connector approval and credentials
+    blocker: none
+    residual_risks: none
+  - id: COM-007
+    title: Human handover, opt-out and communication preferences
+    description: A conversation can be handed to a person; customers can opt out; preferences are respected.
+    business_outcome: People can always reach a human, and can stop being messaged.
+    phase: stage5
+    priority: P1
+    dependencies: [COM-001]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Opt-out is a compliance obligation, not a nicety — treat as P1 with RSK-006.
+  - id: COM-008
+    title: Live voice (future)
+    description: Real-time voice interaction.
+    business_outcome: Reserved for a later stage.
+    phase: stage5
+    priority: P3
+    dependencies: [COM-002]
+    status: deliberately_deferred
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: explicit approval before any work begins
+    blocker: none
+    residual_risks: Deferred by the owner's own staging; recorded so it is not forgotten.
+
+  # ── CTL — Mission Control ───────────────────────────────────────────────────────────────────
+  - id: CTL-001
+    title: Exception-led operational overview
+    description: A single surface ranking what needs attention now, degrading honestly when a data source fails.
+    business_outcome: The owner opens one page and sees what is wrong.
+    phase: stage4
+    priority: P0
+    dependencies: []
+    status: locally_verified
+    feature_flag: none
+    runtime_entrypoint: src/app/app/command/page.tsx
+    database_evidence: tasks; capacity_snapshots; customer_invoices; supplier_bills
+    service_evidence: src/management/ai-manager/exceptions.ts; briefing.ts
+    ui_evidence: Command Centre with ranked exceptions and degraded banner
+    test_evidence: tests/exceptions.test.ts; tests/briefing.test.ts
+    security_evidence: requireAdmin; company-scoped queries
+    audit_health_evidence: command.query_failed logging and a degraded banner instead of a false all-clear
+    last_verified_sha: 1ebaa80
+    last_verified_at: 2026-08-17
+    owner_gate: none
+    blocker: none
+    residual_risks: Carries no AI-case, requires_human or captured-task signal, so AI output is invisible here.
+  - id: CTL-002
+    title: Cross-company portfolio overview
+    description: An owner with several companies sees them together without breaching isolation.
+    business_outcome: A multi-company owner manages the group, not seven dashboards.
+    phase: stage4
+    priority: P2
+    dependencies: [CTL-001, FOUND-006]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Must be built on explicit multi-membership, never by relaxing company scoping.
+  - id: CTL-003
+    title: Integration and AI/model health on the control surface
+    description: Connector health, queue backlog, dead letters and model cost/validation rates surfaced to the operator.
+    business_outcome: The operator sees the system's own health, not only the business's.
+    phase: stage4
+    priority: P1
+    dependencies: [FOUND-001, OPS-001]
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/app/admin/health/page.tsx
+    database_evidence: source_events; message_outbox; ai_runs; source_event_backlog RPC
+    service_evidence: src/management/ai-manager/health.ts; alerts.ts
+    ui_evidence: admin health page
+    test_evidence: tests/health.test.ts; tests/health-signals.test.ts
+    security_evidence: admin gate; company-scoped counts
+    audit_health_evidence: classifyHealth and buildAlerts
+    last_verified_sha: 1ebaa80
+    last_verified_at: 2026-08-17
+    owner_gate: none
+    blocker: none
+    residual_risks: The 0069 backlog RPC is not yet surfaced on this page; AI cost excludes customer-facing calls (MOD-002).
+  - id: CTL-004
+    title: Explainable business-health score
+    description: A composite health indicator whose components and weights are inspectable.
+    business_outcome: A single number that can be argued with, not a black box.
+    phase: stage4
+    priority: P2
+    dependencies: [CTL-001, FIN-003, WRK-002]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Weights are proprietary — see IP-001 before committing any.
+
+  # ── IMP — improvement system ────────────────────────────────────────────────────────────────
+  - id: IMP-001
+    title: Outcome recording against recommendations
+    description: Every recommendation records what actually happened, so accuracy can be measured.
+    business_outcome: The system can be held to account for its advice.
+    phase: stage3
+    priority: P1
+    dependencies: [AIM-003]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: management_cases has no outcome column and no update path
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Cases are write-once today, so nothing can be learned from them.
+  - id: IMP-002
+    title: Staff feedback and lessons learned
+    description: Staff can mark a recommendation useful or wrong, with a reason retained as a lesson.
+    business_outcome: The people doing the work correct the system.
+    phase: stage3
+    priority: P2
+    dependencies: [IMP-001]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: none
+  - id: IMP-003
+    title: Versioned playbooks and prompt/evaluation improvement with human approval
+    description: Playbooks, prompts and evaluation sets are versioned; a protected change requires human approval and can be rolled back.
+    business_outcome: The system improves without anyone silently changing how it decides.
+    phase: stage3
+    priority: P1
+    dependencies: [IMP-001, IP-001]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: prompt versions are compile-time constants today
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: ai_runs records prompt_version
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: private repository/package decision for proprietary playbooks
+    blocker: none
+    residual_risks: Playbooks are confidential and must live in company data or a private package, never in this public repository.
+
+  # ── RSK — risk, legal and compliance ────────────────────────────────────────────────────────
+  - id: RSK-001
+    title: Risk register with owner, evidence and due dates
+    description: Risks recorded with a responsible owner, mitigation, evidence and review dates.
+    business_outcome: Known risks have a name against them.
+    phase: stage4
+    priority: P1
+    dependencies: []
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: none
+  - id: RSK-002
+    title: Contracts register with renewal dates
+    description: Contracts with counterparty, status and renewal date driving advance tasks.
+    business_outcome: A contract does not lapse unnoticed.
+    phase: stage4
+    priority: P1
+    dependencies: []
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/app/legal/contracts/page.tsx
+    database_evidence: contracts
+    service_evidence: src/management/ai-manager/renewals.ts
+    ui_evidence: legal contracts pages
+    test_evidence: tests/renewals.test.ts
+    security_evidence: legal department gate
+    audit_health_evidence: legal overview flags due/expired
+    last_verified_sha: 1ebaa80
+    last_verified_at: 2026-08-17
+    owner_gate: none
+    blocker: none
+    residual_risks: Renewals are displayed but do not create owned, dated tasks.
+  - id: RSK-003
+    title: Licences and permits with expiry
+    description: Licences and permits tracked with expiry and renewal responsibility.
+    business_outcome: Operating permissions stay valid.
+    phase: stage4
+    priority: P1
+    dependencies: []
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/app/legal/licences/page.tsx
+    database_evidence: licences
+    service_evidence: src/management/ai-manager/renewals.ts
+    ui_evidence: legal licences page
+    test_evidence: tests/renewals.test.ts
+    security_evidence: legal gate
+    audit_health_evidence: legal overview
+    last_verified_sha: 1ebaa80
+    last_verified_at: 2026-08-17
+    owner_gate: none
+    blocker: none
+    residual_risks: Same as RSK-002 — visibility without ownership.
+  - id: RSK-004
+    title: Insurance register and renewals
+    description: Insurance policies with cover, expiry and renewal tasks.
+    business_outcome: The business is not found uninsured after an incident.
+    phase: stage4
+    priority: P1
+    dependencies: []
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: no insurance table exists
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Required by AST-001 (asset insurance) and CRM-005 (provider insurance).
+  - id: RSK-005
+    title: Incidents and statutory obligations
+    description: Incident log and a register of statutory obligations with due dates and evidence.
+    business_outcome: Obligations are met on time and incidents are learned from.
+    phase: stage4
+    priority: P1
+    dependencies: [RSK-001]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: none
+  - id: RSK-006
+    title: Sri Lankan-context advisory sources and human legal review
+    description: Jurisdiction-specific guidance surfaced as advisory only, with uncertain matters routed to a human legal reviewer.
+    business_outcome: Local obligations are considered, and no machine gives a legal opinion.
+    phase: stage4
+    priority: P1
+    dependencies: [RSK-005, FOUND-004]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: identification of authorised legal reviewer and approved sources
+    blocker: none
+    residual_risks: The AI may summarise and escalate; it must never issue a legal position. Enforced by the authority engine's legal domain floor.
+
+  # ── MOB — mobile and accessibility ──────────────────────────────────────────────────────────
+  - id: MOB-001
+    title: Responsive mobile experience
+    description: Every staff surface is usable at mobile viewports.
+    business_outcome: Field staff can work from a phone.
+    phase: stage5
+    priority: P1
+    dependencies: []
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/globals.css; src/app/layout.tsx
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: responsive grid/flex layouts, safe-area insets, viewport-fit cover
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Responsive CSS exists but no mobile-viewport test or role-based mobile UAT has been run.
+  - id: MOB-002
+    title: Progressive web app with offline-safe behaviour
+    description: Installable PWA with a manifest, service worker and safe behaviour on a poor connection.
+    business_outcome: The app opens and behaves predictably on a weak network.
+    phase: stage5
+    priority: P2
+    dependencies: [MOB-001]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Offline write behaviour must never fabricate a durable record — the same truthfulness rule as delivery.
+  - id: MOB-003
+    title: Versioned mobile APIs and push-notification readiness
+    description: Stable versioned endpoints for a mobile client and the groundwork for push notifications.
+    business_outcome: A mobile client can be built without breaking on every deploy.
+    phase: stage5
+    priority: P2
+    dependencies: [MOB-002, INT-001]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: none
+  - id: MOB-004
+    title: Accessibility and Sinhala/Tamil rendering
+    description: Accessible markup and labels, with fonts and line metrics that render Sinhala and Tamil correctly.
+    business_outcome: The system is usable by everyone it is meant for.
+    phase: stage5
+    priority: P1
+    dependencies: [LNG-001, MOB-001]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: The CSP forbids external font hosts, so Sinhala/Tamil fonts must be self-hosted.
+
+  # ── OPS — operational readiness ─────────────────────────────────────────────────────────────
+  - id: OPS-001
+    title: Health, observability and error visibility
+    description: Health endpoint and dashboards that report degradation truthfully rather than showing a false all-clear.
+    business_outcome: A failure is visible to an operator before a customer reports it.
+    phase: stage6
+    priority: P0
+    dependencies: []
+    status: locally_verified
+    feature_flag: none
+    runtime_entrypoint: src/app/api/health/route.ts; src/app/app/admin/health/page.tsx
+    database_evidence: probes across 8 dashboard-critical tables
+    service_evidence: src/management/ai-manager/health.ts; src/lib/log.ts
+    ui_evidence: admin health page; Command Centre degraded banner
+    test_evidence: tests/health.test.ts; tests/health-signals.test.ts; tests/observability.test.ts
+    security_evidence: CRON_SECRET-gated; company-scoped counts
+    audit_health_evidence: structured logs with event codes
+    last_verified_sha: 1ebaa80
+    last_verified_at: 2026-08-17
+    owner_gate: none
+    blocker: none
+    residual_risks: The 0069 backlog signal is not yet surfaced; /api/health counts dead letters unscoped by design for a system endpoint.
+  - id: OPS-002
+    title: Audit search
+    description: Searchable append-only audit of privileged and AI actions.
+    business_outcome: Any action can be traced to an actor and a time.
+    phase: stage6
+    priority: P1
+    dependencies: []
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/app/app/admin/audit/page.tsx
+    database_evidence: audit_events
+    service_evidence: src/lib/audit.ts
+    ui_evidence: admin audit page
+    test_evidence: tests/audit-format.test.ts
+    security_evidence: append-only; admin gate
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: Listing exists; there is no search or filtering, and cron-created records name a company id as the actor (D-015).
+  - id: OPS-003
+    title: Backup, restore and rollback drills
+    description: Documented and rehearsed backup, restore and migration rollback procedures.
+    business_outcome: The business can recover from a bad day.
+    phase: stage6
+    priority: P0
+    dependencies: []
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: hosted environment access to rehearse against
+    blocker: no staging environment exists
+    residual_risks: A drill that has never been run is not a procedure.
+  - id: OPS-004
+    title: Staging UAT and browser role testing
+    description: A staging environment exercised by each role through a browser, covering permissions, dashboards and degraded states.
+    business_outcome: Real people confirm the system works before customers meet it.
+    phase: stage6
+    priority: P0
+    dependencies: [OPS-003]
+    status: blocked_owner
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: staging environment plus credentials
+    blocker: no staging environment exists
+    residual_risks: No browser role testing has been performed at any point in this program.
+  - id: OPS-005
+    title: Feature-flag rollout control
+    description: Flags are readable at runtime, reported on the health surface, and rolled out per slice.
+    business_outcome: A capability can be turned on for a few, and off again quickly.
+    phase: stage6
+    priority: P1
+    dependencies: []
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/config/flags.ts
+    database_evidence: none
+    service_evidence: src/config/flags.ts registry
+    ui_evidence: none
+    test_evidence: tests/flags.test.ts
+    security_evidence: default OFF; owner-gated activation
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: flag activation per slice
+    blocker: none
+    residual_risks: 8 of 8 V3.1 flags have zero runtime consumers, and /api/health does not report the flag snapshot.
+  - id: OPS-006
+    title: Model and provider configuration with cost monitoring
+    description: Provider-neutral routing configuration with budgets, fallback and cost monitoring.
+    business_outcome: AI spend is bounded and a provider outage is survivable.
+    phase: stage6
+    priority: P1
+    dependencies: [MOD-001, MOD-002]
+    status: foundation_only
+    feature_flag: none
+    runtime_entrypoint: src/ai/gateway.ts MODEL_ROUTES
+    database_evidence: ai_runs
+    service_evidence: src/ai/pricing.ts; src/ai/model-routes.ts (NO production consumer)
+    ui_evidence: admin health AI cost tile
+    test_evidence: tests/model-routes.test.ts; tests/ai-pricing.test.ts
+    security_evidence: model ids confined to the gateway
+    audit_health_evidence: ai_runs cost and validation rates
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: provider selection and credentials
+    blocker: none
+    residual_risks: No budgets, no fallback, no circuit breaker; model-routes.ts is dead code; cost excludes customer-facing calls.
+  - id: OPS-007
+    title: Incident response and business continuity
+    description: Documented incident response, on-call expectations and continuity plan.
+    business_outcome: A failure has a rehearsed response rather than an improvised one.
+    phase: stage6
+    priority: P1
+    dependencies: [OPS-001, OPS-003]
+    status: absent
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: none
+    blocker: none
+    residual_risks: none
+  - id: OPS-008
+    title: Monitored production pilot
+    description: A limited, monitored production pilot with a rollback window.
+    business_outcome: Real use is proven at small scale before full commitment.
+    phase: stage6
+    priority: P0
+    dependencies: [OPS-004, OPS-007]
+    status: blocked_owner
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    owner_gate: owner approval of merge, hosted migration, flags and promotion
+    blocker: every prior OPS gate
+    residual_risks: PRODUCTION_VERIFIED cannot be claimed for any requirement until this completes.

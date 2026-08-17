@@ -14,14 +14,59 @@
  *
  * Usage: node scripts/autonomy/audit-requirements.mjs [--strict] [--quiet]
  */
-import { writeFileSync } from "node:fs";
+import { writeFileSync, readFileSync, existsSync } from "node:fs";
 import { loadRegister, validateRequirement, COMPLETE_STATUSES, groupOf } from "./requirements-lib.mjs";
+
+/**
+ * Every owner-approved requirement group. A group with ZERO records is a hard failure: the register
+ * must never be able to look complete by leaving a group out.
+ */
+const APPROVED_GROUPS = [
+  "FOUND", "INT", "MEM", "AIM", "GOV", "WRK", "PRJ", "FIN", "AST", "CRM",
+  "SCH", "LNG", "COM", "CTL", "MOD", "IMP", "RSK", "MOB", "OPS", "IP",
+];
+
+/** Committed snapshot of known ids. A requirement may not vanish without an owner decision. */
+const SNAPSHOT = "docs/autonomy/REQUIREMENT_IDS.snapshot";
+const RETIRED = "docs/autonomy/RETIRED_REQUIREMENTS.txt";
 
 const strict = process.argv.includes("--strict");
 const quiet = process.argv.includes("--quiet");
 
 const { requirements, pending } = loadRegister();
 const problems = requirements.flatMap(validateRequirement);
+
+// 1. `_pending_population` is no longer permitted — every approved group must be expanded.
+if (pending.length > 0) {
+  problems.push(
+    `_pending_population is a HARD FAILURE: ${pending.length} group(s) still unexpanded — ${pending.join("; ")}`,
+  );
+}
+
+// 2. Every approved group must carry at least one record.
+const presentGroups = new Set(requirements.map((r) => groupOf(r.id)));
+for (const g of APPROVED_GROUPS) {
+  if (!presentGroups.has(g)) problems.push(`approved group ${g} has ZERO requirements in the register`);
+}
+
+// 3. Unknown group prefixes are a typo or an unapproved invention.
+for (const g of presentGroups) {
+  if (!APPROVED_GROUPS.includes(g)) problems.push(`requirement group "${g}" is not an approved group`);
+}
+
+// 4. A requirement may not disappear between revisions without a recorded owner decision.
+const ids = requirements.map((r) => r.id).filter(Boolean).sort();
+if (existsSync(SNAPSHOT)) {
+  const previous = readFileSync(SNAPSHOT, "utf8").split("\n").map((s) => s.trim()).filter(Boolean);
+  const retired = existsSync(RETIRED)
+    ? readFileSync(RETIRED, "utf8").split("\n").map((s) => s.trim().split(/\s+/)[0]).filter(Boolean)
+    : [];
+  for (const id of previous) {
+    if (!ids.includes(id) && !retired.includes(id)) {
+      problems.push(`requirement ${id} DISAPPEARED from the register and is not listed in ${RETIRED} — an owner decision is required to retire a requirement`);
+    }
+  }
+}
 
 const byStatus = {};
 for (const r of requirements) byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
@@ -33,7 +78,12 @@ const unaccepted = requirements.filter((r) =>
 );
 
 // ── Coverage matrix (generated — do not hand-edit) ───────────────────────────────────────────
-const groups = [...new Set(requirements.map((r) => groupOf(r.id)))].sort();
+const groups = APPROVED_GROUPS.slice().sort();
+const perGroup = groups.map((g) => {
+  const inGroup = requirements.filter((r) => groupOf(r.id) === g);
+  const done = inGroup.filter((r) => COMPLETE_STATUSES.has(r.status)).length;
+  return `| ${g} | ${inGroup.length} | ${done} | ${inGroup.length - done} |`;
+});
 const rows = requirements
   .slice()
   .sort((a, b) => String(a.id).localeCompare(String(b.id)))
@@ -59,7 +109,11 @@ ${Object.entries(byStatus)
 
 **Registered:** ${requirements.length} · **Complete (any verification level):** ${complete.length} · **Not complete:** ${notComplete.length}
 
-Requirement groups present in the register: ${groups.join(", ")}
+## Per approved group — no group is omitted from totals
+
+| Group | Registered | Complete | Remaining |
+|---|---|---|---|
+${perGroup.join("\n")}
 
 ## Requirements
 
@@ -83,6 +137,10 @@ unexpanded. Current unaccepted count: **${unaccepted.length}**; unexpanded group
 
 writeFileSync("docs/autonomy/ORIGINAL_VISION_COVERAGE_MATRIX.md", matrix);
 
+// Refresh the id snapshot ONLY when the register is otherwise valid, so a failing run cannot
+// quietly bless a disappearance by overwriting the evidence of it.
+if (problems.length === 0) writeFileSync(SNAPSHOT, ids.join("\n") + "\n");
+
 // ── Report ───────────────────────────────────────────────────────────────────────────────────
 if (!quiet) {
   console.log(
@@ -104,11 +162,8 @@ if (problems.length) {
   process.exit(1);
 }
 
-if (strict && (unaccepted.length > 0 || pending.length > 0)) {
-  console.error(
-    `\n❌ autonomy:audit --strict: not code-complete (${unaccepted.length} unaccepted requirement(s), ` +
-      `${pending.length} unexpanded group(s)).`,
-  );
+if (strict && unaccepted.length > 0) {
+  console.error(`\n❌ autonomy:audit --strict: not code-complete (${unaccepted.length} unaccepted requirement(s)).`);
   process.exit(1);
 }
 
