@@ -75,14 +75,22 @@ tracked work item (pack `00A` WP18):
    required** until the owner authorises reading the hosted migration ledger. This session touches
    no hosted database.
 
-## 5. Correction prerequisite `0048+` (WP10–WP18) — status: **NOT DONE (blocking)**
+## 5. Correction prerequisite `0048+` (WP10–WP18) — status: **IMPLEMENTED through migration 0067 (superseding update, 2026-08-17)**
 
-Per `00_START_HERE.md` item 3 and `34_CLAUDE_GITHUB_MASTER_COMMAND.md` STEP 1, I determined whether
-the security/accounting correction phase `0048+` is complete.
+> **SUPERSEDING UPDATE (completion-program Phase 0, 2026-08-17):** the finding below was true when
+> this baseline was written (highest migration `0047`). It is now HISTORICAL. The `0048+` correction
+> phase — WP10–WP18 plus ten external-review correction rounds — is **implemented and locally
+> verified** as migrations **0048–0067** on `feature/v3-1-phase-1-external-review-fixes` (PR #13,
+> draft, reviewed head `48407bd`). Evidence: `PHASE1_CONSOLIDATION_REPORT.md`,
+> `PHASE1_CORRECTIONS_LEDGER.md`, `docs/architecture-v2/MIGRATION_STATE.md`. It remains
+> **NOT merged, NOT hosted-migrated, NOT staging/production-verified** — those are owner gates. The
+> dependency table below still governs WHAT the corrections protect; only the "not done" status is
+> superseded.
 
-**Finding:** the highest migration on this branch is `0047`. There is **no `0048`** migration and
-none of the pack `00A` work packages **WP10–WP18** are implemented. Therefore the correction phase is
-**not done**.
+Original finding (historical): per `00_START_HERE.md` item 3 and
+`34_CLAUDE_GITHUB_MASTER_COMMAND.md` STEP 1, I determined whether the security/accounting correction
+phase `0048+` was complete. The highest migration on this branch was `0047`; there was **no `0048`**
+migration and none of the pack `00A` work packages **WP10–WP18** were implemented at that time.
 
 Consequence (authoritative for the V3.1 program): the `0048+` correction is a **blocking
 prerequisite** for any V3.1 slice that depends on financial posting, approval authority, RLS

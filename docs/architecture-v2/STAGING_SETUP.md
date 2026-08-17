@@ -26,12 +26,33 @@ project. This is where isolation/RLS/concurrency tests create + drop test compan
 - The isolation tests **refuse to run** against the known prod ref
   (`juwpzzkuyqygcjrubqpt`) as a safety guard.
 
-## 2. Apply migrations 0001 → 0029 (in order)
+## 2. Apply migrations 0001 → 0067 (in order) — updated 2026-08-17
 
-Canonical source: `src/db/migrations/0001_*.sql` … `0029_*.sql`. Apply them in
-numeric order to the staging DB (Supabase SQL editor, `psql`, or your migration tool).
-All of 0023–0029 are additive/idempotent (safe to re-run). Record what you applied in
-`MIGRATION_STATE.md`.
+Canonical source: `src/db/migrations/0001_*.sql` … `0067_*.sql` — currently **67 sequential
+migrations** (`npm run migration-lint` verifies the sequence). Prefer the migration runner, which
+records every application in the `schema_migrations` ledger:
+
+```
+DATABASE_URL="postgres://…staging…" node scripts/migrate.mjs          # apply all pending
+DATABASE_URL="postgres://…staging…" node scripts/migrate.mjs --status # verify ledger afterwards
+```
+
+Notes for a staging database cloned from (or shaped like) the hosted project:
+
+- The hosted DB carries **0038–0041 owner-applied out-of-band (2026-08-07)** without the ledger. On
+  such a database, baseline first (`node scripts/migrate.mjs --baseline` on a DB that truly has all
+  files' schema) or apply 0001–0041 fresh; NEVER re-apply out of order.
+- **Before 0042→0067**, run the owner-approved hosted remediation checks for the 0038–0041 functions:
+  `docs/architecture-v2/hosted_secdef_privilege_check.sql` (read-only) →
+  `hosted_secdef_emergency_revoke.sql` if exposed, and `hosted_secdef_searchpath_check.sql`
+  (read-only) → `hosted_secdef_searchpath_hardening.sql` if unsafe — see
+  `HOSTED_SECDEF_PRIVILEGE_HOTFIX.md` for the exact owner sequence.
+- Migration **0067 fails closed** (by design) if an API role has CREATE — direct or
+  SET-ROLE-reachable — on `public`/`extensions`, if any non-extension SECURITY DEFINER/trigger
+  function cannot be pinned to the exact canonical search_path, or if `quotations`/`quotation_items`
+  table ownership diverges from the delivery-function owner. Each abort names its target; remediate
+  (owner-approved) and re-run.
+- Record what you applied in `MIGRATION_STATE.md`.
 
 > Do **not** use the aggregate `RUN_*` copies under `docs/architecture-v2/` — they can
 > drift; the numbered files in `src/db/migrations/` are the one source of truth.
