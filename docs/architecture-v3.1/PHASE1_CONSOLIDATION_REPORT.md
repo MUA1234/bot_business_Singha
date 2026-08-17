@@ -59,16 +59,20 @@
   against `main`** — it integrates, preserving history: (1) PR #3 compatibility foundation
   (`3224d08`), (2) the Phase-1 stack PRs #4–#12 via tip `509685b`, (3) the external-review
   corrections A–D.
-- **Content commit SHA (tenth review, final):** `3312d7d2a5a743530b3f05d5dc441a2c63b8de34` — the commit carrying the tenth-round
-  corrections to migration **0067** (STRICT-CANONICAL search_path predicate at all four sites; the
-  COMPLETE-snapshot item guard incl. NULL-`line_total` and quotation-currency match; the cascade-trust
-  ownership assertion), the app pricing-flow mirror (`refreshQuotationStatus` / `priceQuotation` /
-  `resolvePriceConfirmation` in `src/lib/quotations.ts`), the extended integration suites
-  (`search-path-safety.test.ts` 10 tests, `wp12-enqueue-item-race.test.ts` 13 tests,
+- **Content commit SHA (tenth review, final):** `__CONTENT_SHA__` — the follow-up commit recording the
+  final focused adversarial review's CLEAN verdict in the corrections ledger and applying its one LOW
+  completion (the `priceQuotation` skip now requires the full completeness predicate, so a pre-fix
+  legacy item priced in a non-quotation currency or with a NULL `line_total` re-enters pricing instead
+  of wedging). (A commit cannot embed its own hash; this SHA is stamped by the immediately following
+  commit on the branch tip.)
+- **Prior content commits:** tenth review main correction `3312d7d` (stamped by `e2694bb`) — the
+  tenth-round corrections to migration **0067** (STRICT-CANONICAL search_path predicate at all four
+  sites; the COMPLETE-snapshot item guard incl. NULL-`line_total` and quotation-currency match; the
+  cascade-trust ownership assertion), the app pricing-flow mirror (`refreshQuotationStatus` /
+  `priceQuotation` / `resolvePriceConfirmation` in `src/lib/quotations.ts`), the extended integration
+  suites (`search-path-safety.test.ts` 10 tests, `wp12-enqueue-item-race.test.ts` 13 tests,
   `wp12-snapshot-boundary.test.ts` +1 cascade pin), the strict-canonical hosted check + hardening
-  scripts, and docs. (A commit cannot embed its own hash; this SHA is stamped by the immediately
-  following commit on the branch tip.)
-- **Prior content commits:** ninth review `6b7b6f5` (adversarial-pass corrections to 0067; stamped by
+  scripts, and docs; ninth review `6b7b6f5` (adversarial-pass corrections to 0067; stamped by
   `3991384`) and pre-adversarial-fix `87528d5` (initial 0067); eighth review `9c51b2c` (migration 0066 + snapshot/delete-boundary +
   search_path/pg_temp hardening + message_outbox freeze + tests + docs);
   seventh review `5e5f42a` (migration 0065 + claim/INSERT-boundary tests + docs);
@@ -587,9 +591,15 @@ nothing hosted) that **0067 has never existed outside disposable databases**.
    deletes WITH items (parent + children gone) alongside the unchanged frozen-parent / cross-company /
    no-claims refusals.
 
-A final adversarial review focused only on these three corrections was launched against this exact
-working tree as the loop's last step, per the tenth review's instruction; its verdict is recorded in the
-dated note at the end of the corrections ledger.
+A final adversarial review focused only on these three corrections ran against the exact corrected tree
+as the loop's last step, per the tenth review's instruction. **Verdict: CLEAN — all three corrections
+SOUND; no blockers, no material gaps** (19 empirical probes, including an independent reproduction of
+the RI owner-context mechanism with distinct parent/child owners and 20+ adversarial stored search_path
+forms proving the strict predicate cannot fail open). Its one LOW operational caveat — a pre-fix legacy
+item priced in a non-quotation currency (or with NULL `line_total`) fails SAFE but had no in-app
+remediation — was closed within the loop by requiring the full completeness predicate in
+`priceQuotation`'s skip, so such items re-enter pricing (catalogue reprice or human confirmation). Full
+verdict + two pre-existing LOW backlog notes: the dated note at the end of the corrections ledger.
 
 _Phase status: **verified on disposable PostgreSQL 16 (fresh 0001→0067 + upgrade 0058→0067 with legacy
 data); not fully verified on hosted infrastructure** (no staging/production application; GitHub Actions

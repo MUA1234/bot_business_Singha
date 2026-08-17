@@ -174,11 +174,21 @@ export async function priceQuotation(
 
   const { data: items } = await db
     .from("quotation_items")
-    .select("id, description, quantity, unit_price, status, currency")
+    .select("id, description, quantity, unit_price, line_total, status, currency")
     .eq("quotation_id", quotationId);
 
   for (const it of items ?? []) {
-    if (it.status === "priced" && it.unit_price != null) continue;
+    // Skip only a COMPLETE line — the same completeness predicate refreshQuotationStatus and the DB
+    // enqueue guard use. A legacy item priced in a non-quotation currency (or with a NULL line_total)
+    // must RE-ENTER pricing here — same-currency catalogue match → repriced in the quotation currency;
+    // otherwise → a human price confirmation — instead of wedging in awaiting_price with no exit.
+    if (
+      it.status === "priced" &&
+      it.unit_price != null &&
+      it.line_total != null &&
+      normalizeCurrency(it.currency) === qCurrency
+    )
+      continue;
 
     const desc = (it.description ?? "").toLowerCase();
     const match = (catalog ?? []).find((c: any) => {

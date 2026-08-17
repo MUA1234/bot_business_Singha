@@ -771,8 +771,8 @@ reconfirmed **never applied outside disposable databases** (hosted at 0038–004
    capability holder (parent + children), frozen-parent/cross-company/no-claims refusals unchanged.
 
 Final focused adversarial review (this loop): launched against this exact working tree as the last step
-of the loop; its verdict is recorded in the dated note appended at the end of this file (a follow-up
-docs-only commit, since the review ran concurrently with final verification).
+of the loop; its CLEAN verdict — plus the one LOW completion it suggested, applied in the follow-up
+commit — is recorded in the dated note appended at the end of this file.
 
 ## Verification (tenth round, disposable PostgreSQL 16, this session)
 
@@ -803,3 +803,46 @@ obtained no runner on any run**; all evidence is local disposable PostgreSQL 16 
 
 Toolchain: Node v22.22.2, npm 10.9.7, PostgreSQL 16.13. No hosted migration applied; no feature flag
 enabled.
+
+## Final focused adversarial review — verdict (2026-08-17, tenth loop)
+
+An independent adversarial review, scoped strictly to the three tenth-round corrections, ran against the
+exact corrected tree on the disposable PostgreSQL 16.13 (19 distinct empirical probes; scratch DBs
+created and dropped; the evidence DB left untouched). **Verdict: CLEAN — Correction 1 SOUND,
+Correction 2 SOUND, Correction 3 SOUND. No blockers, no material gaps.** Highlights:
+
+- **Correction 1 (strict canonical path):** the dangerous fail-OPEN direction is structurally
+  impossible — Postgres normalizes `proconfig` storage (bare tokens only for genuinely-lowercase
+  identifiers; quoting/doubling otherwise), and the anchored quote-strip refuses any element containing
+  an internal comma/quote; 20+ adversarial stored forms (case/quoting/comma-in-name/equals-in-name/
+  embedded-quote/Cyrillic-homoglyph/`$user`/attacker-lead/dup-pg_temp/empty/cardinality) ALL classify
+  unsafe, and unquoted-UPPER lowercases to the genuinely-canonical path (correctly safe). The JS gate
+  predicate and the SQL predicate agree on all 14 tricky stored forms; the check script reports 38
+  in-scope functions / 0 unsafe / single owner on the evidence DB.
+- **Correction 2 (item snapshot):** no item state passes the DB guard while disagreeing with the
+  customer-visible body (USD-item/NULL-line_total refused → `stale`; degenerate zero cases are
+  self-consistent — body sum equals committed item sum 0); `char(3) NOT NULL` + the status CHECK remove
+  the NULL-currency/out-of-domain concerns; app and DB predicates are equivalent (no stuck-ready, no
+  app-DB divergence). ONE LOW operational caveat: `priceQuotation`'s skip condition did not re-check the
+  new completeness, so a PRE-FIX legacy item priced in a non-quotation currency (or with NULL
+  line_total) — refused correctly by refresh and the DB guard (fails SAFE, never mis-sends; no live
+  population exists) — had no in-app remediation path. **Closed within this loop** by the one-line
+  completion the reviewer suggested: the skip now requires the full completeness predicate, so such an
+  item re-enters pricing (same-currency catalogue match → repriced in the quotation currency; else → a
+  human price confirmation).
+- **Correction 3 (cascade trust):** the RI-as-referencing-table-owner mechanism was independently
+  reproduced (distinct parent/child owners: the child trigger observes the CHILD table's owner; SET NULL
+  behaves identically; direct client DML never acquires it); the 2a″ assertion is signature-exact (a
+  planted `enqueue_quotation_outbox(int)` overload is inert) and aborts on divergence; every inbound
+  cascade edge into `quotation_items` (quotations CASCADE — gated at the quotations boundary trigger —
+  companies CASCADE, product_catalog SET NULL) runs as the trusted owner, so no legitimate operation
+  hits the fail-closed NULL branch; and `message_outbox` has NO inbound FK from quotations/orders
+  (`source_id` is polymorphic), so NO cascade can reach the frozen delivered snapshot as owner.
+
+Out-of-scope backlog notes recorded by the reviewer (both pre-existing, both LOW): (1)
+`orders→quotations` ON DELETE SET NULL (and `product_catalog→quotation_items.catalog_id` SET NULL) run
+as the trusted child-table owner, so deleting an order/catalogue row nulls the provenance link columns
+(`order_id`/`catalog_id`) even on a frozen quotation — the delivered `message_outbox` content stays
+frozen, so no customer-visible effect; a 0007-era FK semantic. (2) The search_path audit scopes schema
+`public` only — an app-owned SECURITY DEFINER function in another schema would be out of scope (none
+exist today).
