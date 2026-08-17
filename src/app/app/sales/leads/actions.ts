@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
+import { parseMoneyInput } from "@/lib/money";
 
 async function requireSales() {
   const p = await requireProfile();
@@ -17,7 +18,10 @@ export async function createLead(formData: FormData): Promise<void> {
   if (!name) return;
   const contact = String(formData.get("contact") ?? "").trim() || null;
   const source = String(formData.get("source") ?? "").trim() || null;
-  const estimated_value = Number(formData.get("estimated_value") ?? 0) || 0;
+  // Decimal money — never a JS float. Malformed/negative values fail like other invalid input.
+  const estimatedValue = parseMoneyInput(formData.get("estimated_value"), "LKR");
+  if (!estimatedValue || estimatedValue.isNegative()) return;
+  const estimated_value = estimatedValue.toString();
 
   const { data, error } = await supabaseWriteClient()
     .from("leads")

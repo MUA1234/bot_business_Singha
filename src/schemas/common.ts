@@ -10,7 +10,11 @@ export const decimalString = z
   .regex(/^-?\d+(\.\d+)?$/u, "must be a decimal string, not a float or number");
 
 export const positiveDecimalString = decimalString.refine(
-  (s) => !s.startsWith("-") && Number(s) !== 0,
+  // String-exact zero test — no float: after the decimalString regex, "greater than zero" is
+  // exactly "not negative and contains a non-zero digit" ("0", "0.00", "000" are all zero;
+  // Number("1e-400") would have collapsed such an amount to 0 and rejected a valid tiny value,
+  // and huge amounts lose precision through a float round-trip).
+  (s) => !s.startsWith("-") && /[1-9]/.test(s),
   "must be greater than zero",
 );
 

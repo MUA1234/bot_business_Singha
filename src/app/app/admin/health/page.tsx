@@ -7,6 +7,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { classifyHealth } from "@/management/ai-manager/health";
+import { decSum } from "@/lib/money";
 import { probeCount, metricLabel, metricState, metricNumber } from "@/lib/metric";
 import { buildAlerts } from "@/management/ai-manager/alerts";
 import { findUnbalancedJournals } from "@/modules/finance/ledger-integrity";
@@ -36,7 +37,7 @@ export default async function HealthPage() {
     probeCount(() => db.from("audit_events").select("id", { count: "exact", head: true }).eq("company_id", cid) as any),
   ]);
 
-  const aiCost = aiRuns.reduce((s: number, r: any) => s + Number(r.cost_usd ?? 0), 0);
+  const aiCost = decSum(aiRuns.map((r: any) => r.cost_usd));
   // §WP6.3 — distinguishes healthy / zero / unavailable / error instead of masking as 0.
   const health = classifyHealth({ failedEvents, deadLetters, outboxFailed, unprocessedEvents });
   const levelColor = health.level === "critical" ? "var(--danger)" : health.level === "warn" ? "var(--warn)" : "var(--ok)";

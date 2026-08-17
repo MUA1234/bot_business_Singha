@@ -3,6 +3,7 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { Icon } from "@/components/Icon";
+import { decSub, decSum, fmtMoney } from "@/lib/money";
 import { ageItems, type AgingItem } from "@/modules/finance/aging";
 
 export const metadata = { title: "Finance — Singha" };
@@ -40,20 +41,20 @@ export default async function FinanceHome() {
   ]);
 
   const currency = sent?.[0]?.currency ?? invoices[0]?.currency ?? "LKR";
-  const quotedValue = (sent ?? []).reduce((s: number, q: any) => s + Number(q.total || 0), 0);
+  const quotedValue = decSum((sent ?? []).map((q: any) => q.total));
 
   // Outstanding = total − settled, aged. Decimal strings throughout (Constitution §8).
   const toItems = (rows: any[]): AgingItem[] =>
     rows.map((r) => ({
       dueDate: r.due_date ?? null,
-      outstanding: String(Number(r.total_amount ?? 0) - Number(r.amount_settled ?? 0)),
+      outstanding: decSub(r.total_amount, r.amount_settled).toFixed(),
     }));
   const now = new Date();
   const ar = ageItems(toItems(invoices), currency, now);
   const ap = ageItems(toItems(bills), currency, now);
 
   const tiles = [
-    { k: "Quoted value (sent)", v: `${currency} ${quotedValue.toLocaleString()}`, href: "/app/finance/invoices" },
+    { k: "Quoted value (sent)", v: fmtMoney(quotedValue, currency), href: "/app/finance/invoices" },
     { k: "Sent quotations", v: sent?.length ?? 0, href: "/app/finance/invoices" },
     { k: "Open price confirmations", v: openPrice ?? 0, href: "/app/finance/price-requests" },
   ];
@@ -76,13 +77,13 @@ export default async function FinanceHome() {
       <div className="grid cols-2">
         <Link href="/app/finance/receivables" className="card stat">
           <div className="k">Receivables outstanding</div>
-          <div className="v" style={{ fontSize: "1.5rem", color: "var(--ok)" }}>{currency} {Number(ar.total).toLocaleString()}</div>
-          <div className="d dim">Overdue: {currency} {Number(ar.overdue).toLocaleString()} · 90+: {Number(ar.buckets.d90_plus).toLocaleString()}</div>
+          <div className="v" style={{ fontSize: "1.5rem", color: "var(--ok)" }}>{fmtMoney(ar.total, currency)}</div>
+          <div className="d dim">Overdue: {fmtMoney(ar.overdue, currency)} · 90+: {fmtMoney(ar.buckets.d90_plus)}</div>
         </Link>
         <Link href="/app/finance/receivables" className="card stat">
           <div className="k">Payables outstanding</div>
-          <div className="v" style={{ fontSize: "1.5rem", color: "var(--warn)" }}>{currency} {Number(ap.total).toLocaleString()}</div>
-          <div className="d dim">Overdue: {currency} {Number(ap.overdue).toLocaleString()} · 90+: {Number(ap.buckets.d90_plus).toLocaleString()}</div>
+          <div className="v" style={{ fontSize: "1.5rem", color: "var(--warn)" }}>{fmtMoney(ap.total, currency)}</div>
+          <div className="d dim">Overdue: {fmtMoney(ap.overdue, currency)} · 90+: {fmtMoney(ap.buckets.d90_plus)}</div>
         </Link>
       </div>
       <div className="grid cols-3">

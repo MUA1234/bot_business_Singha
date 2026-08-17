@@ -469,9 +469,11 @@ export async function tryFinalizeAndSend(
 export async function resolvePriceConfirmation(input: {
   companyId: string;
   confirmationId: string;
-  resolvedPrice: number;
+  /** Canonical non-negative decimal STRING (e.g. "1450.50") — money never rides a JS float. */
+  resolvedPrice: string;
   userId: string;
 }): Promise<{ finalized: boolean }> {
+  if (!/^\d+(\.\d+)?$/.test(input.resolvedPrice)) return { finalized: false }; // fail closed on malformed money
   const db = supabaseAdmin();
   const { data: conf } = await db
     .from("price_confirmations")

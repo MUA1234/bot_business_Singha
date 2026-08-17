@@ -22,10 +22,12 @@ export interface DraftCheck {
 }
 
 const dec = (v: string) => (/^\d+(\.\d+)?$/.test(v.trim()) ? v.trim() : "0");
+// Exact positivity on a sanitised non-negative decimal string: > 0 iff a non-zero digit exists.
+const decPositive = (v: string) => /[1-9]/.test(dec(v));
 
 export function checkDraftJournal(lines: DraftLine[], currency: string): DraftCheck {
   const issues: string[] = [];
-  const priced = lines.filter((l) => l.account_code.trim() !== "" && (Number(dec(l.debit)) > 0 || Number(dec(l.credit)) > 0));
+  const priced = lines.filter((l) => l.account_code.trim() !== "" && (decPositive(l.debit) || decPositive(l.credit)));
 
   if (priced.length < 2) issues.push("A journal needs at least two lines with amounts.");
 

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
+import { parseMoneyInput } from "@/lib/money";
 
 async function requireProc() {
   const p = await requireProfile();
@@ -33,7 +34,10 @@ export async function addQuotation(formData: FormData): Promise<void> {
   if (!(await rfqInCompany(rfqId, p.companyId))) return;
   const supplier_name = String(formData.get("supplier_name") ?? "").trim();
   if (!supplier_name) return;
-  const total_amount = Math.max(0, Number(formData.get("total_amount") ?? 0) || 0);
+  // Decimal money — never a JS float. Malformed/negative totals fail like other invalid input.
+  const totalMoney = parseMoneyInput(formData.get("total_amount"), "LKR");
+  if (!totalMoney || totalMoney.isNegative()) return;
+  const total_amount = totalMoney.toString();
   const lead_time_days = String(formData.get("lead_time_days") ?? "").trim() === "" ? null : Math.max(0, Number(formData.get("lead_time_days")) || 0);
   const notes = String(formData.get("notes") ?? "").trim() || null;
 

@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 import { loadPostedJournals } from "@/lib/ledger-report";
+import { decSub, fmtMoney } from "@/lib/money";
 import { trialBalance, balanceSheet } from "@/accounting/trial-balance";
 
 export const metadata = { title: "Balance Sheet — Singha" };
@@ -14,13 +15,13 @@ export default async function BalanceSheetPage() {
   const { journals, currency } = await loadPostedJournals(p.companyId);
   const tb = trialBalance(journals, currency);
   const bs = balanceSheet(tb);
-  const m = (v: string) => `${currency} ${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  const m = (v: string) => fmtMoney(v, currency);
 
   const assetRows = tb.rows.filter((r) => r.account_type === "asset");
   const liabRows = tb.rows.filter((r) => r.account_type === "liability");
   const equityRows = tb.rows.filter((r) => r.account_type === "equity");
   const amt = (r: { debit: string; credit: string }, normal: "debit" | "credit") =>
-    normal === "debit" ? Number(r.debit) - Number(r.credit) : Number(r.credit) - Number(r.debit);
+    normal === "debit" ? decSub(r.debit, r.credit).toFixed() : decSub(r.credit, r.debit).toFixed();
 
   const Section = ({ title, rows, normal }: { title: string; rows: typeof tb.rows; normal: "debit" | "credit" }) => (
     <div className="card">
@@ -28,7 +29,7 @@ export default async function BalanceSheetPage() {
       {rows.length === 0 ? <div className="empty">Nothing posted.</div> : (
         <div className="table-wrap mt-3">
           <table className="data">
-            <tbody>{rows.map((r) => <tr key={r.account_code}><td className="mono">{r.account_code}</td><td className="num">{m(String(amt(r, normal)))}</td></tr>)}</tbody>
+            <tbody>{rows.map((r) => <tr key={r.account_code}><td className="mono">{r.account_code}</td><td className="num">{m(amt(r, normal))}</td></tr>)}</tbody>
           </table>
         </div>
       )}

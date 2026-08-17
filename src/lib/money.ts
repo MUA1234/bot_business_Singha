@@ -146,3 +146,55 @@ export function lineTotal(unitPrice: Money, quantity: number): Money {
   const q = Math.max(0, Math.trunc(quantity));
   return unitPrice.times(q).round();
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Currency-agnostic decimal helpers for DB-sourced money COLUMNS.
+//
+// Pages/aggregations often hold a row's currency in a separate column and only need exact
+// arithmetic/comparison on the amount strings PostgREST returns. These helpers keep that math in
+// Decimal (never a JS float). A NULL/empty column is treated as 0 — that is the DB semantic for
+// "nothing settled yet"; anything MALFORMED throws (fail closed, never silently zero).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Exact Decimal from a DB money column (string | null | undefined). NULL/'' → 0; malformed → throw. */
+export function dec(value: unknown): Decimal {
+  if (value === null || value === undefined) return new Decimal(0);
+  if (value instanceof Decimal) return value;
+  const s = String(value).trim();
+  if (s === "") return new Decimal(0);
+  if (!/^-?\d+(\.\d+)?$/.test(s)) throw new Error(`Invalid decimal money value: ${JSON.stringify(value)}`);
+  return new Decimal(s);
+}
+
+/** a − b on money column values, exact. */
+export function decSub(a: unknown, b: unknown): Decimal {
+  return dec(a).minus(dec(b));
+}
+
+/** Exact sum of money column values. Empty list → 0. */
+export function decSum(values: Iterable<unknown>): Decimal {
+  let acc = new Decimal(0);
+  for (const v of values) acc = acc.plus(dec(v));
+  return acc;
+}
+
+/** value > 0, exact (the common "is anything outstanding/overdue" decision). */
+export function decGtZero(value: unknown): boolean {
+  return dec(value).greaterThan(0);
+}
+
+/**
+ * THE shared display formatter for money strings/Decimals: exact (no float), thousands-grouped,
+ * fraction digits at the currency scale (2 for LKR/USD, 0 for JPY, 3 for BHD…). Use this instead of
+ * `Number(v).toLocaleString()` — the latter both floats the amount and hides its currency scale.
+ * Pass the currency for a prefixed result ("LKR 14,500.00") or omit it for the bare amount.
+ */
+export function fmtMoney(value: unknown, currency?: string): string {
+  const scale = currency ? currencyScale(currency) : 2;
+  const fixed = dec(value).toFixed(scale);
+  const neg = fixed.startsWith("-");
+  const [int = "0", frac] = (neg ? fixed.slice(1) : fixed).split(".");
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const amount = `${neg ? "-" : ""}${grouped}${frac !== undefined ? `.${frac}` : ""}`;
+  return currency ? `${currency} ${amount}` : amount;
+}

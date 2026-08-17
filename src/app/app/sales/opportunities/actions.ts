@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
+import { parseMoneyInput } from "@/lib/money";
 
 async function requireSales() {
   const p = await requireProfile();
@@ -15,7 +16,10 @@ export async function createOpportunity(formData: FormData): Promise<void> {
   const p = await requireSales();
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return;
-  const amount = Math.max(0, Number(formData.get("amount") ?? 0) || 0);
+  // Decimal money — never a JS float. Malformed/negative amounts fail like other invalid input.
+  const amountMoney = parseMoneyInput(formData.get("amount"), "LKR");
+  if (!amountMoney || amountMoney.isNegative()) return;
+  const amount = amountMoney.toString();
   const probability = Math.min(100, Math.max(0, Number(formData.get("probability") ?? 0) || 0));
   const expected_close = String(formData.get("expected_close") ?? "").trim() || null;
   const lead_id = String(formData.get("lead_id") ?? "").trim() || null;
