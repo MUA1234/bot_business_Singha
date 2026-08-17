@@ -82,7 +82,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 
 | env | consumers |
 |---|---|
-| RLS_READS | src/lib/supabase/read.ts |
+| RLS_READS | src/app/app/admin/health/page.tsx<br>src/lib/supabase/read.ts |
 | RLS_WRITES | src/app/app/finance/customer-invoices/actions.ts<br>src/app/app/finance/supplier-bills/actions.ts<br>src/lib/auth.ts<br>src/lib/supabase/read.ts |
 | WHATSAPP_ASYNC | src/app/api/webhooks/whatsapp/route.ts |
 
@@ -103,8 +103,8 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | file:line | returns |
 |---|---|
 | src/ai/gateway.ts:157 | `null` |
-| src/ai/manager-observation.ts:125 | `null` |
-| src/ai/quotation.ts:104 | `null` |
+| src/ai/manager-observation.ts:129 | `null` |
+| src/ai/quotation.ts:109 | `null` |
 | src/app/api/cron/daily-digest/route.ts:22 | `0` |
 | src/app/api/exports/[kind]/route.ts:28 | `error-discarding destructure` |
 | src/app/api/exports/[kind]/route.ts:40 | `error-discarding destructure` |
