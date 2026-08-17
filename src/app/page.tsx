@@ -8,13 +8,20 @@ export const dynamic = "force-dynamic"; // the landing greets a signed-in staff 
 
 /**
  * Staff entry point (this product has no public customer UI — customers talk to the
- * WhatsApp bot). Signed out: what the reader controls and what their team handles for
- * them. Signed in: a personal "continue to YOUR department" strip using the real session.
+ * WhatsApp bot). EVERYONE lands here, from the owner to a driver, so the signed-out copy
+ * addresses the reader at whatever level they work: your work, your call, your team.
+ * Signed in: a personal strip that speaks to the actual role on the session.
  */
 export default async function Home() {
   const profile = await getProfile().catch(() => null);
   const dept = profile ? DEPARTMENTS.find((d) => d.key === (profile.isAdmin ? "admin" : profile.department)) : null;
   const deptHome = dept?.nav[0]?.href ?? "/app";
+  // Address the person who is actually signed in — an owner and a driver do not get the same line.
+  const signedInLine = profile?.isAdmin
+    ? "The whole business is in view. Pick up where you left off."
+    : dept
+      ? `${dept.label} — your work is ready and in order.`
+      : "Your work is ready and in order.";
 
   return (
     <main className="container" style={{ paddingTop: 12, paddingBottom: 48 }}>
@@ -40,12 +47,12 @@ export default async function Home() {
         <div style={{ position: "relative" }}>
           <span className="eyebrow">Singha Central</span>
           <h1 className="mt-2">
-            Your business,<br />under your&nbsp;control.
+            Your work, your call,<br />your team behind&nbsp;you.
           </h1>
-          <p className="muted mt-3" style={{ fontSize: "1.02rem", maxWidth: 540 }}>
-            Sales, finance, operations, people, procurement, compliance and fleet — you see all of
-            it from one place. Your team keeps the work moving, the routine handles itself, and
-            anything that needs your authority reaches you with what you need to decide it.
+          <p className="muted mt-3" style={{ fontSize: "1.02rem", maxWidth: 552 }}>
+            Whether you run the company or run one part of it, you sign in and see exactly what is
+            yours — nothing else to wade through. What is yours to decide reaches you with what you
+            need to decide it. What is not goes to the person who holds it, and comes back settled.
           </p>
 
           {profile ? (
@@ -54,9 +61,7 @@ export default async function Home() {
                 <div style={{ fontWeight: 800 }}>
                   Welcome back, {profile.fullName || profile.username}
                 </div>
-                <div className="small muted mt-1">
-                  {dept ? `${dept.label} — your work is ready and in order.` : "Your work is ready and in order."}
-                </div>
+                <div className="small muted mt-1">{signedInLine}</div>
               </div>
               <Link href={deptHome} className="btn">Continue to {dept ? dept.label : "your workspace"}</Link>
             </div>
@@ -74,7 +79,7 @@ export default async function Home() {
             <span className="badge">today</span>
           </div>
           <div className="widget">
-            <div className="k">Cleared by your team this week</div>
+            <div className="k">Cleared this week</div>
             <div className="row between" style={{ alignItems: "flex-end" }}>
               <div className="v">18</div>
               {/* decorative single-hue mini bars: thin marks, rounded data ends */}
@@ -94,7 +99,7 @@ export default async function Home() {
             </div>
           </div>
           <div className="widget">
-            <div className="k">Departments reporting in</div>
+            <div className="k">Working with you today</div>
             <div className="row gap-1 wrap mt-1">
               {["Sales", "Finance", "Ops", "HR"].map((d) => (
                 <span key={d} className="badge">{d}</span>
@@ -119,20 +124,20 @@ export default async function Home() {
             </Link>
           ))}
         </div>
-        <p className="dim small mt-2">
-          Every login is granted deliberately. Each person opens the system straight to their own
-          work — nothing else to wade through.
+        <p className="small mt-2 on-bg">
+          Find yours above. You sign in and land straight on your own work — your administrator sets
+          up the account and what it reaches.
         </p>
       </section>
 
       <section id="control" className="grid cols-3 mt-4">
         <div className="card">
-          <div className="card-title row gap-1"><Icon name="clipboard" size={18} /> Nothing happens out of your sight</div>
-          <p className="card-sub mt-1">Orders, invoices, payments, tasks, staff, suppliers, contracts and vehicles sit in one company-scoped record, with a trail of who changed what and when. You never have to ask around to find out where something stands.</p>
+          <div className="card-title row gap-1"><Icon name="clipboard" size={18} /> You always know where things stand</div>
+          <p className="card-sub mt-1">Orders, invoices, payments, tasks, suppliers, contracts and vehicles sit in one place, with a trail of who changed what and when. No chasing people for an update, no wondering which version is the current one.</p>
         </div>
         <div className="card">
-          <div className="card-title row gap-1"><Icon name="shield" size={18} /> Your limits, enforced for you</div>
-          <p className="card-sub mt-1">You set who can approve what, and how far. Nothing sensitive moves until the person holding that authority decides — and the decision is recorded against their name.</p>
+          <div className="card-title row gap-1"><Icon name="shield" size={18} /> You know what is yours to decide</div>
+          <p className="card-sub mt-1">Every approval has an owner and a limit. What sits within yours comes straight to you; what does not goes to the person who holds it. Nothing sensitive moves until someone with that authority decides — and it is recorded against their name.</p>
         </div>
         <div className="card">
           <div className="card-title row gap-1"><Icon name="wallet" size={18} /> Numbers you can act on</div>
@@ -142,12 +147,12 @@ export default async function Home() {
 
       <section className="grid cols-2 mt-3">
         <div className="card">
-          <div className="card-title row gap-1"><Icon name="shopping-cart" size={18} /> Your team stops doing busywork</div>
-          <p className="card-sub mt-1">Customer WhatsApp messages become tracked orders and quotations without anyone retyping them. Your people spend their hours on the customers who need a person — and an unclear price comes back to you as a one-tap confirmation.</p>
+          <div className="card-title row gap-1"><Icon name="shopping-cart" size={18} /> Less busywork, for everyone</div>
+          <p className="card-sub mt-1">Customer WhatsApp messages become tracked orders and quotations without anyone retyping them. Your hours go to the customers who need a person — and an unclear price comes back as a one-tap confirmation instead of a hunt for whoever knows.</p>
         </div>
         <div className="card">
           <div className="card-title row gap-1"><Icon name="users" size={18} /> Everyone knows what is theirs</div>
-          <p className="card-sub mt-1">Each person signs in to their own work and nothing else. You keep the whole picture; they keep moving. The assistant reads, sorts and proposes — it never acts on its own, and it never decides for you.</p>
+          <p className="card-sub mt-1">Each person opens the system to their own work and nothing else. Nobody wades through someone else&apos;s queue, and nobody is left guessing about their own. The assistant reads, sorts and proposes — it never acts on its own, and it never decides for you.</p>
         </div>
       </section>
 

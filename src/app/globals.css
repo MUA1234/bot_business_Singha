@@ -394,6 +394,19 @@ table.data tr:hover td { background: rgba(255, 255, 255, 0.03); }
 .dept-chip .t { font-weight: 700; font-size: 0.92rem; }
 .dept-chip .s { font-size: 0.76rem; color: var(--text-dim); margin-top: 1px; }
 
+/* A line of prose sitting directly on the living background (no card behind it) needs its own
+   smoked ground, or it drops to unreadable over the bright passages of the video. */
+.on-bg {
+  display: inline-block;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  backdrop-filter: blur(var(--panel-blur));
+  -webkit-backdrop-filter: blur(var(--panel-blur));
+  color: var(--text-muted);
+}
+
 /* Signed-in continue card */
 .continue-strip {
   display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;

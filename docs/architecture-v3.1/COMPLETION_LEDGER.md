@@ -96,6 +96,48 @@
   security/concurrency review: see the dated note appended at commit time.
 - **Owner gates opened:** hosted application of migration 0068 (with 0042→0067).
 
+### Slice UI1 — product surface refresh (merged to `main`, PR #17 → `eab1640`)
+- **Scope:** Agentic-OS theme tokens + smoked panel surfaces (`globals.css`); staff-specific landing
+  (signed-in "continue to YOUR department" strip from the real session); shared chart primitives
+  (`src/components/charts.tsx`: `BarChart`, `HBarChart`, `AreaLineChart`, `agingBars`) used by the
+  Command Centre (90-day cash projection, AR/AP aging) and department dashboards; living video
+  background (`src/components/LivingBackground.tsx`) with a single post-mount source, mobile MP4 /
+  WebM selection and a reduced-motion opt-out.
+- **Defects found by rendering the built pages and looking at them** (not by assumption): trough
+  marker clipped at the right edge (`padX` + label clamp), and body text unreadable over the video
+  (white-film glass → smoked dark panels + `--text-dim` + body text-shadow).
+- **Note:** PRs #14/#15/#16 merged into their stacked bases, not `main`; PR #17 is what actually put
+  P0, P1 and this slice on `main`. Verified by reading `main`'s tree after the merge.
+- **No behaviour, permission, schema or migration change.**
+
+### Slice UI2 — Singha Central rebrand (merged to `main`, PR #18 → `f9eafb2`)
+- **Scope:** brand/title/legal/package naming to **Singha Central**; landing repositioned from
+  sales-first to whole-business management; "AI Manager" dropped as a feature name (nav → "Analysis").
+- **Prompt-version bump:** the model-facing system prompt text changed, so
+  `MANAGEMENT_PROMPT_VERSION` went `mgmt-1.0` → **`mgmt-1.1`** — recorded AI decisions must trace to
+  the exact prompt that produced them.
+
+### Slice UI3 — owner-control landing copy (merged to `main`, PR #19 → `6a1a353`)
+- **Branch:** `feature/owner-control-copy` (base `f9eafb2`), commit `8edfbe6`.
+- **Scope:** landing voice moved from product pitch to reader-control — outcome-for-you section
+  titles; nav anchor `#how` → `#control` ("What you control"); login tagline, admin welcome line
+  (which also still carried the pre-rebrand "Singha platform" name) and the site meta description
+  brought into the same voice.
+- **Audience correction (owner, same slice):** the first pass addressed the owner only ("Your
+  business, under your control", "your team", "you set who can approve what"), but this page is the
+  entry point for **every** employee. Rewritten to address the reader at their own level — hero
+  "Your work, your call, your team behind you"; the sub-copy names both cases ("whether you run the
+  company or run one part of it"); device widgets de-owner-ised ("Cleared this week", "Working with
+  you today"); the authority card reframed from *you set the limits* to *you know what is yours to
+  decide*; and the signed-in strip now branches on the real session role (admin → whole business in
+  view; staff → their department).
+- **Claims kept tied to implemented behaviour:** WhatsApp orders/quotations, authority-limited
+  approvals with recorded decisions, double-entry core with no silent edits, department-scoped
+  access, assistant observes/proposes only.
+- **Gates:** typecheck ✓ lint 0 errors ✓ build ✓ `npm run verify` **438 unit (80 files)** ✓;
+  production build rendered headlessly and read.
+- **No behaviour, permission, schema or migration change** (copy + one anchor id).
+
 ## Deferred (deliberate, owner-visible)
 
 | Item | Why deferred | Where reported |
@@ -106,8 +148,16 @@
 
 ## Owner gates outstanding (program-wide)
 
-1. Merge authorization for PR #13 and each stacked completion PR.
-2. Hosted/staging migration authorization (0042→0067 + any new completion migrations).
+1. ~~Merge authorization for PR #13 and each stacked completion PR.~~ **GRANTED** (owner, 2026-08):
+   PR #13 merged (`9d16921`); standing instruction is now "every slice merges to `main`", with
+   `main` deployed to the stable production URL. Merge is no longer a per-slice gate; the gates
+   below still are.
+2. Hosted migration application — **handed to the owner, NOT observed applied.** The owner asked for
+   the SQL separately: `docs/architecture-v2/HOSTED_MIGRATION_0042_TO_0068.sql` (one transaction;
+   PART 0 guards + `REVOKE CREATE ON SCHEMA public FROM anon, authenticated, service_role`; ledger
+   baseline; 0042→0068). Verified only on a disposable PostgreSQL 16 (fresh + upgrade). **No hosted
+   evidence exists in this repo and none may be claimed.** Until it is applied, the hosted database
+   is missing the delivery/approval RPCs these slices assume.
 3. Flag activation per slice (each V3.1 flag; RLS_READS/RLS_WRITES/WHATSAPP_ASYNC).
 4. GitHub Actions runner remediation (runner_id:0 systemic failure — repo/account settings; CI green
    on final SHA is a hard done-gate that local PostgreSQL cannot substitute).

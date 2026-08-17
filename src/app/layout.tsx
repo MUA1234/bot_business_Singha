@@ -5,7 +5,7 @@ import LivingBackground from "@/components/LivingBackground";
 export const metadata = {
   title: "Singha Central",
   description:
-    "Run the whole business from one place — finance, operations, people, procurement, compliance, fleet and sales. Your team keeps the work moving, every decision is recorded, and each person sees only their own work.",
+    "Sign in to your own work — finance, operations, people, procurement, compliance, fleet and sales in one place. What is yours to decide reaches you; every decision is recorded.",
 };
 
 export const viewport = {
