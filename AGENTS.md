@@ -8,9 +8,9 @@ Any AI coding agent (Claude Code, Codex, or other) must follow the same rules.
 > (`src/config/flags.ts`) and canonical proposal contracts (`src/schemas/v3_1/*`) — is additive,
 > consumed by no runtime path (this foundation specifically is zero behaviour change). The
 > `0048+` security/accounting correction (pack WP10–WP18) — a **blocking prerequisite** for any V3.1
-> finance/RLS/outbox cutover — is now **IMPLEMENTED as a controlled draft PR** (migrations **0048–0066**,
+> finance/RLS/outbox cutover — is now **IMPLEMENTED as a controlled draft PR** (migrations **0048–0067**,
 > integration branch `feature/v3-1-phase-1-external-review-fixes`), verified on a disposable PostgreSQL
-> 16 (fresh + upgrade), **NOT merged, NOT deployed, hosted DB NOT migrated**, after eight external
+> 16 (fresh + upgrade), **NOT merged, NOT deployed, hosted DB NOT migrated**, after nine external
 > reviews (all CHANGES REQUESTED → corrected; awaiting the final review). It is **not** uniformly
 > "inert while flags OFF" — the un-migrated hosted DB is the containment, not the flags. The sixth
 > review added migration **0064**: the privileged delivery transitions
@@ -35,7 +35,14 @@ Any AI coding agent (Claude Code, Codex, or other) must follow the same rules.
 > the delivered `message_outbox` content against `service_role`, and added TRUNCATE/DELETE guards — with a
 > full-codebase search_path audit of other-domain SECURITY DEFINER functions noted as a systemic follow-up
 > out of WP12 scope. Note the `message_outbox` service-only DML boundary originated in migration **0038**
-> (not 0048). Because the already-hosted 0038–0041 functions may be
+> (not 0048). The ninth review added migration **0067**: it performs that systemic follow-up — a
+> catalog-driven audit re-pins EVERY application SECURITY DEFINER + trigger function in `public` (excluding
+> extension-owned) to `pg_catalog, extensions, public, pg_temp` (bodies unchanged; fails closed if an API
+> role has CREATE on public/extensions; a permanent integration gate blocks future unsafe functions) — and
+> closes a quotation-item vs atomic-enqueue race (the item-freeze guard reads the parent FOR UPDATE and
+> enqueue validates the itemised total under the item lock, returning `stale` on divergence). Owner-approved
+> hosted search_path check + self-verifying hardening scripts are prepared, not executed. Because the
+> already-hosted 0038–0041 functions may be
 > `authenticated`-executable, a read-only privilege check + a self-verifying, owner-approval-required
 > emergency REVOKE hotfix are **prepared but not executed**
 > (`docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`). See

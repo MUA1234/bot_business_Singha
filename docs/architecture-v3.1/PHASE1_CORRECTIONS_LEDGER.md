@@ -5,10 +5,10 @@
 > with failing-before/passing-after tests, verified on a disposable PostgreSQL 16 (fresh **and**
 > `0047→0048+` upgrade path). `RLS_READS` / `RLS_WRITES` / `WHATSAPP_ASYNC` stay OFF. No hosted action.
 
-> **Phase 1 status: CHANGES REQUESTED (eight times) → corrected, awaiting the FINAL external review.**
-> (This summary block enumerates through the fourth review; reviews five–eight are detailed in the
-> per-review sections below — fifth **0063**, sixth **0064**, seventh **0065**, eighth **0066** — and in
-> `PHASE1_CONSOLIDATION_REPORT.md`.)
+> **Phase 1 status: CHANGES REQUESTED (nine times) → corrected, awaiting the FINAL external review.**
+> (This summary block enumerates through the fourth review; reviews five–nine are detailed in the
+> per-review sections below — fifth **0063**, sixth **0064**, seventh **0065**, eighth **0066**, ninth
+> **0067** — and in `PHASE1_CONSOLIDATION_REPORT.md`.)
 > The first review found blocking defects in WP12/WP15/WP11 + a branch-integration problem (fixed:
 > migrations **0056–0058**). The second review asked for deeper WP12 outbox-state reconciliation,
 > WP11 composite DB constraints + money fail-close, WP15 function-privilege, and doc/deployment
@@ -40,7 +40,7 @@
 | **WP18** | Reconcile migration-state / verification docs | **✅ done — docs** |
 
 > Note: the eight WP migrations (0048–0055) landed in the first pass; the **FINAL external review**
-> must approve the corrections below (through migration **0066**) before WP11/WP12/WP15 are considered
+> must approve the corrections below (through migration **0067**) before WP11/WP12/WP15 are considered
 > done. The Phase-1 consolidation report is `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` (final
 > evidence, stamped with the content commit SHA). **Mandatory STOP** before the V3.1 runtime phases (2–10).
 
@@ -621,23 +621,71 @@ cannot forge the owner check or hide outbox history**; and **message_outbox cont
 while delivery-state stays mutable**. Independent adversarial-security + regression subagent reviews were run
 and their findings incorporated in one correction loop.
 
+## Ninth external review — migration 0067 (systemic search_path audit + enqueue-item race)
+
+CHANGES REQUESTED — the systemic follow-up the eighth review flagged, plus a genuine concurrency gap. Do
+not merge; do not begin Phase 2; do not migrate hosted / deploy / enable flags / run the hosted scripts.
+
+1. **Full application-function search_path audit (Correction 1).** Migration 0066 proved the
+   `SET search_path = public` + unqualified-relation → `pg_temp` relation-shadowing class; it is NOT WP12-
+   specific. A CATALOG-DRIVEN `ALTER FUNCTION` (operating on the FINAL active functions after 0066, not a
+   text search) re-pins EVERY application-owned SECURITY DEFINER function and every trigger function in
+   `public` — identity/RLS predicate helpers (`has_capability`/`my_company`/`is_admin`/…), the accounting
+   RPCs (`post_manual_journal`/`post_customer_invoice`/`post_supplier_bill`/`settle_*`/`reverse_journal`/
+   `reimburse_expense_claim`/`_journal_post_internal`/`_journal_fp_matches`), the approval + bank-change
+   RPCs (`decide_approval`/`request_supplier_bank_change`/`decide_supplier_bank_change`), the integrity
+   report, and the posted-journal/audit trigger functions — to `search_path = pg_catalog, extensions,
+   public, pg_temp` (pg_catalog first; `extensions` for digest/pgcrypto; `public` for app relations;
+   `pg_temp` LAST; no `$user`). Extension-owned functions are EXCLUDED. Only `search_path` changes — never
+   body/owner/args/return/SECURITY-DEFINER/ACL. The migration **fails closed** if anon/authenticated/
+   service_role has CREATE on the trusted `public`/`extensions` schemas (it reports; it does not revoke
+   hosted privileges blindly). A PERMANENT integration gate — `tests/integration/search-path-safety.test.ts`
+   — fails the build whenever a future application SECURITY DEFINER / trigger function has an unsafe path.
+
+2. **Quotation-item vs atomic-enqueue race (Correction 2).** 0066 froze `quotation_items` after the parent
+   is visibly queued, but `_quotation_status_for_guard()` did an UNLOCKED parent-status read, so a concurrent
+   item mutation could still see the pre-commit `ready` status while `enqueue_quotation_outbox` queued the
+   already-built message — a committed queued snapshot could disagree with committed items. Closed at the DB
+   linearization boundary with ONE lock order (parent quotation BEFORE child items): (a) the item-freeze
+   guard helper now reads the parent `FOR UPDATE`, so a concurrent item mutation serializes on the quotation
+   row that enqueue already locks; and (b) `enqueue_quotation_outbox`, under that lock, locks the item rows
+   and — for an ITEMISED quotation — returns `stale` if the caller's expected total ≠ the live sum of item
+   line totals. If the item mutation commits first, enqueue observes the new sum → `stale` (never sends the
+   old body); if enqueue commits first, the item mutation waits then fails 42501 (queued/frozen). enqueue
+   keeps its exact signature, SECURITY DEFINER owner, hardened search_path, service-role-only EXECUTE, and
+   every result / exact-payload-recovery semantic; numeric/Decimal correctness preserved (no float).
+
+Hosted remediation prep (NOT executed): `docs/architecture-v2/hosted_secdef_searchpath_check.sql` (read-only
+inventory; 0041-staged disposable DB shows 19/19 unsafe) + `hosted_secdef_searchpath_hardening.sql` (owner-
+approved, self-verifying, exact-regprocedure, abort-on-residual; 0041-staged: 19 unsafe → 0, abort-gate
+rolls back a simulated residual).
+
+Tests: `tests/integration/wp12-enqueue-item-race.test.ts` (7 — genuine two-connection races: item-first →
+`stale`; enqueue-first → the concurrent item write waits then 42501; no deadlock; two-finaliser; terminal-
+vs-enqueue; cross-company; pre-queue editable / post-queue immutable) and
+`tests/integration/search-path-safety.test.ts` (7 — the permanent gate + cross-domain pg_temp adversarial:
+`has_capability`/`my_company`/`is_admin` cannot be forged via temp memberships/profiles;
+`decide_approval` cannot be forced via a temp `approval_requests`; `_journal_post_internal` stays service-
+only + unshadowable; the WP12 owner check resists a temp `pg_proc`; legitimate paths still work). Independent
+adversarial-security + concurrency/regression subagent reviews were run and their findings incorporated.
+
 ## Verification (disposable PostgreSQL 16, this session)
 
 | Gate | Result |
 |---|---|
 | `npm run secret-scan` | pass |
-| `npm run migration-lint` | pass — **66 migrations, sequential 0001–0066** |
+| `npm run migration-lint` | pass — **67 migrations, sequential 0001–0067** |
 | `npm run typecheck` | pass |
 | `npm run lint` | pass (0 errors; pre-existing `<img>` warnings only) |
 | `npm test` (unit) | pass — **419 (79 files)** |
 | `npm run audit-check` | pass (2 approved exceptions) |
 | `npm run build` | pass |
-| `npm run test:integration` — **fresh DB** (0001→0066 from scratch) | pass — **39 files / 297 tests** (incl. the new 0066 snapshot-boundary suite — signature-exact owner check vs a fake overload, DELETE boundary, frozen quotation + quotation_items, a genuine two-connection claim-vs-delete/mutate race — the 0065 claim + INSERT-boundary suites, the 0064 delivery-boundary suite, the 0063 atomic-enqueue two-connection races, and the 0062 signature-exact allowlist + 42501 suite) |
-| `npm run test:integration` — **upgrade path** (0058 + legacy data → 0059→0066) | pass — **39 files / 297 tests**; the 0062 lockdown holds, a stale `ready` quotation row is unclaimable, a direct service-role/custom-role `ready→queued` is refused, a queued quotation is frozen and undeletable, and a legacy `ready` quotation is atomically enqueued on the upgraded DB |
-| hosted hotfix (0041-staged disposable DB) | exposure before (`exposed=t`, 3 functions) → locked after (`still_exposed=0`, COMMIT); simulated residual → RAISE + ROLLBACK (grant did not persist) |
+| `npm run test:integration` — **fresh DB** (0001→0067 from scratch) | pass — **41 files / 311 tests** (incl. the new 0067 search-path-safety gate + cross-domain pg_temp adversarial suite and the 0067 two-connection enqueue-vs-item-mutation race suite; the 0066 snapshot-boundary suite; the 0065 claim + INSERT-boundary suites; the 0064 delivery-boundary suite; the 0063 atomic-enqueue two-connection races; and the 0062 signature-exact allowlist + 42501 suite) |
+| `npm run test:integration` — **upgrade path** (0058 + legacy data → 0059→0067) | pass — **41 files / 311 tests**; every application SECURITY DEFINER / trigger function is confirmed pg_temp-safe, the item-vs-enqueue race resolves both orderings, the 0062 lockdown holds, a queued quotation is frozen and undeletable, and a legacy `ready` quotation is atomically enqueued on the upgraded DB |
+| hosted hotfix (0041-staged disposable DB) | EXECUTE: exposure before (`exposed=t`, 3 functions) → locked after (`still_exposed=0`, COMMIT); simulated residual → RAISE + ROLLBACK. search_path: 19/19 unsafe before → 0 after (self-verifying); simulated residual → RAISE + ROLLBACK |
 
-_Numbers above are the **eighth review increment** (integration branch, migrations 0048–0066).
-Earlier rounds — seventh (0065, 38 files / 267 tests, unit 419); sixth (0064, 37 files / 224 tests, unit 419); fifth (0063, 36 files / 207 tests, unit
+_Numbers above are the **ninth review increment** (integration branch, migrations 0048–0067).
+Earlier rounds — eighth (0066, 39 files / 297 tests, unit 419); seventh (0065, 38 files / 267 tests, unit 419); sixth (0064, 37 files / 224 tests, unit 419); fifth (0063, 36 files / 207 tests, unit
 419); fourth (0062, 35 files / 190 tests, unit 426); third (0061, 34 files / 182 tests, unit 420); second
 (0060, 34 files / 180 tests, unit 410); first (0058, 33 files / 173 tests, unit 405); first pass (0055,
 unit 374) — are superseded. **GitHub Actions obtained no runner on any run**; all evidence is local

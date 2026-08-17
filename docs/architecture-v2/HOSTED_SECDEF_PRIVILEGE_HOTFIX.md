@@ -83,10 +83,47 @@ SQL-editor batch — residual exposure aborts the transaction rather than reachi
 `authenticated` (and `anon`) EXECUTE is revoked; `service_role` retains it. Applying migration **0062**
 afterwards is a no-op on these functions (same end-state).
 
+## `search_path` / `pg_temp` hardening of the hosted 0038–0041 functions (migration 0067)
+
+Separately from the EXECUTE-privilege exposure above, the **0038–0041 functions were applied to the
+hosted DB with `SET search_path = public`** (or none). Because Postgres searches the session temp schema
+for RELATION names **before** `pg_catalog`/`public` unless `pg_temp` is listed later, a caller with the
+default (PUBLIC) `TEMP` privilege can `CREATE TEMP TABLE memberships`/`journal_entries`/`pg_proc`/… to
+shadow the real relations inside those SECURITY DEFINER / trigger functions (see migrations 0066/0067).
+Migration **0067** fixes this permanently on any DB it reaches (it re-pins every application SECURITY
+DEFINER / trigger function to `pg_catalog, extensions, public, pg_temp`), but until 0067 reaches the
+hosted DB the already-hosted functions remain shadowable. Two prepared, **not-executed** artifacts:
+
+3. **`hosted_secdef_searchpath_check.sql`** — READ-ONLY. Lists every application SECURITY DEFINER / trigger
+   function in `public` (excluding extension-owned) with its `search_path`, and flags any that does not pin
+   `pg_temp` LAST (or lists `$user`, or has none). Safe to run against hosted at any time; mutates nothing.
+   *Evidence (disposable PostgreSQL 16 staged at 0041, mirroring the hosted 0038–0041 state):* **19 of 19**
+   application SECURITY DEFINER / trigger functions report `unsafe = true`.
+4. **`hosted_secdef_searchpath_hardening.sql`** — mutation; **owner approval REQUIRED before execution.**
+   Catalog-driven and **self-verifying**: it targets the EXACT `regprocedure` identities present, ABORTS if
+   the targeted functions do not share ONE owner or that owner is an API role, alters **only** `search_path`
+   (never body/owner/args/return/SECURITY-DEFINER/ACL), then RE-VERIFIES in the same transaction that every
+   targeted signature now pins `pg_temp` LAST — RAISING (rolling back the whole transaction) on any residual
+   unsafe signature, so a partial hardening can never be committed. *Evidence (0041-staged disposable DB):*
+   before → **19 unsafe**; running it → `hosted hardening OK: 19 … pinned; zero residual unsafe`; after →
+   **0 unsafe**; a simulated residual (one function re-set to `search_path = public`) makes the self-verify
+   RAISE `ABORTED: 1 residual` and ROLL BACK (nothing committed). Applying migration **0067** afterwards is a
+   no-op on these functions (same end-state).
+
+> Fail-closed note: migration 0067 (and any hosted apply of it) ABORTS if `anon`/`authenticated`/
+> `service_role` has `CREATE` on the trusted `public`/`extensions` schemas — because a persistent (non-temp)
+> shadow object there would defeat even a `pg_temp`-last path. It does **not** revoke that privilege blindly;
+> it reports the incompatible condition for owner-approved remediation. (On PostgreSQL 15+ the default
+> `PUBLIC` `CREATE` on `public` is already revoked; verify on the hosted DB before applying.)
+
 ## Recommended owner sequence (owner-gated; not performed here)
 
 1. Run `hosted_secdef_privilege_check.sql` on the hosted DB (read-only). Save the output.
 2. If any service-only function shows `exposed = true`, run `hosted_secdef_emergency_revoke.sql`
-   (owner approval required) to close the window immediately.
-3. Apply the full Phase-1 migration set (…→**0062**) via `npm run migrate` on staging first, then
-   production — at which point 0062 makes the lockdown permanent and part of the migration history.
+   (owner approval required) to close the EXECUTE-privilege window immediately.
+3. Run `hosted_secdef_searchpath_check.sql` (read-only). If any application SECURITY DEFINER / trigger
+   function shows `unsafe = true`, run `hosted_secdef_searchpath_hardening.sql` (owner approval required)
+   to close the `pg_temp`-shadowing window immediately.
+4. Apply the full Phase-1 migration set (…→**0067**) via `npm run migrate` on staging first, then
+   production — at which point 0062 (EXECUTE lockdown) and 0067 (search_path hardening) become permanent and
+   part of the migration history.

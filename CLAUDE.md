@@ -19,12 +19,12 @@
 > `docs/architecture-v3.1/` (`00_BASELINE_ASSESSMENT.md`, `01_V3_1_EXECUTION_SPEC.md`,
 > `IMPLEMENTATION_LEDGER.md`). Its compatibility foundation (default-OFF flags `src/config/flags.ts`
 > + proposal contracts `src/schemas/v3_1/*`) plus the **`0048+` security/accounting correction (pack
-> WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0066** — and verified on a
+> WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0067** — and verified on a
 > disposable PostgreSQL 16 (fresh + upgrade). They are the **blocking prerequisite** for any V3.1
 > finance/RLS/outbox cutover and are **NOT merged, NOT deployed, hosted DB NOT migrated, all flags
 > OFF**. (Note: "hosted DB NOT migrated" — not the flags — is what keeps these off the live system;
 > the WP12 delivery path runs with `WHATSAPP_ASYNC` OFF and `decide_approval`/FKs/catalogue enforce for
-> any caller once migrated, so they are **not** uniformly "inert while flags OFF".) Eight external
+> any caller once migrated, so they are **not** uniformly "inert while flags OFF".) Nine external
 > reviews returned **CHANGES REQUESTED**; all are fixed (first: migrations 0056–0058; second: WP12
 > outbox reconciliation + WP11 composite FKs/money fail-close + WP15 function-privilege, 0059–0060;
 > third: concurrency-safe `refreshQuotationStatus`, sent-outbox reconcile-or-fail-closed,
@@ -61,12 +61,23 @@
 > way, the delivered `message_outbox` content (recipient/body/template/source) is frozen against
 > `service_role` while delivery-state stays worker-mutable, and non-trusted `TRUNCATE`/`DELETE` of the
 > delivery row is refused; and (e) a doc correction that the `message_outbox` service-only DML boundary
-> originated in migration **0038**, not 0048 (a full-codebase search_path audit of OTHER-domain SECURITY
-> DEFINER functions is a noted systemic follow-up, out of this WP12 review's scope) — see
+> originated in migration **0038**, not 0048); ninth: migration **0067** performs the systemic follow-up the
+> eighth review flagged plus a concurrency fix — (a) a **catalog-driven search_path audit** re-pins EVERY
+> application-owned SECURITY DEFINER function and every trigger function in `public` (excluding
+> extension-owned) to `pg_catalog, extensions, public, pg_temp` (pg_temp LAST; `extensions` for
+> digest/pgcrypto), closing the `pg_temp` relation-shadowing class across the accounting/approval/identity-
+> RLS/bank-change/journal/settlement/reimbursement/fingerprint/integrity domains — bodies unchanged, only
+> `search_path`; the migration **fails closed** if anon/authenticated/service_role has CREATE on
+> `public`/`extensions`, and a permanent integration gate (`search-path-safety.test.ts`) fails on any future
+> unsafe function; and (b) closes a quotation-item vs atomic-enqueue race — the item-freeze guard now reads
+> the parent quotation **FOR UPDATE** (serializing with `enqueue_quotation_outbox`), and enqueue locks the
+> item rows and returns `stale` when an itemised quotation's expected total diverges from the live item sum,
+> so a queued outbox snapshot can never disagree with committed items (owner-approved hosted search_path
+> check + self-verifying hardening scripts prepared, not executed) — see
 > `docs/architecture-v2/HOSTED_SECDEF_PRIVILEGE_HOTFIX.md`) on
 > `feature/v3-1-phase-1-external-review-fixes`, now **awaiting the FINAL external review** — do not
-> begin V3.1 Phase 2 until it is approved. Verified counts: **unit 419 (79 files); integration 39
-> files / 297 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
+> begin V3.1 Phase 2 until it is approved. Verified counts: **unit 419 (79 files); integration 41
+> files / 311 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
 > `PHASE1_CORRECTIONS_LEDGER.md`.
 >
 > **Superseded-document rule:** A coding agent MUST NOT rely on any instruction that

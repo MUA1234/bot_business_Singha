@@ -1,0 +1,185 @@
+/**
+ * WP12 NINTH review — the quotation-item vs atomic-enqueue race (migration 0067). GENUINE two-connection
+ * PostgreSQL tests, REAL roles. Lock order: parent quotation BEFORE child items.
+ *
+ * The invariant: no committed outcome may contain a queued outbox snapshot that disagrees with the
+ * committed quotation items/totals.
+ *   - If the item mutation commits FIRST, `enqueue_quotation_outbox` observes the new authoritative item
+ *     sum under the parent lock and returns `stale` (it never sends the old body).
+ *   - If enqueue commits FIRST, the concurrent item mutation waits on the parent lock (taken by the
+ *     item-freeze guard, now FOR UPDATE) and then fails 42501 because the quotation is `queued`.
+ *
+ * Skipped unless DATABASE_URL is set.
+ */
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { randomUUID } from "node:crypto";
+
+const URL = process.env.DATABASE_URL ?? "";
+const enabled = !!URL;
+const rnd = () => Math.random().toString(36).slice(2, 12);
+const mkSsl = (u: string) => (/localhost|127\.0\.0\.1/.test(u) ? false : { rejectUnauthorized: false });
+const ENQ = `select public.enqueue_quotation_outbox($1,$2,'9471','body',$3,$4,'LKR','whatsapp','quotation') as v`;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let setup: any, cA: any, cB: any;
+let co: string, coB: string, capUser: string;
+
+// Seed (as owner) a `ready` quotation whose total equals the sum of its priced item line_totals.
+async function seedReadyWithItems(company: string, total: string, lineTotals: string[]) {
+  const conv = (await setup.query(`insert into wa_conversations (company_id, customer_wa_id, status) values ($1,$2,'quoting') returning id`, [company, "9471" + rnd()])).rows[0].id;
+  const ord = (await setup.query(`insert into orders (company_id, conversation_id, customer_phone, status) values ($1,$2,'9471','new') returning id`, [company, conv])).rows[0].id;
+  const quo = (await setup.query(`insert into quotations (company_id, order_id, quote_number, currency, status, total, public_token) values ($1,$2,$3,'LKR','ready',$4,$5) returning id`,
+    [company, ord, "SQ-" + rnd(), total, "tok_" + rnd()])).rows[0].id;
+  const itemIds: string[] = [];
+  for (const lt of lineTotals) {
+    const id = (await setup.query(`insert into quotation_items (quotation_id, company_id, description, quantity, unit_price, currency, line_total, status) values ($1,$2,'item',1,$3,'LKR',$3,'priced') returning id`, [quo, company, lt])).rows[0].id;
+    itemIds.push(id);
+  }
+  return { quo, itemIds };
+}
+const statusOf = async (quo: string) => (await setup.query(`select status from quotations where id=$1`, [quo])).rows[0].status;
+const rowsFor = async (key: string) => (await setup.query(`select count(*)::int c from message_outbox where idempotency_key=$1`, [key])).rows[0].c;
+// cB acts as the capability user (authenticated) for direct item writes.
+async function asCap(sql: string, params: unknown[] = []) {
+  await cB.query("set role authenticated");
+  await cB.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: capUser, role: "authenticated" })]);
+  return cB.query(sql, params);
+}
+
+describe.skipIf(!enabled)("0067 enqueue vs item-mutation race (live, two connections)", () => {
+  beforeAll(async () => {
+    const { default: pg } = await import("pg" as string);
+    const mk = async () => { const c = new pg.Client({ connectionString: URL, ssl: mkSsl(URL) }); await c.connect(); return c; };
+    setup = await mk(); cA = await mk(); cB = await mk();
+    await setup.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+    co = (await setup.query(`insert into companies (name, base_currency) values ('itemrace','LKR') returning id`)).rows[0].id;
+    coB = (await setup.query(`insert into companies (name, base_currency) values ('itemraceB','LKR') returning id`)).rows[0].id;
+    capUser = randomUUID();
+    await setup.query(`insert into auth.users (id) values ($1) on conflict do nothing`, [capUser]);
+    await setup.query(`insert into users (id, full_name, is_active) values ($1,'cap',true)`, [capUser]);
+    await setup.query(`insert into profiles (id, company_id, username, department, is_admin, is_active) values ($1,$2,$3,'sales',false,true)`, [capUser, co, "cap_" + capUser.slice(0, 8)]);
+    const mem = (await setup.query(`insert into memberships (company_id, user_id, status) values ($1,$2,'active') returning id`, [co, capUser])).rows[0].id;
+    await setup.query(`insert into membership_roles (membership_id, company_id, role_key) values ($1,$2,'owner_management')`, [mem, co]);
+  });
+  afterAll(async () => {
+    for (const c of [cA, cB]) { try { await c?.query("rollback"); } catch { /* noop */ } try { await c?.query("reset role"); } catch { /* noop */ } }
+    for (const cid of [co, coB]) for (const sql of [`delete from message_outbox where company_id=$1`, `delete from quotation_items where company_id=$1`, `delete from quotations where company_id=$1`, `delete from orders where company_id=$1`, `delete from wa_conversations where company_id=$1`]) {
+      try { await setup.query(sql, [cid]); } catch { /* noop */ }
+    }
+    try { await setup.query(`delete from membership_roles where company_id=$1`, [co]); } catch { /* noop */ }
+    try { await setup.query(`delete from memberships where company_id=$1`, [co]); } catch { /* noop */ }
+    for (const cid of [co, coB]) { try { await setup.query(`delete from companies where id=$1`, [cid]); } catch { /* noop */ } }
+    await Promise.all([cA?.end(), cB?.end(), setup?.end()].map((p) => p?.catch?.(() => {})));
+  });
+
+  it("item mutation commits FIRST → enqueue returns `stale`, no outbox row, quotation stays `ready`", async () => {
+    const { quo, itemIds } = await seedReadyWithItems(co, "100", ["40", "60"]);
+    const key = "k_" + rnd();
+    // B changes an item (40 → 70): items now sum 130; quotations.total still 100 (no refresh)
+    await cB.query("begin");
+    await asCap(`update quotation_items set line_total='70', unit_price='70' where id=$1 and company_id=$2`, [itemIds[0], co]);
+    await cB.query("commit"); await cB.query("reset role");
+    // A enqueues with the OLD expected total (100) → the authoritative item sum (130) diverges → stale
+    const r = await cA.query(ENQ, [co, quo, key, "100"]);
+    expect(r.rows[0].v).toBe("stale");
+    expect(await rowsFor(key)).toBe(0);
+    expect(await statusOf(quo)).toBe("ready");
+  });
+
+  it("enqueue commits FIRST → the concurrent item mutation waits then fails 42501; one outbox row + `queued`", async () => {
+    const { quo, itemIds } = await seedReadyWithItems(co, "100", ["40", "60"]);
+    const key = "k_" + rnd();
+    await cA.query("begin");
+    const rA = await cA.query(ENQ, [co, quo, key, "100"]); // enqueues; holds parent + item locks
+    expect(rA.rows[0].v).toBe("enqueued");
+    // B tries to change an item; its freeze guard does SELECT parent FOR UPDATE → BLOCKS on A's lock
+    await cB.query("begin");
+    const pB = asCap(`update quotation_items set line_total='70', unit_price='70' where id=$1 and company_id=$2`, [itemIds[0], co]);
+    await cA.query("commit"); // quotation → queued
+    let code: string | undefined;
+    try { await pB; } catch (e) { code = (e as { code?: string }).code; }
+    await cB.query("rollback").catch(() => {}); await cB.query("reset role").catch(() => {});
+    expect(code).toBe("42501"); // parent became queued while B waited → frozen
+    expect(await rowsFor(key)).toBe(1);
+    expect(await statusOf(quo)).toBe("queued");
+    // and the item was NOT changed
+    expect((await setup.query(`select line_total from quotation_items where id=$1`, [itemIds[0]])).rows[0].line_total).toBe("40.00");
+  });
+
+  it("no deadlock: enqueue holding the parent lock while an item mutation blocks then resolves cleanly", async () => {
+    const { quo, itemIds } = await seedReadyWithItems(co, "50", ["50"]);
+    const key = "k_" + rnd();
+    await cA.query("begin");
+    expect((await cA.query(ENQ, [co, quo, key, "50"])).rows[0].v).toBe("enqueued");
+    await cB.query("begin");
+    const pB = asCap(`update quotation_items set line_total='55', unit_price='55' where id=$1 and company_id=$2`, [itemIds[0], co]);
+    await cA.query("commit");
+    let deadlock = false, code: string | undefined;
+    try { await pB; } catch (e) { code = (e as { code?: string }).code; deadlock = code === "40P01"; }
+    await cB.query("rollback").catch(() => {}); await cB.query("reset role").catch(() => {});
+    expect(deadlock).toBe(false); // no 40P01
+    expect(code).toBe("42501");
+  });
+
+  it("two concurrent finalisers on an itemised quotation → exactly one logical outbox row (enqueued + duplicate)", async () => {
+    const { quo } = await seedReadyWithItems(co, "100", ["100"]);
+    const key = "k_" + rnd();
+    await cA.query("begin");
+    expect((await cA.query(ENQ, [co, quo, key, "100"])).rows[0].v).toBe("enqueued");
+    await cB.query("begin");
+    const p2 = cB.query(ENQ, [co, quo, key, "100"]); // service-context caller (no set role) blocks on the lock
+    await cA.query("commit");
+    const r2 = await p2;
+    expect(r2.rows[0].v).toBe("duplicate");
+    await cB.query("commit").catch(() => {});
+    expect(await rowsFor(key)).toBe(1);
+    expect(await statusOf(quo)).toBe("queued");
+  });
+
+  it("terminal-vs-enqueue race remains green: a concurrent sent transition wins → enqueue `terminal`, zero rows", async () => {
+    const { quo } = await seedReadyWithItems(co, "100", ["100"]);
+    const key = "k_" + rnd();
+    await cA.query("begin");
+    await cA.query(`update quotations set status='sent', sent_at=now() where id=$1 and status='ready'`, [quo]); // owner ctx (trusted)
+    await cB.query("begin");
+    const p2 = cB.query(ENQ, [co, quo, key, "100"]);
+    await cA.query("commit");
+    expect((await p2).rows[0].v).toBe("terminal");
+    await cB.query("commit").catch(() => {});
+    expect(await rowsFor(key)).toBe(0);
+    expect(await statusOf(quo)).toBe("sent");
+  });
+
+  it("cross-company enqueue is still `inconsistent`; same-company itemised enqueue still works", async () => {
+    const { quo: quoB } = await seedReadyWithItems(coB, "100", ["100"]);
+    const key = "k_" + rnd();
+    expect((await cA.query(ENQ, [co, quoB, key, "100"])).rows[0].v).toBe("inconsistent"); // wrong company
+    expect(await rowsFor(key)).toBe(0);
+    const { quo } = await seedReadyWithItems(co, "100", ["60", "40"]);
+    const key2 = "k_" + rnd();
+    expect((await cA.query(ENQ, [co, quo, key2, "100"])).rows[0].v).toBe("enqueued"); // matches item sum
+    expect(await statusOf(quo)).toBe("queued");
+  });
+
+  it("pre-queue item editing stays functional (draft); post-queue items stay immutable (queued)", async () => {
+    // draft: item edit allowed
+    const conv = (await setup.query(`insert into wa_conversations (company_id, customer_wa_id, status) values ($1,$2,'quoting') returning id`, [co, "9471" + rnd()])).rows[0].id;
+    const ord = (await setup.query(`insert into orders (company_id, conversation_id, customer_phone, status) values ($1,$2,'9471','new') returning id`, [co, conv])).rows[0].id;
+    const quoD = (await setup.query(`insert into quotations (company_id, order_id, quote_number, currency, status, total, public_token) values ($1,$2,$3,'LKR','draft','0',$4) returning id`, [co, ord, "SQ-" + rnd(), "tok_" + rnd()])).rows[0].id;
+    const itemD = (await setup.query(`insert into quotation_items (quotation_id, company_id, description, quantity, currency) values ($1,$2,'d',1,'LKR') returning id`, [quoD, co])).rows[0].id;
+    await cB.query("begin");
+    await expect(asCap(`update quotation_items set unit_price='10', line_total='10', status='priced' where id=$1 and company_id=$2`, [itemD, co])).resolves.toBeDefined();
+    await cB.query("commit"); await cB.query("reset role");
+
+    // queued: item edit refused
+    const { quo, itemIds } = await seedReadyWithItems(co, "20", ["20"]);
+    const key = "k_" + rnd();
+    expect((await setup.query(ENQ, [co, quo, key, "20"])).rows[0].v).toBe("enqueued"); // owner ctx → queued
+    await cB.query("begin");
+    let code: string | undefined;
+    try { await asCap(`update quotation_items set line_total='99' where id=$1 and company_id=$2`, [itemIds[0], co]); }
+    catch (e) { code = (e as { code?: string }).code; }
+    await cB.query("rollback").catch(() => {}); await cB.query("reset role").catch(() => {});
+    expect(code).toBe("42501");
+  });
+});
