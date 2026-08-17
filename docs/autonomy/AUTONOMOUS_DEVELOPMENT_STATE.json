@@ -1,13 +1,17 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage1-core-reliability",
-  "activeRequirementIds": ["FOUND-003", "AIM-002", "AIM-003"],
+  "activeRequirementIds": [
+    "FOUND-003",
+    "AIM-002",
+    "AIM-003"
+  ],
   "currentBranch": "feature/v3-3-part2-durable-processing",
   "currentPr": 24,
   "baseSha": "079fbb8",
-  "lastGreenSha": "1ebaa80",
+  "lastGreenSha": "bd46301",
   "latestMigration": "0069_durable_inbound_processing.sql",
-  "lastCompletedAction": "Part 2 slice 1 landed (migration 0069, sweeper, fairness, asset + multilingual specs); autonomy control layer created and first coverage audit run",
+  "lastCompletedAction": "Autonomy control layer committed (register, audits, state, IP manifest, ledgers) on top of Part 2 slice 1; first coverage audit run: registered=21 complete=5 unaccepted=10 unexpanded-groups=12",
   "nextAction": "FOUND-003 — production-reachable staff/finance intake: classify sender identity from trusted records (membership/channel identity), classify finance intent behind schema validation, and wire the real entrypoint to ingestSourceEvent with call-graph tests. This unblocks the sweeper's processor, which currently dead-letters every event as no_processor by design.",
   "lastTargetedTests": [
     "tests/integration/durable-inbound-processing.test.ts",
@@ -43,7 +47,11 @@
   ],
   "usageState": {
     "opusReviewsThisProgram": 3,
-    "correctionLoopsUsed": { "campaign": 2, "v3.3-part1": 0, "v3.3-part2": 0 },
+    "correctionLoopsUsed": {
+      "campaign": 2,
+      "v3.3-part1": 0,
+      "v3.3-part2": 0
+    },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
   "updatedAt": "2026-08-17"
