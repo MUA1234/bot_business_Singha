@@ -59,7 +59,7 @@
   against `main`** — it integrates, preserving history: (1) PR #3 compatibility foundation
   (`3224d08`), (2) the Phase-1 stack PRs #4–#12 via tip `509685b`, (3) the external-review
   corrections A–D.
-- **Content commit SHA (tenth review, final):** `__CONTENT_SHA__` — the follow-up commit recording the
+- **Content commit SHA (tenth review, final):** `240bf9ac1028429880e49f3bea63b2b03ff3b5bb` — the follow-up commit recording the
   final focused adversarial review's CLEAN verdict in the corrections ledger and applying its one LOW
   completion (the `priceQuotation` skip now requires the full completeness predicate, so a pre-fix
   legacy item priced in a non-quotation currency or with a NULL `line_total` re-enters pricing instead
