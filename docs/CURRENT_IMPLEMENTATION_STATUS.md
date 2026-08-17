@@ -4,9 +4,19 @@ _Rewritten 2026-08-07 directly from the codebase and observed test/build results
 appending to prior text. This file describes **reality**; where it disagrees with older
 narrative docs, this file and the code win._
 
-**Current phase:** **Phase 1 — 0048+ Security/Accounting Corrections** (WP10–WP18), migrations
+**Current phase (updated 2026-08-17):** the **owner-authorized COMPLETION PROGRAM** — finishing the
+application + V3.1 implementation as small stacked draft PRs on top of PR #13's reviewed head
+`48407bd` (PR #13 itself is frozen). Live program state, verification-state taxonomy
+(implemented+locally-verified / preview-deployed / staging-verified / production-verified /
+deliberately-deferred), and outstanding owner gates: `docs/architecture-v3.1/COMPLETION_LEDGER.md`.
+Machine-checkable inventory (service-role usage, money-as-Number suspects, flags without consumers,
+TODOs/stubs, error-masking suspects): `docs/architecture-v3.1/COMPLETION_INVENTORY.md`
+(`npm run inventory`). The completed prior phase remains as described below:
+
+**Prior phase:** **Phase 1 — 0048+ Security/Accounting Corrections** (WP10–WP18), migrations
 **0048–0067**. Status: **implemented and verified on a disposable PostgreSQL 16 (fresh + upgrade);
-CHANGES REQUESTED by nine external reviews, corrected, and AWAITING THE FINAL REVIEW.** Not merged,
+CHANGES REQUESTED by ten external reviews, corrected within the two permitted bounded loops, and
+AWAITING THE FINAL OWNER/EXTERNAL APPROVAL.** Not merged,
 not deployed, **hosted DB not migrated** (this — not any flag — is what keeps the changes off the live
 system), all feature flags OFF. The corrections (first review: migrations 0056–0058; second review:
 WP12 outbox reconciliation + WP11 composite FKs/money fail-close + WP15 function-privilege, migrations

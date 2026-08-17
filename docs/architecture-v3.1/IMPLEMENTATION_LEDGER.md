@@ -4,6 +4,12 @@
 > file at the end of every slice. Do not claim a gate passed unless its actual output was produced
 > this session. "Verified" here means **local/CI evidence**, never hosted-database or production
 > evidence.
+>
+> **2026-08-17 — completion program started (owner-authorized).** Slice 1 (the `0048+` correction
+> prerequisite) is IMPLEMENTED + locally verified as migrations 0048–0067 after ten external-review
+> rounds (PR #13, draft, head `48407bd`); slices 2–10 are being implemented as stacked PRs. Live
+> program tracking (branches, SHAs, tests, owner gates, verification-state taxonomy) moved to
+> `COMPLETION_LEDGER.md` — this file remains the per-slice V3.1 history.
 
 ## Program invariants (carried every slice)
 

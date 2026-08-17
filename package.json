@@ -2,7 +2,7 @@
   "name": "ai-business-manager",
   "version": "0.1.0",
   "private": true,
-  "description": "Interim AI Finance System + Accounting Core v0 (event-driven, multi-company).",
+  "description": "Singha AI Business Management System — multi-company, event-driven: WhatsApp Cloud API quotation flow, internally-owned double-entry Accounting Core, approvals/authority, department dashboards, and the V3.1 management-intelligence program (flags default OFF).",
   "type": "module",
   "scripts": {
     "dev": "next dev",
@@ -17,7 +17,8 @@
     "audit-check": "node scripts/audit-check.mjs",
     "migrate": "node scripts/migrate.mjs",
     "migrate:status": "node scripts/migrate.mjs --status",
-    "verify": "npm run secret-scan && npm run migration-lint && npm run typecheck && npm test",
+    "inventory": "node scripts/completion-inventory.mjs",
+    "verify": "npm run secret-scan && npm run migration-lint && node scripts/completion-inventory.mjs --check && npm run typecheck && npm test",
     "lint": "next lint"
   },
   "dependencies": {

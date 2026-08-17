@@ -4,6 +4,37 @@
 > direct `supabaseAdmin()` / service-role call and its classification for the RLS cutover.
 > Generated 2026-08-07. Count at this date: **~67 call sites across 40 files.**
 >
+> **COMPLETION-PROGRAM UPDATE (2026-08-17, Phase 0):** the authoritative, regenerable file list is
+> now machine-generated — `docs/architecture-v3.1/COMPLETION_INVENTORY.md` §1 via
+> `node scripts/completion-inventory.mjs` (**39 files** excluding the `src/lib/supabase/` shim layer
+> at the Phase-0 baseline; `--check` will fail the build against
+> `scripts/allowlists/supabase-admin-system.json` once Phase 2 arms it). A fresh code-first
+> re-classification (every file opened, 2026-08-17) refines the tables below; where the two disagree,
+> the 2026-08-17 classification wins:
+>
+> - **SYSTEM-KEEP confirmed:** whatsapp webhook, 4 cron routes (+`/api/health`), `src/inngest/functions.ts`,
+>   `src/events/outbox-drain.ts`, `src/lib/audit.ts` (service_only table), `src/lib/notify.ts`
+>   (service_only), `src/lib/outbox-enqueue.ts` (service-only RPC), `src/lib/order-intake.ts`
+>   (no user session), `src/app/app/admin/outbox/*` (service_only table),
+>   `src/app/app/admin/audit/page.tsx` + `admin/health/page.tsx` (service_only tables),
+>   `admin/employees/actions.ts` `auth.admin.*` calls only.
+> - **AUTH-READ to cut over (Phase 2):** `src/lib/auth.ts` (`getProfile`/`resolveCapability` read the
+>   caller's own rows), `src/lib/task-access.ts`, `src/lib/ledger-report.ts`,
+>   `src/components/PriceRequests.tsx`, admin dashboard/employees/departments/catalog/objectives
+>   pages, hr pages (4), the non-audit kinds of `src/app/api/exports/[kind]/route.ts`,
+>   `login/actions.ts` post-auth profile read (session already exists — 2026-08-07 called it S;
+>   re-audit reclassifies it R).
+> - **AUTH-WRITE to cut over (Phase 2):** `operations/tasks/actions.ts` (15 refs),
+>   `_actions/price.ts` (`dismissPrice`), `admin/employees/actions.ts` profiles DML,
+>   `command/analyze/actions.ts` tasks inserts, `resolvePriceConfirmation` in `src/lib/quotations.ts`,
+>   `src/lib/documents.ts` documents-row DML (storage ops stay S), `messages/[id]/actions.ts`
+>   conversation check (R) vs service_only writes (S), `hr/capacity/actions.ts` reads (R) vs
+>   `capacity_snapshots` upsert (S).
+> - The flag shim `src/lib/supabase/read.ts` reaches **91 files**; `supabaseReadClient`/
+>   `supabaseWriteClient` silently return the ADMIN client while `RLS_READS`/`RLS_WRITES` are OFF —
+>   those 91 files are the cutover's blast radius, gated by the flags, and are NOT double-counted
+>   above.
+>
 > Classification legend:
 > - **S** — legitimate service/worker/admin operation (service role is correct; keep).
 > - **R** — normal authenticated READ that should move onto the RLS client (`supabaseServer`).
@@ -77,7 +108,7 @@
 
 | File | Use | Owner | Reason | Removal trigger |
 |---|---|---|---|---|
-| `src/lib/idempotency-store.ts` | `claimIdempotencyKey` | dev | **DEAD CODE** — the fragile pre-claim replaced by transactional RPC idempotency (WP B). No remaining callers. | Delete in a follow-up cleanup PR. |
+| `src/lib/idempotency-store.ts` | `claimIdempotencyKey` | dev | **DELETED 2026-08-17** (completion-program Phase 0) — zero call sites re-verified before deletion. | Done. |
 
 ## Method note
 
