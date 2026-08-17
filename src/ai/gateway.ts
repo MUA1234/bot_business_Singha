@@ -26,6 +26,10 @@ export const MODEL_ROUTES = {
   quotation: { model: "gpt-5.6-sol", maxTokens: 2000 },
   // business analysis assistant: observe a business update → structured ManagementObservation.
   management: { model: "gpt-5.6-sol", maxTokens: 4000 },
+  // EVALUATION ONLY — never used by a production path. The verification campaign scores the
+  // scenario pack against this route when the owner supplies ANTHROPIC_API_KEY; without a key the
+  // evaluation is reported as BLOCKED rather than estimated. Model ids stay in this table (D-006).
+  evaluation: { model: "claude-opus-5", maxTokens: 2000 },
 } as const;
 export type RouteName = keyof typeof MODEL_ROUTES;
 
