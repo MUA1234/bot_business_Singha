@@ -85,7 +85,7 @@ Generated at: 2026-08-17
 | FIN-008 | Payment intelligence and evidence | P0 | **foundation_only** | src/app/app/finance/reconciliation/page.tsx | 1ebaa80 | — |
 | FOUND-001 | Durable inbound processing with leases, bounded retry and dead-letter | P0 | **locally_verified** | src/app/api/cron/inbound-sweeper/route.ts | 1ebaa80 | hosted migration application |
 | FOUND-002 | Worker fairness by eligibility rather than ordering | P0 | **locally_verified** | src/app/api/cron/inbound-sweeper/route.ts | 1ebaa80 | — |
-| FOUND-003 | Production-reachable staff and finance intake | P0 | **implementation_in_progress** | none | none | — |
+| FOUND-003 | Production-reachable staff and finance intake | P0 | **implementation_in_progress** | src/app/api/webhooks/whatsapp/route.ts (dispatchInbound) | none | — |
 | FOUND-004 | Deterministic company-scoped authority engine | P0 | **locally_verified** | src/management/ai-manager/pipeline.ts (planFromObservation) | 079fbb8 | sign-off on the impact-to-level mapping, or replacement by authority_rules-driven mapping |
 | FOUND-005 | AI trust boundary — untrusted output cannot decide identity, scope or authority | P0 | **locally_verified** | src/ai/manager-observation.ts; src/ai/quotation.ts | 7669ce1 | — |
 | FOUND-006 | Service-role and RLS read/write cutover | P0 | **foundation_only** | src/lib/supabase/read.ts (shim returns the ADMIN client while flags are OFF) | none | flag activation |

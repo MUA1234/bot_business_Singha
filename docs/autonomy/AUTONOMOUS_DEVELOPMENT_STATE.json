@@ -9,8 +9,8 @@
   "baseSha": "079fbb8",
   "lastGreenSha": "c69024b",
   "latestMigration": "0070_channel_identity_resolution.sql",
-  "lastCompletedAction": "FOUND-003 part 2: finance-intent contract + deterministic gate (exact amounts, currency never inferred or converted, evidence threshold) and the dispatch layer that makes ingestSourceEvent production-reachable, with a call-graph test. Webhook route wiring still outstanding.",
-  "nextAction": "FOUND-003 part 3: replace the direct handleCustomerMessage call in src/app/api/webhooks/whatsapp/route.ts with dispatchInbound, supplying resolve_channel_identity, the order handler, a review recorder and the outbox-backed clarification sender. Then §5: processor registration + authorized idempotent requeue for no_processor dead letters (migration 0071), then AIM-002 task deduplication.",
+  "lastCompletedAction": "FOUND-003 part 3: WhatsApp webhook wired to dispatchInbound; ingestSourceEvent now has a real production caller, proven by a route-level call-graph test.",
+  "nextAction": "AIM-002 task-level deduplication (stable company-scoped task identity, migration 0071), then AIM-003 truthful routing incl. correcting the AnalyzeForm string that claims a routing which does not happen, then the no_processor requeue path, then the RLS/service-role cutover.",
   "lastTargetedTests": [
     "tests/integration/durable-inbound-processing.test.ts",
     "tests/campaign/inbound-sweeper.test.ts",
