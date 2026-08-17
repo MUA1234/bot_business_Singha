@@ -71,20 +71,20 @@ requirements:
     phase: stage1
     priority: P0
     dependencies: [FOUND-001]
-    status: absent
+    status: implementation_in_progress
     feature_flag: none
     runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: src/events/source-event.ts exists but has NO production caller
+    database_evidence: src/db/migrations/0070_channel_identity_resolution.sql (channel_identities + resolve_channel_identity)
+    service_evidence: src/lib/identity/inbound-routing.ts (deterministic routing decision); src/events/source-event.ts still has NO production caller
     ui_evidence: none
-    test_evidence: none
-    security_evidence: none
+    test_evidence: tests/campaign/inbound-routing.test.ts (9); tests/integration/channel-identity.test.ts (10)
+    security_evidence: identity from trusted records only; unknown/ambiguous never routed as staff; a customer asserting a financial event cannot reach finance capture; service-only resolver with in-function role gate
     audit_health_evidence: none
     last_verified_sha: none
     last_verified_at: none
     owner_gate: none
     blocker: none
-    residual_risks: The entire finance consumer pipeline (processing.ts, duplicate.ts, evaluatePolicy) is unreachable in production until this exists.
+    residual_risks: Identity resolution and the routing decision exist and are tested; the WEBHOOK IS NOT YET WIRED to them and ingestSourceEvent still has no production caller. Not complete — deliberately not marked so.
 
   - id: FOUND-004
     title: Deterministic company-scoped authority engine
@@ -1011,17 +1011,17 @@ requirements:
     status: foundation_only
     feature_flag: none
     runtime_entrypoint: src/app/app/sales/customers/page.tsx
-    database_evidence: customers; wa_conversations.customer_wa_id
-    service_evidence: none
+    database_evidence: customers; channel_identities (migration 0070, backfilled from customer phone/email)
+    service_evidence: resolve_channel_identity RPC
     ui_evidence: sales customers pages
-    test_evidence: none
-    security_evidence: company-scoped
+    test_evidence: tests/integration/channel-identity.test.ts
+    security_evidence: identity mappings are service-write-only; resolution is company-scoped and fails closed
     audit_health_evidence: none
     last_verified_sha: none
     last_verified_at: none
     owner_gate: none
     blocker: none
-    residual_risks: A WhatsApp sender is never resolved to a customer record; there is no duplicate detection. FOUND-003 depends on this.
+    residual_risks: A sender now resolves to a party, but there is still no duplicate-customer detection and no customer-record merge.
   - id: CRM-002
     title: Canonical supplier identity
     description: Supplier records with channel identities, duplicate detection and bank-detail change control.

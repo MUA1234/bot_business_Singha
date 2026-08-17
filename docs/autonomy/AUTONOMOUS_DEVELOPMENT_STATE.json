@@ -8,9 +8,9 @@
   "currentPr": 24,
   "baseSha": "079fbb8",
   "lastGreenSha": "bd46301",
-  "latestMigration": "0069_durable_inbound_processing.sql",
-  "lastCompletedAction": "Requirement register fully populated: 89 requirements across all 20 approved groups, statuses set by code inspection; audit hardened (pending-population, empty-group, unknown-group, disappearance and evidence tripwires) and negative-tested",
-  "nextAction": "FOUND-003 — production-reachable staff/finance intake: trusted sender/channel identity resolution, staff/customer/supplier/unknown classification, schema-validated finance-intent classification, production call into ingestSourceEvent, exact amount/currency parsing, evidence preservation, duplicate detection, policy + deterministic authority evaluation, approval-request creation, audit, truthful acknowledgement.",
+  "latestMigration": "0070_channel_identity_resolution.sql",
+  "lastCompletedAction": "FOUND-003 part 1: migration 0070 trusted channel identity resolution + deterministic inbound routing module, both tested. Webhook wiring not yet done.",
+  "nextAction": "FOUND-003 part 2: wire the WhatsApp webhook to resolve_channel_identity + routeInbound, add schema-validated finance-intent classification with deterministic amount/currency gates, call ingestSourceEvent on the staff_finance route, and add a production call-graph test proving the real entrypoint reaches it. Then resolve the sweeper no_processor path (registration + authorized idempotent requeue).",
   "lastTargetedTests": [
     "tests/integration/durable-inbound-processing.test.ts",
     "tests/campaign/inbound-sweeper.test.ts",

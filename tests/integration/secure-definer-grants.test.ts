@@ -45,6 +45,10 @@ const SERVICE_ONLY = new Set([
   "enqueue_quotation_outbox(uuid,uuid,text,text,text,numeric,text,text,text)",
   "ledger_integrity_report(uuid)",
   "reconcile_quotation_from_outbox(uuid)",
+  // 0070 trusted channel identity resolution — service-only, in-function caller_jwt_role gate,
+  // company-scoped, fails closed on unknown/ambiguous. Migration 0070 asserts anon/authenticated
+  // cannot execute it.
+  "resolve_channel_identity(uuid,text,text)",
 ]);
 // Must exist AND be locked on any DB reaching this migration (the legacy 7-arg is intentionally excluded).
 const SERVICE_ONLY_REQUIRED = [...SERVICE_ONLY].filter((s) => s !== "_journal_post_internal(uuid,date,text,text,uuid,jsonb,text)");
