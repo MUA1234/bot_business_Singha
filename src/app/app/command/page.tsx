@@ -21,8 +21,9 @@ import {
 } from "@/management/ai-manager/exceptions";
 import { ageItems, type AgingItem } from "@/modules/finance/aging";
 import { computeCashPosition, type CashAccount, type CashMovement } from "@/modules/finance/cash-position";
-import { decGtZero, decSub, fmtMoney } from "@/lib/money";
+import { dec, decGtZero, decSub, fmtMoney } from "@/lib/money";
 import { log } from "@/lib/log";
+import { AreaLineChart, BarChart, agingBars } from "@/components/charts";
 import { projectCash, type CashFlowItem } from "@/management/ai-manager/forecast";
 import { buildBriefing } from "@/management/ai-manager/briefing";
 
@@ -212,6 +213,33 @@ export default async function CommandCentrePage() {
         <div className="card stat">
           <div className="k">Info</div>
           <div className="v" style={{ color: "var(--info)" }}>{count("info")}</div>
+        </div>
+      </div>
+
+      <div className="grid cols-2">
+        <div className="card">
+          <div className="card-title">Cash — next 90 days</div>
+          <div className="card-sub">Projected from open invoices in and bills out. The marked point is the trough.</div>
+          <div className="mt-2">
+            <AreaLineChart
+              points={fc.points.map((p) => ({ label: p.date.slice(5), value: dec(p.balance).toNumber(), display: fmt(p.balance) }))}
+            />
+          </div>
+          {fc.goesNegative && (
+            <div className="small mt-1" style={{ color: "var(--danger)" }}>
+              ⚠ Projection crosses below zero — see the briefing.
+            </div>
+          )}
+        </div>
+        <div className="card">
+          <div className="card-title">Receivables vs payables — by age</div>
+          <div className="card-sub">Older overdue money escalates from mint to amber to red.</div>
+          <div className="mt-2">
+            <div className="small dim" style={{ marginBottom: 2 }}>Receivables (owed to you)</div>
+            <BarChart data={agingBars(ar.buckets, fmt)} height={120} />
+            <div className="small dim" style={{ marginTop: 8, marginBottom: 2 }}>Payables (you owe)</div>
+            <BarChart data={agingBars(ap.buckets, fmt)} height={120} />
+          </div>
         </div>
       </div>
 
