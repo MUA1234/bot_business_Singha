@@ -2,6 +2,7 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { quoteUrl } from "@/lib/quotations";
+import { fmtMoney } from "@/lib/money";
 import { Icon } from "@/components/Icon";
 
 export const metadata = { title: "Invoices — Singha" };
@@ -38,7 +39,7 @@ export default async function InvoicesPage() {
                 {quotes!.map((q: any) => (
                   <tr key={q.id}>
                     <td className="mono" style={{ fontWeight: 600 }}>{q.quote_number}</td>
-                    <td>{q.currency} {Number(q.total).toLocaleString()}</td>
+                    <td>{fmtMoney(q.total, q.currency)}</td>
                     <td><span className="badge ok">{q.status}</span></td>
                     <td className="dim small">{q.sent_at ? new Date(q.sent_at).toLocaleDateString() : "—"}</td>
                     <td><a className="btn ghost sm" href={quoteUrl(q.public_token)} target="_blank" rel="noreferrer">Open</a></td>

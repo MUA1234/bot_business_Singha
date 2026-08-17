@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
+import { parseMoneyInput } from "@/lib/money";
 
 async function requireProc() {
   const p = await requireProfile();
@@ -18,7 +19,10 @@ export async function createItem(formData: FormData): Promise<void> {
   const sku = String(formData.get("sku") ?? "").trim() || null;
   const unit = String(formData.get("unit") ?? "").trim() || null;
   const reorder_level = Math.max(0, Number(formData.get("reorder_level") ?? 0) || 0);
-  const unit_cost = Math.max(0, Number(formData.get("unit_cost") ?? 0) || 0);
+  // Decimal money — never a JS float. Malformed/negative costs fail like other invalid input.
+  const unitCost = parseMoneyInput(formData.get("unit_cost"), "LKR");
+  if (!unitCost || unitCost.isNegative()) return;
+  const unit_cost = unitCost.toString();
   const quantity_on_hand = Math.max(0, Number(formData.get("quantity_on_hand") ?? 0) || 0);
 
   const { data, error } = await supabaseWriteClient().from("inventory_items")

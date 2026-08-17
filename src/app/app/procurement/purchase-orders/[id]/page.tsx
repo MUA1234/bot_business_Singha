@@ -8,6 +8,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { fmtMoney } from "@/lib/money";
 import { addPoLine, recordLineReceipt } from "../actions";
 import { ThreeWayCheck } from "./ThreeWayCheck";
 
@@ -41,7 +42,7 @@ export default async function PurchaseOrderDetail({ params }: { params: { id: st
       <div className="row between">
         <div>
           <h1 className="mono">{po.po_number}</h1>
-          <p className="muted mt-1"><span className="badge">{(po.status ?? "").replace(/_/g, " ")}</span> · {po.currency} {Number(po.total_amount ?? 0).toLocaleString()}</p>
+          <p className="muted mt-1"><span className="badge">{(po.status ?? "").replace(/_/g, " ")}</span> · {fmtMoney(po.total_amount, po.currency)}</p>
         </div>
         <Link className="btn ghost sm" href="/app/procurement/purchase-orders">← All POs</Link>
       </div>
@@ -62,7 +63,7 @@ export default async function PurchaseOrderDetail({ params }: { params: { id: st
                     <tr key={l.id}>
                       <td>{l.description}</td>
                       <td className="num">{Number(l.quantity)}</td>
-                      <td className="num">{Number(l.unit_price).toLocaleString()}</td>
+                      <td className="num">{fmtMoney(l.unit_price)}</td>
                       <td className="num">
                         <span className={`badge ${over ? "danger" : full ? "ok" : "warn"}`}>{Number(l.received_quantity)}</span>
                       </td>
@@ -92,7 +93,7 @@ export default async function PurchaseOrderDetail({ params }: { params: { id: st
 
       <div className="card">
         <div className="card-title">Bill check (three-way match)</div>
-        <p className="card-sub mt-1">PO qty {poQty} · received {receivedQty} · PO total {po.currency} {Number(po.total_amount ?? 0).toLocaleString()}</p>
+        <p className="card-sub mt-1">PO qty {poQty} · received {receivedQty} · PO total {fmtMoney(po.total_amount, po.currency)}</p>
         <div className="mt-2">
           <ThreeWayCheck currency={po.currency} poQuantity={poQty} poAmount={String(po.total_amount ?? 0)} receivedQuantity={receivedQty} />
         </div>

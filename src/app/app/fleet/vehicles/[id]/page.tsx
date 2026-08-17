@@ -7,6 +7,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { fmtMoney } from "@/lib/money";
 import { fuelEfficiency, type FuelLog } from "@/modules/fleet/fuel-efficiency";
 import { renewalStatus } from "@/management/ai-manager/renewals";
 import { addVehicleDocument, addMaintenance, addFuelLog, addTrip } from "../actions";
@@ -79,7 +80,7 @@ export default async function VehicleDetail({ params }: { params: { id: string }
             {(fuel ?? []).length === 0 && <div className="empty">No fuel logs.</div>}
             {(fuel ?? []).slice(0, 8).map((f: any) => (
               <div key={f.id} className="row between small" style={{ borderBottom: "1px solid var(--panel-border)", padding: "6px 0" }}>
-                <span>{Number(f.litres ?? 0)} L @ {Number(f.odometer ?? 0)} km</span><span className="dim">{Number(f.cost ?? 0).toLocaleString()}</span>
+                <span>{Number(f.litres ?? 0)} L @ {Number(f.odometer ?? 0)} km</span><span className="dim">{fmtMoney(f.cost)}</span>
               </div>
             ))}
           </div>

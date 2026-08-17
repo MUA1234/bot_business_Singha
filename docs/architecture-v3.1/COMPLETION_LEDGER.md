@@ -66,6 +66,36 @@
   suite unaffected — run at the next code slice checkpoint per the usage rules).
 - **Owner gates opened:** none. **Findings:** see `COMPLETION_INVENTORY.md`.
 
+### Slice P1 — application correctness blockers (money, atomic AI persistence, error visibility)
+- **Branch:** `feature/v3-2-completion-phase1-correctness` (base = P0 head `8a8170f`)
+- **Commits:** checkpoint `fa7ae8e` (correctness core + migration 0068 + P1C) + the mechanical
+  money tail & docs commit (head stamped at commit).
+- **1A — decimal money integrity:** authority comparison (`route-decision exceeds()`),
+  `positiveDecimalString`, settlement RPC args (canonical strings, no float round-trip), journal-line
+  filtering, tax factors, AI cost math, pipeline-value module, plus the mechanical tail across ~40
+  page/action files: aggregations via `dec/decSub/decSum/decGtZero`, form money inputs via
+  `parseMoneyInput`, every money display via the ONE shared exact formatter `fmtMoney`. Machine
+  inventory money-suspects: **75 → 12**, all 12 remaining sanctioned non-money (quantities, rates,
+  litres, counts, comments). New `tests/money-adversarial.test.ts` (17) covers fractional, >2^53,
+  negative, half-even rounding boundaries, mixed currencies, and the one-cent-over-authority-ceiling
+  case at float-breaking magnitude.
+- **1B — atomic AI persistence:** migration **0068** (`create_management_case_atomic`, service-only
+  SECDEF, canonical search_path, in-function fail-closed jwt gate; `management_cases.idempotency_key`
+  UNIQUE per company; `tasks.management_case_id`); both analysis paths cut over with content-derived
+  idempotency identities (constant "manual" gone); persistence failure fails the analysis; app-side
+  task loop + log-and-continue helper removed. `tests/integration/ai-case-atomic.test.ts` (6): 
+  atomic rollback, idempotent replay, two-connection identical-submission race → exactly one logical
+  case/task set, forced `captured` status, 20-task cap, hostile roles 42501.
+- **1C — error visibility:** `/api/health` probes the 8 dashboard-critical tables
+  (ok/unavailable per table; folds into overall level; logs `health.table_unavailable`); the Command
+  Centre names+logs failed sources (`command.query_failed`) and renders a degraded banner — a DB
+  outage can no longer present as "All clear".
+- **Gates (slice checkpoint):** typecheck ✓ lint 0 errors ✓ secret-scan ✓ migration-lint **68** ✓
+  unit **438 (80 files)** ✓ fresh 0001→0068 integration **42 files / 327** ✓ upgrade 0058→0068
+  **42 files / 327** ✓ build ✓ (final battery re-run at the tail+docs commit). Focused
+  security/concurrency review: see the dated note appended at commit time.
+- **Owner gates opened:** hosted application of migration 0068 (with 0042→0067).
+
 ## Deferred (deliberate, owner-visible)
 
 | Item | Why deferred | Where reported |

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { decGtZero, fmtMoney } from "@/lib/money";
 import { reverseJournal } from "../actions";
 
 export const metadata = { title: "Journal — Singha" };
@@ -58,14 +59,14 @@ export default async function JournalDetail({ params }: { params: { id: string }
                   <td className="dim small">{l.line_no}</td>
                   <td className="mono">{l.account_code}</td>
                   <td>{l.description ?? "—"}</td>
-                  <td className="num">{Number(l.debit) ? `${j.currency} ${Number(l.debit).toLocaleString()}` : "—"}</td>
-                  <td className="num">{Number(l.credit) ? `${j.currency} ${Number(l.credit).toLocaleString()}` : "—"}</td>
+                  <td className="num">{decGtZero(l.debit) ? fmtMoney(l.debit, j.currency) : "—"}</td>
+                  <td className="num">{decGtZero(l.credit) ? fmtMoney(l.credit, j.currency) : "—"}</td>
                 </tr>
               ))}
               <tr>
                 <td></td><td></td><td style={{ textAlign: "right", fontWeight: 700 }}>Total</td>
-                <td className="num" style={{ fontWeight: 700 }}>{j.currency} {Number(j.total_debit ?? 0).toLocaleString()}</td>
-                <td className="num" style={{ fontWeight: 700 }}>{j.currency} {Number(j.total_credit ?? 0).toLocaleString()}</td>
+                <td className="num" style={{ fontWeight: 700 }}>{fmtMoney(j.total_debit, j.currency)}</td>
+                <td className="num" style={{ fontWeight: 700 }}>{fmtMoney(j.total_credit, j.currency)}</td>
               </tr>
             </tbody>
           </table>

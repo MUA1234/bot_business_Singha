@@ -2,6 +2,7 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { quoteUrl } from "@/lib/quotations";
+import { fmtMoney } from "@/lib/money";
 
 export const metadata = { title: "Quotations — Singha" };
 
@@ -50,7 +51,7 @@ export default async function QuotationsPage() {
                   <tr key={q.id}>
                     <td className="mono" style={{ fontWeight: 600 }}>{q.quote_number}</td>
                     <td>{names.get(q.order_id) || "—"}</td>
-                    <td>{q.currency} {Number(q.total).toLocaleString()}</td>
+                    <td>{fmtMoney(q.total, q.currency)}</td>
                     <td><span className={`badge ${STATUS_CLASS[q.status] ?? ""}`}>{q.status.replace("_", " ")}</span></td>
                     <td className="dim small">{new Date(q.created_at).toLocaleDateString()}</td>
                     <td>

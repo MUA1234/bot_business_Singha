@@ -1,6 +1,7 @@
 import { requireProfile } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { fmtMoney } from "@/lib/money";
 import { AddProductForm } from "./AddProductForm";
 import { setProductActive } from "./actions";
 
@@ -56,7 +57,7 @@ export default async function CatalogPage() {
                   <tr key={r.id}>
                     <td style={{ fontWeight: 600 }}>{r.name}</td>
                     <td className="mono dim">{r.sku ?? "—"}</td>
-                    <td>{r.unit_price == null ? <span className="badge warn">Varies</span> : `${r.currency} ${Number(r.unit_price).toLocaleString()}`}</td>
+                    <td>{r.unit_price == null ? <span className="badge warn">Varies</span> : fmtMoney(r.unit_price, r.currency)}</td>
                     <td>{r.is_active ? <span className="badge ok">Active</span> : <span className="badge danger">Hidden</span>}</td>
                     <td>
                       <form action={setProductActive}>

@@ -5,6 +5,7 @@
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { fmtMoney } from "@/lib/money";
 import { createLoan } from "./actions";
 
 export const metadata = { title: "Loans — Singha" };
@@ -49,13 +50,13 @@ export default async function LoansPage() {
         const sched = byLoan.get(l.id) ?? [];
         return (
           <div key={l.id} className="card">
-            <div className="card-title">{l.counterparty ?? "Loan"} — {l.currency} {Number(l.principal).toLocaleString()} @ {Number(l.interest_rate)}% <span className="badge">{l.status}</span></div>
+            <div className="card-title">{l.counterparty ?? "Loan"} — {fmtMoney(l.principal, l.currency)} @ {Number(l.interest_rate)}% <span className="badge">{l.status}</span></div>
             <div className="table-wrap mt-3">
               <table className="data">
                 <thead><tr><th>Due</th><th className="num">Principal</th><th className="num">Interest</th><th>Status</th></tr></thead>
                 <tbody>
                   {sched.slice(0, 24).map((s, i) => (
-                    <tr key={i}><td className="dim small">{s.due_date}</td><td className="num">{Number(s.principal_due).toLocaleString()}</td><td className="num">{Number(s.interest_due).toLocaleString()}</td><td><span className="badge">{s.status}</span></td></tr>
+                    <tr key={i}><td className="dim small">{s.due_date}</td><td className="num">{fmtMoney(s.principal_due)}</td><td className="num">{fmtMoney(s.interest_due)}</td><td><span className="badge">{s.status}</span></td></tr>
                   ))}
                 </tbody>
               </table>

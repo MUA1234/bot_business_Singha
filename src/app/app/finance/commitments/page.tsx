@@ -7,6 +7,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { fmtMoney } from "@/lib/money";
 import { createCommitment, settleCommitment, createRecurring } from "./actions";
 
 export const metadata = { title: "Commitments — Singha" };
@@ -51,7 +52,7 @@ export default async function CommitmentsPage() {
               {commitments.map((c) => (
                 <tr key={c.id}>
                   <td>{c.description} <span className="dim small">{c.counterparty ?? ""}</span></td>
-                  <td className="num">{c.currency} {Number(c.amount).toLocaleString()}</td>
+                  <td className="num">{fmtMoney(c.amount, c.currency)}</td>
                   <td className="dim small">{c.expected_settlement_date ?? "—"}</td>
                   <td><span className={`badge ${c.status === "settled" ? "ok" : "warn"}`}>{c.status}</span></td>
                   <td>{c.status === "open" && <form action={settleCommitment}><input type="hidden" name="id" value={c.id} /><button className="btn ghost sm" type="submit">Settled</button></form>}</td>
@@ -77,7 +78,7 @@ export default async function CommitmentsPage() {
             <tbody>
               {recurring.length === 0 && <tr><td colSpan={4}><div className="empty">No recurring obligations.</div></td></tr>}
               {recurring.map((r) => (
-                <tr key={r.id}><td>{r.description}</td><td><span className="badge">{r.cadence}</span></td><td className="num">{r.currency} {Number(r.amount).toLocaleString()}</td><td className="dim small">{r.next_due ?? "—"}</td></tr>
+                <tr key={r.id}><td>{r.description}</td><td><span className="badge">{r.cadence}</span></td><td className="num">{fmtMoney(r.amount, r.currency)}</td><td className="dim small">{r.next_due ?? "—"}</td></tr>
               ))}
             </tbody>
           </table>

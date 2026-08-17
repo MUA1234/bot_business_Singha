@@ -6,6 +6,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { fmtMoney } from "@/lib/money";
 import { createInvoice } from "./actions";
 
 export const metadata = { title: "Customer Invoices — Singha" };
@@ -58,7 +59,7 @@ export default async function CustomerInvoicesPage() {
                   <tr key={r.id}>
                     <td className="mono">{r.invoice_number}</td>
                     <td>{r.customers?.name ?? "—"}</td>
-                    <td className="num">{r.currency} {Number(r.total_amount ?? 0).toLocaleString()}</td>
+                    <td className="num">{fmtMoney(r.total_amount, r.currency)}</td>
                     <td><span className="badge">{r.status}</span></td>
                     <td>{r.journal_id ? <span className="badge ok">ledger</span> : <span className="badge warn">draft</span>}</td>
                     <td><Link className="btn ghost sm" href={`/app/finance/customer-invoices/${r.id}`}>Open</Link></td>

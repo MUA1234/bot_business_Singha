@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
+import { parseMoneyInput } from "@/lib/money";
 
 async function requireFleet() {
   const p = await requireProfile();
@@ -56,7 +57,9 @@ export async function addMaintenance(formData: FormData): Promise<void> {
   if (!(await vehicleInCompany(vid, p.companyId))) return;
   const kind = String(formData.get("kind") ?? "").trim() || null;
   const description = String(formData.get("description") ?? "").trim() || null;
-  const cost = Number(formData.get("cost") ?? 0) || null;
+  // Decimal money, nullable: empty/zero/unparseable → null (absent), exactly as before — no JS float.
+  const costMoney = parseMoneyInput(formData.get("cost"), "LKR");
+  const cost = costMoney && !costMoney.isZero() ? costMoney.toString() : null;
   const service_date = String(formData.get("service_date") ?? "").trim() || null;
   const next_service_date = String(formData.get("next_service_date") ?? "").trim() || null;
   await supabaseWriteClient().from("maintenance_records").insert({ company_id: p.companyId, vehicle_id: vid, kind, description, cost, service_date, next_service_date });
@@ -69,7 +72,9 @@ export async function addFuelLog(formData: FormData): Promise<void> {
   const vid = String(formData.get("vehicle_id") ?? "");
   if (!(await vehicleInCompany(vid, p.companyId))) return;
   const litres = Number(formData.get("litres") ?? 0) || null;
-  const cost = Number(formData.get("cost") ?? 0) || null;
+  // Decimal money, nullable: empty/zero/unparseable → null (absent), exactly as before — no JS float.
+  const costMoney = parseMoneyInput(formData.get("cost"), "LKR");
+  const cost = costMoney && !costMoney.isZero() ? costMoney.toString() : null;
   const odometer = Number(formData.get("odometer") ?? 0) || null;
   await supabaseWriteClient().from("fuel_logs").insert({ company_id: p.companyId, vehicle_id: vid, litres, cost, odometer });
   revalidatePath(`/app/fleet/vehicles/${vid}`);

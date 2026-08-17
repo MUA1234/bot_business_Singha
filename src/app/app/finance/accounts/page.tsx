@@ -6,6 +6,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { fmtMoney } from "@/lib/money";
 import { createBankAccount, createCashAccount } from "./actions";
 
 export const metadata = { title: "Bank & Cash — Singha" };
@@ -38,7 +39,7 @@ function AccountCard({ title, rows, action, kind }: { title: string; rows: any[]
                 <tr key={r.id}>
                   <td style={{ fontWeight: 600 }}>{r.name}</td>
                   <td className="dim small">{r.currency}</td>
-                  <td className="num">{Number(r.opening_balance ?? 0).toLocaleString()}</td>
+                  <td className="num">{fmtMoney(r.opening_balance)}</td>
                   <td className="mono dim small">{r.gl_account_code ?? "—"}</td>
                 </tr>
               ))}

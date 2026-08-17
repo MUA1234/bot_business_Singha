@@ -7,6 +7,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { dec, decGtZero, fmtMoney } from "@/lib/money";
 import { trialBalance, profitAndLoss, balanceSheet } from "@/accounting/trial-balance";
 import type { PostedJournal } from "@/accounting/journal";
 import type { AccountType } from "@/domain/accounts";
@@ -53,7 +54,7 @@ export default async function TrialBalancePage() {
   const tb = trialBalance(posted, currency);
   const pnl = profitAndLoss(tb);
   const bs = balanceSheet(tb);
-  const m = (v: string) => `${currency} ${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  const m = (v: string) => fmtMoney(v, currency);
 
   return (
     <div className="stack gap-3">
@@ -66,7 +67,7 @@ export default async function TrialBalancePage() {
       </div>
 
       <div className="grid cols-3">
-        <div className="card stat"><div className="k">Net profit</div><div className="v" style={{ fontSize: "1.4rem", color: Number(pnl.net_profit) >= 0 ? "var(--ok)" : "var(--danger)" }}>{m(pnl.net_profit)}</div></div>
+        <div className="card stat"><div className="k">Net profit</div><div className="v" style={{ fontSize: "1.4rem", color: dec(pnl.net_profit).isNegative() ? "var(--danger)" : "var(--ok)" }}>{m(pnl.net_profit)}</div></div>
         <div className="card stat"><div className="k">Assets</div><div className="v" style={{ fontSize: "1.4rem" }}>{m(bs.assets)}</div></div>
         <div className="card stat"><div className="k">A = L + E</div><div className="v" style={{ fontSize: "1.4rem", color: bs.balances ? "var(--ok)" : "var(--danger)" }}>{bs.balances ? "balances" : "off"}</div></div>
       </div>
@@ -84,8 +85,8 @@ export default async function TrialBalancePage() {
                   <tr key={r.account_code}>
                     <td className="mono">{r.account_code}</td>
                     <td><span className="badge">{r.account_type}</span></td>
-                    <td className="num">{Number(r.debit) ? m(r.debit) : "—"}</td>
-                    <td className="num">{Number(r.credit) ? m(r.credit) : "—"}</td>
+                    <td className="num">{decGtZero(r.debit) ? m(r.debit) : "—"}</td>
+                    <td className="num">{decGtZero(r.credit) ? m(r.credit) : "—"}</td>
                   </tr>
                 ))}
                 <tr>
