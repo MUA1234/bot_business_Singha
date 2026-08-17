@@ -5,6 +5,7 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { Icon } from "@/components/Icon";
 import { decSub, decSum, fmtMoney } from "@/lib/money";
 import { ageItems, type AgingItem } from "@/modules/finance/aging";
+import { BarChart, agingBars } from "@/components/charts";
 
 export const metadata = { title: "Finance — Singha" };
 
@@ -52,6 +53,7 @@ export default async function FinanceHome() {
   const now = new Date();
   const ar = ageItems(toItems(invoices), currency, now);
   const ap = ageItems(toItems(bills), currency, now);
+  const fmt = (v: string) => fmtMoney(v, currency);
 
   const tiles = [
     { k: "Quoted value (sent)", v: fmtMoney(quotedValue, currency), href: "/app/finance/invoices" },
@@ -86,6 +88,18 @@ export default async function FinanceHome() {
           <div className="d dim">Overdue: {fmtMoney(ap.overdue, currency)} · 90+: {fmtMoney(ap.buckets.d90_plus)}</div>
         </Link>
       </div>
+
+      <div className="card">
+        <div className="card-title">Receivables vs payables — by age</div>
+        <div className="card-sub">Chase the amber and red receivable buckets first — the oldest debt is the hardest to collect.</div>
+        <div className="mt-2">
+          <div className="small dim" style={{ marginBottom: 2 }}>Receivables (owed to you)</div>
+          <BarChart data={agingBars(ar.buckets, fmt)} height={120} />
+          <div className="small dim" style={{ marginTop: 8, marginBottom: 2 }}>Payables (you owe)</div>
+          <BarChart data={agingBars(ap.buckets, fmt)} height={120} />
+        </div>
+      </div>
+
       <div className="grid cols-3">
         <Link href="/app/finance/invoices" className="card"><div className="card-title row gap-1"><Icon name="file-text" size={17} /> Invoices</div><p className="card-sub">Billing documents from quotations.</p></Link>
         <Link href="/app/finance/price-requests" className="card"><div className="card-title row gap-1"><Icon name="help-circle" size={17} /> Price Confirmations</div><p className="card-sub">Confirm prices routed to finance.</p></Link>
