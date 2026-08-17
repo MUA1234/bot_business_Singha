@@ -7,10 +7,10 @@
   "currentBranch": "feature/v3-3-part2-durable-processing",
   "currentPr": 24,
   "baseSha": "079fbb8",
-  "lastGreenSha": "bd46301",
+  "lastGreenSha": "c69024b",
   "latestMigration": "0070_channel_identity_resolution.sql",
-  "lastCompletedAction": "FOUND-003 part 1: migration 0070 trusted channel identity resolution + deterministic inbound routing module, both tested. Webhook wiring not yet done.",
-  "nextAction": "FOUND-003 part 2: wire the WhatsApp webhook to resolve_channel_identity + routeInbound, add schema-validated finance-intent classification with deterministic amount/currency gates, call ingestSourceEvent on the staff_finance route, and add a production call-graph test proving the real entrypoint reaches it. Then resolve the sweeper no_processor path (registration + authorized idempotent requeue).",
+  "lastCompletedAction": "FOUND-003 part 2: finance-intent contract + deterministic gate (exact amounts, currency never inferred or converted, evidence threshold) and the dispatch layer that makes ingestSourceEvent production-reachable, with a call-graph test. Webhook route wiring still outstanding.",
+  "nextAction": "FOUND-003 part 3: replace the direct handleCustomerMessage call in src/app/api/webhooks/whatsapp/route.ts with dispatchInbound, supplying resolve_channel_identity, the order handler, a review recorder and the outbox-backed clarification sender. Then §5: processor registration + authorized idempotent requeue for no_processor dead letters (migration 0071), then AIM-002 task deduplication.",
   "lastTargetedTests": [
     "tests/integration/durable-inbound-processing.test.ts",
     "tests/campaign/inbound-sweeper.test.ts",

@@ -1,0 +1,131 @@
+/**
+ * Inbound dispatch (FOUND-003) — the production path that decides what happens to an inbound
+ * message, and the first thing in this codebase that actually calls `ingestSourceEvent`.
+ *
+ * Before this existed, every inbound WhatsApp message went to customer order intake regardless of
+ * who sent it: an employee texting "paid LKR 45,000 to Acme for cement" was asked for a delivery
+ * address, and the whole finance consumer pipeline — duplicate scoring, policy evaluation,
+ * approval requests — was unreachable in production (recorded as D-009).
+ *
+ * Order of operations is the security design:
+ *   1. resolve identity from TRUSTED RECORDS (never from message wording);
+ *   2. classify intent from the text — which may only influence routing WITHIN what the identity
+ *      already permits;
+ *   3. route deterministically;
+ *   4. only the staff_finance route may reach `ingestSourceEvent`, and even then the result is a
+ *      persisted event for review — never an accounting entry, a payment or a transfer.
+ */
+import { ingestSourceEvent, type SourceEventStore, type EventQueue } from "@/events/source-event";
+import { routeInbound, isFinanceCapture, type ResolvedIdentity, type MessageIntent } from "@/lib/identity/inbound-routing";
+import { gateFinanceIntent, type FinanceGateOutcome, type FinanceGateContext } from "@/lib/finance/intent-gate";
+import type { FinanceIntent } from "@/schemas/finance-intent";
+import { log } from "@/lib/log";
+
+export interface InboundMessage {
+  companyId: string;
+  channel: "whatsapp" | "email";
+  /** The sender's channel identity as the provider gave it (phone number / address). */
+  from: string;
+  text: string;
+  providerMessageId: string;
+  rawPayload: unknown;
+}
+
+export interface DispatchDeps {
+  /** Trusted identity lookup — the `resolve_channel_identity` RPC in production. */
+  resolveIdentity(companyId: string, channel: string, from: string): Promise<ResolvedIdentity>;
+  /** Classify the message. Returns null when no classifier is available (no model configured). */
+  classifyFinanceIntent(text: string): Promise<FinanceIntent | null>;
+  /** The existing customer order-intake flow. */
+  handleCustomerOrder(msg: InboundMessage): Promise<{ status: string }>;
+  /** Record a message that needs a person, without pretending it was handled. */
+  recordForReview(msg: InboundMessage, reason: string, identity: ResolvedIdentity): Promise<void>;
+  /** Ask the sender one specific question. */
+  askClarification(msg: InboundMessage, question: string): Promise<void>;
+  store: SourceEventStore;
+  queue: EventQueue;
+  financeContext: FinanceGateContext;
+}
+
+export type DispatchResult =
+  | { handled: "customer_order"; status: string }
+  | { handled: "staff_finance"; sourceEventId: string; ingest: "enqueued" | "duplicate"; gate: FinanceGateOutcome }
+  | { handled: "clarification"; question: string }
+  | { handled: "manual_review"; reason: string }
+  | { handled: "recorded"; reason: string };
+
+export async function dispatchInbound(msg: InboundMessage, deps: DispatchDeps): Promise<DispatchResult> {
+  // 1. Identity FIRST, from trusted records.
+  const identity = await deps.resolveIdentity(msg.companyId, msg.channel, msg.from);
+
+  // 2. Intent is only classified when identity could make it matter. A customer's message never
+  //    needs a finance classification, and not asking is cheaper and safer than asking and ignoring.
+  let intent: FinanceIntent | null = null;
+  let messageIntent: MessageIntent = "other";
+  if (identity.actorType === "staff") {
+    intent = await deps.classifyFinanceIntent(msg.text);
+    if (intent === null) {
+      // No classifier configured. A staff message must NOT fall through to order intake, and we
+      // must not guess that it is routine — a person looks at it.
+      await deps.recordForReview(msg, "no finance classifier configured", identity);
+      return { handled: "manual_review", reason: "no finance classifier configured" };
+    }
+    messageIntent = intent.kind === "none" ? "other" : "finance";
+  }
+
+  // 3. Deterministic routing.
+  const route = routeInbound(identity, messageIntent);
+
+  if (route.route === "customer_order") {
+    const res = await deps.handleCustomerOrder(msg);
+    return { handled: "customer_order", status: res.status };
+  }
+
+  if (route.route === "manual_review" || route.route === "supplier_message" || route.route === "staff_other") {
+    await deps.recordForReview(msg, route.reason, identity);
+    return route.route === "manual_review"
+      ? { handled: "manual_review", reason: route.reason }
+      : { handled: "recorded", reason: route.reason };
+  }
+
+  // 4. staff_finance. Second gate: nothing but this route may proceed.
+  if (!isFinanceCapture(route.route)) {
+    await deps.recordForReview(msg, "route is not finance capture", identity);
+    return { handled: "manual_review", reason: "route is not finance capture" };
+  }
+
+  const gate = gateFinanceIntent(intent!, deps.financeContext);
+
+  if (gate.outcome === "clarify") {
+    await deps.askClarification(msg, gate.question);
+    return { handled: "clarification", question: gate.question };
+  }
+  if (gate.outcome === "manual_review") {
+    await deps.recordForReview(msg, gate.reasons.join("; "), identity);
+    return { handled: "manual_review", reason: gate.reasons.join("; ") };
+  }
+
+  // Capture. This persists the event and enqueues it for the policy/authority pipeline. It does not
+  // post anything, pay anything or approve anything.
+  const result = await ingestSourceEvent(
+    {
+      source: msg.channel === "whatsapp" ? "whatsapp" : "email",
+      providerMessageId: msg.providerMessageId,
+      rawPayload: msg.rawPayload,
+      body: msg.text,
+      companyId: msg.companyId,
+    },
+    deps.store,
+    deps.queue,
+  );
+
+  log("info", "staff finance message captured for policy evaluation", {
+    event: "inbound.finance_captured",
+    sourceEventId: result.event.id,
+    companyId: msg.companyId,
+    ingest: result.status,
+    amountCurrency: `${gate.amount} ${gate.currency}`,
+  });
+
+  return { handled: "staff_finance", sourceEventId: result.event.id, ingest: result.status, gate };
+}

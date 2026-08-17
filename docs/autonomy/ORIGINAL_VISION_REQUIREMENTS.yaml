@@ -75,16 +75,16 @@ requirements:
     feature_flag: none
     runtime_entrypoint: none
     database_evidence: src/db/migrations/0070_channel_identity_resolution.sql (channel_identities + resolve_channel_identity)
-    service_evidence: src/lib/identity/inbound-routing.ts (deterministic routing decision); src/events/source-event.ts still has NO production caller
+    service_evidence: src/lib/inbound/dispatch.ts (calls ingestSourceEvent); src/lib/identity/inbound-routing.ts; src/lib/finance/intent-gate.ts; src/schemas/finance-intent.ts
     ui_evidence: none
-    test_evidence: tests/campaign/inbound-routing.test.ts (9); tests/integration/channel-identity.test.ts (10)
-    security_evidence: identity from trusted records only; unknown/ambiguous never routed as staff; a customer asserting a financial event cannot reach finance capture; service-only resolver with in-function role gate
-    audit_health_evidence: none
+    test_evidence: tests/campaign/finance-intake.test.ts (18, incl. the call-graph proof that dispatch reaches ingestSourceEvent and the impersonation case); tests/campaign/inbound-routing.test.ts (9); tests/integration/channel-identity.test.ts (10)
+    security_evidence: identity from trusted records evaluated BEFORE intent; unknown/ambiguous never staff; a customer asserting a financial event is never classified, let alone captured; exact decimal amount parsing; currency never inferred or converted; material amounts require a referenced document; capture yields a source event for policy/authority only — no posting, payment or approval affordance exists on the result
+    audit_health_evidence: inbound.finance_captured structured log with source event id and ingest status
     last_verified_sha: none
     last_verified_at: none
     owner_gate: none
     blocker: none
-    residual_risks: Identity resolution and the routing decision exist and are tested; the WEBHOOK IS NOT YET WIRED to them and ingestSourceEvent still has no production caller. Not complete — deliberately not marked so.
+    residual_risks: The dispatch layer is complete and tested against injected ports, but the WhatsApp webhook route still calls handleCustomerMessage directly — the final wiring step. A model-backed classifyFinanceIntent implementation is also not written (no provider configured), so today the staff path deliberately fails closed to manual review.
 
   - id: FOUND-004
     title: Deterministic company-scoped authority engine
