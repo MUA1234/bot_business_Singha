@@ -1,7 +1,7 @@
 import { requireDepartment } from "@/lib/auth";
 import { Placeholder } from "@/components/Placeholder";
 
-export const metadata = { title: "Suppliers — Singha" };
+export const metadata = { title: "Suppliers — Singha Central" };
 
 export default async function Suppliers() {
   await requireDepartment("procurement");

@@ -11,7 +11,7 @@ import { fmtMoney } from "@/lib/money";
 import { compareQuotations, type Quotation } from "@/modules/procurement/quote-comparison";
 import { addQuotation, awardQuotation } from "../actions";
 
-export const metadata = { title: "RFQ — Singha" };
+export const metadata = { title: "RFQ — Singha Central" };
 
 export default async function RfqDetail({ params }: { params: { id: string } }) {
   const p = await requireDepartment("procurement");

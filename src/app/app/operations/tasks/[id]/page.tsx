@@ -17,7 +17,7 @@ import {
   submitForEvidence, requestVerification, acceptEstimate, returnForCorrection,
 } from "../actions";
 
-export const metadata = { title: "Task — Singha" };
+export const metadata = { title: "Task — Singha Central" };
 
 const EVIDENCE_KINDS = ["message", "document", "photo", "approval", "system", "gps", "financial"];
 

@@ -12,7 +12,7 @@ import { trialBalance, profitAndLoss, balanceSheet } from "@/accounting/trial-ba
 import type { PostedJournal } from "@/accounting/journal";
 import type { AccountType } from "@/domain/accounts";
 
-export const metadata = { title: "Trial Balance — Singha" };
+export const metadata = { title: "Trial Balance — Singha Central" };
 
 async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
   try {

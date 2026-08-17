@@ -9,7 +9,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { assessObjective, type ObjectiveStatus } from "@/management/ai-manager/objective-status";
 import { createObjective, updateObjectiveProgress } from "./actions";
 
-export const metadata = { title: "Objectives — Singha" };
+export const metadata = { title: "Objectives — Singha Central" };
 
 const badge: Record<ObjectiveStatus, string> = { done: "ok", on_track: "ok", at_risk: "warn", off_track: "danger" };
 

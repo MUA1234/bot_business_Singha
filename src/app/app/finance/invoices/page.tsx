@@ -5,7 +5,7 @@ import { quoteUrl } from "@/lib/quotations";
 import { fmtMoney } from "@/lib/money";
 import { Icon } from "@/components/Icon";
 
-export const metadata = { title: "Invoices — Singha" };
+export const metadata = { title: "Invoices — Singha Central" };
 
 export default async function InvoicesPage() {
   const p = await requireDepartment("finance");

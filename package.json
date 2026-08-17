@@ -2,7 +2,7 @@
   "name": "ai-business-manager",
   "version": "0.1.0",
   "private": true,
-  "description": "Singha AI Business Management System — multi-company, event-driven: WhatsApp Cloud API quotation flow, internally-owned double-entry Accounting Core, approvals/authority, department dashboards, and the V3.1 management-intelligence program (flags default OFF).",
+  "description": "Singha Central — business management system (multi-company, event-driven): finance, operations, people, procurement, compliance, fleet and sales.",
   "type": "module",
   "scripts": {
     "dev": "next dev",

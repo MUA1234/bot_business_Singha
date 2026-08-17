@@ -8,7 +8,7 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { createAccount } from "./actions";
 
-export const metadata = { title: "Chart of Accounts — Singha" };
+export const metadata = { title: "Chart of Accounts — Singha Central" };
 const TYPES = ["asset", "liability", "equity", "income", "expense"];
 
 export default async function ChartOfAccountsPage() {

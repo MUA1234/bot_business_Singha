@@ -1,7 +1,7 @@
 import { requireDepartment } from "@/lib/auth";
 import { PriceRequests } from "@/components/PriceRequests";
 
-export const metadata = { title: "Price Confirmations — Finance" };
+export const metadata = { title: "Price Confirmations — Singha Central" };
 
 export default async function FinancePriceRequests() {
   const p = await requireDepartment("finance");

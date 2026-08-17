@@ -9,7 +9,7 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { detectRenewals, type RenewalItem } from "@/management/ai-manager/renewals";
 
-export const metadata = { title: "Legal & Compliance — Singha" };
+export const metadata = { title: "Legal & Compliance — Singha Central" };
 
 async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
   try {

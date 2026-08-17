@@ -10,7 +10,7 @@ import { fmtMoney } from "@/lib/money";
 import { needsReorder, reorderList, stockValuation, type StockItem } from "@/modules/procurement/inventory";
 import { createItem, moveStock } from "./actions";
 
-export const metadata = { title: "Inventory — Singha" };
+export const metadata = { title: "Inventory — Singha Central" };
 
 export default async function InventoryPage() {
   const p = await requireDepartment("procurement");

@@ -8,7 +8,7 @@ import { requireProfile } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 
-export const metadata = { title: "Messages — Singha" };
+export const metadata = { title: "Messages — Singha Central" };
 
 interface Convo {
   id: string;

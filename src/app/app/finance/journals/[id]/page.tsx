@@ -10,7 +10,7 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { decGtZero, fmtMoney } from "@/lib/money";
 import { reverseJournal } from "../actions";
 
-export const metadata = { title: "Journal — Singha" };
+export const metadata = { title: "Journal — Singha Central" };
 
 export default async function JournalDetail({ params }: { params: { id: string } }) {
   const p = await requireDepartment("finance");

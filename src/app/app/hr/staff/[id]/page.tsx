@@ -11,7 +11,7 @@ import { getDepartment } from "@/lib/departments";
 import { remainingLeave, type DateRange } from "@/modules/workforce/leave";
 import { updateEmployeeDetails, requestLeave, decideLeave } from "../actions";
 
-export const metadata = { title: "Employee — Singha" };
+export const metadata = { title: "Employee — Singha Central" };
 
 export default async function EmployeeRecord({ params }: { params: { id: string } }) {
   const p = await requireDepartment("hr");

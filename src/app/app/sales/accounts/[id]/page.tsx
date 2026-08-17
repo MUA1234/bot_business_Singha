@@ -10,7 +10,7 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { decGtZero, decSub, fmtMoney } from "@/lib/money";
 import { ageItems, bucketFor, type AgingItem } from "@/modules/finance/aging";
 
-export const metadata = { title: "Customer — Singha" };
+export const metadata = { title: "Customer — Singha Central" };
 
 const BUCKET_LABEL: Record<string, string> = { current: "current", d1_30: "1–30", d31_60: "31–60", d61_90: "61–90", d90_plus: "90+" };
 

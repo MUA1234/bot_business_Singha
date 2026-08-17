@@ -8,7 +8,7 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
 import { createPurchaseRequest, setPurchaseRequestStatus } from "./actions";
 
-export const metadata = { title: "Purchase Requests — Singha" };
+export const metadata = { title: "Purchase Requests — Singha Central" };
 
 const NEXT: Record<string, string[]> = {
   draft: ["submitted"],

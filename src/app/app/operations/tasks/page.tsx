@@ -12,7 +12,7 @@ import { allowedTransitions, type TaskState } from "@/modules/work/task-lifecycl
 import { scorePriority } from "@/management/ai-manager/priority";
 import { createTask, setTaskStatus } from "./actions";
 
-export const metadata = { title: "Tasks — Singha" };
+export const metadata = { title: "Tasks — Singha Central" };
 
 interface TaskRow {
   id: string;

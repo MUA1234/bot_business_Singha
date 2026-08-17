@@ -12,7 +12,7 @@ import { fuelEfficiency, type FuelLog } from "@/modules/fleet/fuel-efficiency";
 import { renewalStatus } from "@/management/ai-manager/renewals";
 import { addVehicleDocument, addMaintenance, addFuelLog, addTrip } from "../actions";
 
-export const metadata = { title: "Vehicle — Singha" };
+export const metadata = { title: "Vehicle — Singha Central" };
 const DOC_TYPES = ["insurance", "registration", "emission", "permit", "other"];
 
 export default async function VehicleDetail({ params }: { params: { id: string } }) {

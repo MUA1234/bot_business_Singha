@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { DEPARTMENTS } from "@/lib/departments";
 import { Icon } from "@/components/Icon";
 
-export const metadata = { title: "Departments — Singha Admin" };
+export const metadata = { title: "Departments — Singha Central" };
 
 export default async function DepartmentsPage() {
   const admin = await requireAdmin();

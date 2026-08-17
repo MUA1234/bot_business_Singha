@@ -4,7 +4,7 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 
-export const metadata = { title: "Conversation — Singha" };
+export const metadata = { title: "Conversation — Singha Central" };
 
 export default async function ConversationPage({ params }: { params: { id: string } }) {
   const p = await requireDepartment("sales");

@@ -8,7 +8,7 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
 import { createPurchaseOrder } from "./actions";
 
-export const metadata = { title: "Purchase Orders — Singha" };
+export const metadata = { title: "Purchase Orders — Singha Central" };
 
 export default async function PurchaseOrdersPage() {
   const p = await requireDepartment("procurement");

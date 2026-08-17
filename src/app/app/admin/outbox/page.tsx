@@ -8,7 +8,7 @@ import { requireAdmin } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { replayMessage } from "./actions";
 
-export const metadata = { title: "Outbox — Singha" };
+export const metadata = { title: "Outbox — Singha Central" };
 
 async function rows<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
   try {

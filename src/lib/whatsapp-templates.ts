@@ -1,7 +1,7 @@
 /**
  * Approved INTERNAL WhatsApp message templates (NEXT_PHASE_DEVELOPER_BRIEF §WP4.7).
  *
- * These are the staff-facing notifications the AI manager may send through the outbox:
+ * These are the staff-facing notifications the analysis assistant may send through the outbox:
  * task assignment, estimate request, overdue reminder, clarification, verification
  * request, escalation. Pure builders — the outbox worker actually sends them.
  *

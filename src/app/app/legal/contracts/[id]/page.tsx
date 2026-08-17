@@ -10,7 +10,7 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { renewalStatus } from "@/management/ai-manager/renewals";
 import { addObligation, setObligationStatus } from "../actions";
 
-export const metadata = { title: "Contract — Singha" };
+export const metadata = { title: "Contract — Singha Central" };
 
 export default async function ContractDetail({ params }: { params: { id: string } }) {
   const p = await requireDepartment("legal");

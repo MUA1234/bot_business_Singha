@@ -8,7 +8,7 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { createFiscalYear, setPeriodStatus } from "./actions";
 
-export const metadata = { title: "Periods — Singha" };
+export const metadata = { title: "Periods — Singha Central" };
 
 async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
   try {

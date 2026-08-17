@@ -3,8 +3,9 @@ import "./globals.css";
 import LivingBackground from "@/components/LivingBackground";
 
 export const metadata = {
-  title: "Singha — Business Control",
-  description: "Singha AI business control system: orders, quotations, finance & departments.",
+  title: "Singha Central",
+  description:
+    "Singha Central — the business management system for Singha: finance, operations, people, procurement, compliance, fleet and sales in one company-scoped, audited system.",
 };
 
 export const viewport = {

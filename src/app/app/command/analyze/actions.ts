@@ -26,7 +26,7 @@ export interface AnalyzeState {
 }
 
 /**
- * Analyze a business update with the Senior AI Manager. The AI observes and proposes;
+ * Analyze a business update with the business analysis assistant. The AI observes and proposes;
  * it only ever creates low-risk `captured` tasks and flags sensitive matters for human
  * approval. It never executes an action, moves money, or makes a commitment (§6).
  */

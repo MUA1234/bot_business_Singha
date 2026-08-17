@@ -11,7 +11,7 @@ import { fmtMoney } from "@/lib/money";
 import { computeApprovalProgress, canActOnApproval, type ApprovalAction } from "@/policy/approval-progress";
 import { actOnApproval } from "./actions";
 
-export const metadata = { title: "Approvals — Singha" };
+export const metadata = { title: "Approvals — Singha Central" };
 
 async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
   try {

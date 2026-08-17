@@ -8,7 +8,7 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { createCampaign, setCampaignStatus } from "./actions";
 
-export const metadata = { title: "Campaigns — Singha" };
+export const metadata = { title: "Campaigns — Singha Central" };
 
 const NEXT: Record<string, string[]> = {
   draft: ["scheduled", "cancelled"],

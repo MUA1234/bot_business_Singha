@@ -7,7 +7,7 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { createAudience } from "./actions";
 
-export const metadata = { title: "Audiences — Singha" };
+export const metadata = { title: "Audiences — Singha Central" };
 
 async function count(run: () => Promise<{ count: number | null }>): Promise<number> {
   try {

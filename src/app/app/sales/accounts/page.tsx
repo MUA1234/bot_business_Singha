@@ -10,7 +10,7 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { dec, decSub, fmtMoney } from "@/lib/money";
 
-export const metadata = { title: "Customer Accounts — Singha" };
+export const metadata = { title: "Customer Accounts — Singha Central" };
 
 async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
   try {

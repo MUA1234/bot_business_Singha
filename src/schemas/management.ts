@@ -1,5 +1,5 @@
 /**
- * Senior AI Manager governance schemas (Architecture V2 change plan §6.1, §6.3).
+ * Business analysis assistant governance schemas (Architecture V2 change plan §6.1, §6.3).
  * EVERY AI output that could affect business state must parse against one of these
  * before the deterministic policy engine looks at it (Constitution §6: schema-
  * validate; keep AI recommendations separate from execution). These schemas describe

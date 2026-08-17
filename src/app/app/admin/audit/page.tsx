@@ -8,7 +8,7 @@ import { requireAdmin } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { describeAction } from "@/lib/audit-format";
 
-export const metadata = { title: "Audit Log — Singha" };
+export const metadata = { title: "Audit Log — Singha Central" };
 
 export default async function AuditPage({ searchParams }: { searchParams: { entity?: string } }) {
   const admin = await requireAdmin();

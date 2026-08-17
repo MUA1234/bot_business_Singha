@@ -6,7 +6,7 @@
  * with your registered details BEFORE relying on them for production / Meta app review.
  */
 export const LEGAL = {
-  appName: "Singha Business Manager",
+  appName: "Singha Central",
   // TODO: replace with your registered legal company name.
   legalEntity: "Singha Holdings",
   // TODO: replace with a monitored business contact address.

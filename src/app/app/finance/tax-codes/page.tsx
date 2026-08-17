@@ -9,7 +9,7 @@ import { taxAmount } from "@/accounting/tax";
 import { fmtMoney } from "@/lib/money";
 import { createTaxCode } from "./actions";
 
-export const metadata = { title: "Tax Codes — Singha" };
+export const metadata = { title: "Tax Codes — Singha Central" };
 
 export default async function TaxCodesPage() {
   const p = await requireDepartment("finance");

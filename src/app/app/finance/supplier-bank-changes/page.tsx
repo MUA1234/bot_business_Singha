@@ -8,7 +8,7 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { requestBankChange, decideBankChange } from "./actions";
 
-export const metadata = { title: "Supplier Bank Changes — Singha" };
+export const metadata = { title: "Supplier Bank Changes — Singha Central" };
 
 async function rows<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
   try {

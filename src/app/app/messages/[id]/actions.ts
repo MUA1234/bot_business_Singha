@@ -7,7 +7,7 @@ import { writeAudit } from "@/lib/audit";
 import { analyzeConversationThread } from "@/management/ai-manager/analyze-conversation";
 
 /**
- * Run the Senior AI Manager over a customer conversation: it observes the thread and
+ * Run the business analysis assistant over a customer conversation: it observes the thread and
  * captures follow-up tasks. Observe/propose only — never executes, never replies to
  * the customer. Admin-only. Shares the exact pipeline with the continuous monitor cron
  * via `analyzeConversationThread` (fenced untrusted text → observe → plan → case).

@@ -9,7 +9,7 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { renewalStatus } from "@/management/ai-manager/renewals";
 import { createDriver } from "../vehicles/actions";
 
-export const metadata = { title: "Drivers — Singha" };
+export const metadata = { title: "Drivers — Singha Central" };
 
 export default async function DriversPage() {
   const p = await requireDepartment("fleet");

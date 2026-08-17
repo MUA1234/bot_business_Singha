@@ -11,7 +11,7 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { decGtZero, decSub, fmtMoney } from "@/lib/money";
 import { bucketFor, type AgingBucket } from "@/modules/finance/aging";
 
-export const metadata = { title: "Receivables & Payables — Singha" };
+export const metadata = { title: "Receivables & Payables — Singha Central" };
 
 const BUCKET_LABEL: Record<AgingBucket, string> = {
   current: "current",

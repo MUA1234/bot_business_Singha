@@ -7,7 +7,7 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { getDepartment } from "@/lib/departments";
 
-export const metadata = { title: "Staff — Singha" };
+export const metadata = { title: "Staff — Singha Central" };
 
 export default async function StaffPage() {
   const p = await requireDepartment("hr");
