@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import "./globals.css";
+import LivingBackground from "@/components/LivingBackground";
 
 export const metadata = {
   title: "Singha — Business Control",
@@ -17,7 +18,10 @@ export const viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <LivingBackground />
+        {children}
+      </body>
     </html>
   );
 }

@@ -24,16 +24,18 @@
                radial-gradient(1400px 900px at 50% 115%, #14181d 0%, transparent 60%),
                linear-gradient(165deg, #07090b 0%, #0b0e11 50%, #10141a 100%);
 
-  /* Glass panels */
-  --panel: rgba(255, 255, 255, 0.045);
-  --panel-strong: rgba(255, 255, 255, 0.08);
+  /* Glass panels — SMOKED (dark film), not a white film: these sit over the living
+   * background video, and a light film leaves body text effectively unbacked. The dark
+   * tint + blur keeps the artwork readable through the panel while text stays crisp. */
+  --panel: rgba(8, 13, 15, 0.58);
+  --panel-strong: rgba(13, 20, 23, 0.74);
   --panel-border: rgba(255, 255, 255, 0.1);
   --panel-blur: 18px;
 
   /* Text — cool neutrals. */
   --text: #eef4f2;
   --text-muted: #aebbb7;
-  --text-dim: #7d8a87;
+  --text-dim: #8d9b98; /* nudged up from #7d8a87: low-emphasis text must survive the living background */
 
   /* State — reserved semantics, never the brand accent. */
   --ok: #4ade80;               /* green, hue-separated from the mint accent */
@@ -50,6 +52,45 @@
 }
 
 * { box-sizing: border-box; }
+
+/* ── Living background ──────────────────────────────────────────────
+ * Fixed, silent, seamless loop behind the entire app (see
+ * src/components/LivingBackground.tsx for the load strategy).
+ * Sized with `inset: 0` rather than 100vw/100vh: 100vw includes the scrollbar
+ * width (horizontal overflow) and 100vh leaves a gap when a mobile URL bar hides.
+ * z-index -2 keeps it under all content; pointer-events:none keeps it inert. */
+.singha-living-bg {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: -2;
+  pointer-events: none;
+  background: #05090a; /* ultimate fallback if no media paints */
+}
+.singha-living-bg video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  user-select: none;
+}
+/* Readability scrim — deliberately mild so the artwork keeps its depth. */
+.singha-living-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 55% 42%, transparent 0%, rgba(0, 0, 0, 0.1) 55%, rgba(0, 0, 0, 0.26) 100%),
+    rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+}
+/* Phones: bias the framing so the robot detail crops rather than the negative space
+ * the text sits on. */
+@media (max-width: 767px) {
+  .singha-living-bg video { object-position: 58% center; }
+}
 
 html, body {
   padding: 0;
@@ -76,6 +117,10 @@ body {
   min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
   letter-spacing: 0.1px;
+  /* Text outside a panel (page titles, section headings, helper lines) sits directly over the
+   * living background. A soft shadow keeps it legible over the bright wave forms; it is
+   * imperceptible on the dark smoked panels where most content lives. */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 a { color: inherit; text-decoration: none; }
@@ -201,7 +246,7 @@ table.data tr:hover td { background: rgba(255, 255, 255, 0.03); }
   padding: 22px 16px;
   padding-left: max(16px, env(safe-area-inset-left));
   border-right: 1px solid var(--panel-border);
-  background: rgba(0, 0, 0, 0.22); backdrop-filter: blur(10px);
+  background: rgba(4, 8, 9, 0.72); backdrop-filter: blur(14px);
   display: flex; flex-direction: column; gap: 6px; position: sticky; top: 0; height: 100vh; height: 100dvh;
 }
 .nav-item {
