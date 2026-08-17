@@ -82,7 +82,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 
 | env | consumers |
 |---|---|
-| RLS_READS | src/app/app/admin/health/page.tsx<br>src/lib/supabase/read.ts |
+| RLS_READS | src/lib/supabase/read.ts |
 | RLS_WRITES | src/app/app/finance/customer-invoices/actions.ts<br>src/app/app/finance/supplier-bills/actions.ts<br>src/lib/auth.ts<br>src/lib/supabase/read.ts |
 | WHATSAPP_ASYNC | src/app/api/webhooks/whatsapp/route.ts |
 

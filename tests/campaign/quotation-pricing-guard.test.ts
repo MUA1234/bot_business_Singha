@@ -53,6 +53,27 @@ describe("campaign D-007a — catalogue matching cannot be steered by a short de
     expect(matchCatalogueEntry("   ", CATALOG)).toBeUndefined();
     expect(matchCatalogueEntry(null, CATALOG)).toBeUndefined();
   });
+
+  it("the MOST SPECIFIC name wins, so row order cannot pick the price", () => {
+    // Keeping only the safe containment direction was not enough on its own: a catalogue holding
+    // both "Beam" and "Premium Steel Beam" leaves this description containing BOTH, and the query
+    // has no ORDER BY — so which price applied was still decided by row order, and a sender could
+    // retry phrasings until the cheap short name won.
+    const withShortName = [{ name: "Beam", unit_price: "100.00", currency: "LKR" }, ...CATALOG];
+    expect(matchCatalogueEntry("5x Premium Steel Beam", withShortName)?.unit_price).toBe("100000.00");
+
+    // …and the same holds when the cheap row comes back last.
+    const reversed = [...CATALOG, { name: "Beam", unit_price: "100.00", currency: "LKR" }];
+    expect(matchCatalogueEntry("5x Premium Steel Beam", reversed)?.unit_price).toBe("100000.00");
+  });
+
+  it("two equally-specific entries that disagree on price are refused, not guessed", () => {
+    const ambiguous = [
+      { name: "Anchor Bolt", unit_price: "250.00", currency: "LKR" },
+      { name: "anchor bolt", unit_price: "900.00", currency: "LKR" },
+    ];
+    expect(matchCatalogueEntry("anchor bolt", ambiguous)).toBeUndefined();
+  });
 });
 
 describe("campaign D-007b — a fractional or absurd quantity is never auto-priced", () => {

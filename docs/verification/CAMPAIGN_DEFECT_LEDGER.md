@@ -54,7 +54,28 @@
   at the DB (`0068:132`) — but the system's own record of required authority was model-controlled.
 - **Fix:** `authorityFloor()` derives a floor from the observation's own structured fields; the plan
   takes `max(model claim, floor)`. The floor never lowers a claim.
-- **Test:** `authority-floor.test.ts` (10 cases incl. the injection case) — fails pre-fix.
+- **CORRECTIONS (loop 2), all raised by the final review and all upheld:**
+  1. **Over-escalation.** The floor tested raw truthiness on free-text impact fields, so a model
+     returning `"none"` or `"N/A"` — routine when a prompt lists optional keys — escalated an
+     observation with no impact at all. It now requires a non-placeholder value. An over-escalating
+     control is not a safe control; it is an ignored one.
+  2. **The named-person rule was removed.** The prompt asks the model to list every name it sees,
+     so "Nimal called about the delivery" escalated. Combined with the operational/customer rule,
+     nearly every real observation would have carried `requires_human` — drowning the signal.
+  3. **Honest limit of this control.** The floor is computed from OTHER fields of the SAME model
+     output. It narrows the model's freedom from one field to three; it does **not** make the
+     decision independent of the model, and the loop-1 docstring claimed more than that.
+- **SCOPE FLAG FOR THE OWNER.** `docs/AUTHORITY_MATRIX.md` §4 specifies the authority engine as
+  company/role/action rows in `authority_rules` + `authority_limits` — "code, never an AI decision".
+  This floor is a hardcoded, company-agnostic mapping in application code. It is defensible as
+  interim hardening of a blocker, but it is **not** what the authority spec prescribes, and the
+  final review was right that a verification campaign inventing an authority mapping is scope creep.
+  **The mapping needs owner sign-off, or replacement by the specified engine.**
+- **Test:** `authority-floor.test.ts` (11 cases incl. the injection case, the placeholder case and
+  the removed people rule). Precision about the evidence: `authorityFloor` does not exist pre-fix,
+  so the file cannot *link* against the old tree — that is a module error, not proof. The
+  discriminating assertions are those on `planFromObservation`, a pre-existing export that returned
+  the model's claim verbatim before the fix.
 
 ### D-005 · Material · Delivery truth — a reply recorded as sent when the outbox refused it
 - **Where:** `src/lib/order-intake.ts:187-190` (pre-fix).
@@ -63,8 +84,20 @@
   then the inbound was marked handled. The thread UI renders that row as a sent message.
 - **Why it matters:** migration `0058` exists specifically to stop this on the quotation path. One
   codebase held two contradictory rules for the same table.
-- **Fix:** record the reply only when durably queued; otherwise log and leave the inbound unhandled
-  so it is retried rather than silently answered-on-paper.
+- **Fix:** record the reply only when durably queued; otherwise log and leave the inbound unhandled.
+- **CORRECTION (loop 2).** The first version of this fix — and of this ledger entry — claimed the
+  message "is retried". **That was false, and the false claim shipped in a code comment.** The
+  webhook acknowledges HTTP 200 regardless of the handler's outcome
+  (`src/app/api/webhooks/whatsapp/route.ts:106-115`), the async path returns normally without
+  throwing, and **nothing sweeps inbound rows with a null `handled_at`** (verified: the only other
+  occurrence of `handled_at` in `src/` is a comment). What the fix actually achieves is *truthfulness*:
+  the customer gets no reply either way, but staff no longer see a message the system never queued.
+  A sweeper for unhandled inbound messages is a follow-up (**D-019**), not a claim.
+- **Also unrecorded in loop 1, now stated:** on the early return the run has already created the
+  inbound row, possibly the order/quotation/items, and possibly delivered the quotation itself via a
+  *different* RPC — so the durable record says the inbound was never handled while related work
+  exists. A re-drive does not duplicate: `state.quotationId` guards the quotation and the reply's
+  dedupe key `wa_reply:${waMessageId}` is stable.
 - **Test:** verified by inspection; a behavioural test needs the fake-Supabase harness — recorded as
   a follow-up, not claimed.
 
@@ -79,6 +112,16 @@
   regardless of outcome so a persistently-empty thread isn't retried forever"). This was a
   considered trade-off that conflated three different outcomes, not an oversight.
 - **Fix:** distinguish `persist_failed` (leave due; retry) from every other outcome (stamp).
+- **CORRECTION (loop 2) — the loop-1 fix created a new problem and the final review caught it.**
+  Leaving a thread due is right for durability, but combined with D-013's **ascending**
+  `last_inbound_at` ordering it meant a *permanently* failing thread sorted to the FRONT of the
+  batch on every run, burning a model call each time and starving every other conversation, while
+  the job reported `{ok: true}`. The ordering is now **descending**, which serves recently-active
+  threads first and simultaneously addresses D-013. A bounded attempt counter / backoff column
+  would be the complete answer and needs a migration — recorded as **D-020**, not attempted here.
+- **Scope note:** only the persistence branch was hardened. A transport error or validation failure
+  still stamps `ai_analyzed_at`, so the durability contract quoted above is enforced more narrowly
+  than its wording suggests.
 - **Test:** verified by inspection; behavioural test is a follow-up.
 
 ### D-007 · Material · Customer-facing — a customer could steer the price of an auto-sent quotation
@@ -100,16 +143,47 @@
 - **Fix:** `matchCatalogueEntry` keeps only the safe direction (exact name, or description contains
   name); `isAutoPriceableQuantity` refuses non-integer, zero, negative, non-finite and absurd
   quantities. A refused line is **not** coerced to 1 — it falls through to the human
-  price-confirmation path that already exists.
-- **Test:** `quotation-pricing-guard.test.ts` (10 cases) — fails pre-fix.
+  price-confirmation path that already exists (verified by reading `priceQuotation`'s `else` branch:
+  it opens one `price_confirmations` row in the quotation currency and `refreshQuotationStatus`
+  then sets `awaiting_price`).
+- **CORRECTION (loop 2) — the loop-1 match fix was half a fix and its docstring overstated it.**
+  Keeping only the safe direction did not close the steering vector: a catalogue holding both
+  `Beam` and `Premium Steel Beam` leaves "5x Premium Steel Beam" containing **both** names, and the
+  query still has no `ORDER BY`, so row order decided the price and a sender could retry phrasings
+  until the cheap short name won. Now: the **longest (most specific)** matching name wins, and two
+  equally-specific entries that disagree on price are **refused** so a human prices the line.
+- **PRODUCT TRADE-OFF THE OWNER SHOULD SEE.** Dropping the reverse direction is a real behaviour
+  change, not only a security fix: catalogue "Premium Steel Beam 200mm" + customer "steel beam"
+  matched before and now goes to a human, and a business selling by weight or volume (2.5 tonnes —
+  representable in `numeric(18,3)`) now sends **every** line to a human. Safe, but it will lower the
+  auto-quote rate by an amount this campaign did not measure.
+- **Residual:** `resolvePriceConfirmation` still multiplies by the raw quantity, so a human sees and
+  approves the fractional value. The guard is a routing change, not a normalisation.
+- **Test:** `quotation-pricing-guard.test.ts` (12 cases, incl. specificity and ambiguity). Same
+  precision as D-004: these are unit tests of new helpers, so "fails pre-fix" means the module does
+  not link. **Nothing here exercises `priceQuotation` end to end** — the claim that a refused line
+  lands in `awaiting_price` is verified by reading, not by an executed test.
 
-### D-008 · Material · Tenant isolation — cross-company dead-letter count
+### D-008 · **Latent** (loop 1 graded this Material — corrected) · cross-company dead-letter count
 - **Where:** `src/app/app/admin/health/page.tsx:33` (pre-fix).
 - **Actual:** the only probe on that page without `.eq("company_id", cid)`; `db` is the service-role
   client, which bypasses RLS while `RLS_READS` is off, so the count spanned every tenant. It feeds
   `classifyHealth` and `buildAlerts`, so another company's incident drove this company's dashboard
   to CRITICAL. Aggregate only — no row content leaked.
-- **Fix:** company scope added. **Test:** follow-up (needs a rendered-page harness).
+- **CORRECTION (loop 2), on two counts.**
+  1. **Severity was wrong and inconsistent with this ledger's own rule.** `dead_letter_events` has
+     **no writer anywhere** in `src/` or in the 68 migrations — only two readers. The count is
+     unconditionally 0 today, so the cross-tenant CRITICAL described above **cannot currently
+     happen**. By the definition applied to D-001, this is **Latent**, and grading it Material
+     while grading D-001 Latent was an inconsistency the final review was right to call out.
+  2. **The loop-1 fix could go silently deaf.** `company_id` was retro-added to this table
+     (`0008_phase0_rls_hardening.sql:65`) as **nullable with no backfill and no default**, so the
+     first writer that omits it would produce rows counted as zero for *every* tenant — trading a
+     loud wrong number for a silent one. The probe now matches `company_id = <cid> OR company_id IS
+     NULL`, so an unattributed dead letter is still seen.
+- **Note:** `/api/health` still counts dead letters unscoped. That is defensible for a system-level
+  endpoint; the "only one genuine unscoped access" figure below refers to `src/app/**` pages.
+- **Test:** follow-up (needs a rendered-page harness).
 
 ---
 
@@ -205,3 +279,42 @@ architecture as a follow-up.* These are real and should be scheduled.
   caller), so `/app/finance/price-requests` is structurally empty for non-admin finance staff.
 - 2 high-severity dependency advisories (`next`, `postcss`); the only fix offered is a major
   upgrade to Next 16 — an owner decision, not a campaign action.
+
+### D-019 · Material · No sweeper for unhandled inbound WhatsApp messages
+- The webhook acknowledges 200 whatever the handler returns, the async path does not throw, and
+  nothing re-drives an inbound `wa_messages` row whose `handled_at` is null. Any handler failure —
+  including the outbox-unavailable path of D-005 — leaves the customer unanswered with no automatic
+  recovery. Surfaced by the final review after loop 1 shipped a comment claiming a retry that does
+  not exist.
+
+### D-020 · Material · No bounded backoff for a permanently failing analysis
+- The D-006 fix correctly leaves a thread due when persistence fails. A thread that fails
+  *permanently* is therefore retried every run, spending a model call each time. Descending order
+  (the D-013 fix applied in loop 2) stops it starving other threads but does not bound the cost. A
+  proper fix needs an attempt counter or a `next_attempt_at` column — i.e. a migration, deliberately
+  not added at the end of a verification campaign.
+
+---
+
+## Correction loop 2 — what the final independent review changed
+
+The fourth bounded review audited **this campaign's own fixes**, and it was right on every
+substantive point. Recorded rather than quietly absorbed:
+
+| Review finding | Disposition |
+|---|---|
+| D-005's code comment and ledger claimed the message "is retried" — no retry exists | **Upheld.** Comment and ledger corrected; D-019 raised |
+| The D-006 fix lets a permanently-failing thread monopolise every batch (interacts with D-013) | **Upheld.** Ordering changed to descending; D-020 raised |
+| `authorityFloor` escalates on `"none"`/`"N/A"`, and on any named person → over-escalation | **Upheld.** Placeholder guard added; people rule removed |
+| `authorityFloor` invents an authority mapping that `AUTHORITY_MATRIX.md` assigns to `authority_rules` | **Upheld as scope creep.** Flagged for owner sign-off rather than defended |
+| The catalogue-match fix left the steering vector open (both names contained, no `ORDER BY`) | **Upheld.** Longest-match-wins + ambiguity refusal added |
+| Dropping the reverse match direction is a product change sold as a security fix | **Upheld.** Recorded as an owner-visible trade-off |
+| D-008 should be Latent by this ledger's own rule (`dead_letter_events` has no writer) | **Upheld.** Reclassified |
+| The scoped dead-letter probe could go silently deaf on null `company_id` | **Upheld.** Probe now includes unattributed rows |
+| "fails pre-fix" for D-004/D-007 describes a link error, not behavioural discrimination | **Upheld.** Wording corrected in both the tests and this ledger |
+| Three scenarios pass on an author-supplied `risk` label with no disclosure | **Upheld.** Notes added to CNF-02, CNF-03, AMB-03 and pinned by a test |
+| The evasion probe is green while a documented bypass exists — no signal in a passing run | **Upheld.** Test renamed to carry `KNOWN DEFECT (D-001)`, plus a **tripwire** test that fails the moment any production module imports `routeDecision` |
+| Gate table reports base counts under a "tested head" heading | **Upheld.** Head counts recorded separately |
+| `COMPLETION_INVENTORY` listed the health page as a flag consumer because of the campaign's own comment | **Upheld.** Comment reworded so the scanner is not fooled |
+| Lint reported as 2 warnings; there are 3 | **Upheld.** Corrected |
+| Agrees `routeDecision`'s denylist is **latent**, not live | Agreement recorded; the tripwire above is what keeps that true |

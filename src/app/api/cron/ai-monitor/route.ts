@@ -42,7 +42,12 @@ export async function GET(req: Request): Promise<Response> {
     .from("wa_conversations")
     .select("id, company_id, last_inbound_at, ai_analyzed_at")
     .not("last_inbound_at", "is", null)
-    .order("last_inbound_at", { ascending: true })
+    // DESCENDING: most recently active threads first. Ascending order meant every new inbound
+    // message pushed a thread towards the END of the window, so past 200 conversations the threads
+    // with new customer activity were systematically excluded while this job reported success. It
+    // also let a thread whose persistence keeps failing (which is deliberately left due, below) sit
+    // at the head of the batch on every run and starve everything else.
+    .order("last_inbound_at", { ascending: false })
     .limit(200);
 
   const due = (convos ?? [])

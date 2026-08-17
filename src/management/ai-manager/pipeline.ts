@@ -55,15 +55,27 @@ export function authorityFloor(o: ManagementObservation): AuthorityLevel {
 
   // Money, legal exposure or safety are specialist matters by policy (CLAUDE.md financial
   // controls, and the same floor the prompt asks the model to apply — now enforced).
-  if (i.financial || i.legal || i.safety) floor = higher(floor, "specialist_approval");
+  if (stated(i.financial) || stated(i.legal) || stated(i.safety)) floor = higher(floor, "specialist_approval");
   // Anything with a stated operational or customer impact is at least a manager's call.
-  if (i.operational || i.customer) floor = higher(floor, "manager_approval");
-  // Named people mean a person is affected by whatever follows.
-  if ((o.involved?.people?.length ?? 0) > 0) floor = higher(floor, "manager_approval");
+  if (stated(i.operational) || stated(i.customer)) floor = higher(floor, "manager_approval");
   // A low-confidence reading must never present itself as routine.
   if (o.confidence < 0.3) floor = higher(floor, "manager_approval");
 
   return floor;
+}
+
+/**
+ * Is this impact field an actual statement of impact?
+ *
+ * The impact fields are OPTIONAL free text, and a model asked for optional keys routinely fills
+ * them with a placeholder rather than omitting them. Testing raw truthiness would escalate on
+ * "none" / "n/a" / "nil" — turning the floor into a permanent alarm and drowning the signal it
+ * exists to raise. An over-escalating control is not a safe control; it is an ignored one.
+ */
+function stated(v: string | null | undefined): boolean {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (s === "") return false;
+  return !["none", "n/a", "na", "nil", "no", "null", "unknown", "-", "0"].includes(s);
 }
 
 /** Any material impact means a completed task should require evidence. */

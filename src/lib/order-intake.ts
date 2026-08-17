@@ -191,10 +191,14 @@ export async function handleCustomerMessage(input: {
   // queued makes the thread claim a delivery that never happened. That rule was applied to the
   // quotation path and not to this one: the enqueue result used to be discarded, so an
   // "unavailable" outbox (RPC missing or erroring) still rendered a sent-looking message to staff.
-  // Record the reply ONLY when it is durably queued; otherwise leave the inbound unhandled so the
-  // message is retried rather than silently dropped with a false record of having answered.
+  // Record the reply ONLY when it is durably queued. Being precise about what this does and does
+  // NOT achieve: the customer does not get a reply either way, and there is currently NO automatic
+  // retry — the webhook acknowledges 200 regardless of this outcome, and nothing sweeps inbound
+  // rows with a null `handled_at`. What changes is that the failure is now truthful and visible
+  // (an error log, and no outbound row) instead of staff seeing a message the system never queued.
+  // A sweeper for unhandled inbound messages is a recorded follow-up, not something claimed here.
   if (enqueued === "unavailable") {
-    log("error", "reply not recorded — outbox unavailable", {
+    log("error", "reply not queued — outbox unavailable; inbound left unhandled", {
       event: "order_intake.reply_not_queued",
       conversationId,
       companyId,

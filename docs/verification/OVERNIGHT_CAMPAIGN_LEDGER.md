@@ -39,10 +39,10 @@ Consequence: the cross-layer pipeline can be verified for stages 1–6 and 12–
 |---|---|---|---|
 | C0 | Preflight: branch/SHA/migration range/implemented-surface inventory | **DONE** | this file, §Scope + §Preflight |
 | C1 | Deterministic gate battery on the tested head | **DONE** | §Gate results |
-| C2 | Scenario pack + cross-layer evidence suite implemented | **DONE** | `tests/campaign/**`, `tests/integration/campaign-cross-layer.test.ts` (commit `e6534b5`) |
+| C2 | Scenario pack + cross-layer evidence suite implemented | **DONE** | `tests/campaign/**` (`e6534b5`); `tests/integration/campaign-cross-layer.test.ts` (`60e36c3`) |
 | C3 | Adversarial + fault/degradation suite implemented | **DONE** | `tests/campaign/ai-trust-boundary.test.ts` (commit `e6534b5`) |
 | C4 | Independent Opus reviews (bounded assignments) | **DONE (3 of 4 run)** | §Independent review |
-| C5 | Defect fixes + targeted regression (correction loop 1 of 2) | **DONE** | `CAMPAIGN_DEFECT_LEDGER.md`, commit `60e36c3` |
+| C5 | Defect fixes + targeted regression (**both** permitted correction loops used) | **DONE** | `CAMPAIGN_DEFECT_LEDGER.md`; loop 1 `60e36c3`, loop 2 after the final review |
 | C6 | Final report + draft PR on tested head | **DONE** | this file + the draft PR |
 
 ## Cross-layer traceability — the 17 pipeline stages
@@ -77,7 +77,7 @@ against source before being recorded).
 | 1 | Cross-layer architecture and scenario review | complete | 17-stage trace, 11 broken links, 13 coherence defects, 15 proposed scenarios. Findings re-verified by the primary agent before acceptance |
 | 2 | Security, authority and prompt-injection review | complete | 1 blocker (D-001, reclassified **latent** — see below), 5 material, 8 limitations. Systematic result worth recording: of 319 `.from(...)` call sites under `src/app/**`, 300 carry `company_id` in the same statement and **only one** (D-008) was a genuine unscoped access; all 35 `.update()`/`.delete()` are company-scoped |
 | 3 | Business-intelligence / decision-quality evaluation | **not run as a model assignment** | Its subject — the quality of live model decisions — is BLOCKED (no provider). Substituted with the deterministic scenario pack, which evaluates the part that has an exact answer. Stated plainly rather than simulated |
-| 4 | Final independent review of the campaign's own fixes | running at report time | Verdict folded into the PR if it lands before hand-off; otherwise it is an open item |
+| 4 | Final independent review of the campaign's own fixes | **complete** | Audited all six fixes for correctness, overreach and test quality, and audited these ledgers for overclaiming. **It was right on every substantive point.** Its findings drove correction loop 2 — see the disposition table in `CAMPAIGN_DEFECT_LEDGER.md`. It re-ran the suites itself rather than trusting the reported counts |
 
 **Recorded disagreement (required by the brief).** Assignment 2 classed the `NEVER_AUTONOMOUS`
 substring-denylist evasion as a **blocker**. The primary agent verified that `routeDecision` has no
@@ -94,13 +94,24 @@ recording the gap.
 
 | Outcome class | Meaning here | Result |
 |---|---|---|
-| Pass | Deterministic routing matched the required authority and reasons | 20/20 scenarios |
+| Pass | Deterministic routing matched the required authority and reasons | 20/20 scenarios — but see the caveat below |
 | Pass with limitation | Routed correctly, but the situation needs intelligence the system lacks | 5 scenarios carry explicit `unimplemented` notes |
 | Fail safe | Escalated when uncertain | Low-confidence, unknown-limit and currency-mismatch paths all escalate |
 | Material failure | A high-risk action reachable without a human | none on the live path |
 | Blocker | Constitutional invariant violated on a live path | 1 found (D-004) — **fixed this campaign** |
 
-## Gate results — tested head `48bef9c`, disposable PostgreSQL 16.13
+**Caveat on "20/20", added in loop 2.** `routeDecision` derives its level partly from `risk`, a
+field the PROPOSER supplies. In four scenarios (AMB-03, CNF-02, CNF-03, RSK-07) the outcome is
+decided by that author-supplied label rather than by any judgement the system makes — nothing reads
+a compliance expiry, an event's ordering, or classifies equipment as safety-critical. Each now says
+so in its `unimplemented` note, pinned by a test. A pass here means "the router applied the ladder
+correctly to its inputs", not "the system understood the situation".
+
+## Gate results — BASE `48bef9c` (pre-campaign), disposable PostgreSQL 16.13
+
+> These are the **base** counts, measured before any campaign change. The gates at the campaign
+> **head** are in the table below this one. The distinction matters: a reader must not mistake a
+> green base for evidence that the fixes were tested.
 
 | Gate | Command | Result |
 |---|---|---|
@@ -115,6 +126,26 @@ recording the gap.
 | fresh migration chain | `node scripts/migrate.mjs` on empty DB | ✅ 0001→0068 applied |
 | integration (fresh) | `vitest -c vitest.integration.config.ts` | ✅ **327 passed / 42 files** |
 | dependency audit | `npm audit --omit=dev` | ⚠️ **2 high** (see D-001) |
+
+## Gate results — CAMPAIGN HEAD (after correction loops 1 and 2)
+
+Re-run after every fix. This is the table that covers the campaign's own changes.
+
+| Gate | Result |
+|---|---|
+| `git diff --check` | clean |
+| secret scan | ✅ |
+| migration lint | ✅ 68, sequential, no gaps — **no migration added by this campaign** |
+| inventory check | ✅ flags-no-consumer still **8/8** |
+| typecheck | ✅ clean |
+| lint | ✅ 0 errors, **3** `<img>` warnings (pre-existing; loop 1 mis-stated this as 2) |
+| unit | ✅ **532 passed / 84 files** (base 438/80 → +94 campaign tests) |
+| integration (fresh 0001→0068) | ✅ **332 passed / 43 files** (base 327/42) |
+| production build | ✅ compiled successfully |
+| dependency audit | ⚠️ 2 high (`next`, `postcss`) — unchanged from base; only fix is a major upgrade |
+
+The final independent review re-ran the unit suite, the new integration file and typecheck itself
+rather than trusting these numbers, and its counts agreed.
 
 ### Notable gate observation (not a defect — designed behaviour, now proven)
 

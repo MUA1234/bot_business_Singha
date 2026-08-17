@@ -93,17 +93,37 @@ function normalizeCurrency(c: string | null | undefined): string {
  * Only the safe direction is kept: an exact name, or a description that CONTAINS the catalogue
  * name ("5x Premium Steel Beam" → "Premium Steel Beam"). Anything else is not auto-priced — it
  * goes to a human price confirmation, which is the designed fallback, not a failure.
+ *
+ * That alone is NOT sufficient, because a catalogue holding both "Beam" and "Premium Steel Beam"
+ * leaves "5x Premium Steel Beam" containing BOTH names, and the query has no ORDER BY — so which
+ * price applied was still decided by row order, and a sender could retry phrasings until the cheap
+ * short name won. Two further rules close that:
+ *   - the LONGEST (most specific) matching name wins, never row order;
+ *   - if two matching entries of the same specificity disagree on price, the line is AMBIGUOUS and
+ *     is refused, so a human prices it rather than the system picking one.
  */
-export function matchCatalogueEntry<T extends { name?: string | null }>(
+export function matchCatalogueEntry<T extends { name?: string | null; unit_price?: unknown }>(
   description: string | null | undefined,
   catalog: T[],
 ): T | undefined {
   const desc = String(description ?? "").trim().toLowerCase();
   if (!desc) return undefined;
-  return catalog.find((c) => {
-    const name = String(c.name ?? "").trim().toLowerCase();
+
+  const named = (c: T) => String(c.name ?? "").trim().toLowerCase();
+  const matches = catalog.filter((c) => {
+    const name = named(c);
     return name !== "" && (desc === name || desc.includes(name));
   });
+  if (matches.length === 0) return undefined;
+
+  // Most specific first — deterministic, independent of the order the rows came back in.
+  const ranked = [...matches].sort((a, b) => named(b).length - named(a).length);
+  const best = ranked[0]!;
+  const tied = ranked.filter((c) => named(c).length === named(best).length);
+  const prices = new Set(tied.map((c) => String(c.unit_price ?? "")));
+  if (prices.size > 1) return undefined; // genuinely ambiguous → a human decides
+
+  return best;
 }
 
 /**

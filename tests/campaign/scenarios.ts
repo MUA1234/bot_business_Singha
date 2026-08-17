@@ -197,6 +197,7 @@ export const SCENARIOS: Scenario[] = [
     expect: { routing: ["require_approval"], minLevel: "manager_approval" },
     unimplemented: [
       "No department-routing intelligence exists (V3.1 team-formation contracts have no runtime consumer).",
+      "The outcome here derives from the `risk` label supplied with the proposal, not from any system judgement about ambiguity.",
     ],
   },
   {
@@ -276,6 +277,9 @@ export const SCENARIOS: Scenario[] = [
     }),
     ctx: SUPERVISOR,
     expect: { routing: ["require_approval"], minLevel: "specialist_approval" },
+    unimplemented: [
+      "Nothing reads a supplier compliance document or its expiry; this escalates only because the proposal carries `risk: high`.",
+    ],
   },
   {
     id: "CNF-03",
@@ -292,6 +296,9 @@ export const SCENARIOS: Scenario[] = [
     }),
     ctx: SUPERVISOR,
     expect: { routing: ["require_approval"], minLevel: "manager_approval" },
+    unimplemented: [
+      "`routeDecision` has no concept of order state or event ordering; this escalates only because the proposal carries `risk: medium`.",
+    ],
   },
 
   // ──────────────────────────── high-risk matters ────────────────────────────
