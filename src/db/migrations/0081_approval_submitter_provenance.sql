@@ -29,6 +29,8 @@
 -- Forward-only. Existing rows all carry a non-null `submitted_by` and are backfilled to 'human',
 -- which is what they were. No data is deleted and no approval decision changes.
 
+begin;
+
 -- ── (1) the columns ──────────────────────────────────────────────────────────────────────────
 alter table public.approval_requests
   add column if not exists submitted_by_source text not null default 'human';
@@ -109,3 +111,5 @@ begin
     raise exception '0081: % approval_requests rows contradict the submitter provenance pairing', v_bad;
   end if;
 end $$;
+
+commit;

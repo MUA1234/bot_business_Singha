@@ -17,17 +17,25 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type Row = Record<string, any>;
-type Filter = { sql: string; params: any[]; col?: string };
+type Filter = { sql: string; params: any[]; col?: string; bindKind?: Kind };
 
 export interface PgLike {
   query(sql: string, params?: any[]): Promise<{ rows: Row[] }>;
 }
 
-/** Column-kind cache, one lookup per table per connection. */
-const columnKinds = new Map<string, Map<string, Kind>>();
+/**
+ * Column-kind cache, keyed on the CLIENT, not on a bare table name.
+ *
+ * It was a module-level `Map<table, …>`: process-global, never invalidated, and shared across
+ * connections AND databases. Harmless while every database in a run has the same schema, wrong the
+ * moment a staged-migration test opens a second one in the same process — which this suite does.
+ */
+const columnKinds = new WeakMap<PgLike, Map<string, Map<string, Kind>>>();
 
 async function kindsFor(db: PgLike, table: string): Promise<Map<string, Kind>> {
-  const hit = columnKinds.get(table);
+  let perDb = columnKinds.get(db);
+  if (!perDb) { perDb = new Map(); columnKinds.set(db, perDb); }
+  const hit = perDb.get(table);
   if (hit) return hit;
   const { rows } = await db.query(
     `select a.attname as col,
@@ -41,19 +49,24 @@ async function kindsFor(db: PgLike, table: string): Promise<Map<string, Kind>> {
     [table],
   );
   const m = new Map<string, Kind>(rows.map((r) => [String(r.col), r.kind as Kind]));
-  columnKinds.set(table, m);
+  perDb.set(table, m);
   return m;
 }
 
 /** Parameter kinds for an RPC, resolved from the function's declared argument types. */
 async function argKinds(db: PgLike, fn: string, names: string[]): Promise<Map<string, Kind>> {
   if (!names.length) return new Map();
+  // Resolve the OVERLOAD whose named parameters are exactly the ones the caller supplied. Taking
+  // `limit 1` off a name match picked an arbitrary overload, which is how a legacy signature would
+  // silently decide the binding for a call meant for the current one.
   const { rows } = await db.query(
     `select p.proargnames as names, p.proargtypes::oid[] as intypes, p.proallargtypes as alltypes
        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.proname = $1
+        and coalesce(p.proargnames, '{}'::text[]) @> $2::text[]
+      order by coalesce(array_length(p.proargnames, 1), 0)
       limit 1`,
-    [fn],
+    [fn, names],
   );
   const r = rows[0];
   if (!r?.names) return new Map();
@@ -104,7 +117,15 @@ class Builder implements PromiseLike<{ data: any; error: { message: string } | n
   constructor(private db: PgLike, private table: string) {}
 
   select(cols?: string) {
-    if (cols) this.columns = cols;
+    if (cols) {
+      // PostgREST's embedding syntax (`memberships!inner(user_id)`) means a JOIN, which this shim
+      // does not build. Interpolating it produced different SQL from what production runs, so a
+      // page whose query uses it would be "covered" by a test that never exercised its data path.
+      if (/[!(]/.test(cols)) {
+        throw new Error(`pg-supabase shim: embedded select is not supported — "${cols}". Query the join explicitly.`);
+      }
+      this.columns = cols;
+    }
     this.wantsRows = true;
     return this;
   }
@@ -126,14 +147,18 @@ class Builder implements PromiseLike<{ data: any; error: { message: string } | n
   gte(col: string, val: unknown) { return this.cmp(col, ">=", val); }
   lte(col: string, val: unknown) { return this.cmp(col, "<=", val); }
   in(col: string, vals: unknown[]) {
-    this.filters.push({ sql: `${q(col)} = any($$)`, params: [vals], col });
+    // `= any($1)` needs node-pg's native ARRAY encoding. Binding by the COLUMN's kind sent JSON text
+    // into a scalar column, so every `.in()` and `.not(…,"in",…)` returned `malformed array
+    // literal` — and `recentEventsForDedup` discarded that error, which silently disabled duplicate
+    // detection in every end-to-end test that ran through this harness.
+    this.filters.push({ sql: `${q(col)} = any($$)`, params: [vals], bindKind: "array" });
     return this;
   }
   /** Only the one negation the consumer store uses: .not(col, "in", "(a,b,c)"). */
   not(col: string, op: string, val: string) {
     if (op !== "in") throw new Error(`pg-supabase shim: .not(${op}) is not supported`);
     const list = String(val).replace(/^\(|\)$/g, "").split(",").map((s) => s.trim()).filter(Boolean);
-    this.filters.push({ sql: `(${q(col)} is null or ${q(col)} <> all($$))`, params: [list] });
+    this.filters.push({ sql: `(${q(col)} is null or ${q(col)} <> all($$))`, params: [list], bindKind: "array" });
     return this;
   }
   order(col: string, opts?: { ascending?: boolean }) {
@@ -160,12 +185,19 @@ class Builder implements PromiseLike<{ data: any; error: { message: string } | n
       params.push(bindAs(v, col ? (kinds.get(col) ?? "scalar") : "scalar"));
       return `$${params.length}`;
     };
+    /** Bind by an EXPLICIT kind, where the SQL operator decides the shape rather than the column. */
+    const pushKind = (v: unknown, kind: Kind) => {
+      params.push(bindAs(v, kind));
+      return `$${params.length}`;
+    };
     const where = () => {
       if (!this.filters.length) return "";
       const parts = this.filters.map((f) => {
         let i = 0;
         const col = f.col;
-        return f.sql.replace(/\$\$/g, () => push(f.params[i++], col));
+        return f.sql.replace(/\$\$/g, () => (f.bindKind
+          ? pushKind(f.params[i++], f.bindKind)
+          : push(f.params[i++], col)));
       });
       return ` where ${parts.join(" and ")}`;
     };
@@ -182,6 +214,11 @@ class Builder implements PromiseLike<{ data: any; error: { message: string } | n
       };
     }
     if (this.mode === "update") {
+      // PostgREST refuses an unfiltered mutation; so does this. A shim that silently rewrote the
+      // whole table would turn a forgotten `.eq()` into a passing test and a wrecked fixture.
+      if (!this.filters.length) {
+        throw new Error("pg-supabase shim: refusing an UPDATE with no filter");
+      }
       const patch = this.payload[0] ?? {};
       const sets = Object.keys(patch).map((c) => `${q(c)} = ${push(patch[c], c)}`).join(", ");
       return {

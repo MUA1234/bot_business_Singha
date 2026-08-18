@@ -158,7 +158,10 @@ function targetStateFor(action: PipelineAction): FinancialEventState {
 
 /**
  * Process one stored source event end-to-end. Idempotency is guaranteed upstream:
- * the Inngest function keys on the source_event_id so this runs at most once per event.
+ * the Inngest function keys on the source_event_id so THAT caller runs this at most once per event.
+ * The scheduled sweeper (R1 §4) is a SECOND caller and deliberately retries, so nothing here may
+ * assume a single execution: `createDraft` is idempotent per source event and migration 0082 makes
+ * a second drafted financial event impossible at the database.
  */
 export async function processSourceEvent(
   input: { source_event_id: string; correlation_id: string },

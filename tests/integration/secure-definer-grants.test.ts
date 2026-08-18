@@ -118,6 +118,10 @@ const OWNER_ONLY = new Set([
   // role including service_role. SECURITY DEFINER so its `search_path` is pinned and its refusal
   // cannot be bypassed by a caller's own search_path.
   "approval_requests_provenance_guard()",
+  // 0082 (R-07) — counts the ACTIVE holders of a role in a company, so the admin surface can refuse
+  // to remove the last one. SECURITY DEFINER because it reads memberships across the RLS boundary;
+  // reachable by no role at all, and called only from inside admin_set_membership_role.
+  "_role_holder_count(uuid,text)",
 ]);
 
 // Must exist AND be locked on any DB reaching this migration (the legacy 7-arg is intentionally excluded).

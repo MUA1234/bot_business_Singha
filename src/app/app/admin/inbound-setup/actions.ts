@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/access";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { REVIEWER_ROLE } from "@/app/app/admin/inbound-review/capability";
 
 export interface SetupState {
   error?: string;
@@ -90,6 +91,12 @@ export async function setReviewerRole(_prev: SetupState, formData: FormData): Pr
   const roleKey = String(formData.get("roleKey") ?? "finance_reviewer").trim();
   const grant = String(formData.get("grant") ?? "") === "true";
   if (!userId) return { error: "No person selected." };
+  // THIS screen grants ONE role. The database's list is wider on purpose (a company also has to be
+  // able to appoint managers), but a hidden field in this form is client-supplied, and "the UI only
+  // ever sends finance_reviewer" is not a control. The reviewer screen enforces the reviewer role.
+  if (roleKey !== REVIEWER_ROLE) {
+    return { error: `This screen only assigns the ${REVIEWER_ROLE} role.` };
+  }
 
   let membership;
   try {

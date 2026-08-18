@@ -174,15 +174,27 @@ describe("R1 §4 — the finance capture consumer is wired, and `no_processor` i
     const route = readFileSync("src/app/api/cron/inbound-sweeper/route.ts", "utf8");
     expect(route).toContain("makeFinanceCaptureProcessor");
     expect(route).toContain("processSourceEvent");
-    // The pipeline has exactly two production callers now: the Inngest consumer and the sweeper.
+    // The pipeline has exactly two production callers now: the Inngest consumer and the sweeper
+    // (plus the processor module that receives it as an injected dependency).
+    //
+    // Filtered through `codeLines`, the same helper the rest of this file uses: a comment naming
+    // `processSourceEvent` is documentation, not a caller. Counting one is the false-positive class
+    // this campaign has been caught by twice, and it caught this assertion a third time when a
+    // comment in the consumer store mentioned the function by name.
     const callers = execSync(`grep -rln "processSourceEvent" src --include=*.ts || true`, { encoding: "utf8" })
       .split("\n").map((x) => x.trim()).filter(Boolean)
-      .filter((f) => f !== "src/inngest/processing.ts"); // the definition itself
+      .filter((f) => f !== "src/inngest/processing.ts") // the definition itself
+      .filter((f) => codeLines(f).some((l) => /\bprocessSourceEvent\b/.test(l)));
+    // TWO, not three. `finance-capture-processor.ts` names the pipeline in its header comment and
+    // receives it as an injected `process` port — it does not import or call it, and listing it here
+    // was counting a comment as a caller.
     expect(callers.sort()).toEqual([
       "src/app/api/cron/inbound-sweeper/route.ts",
-      "src/events/finance-capture-processor.ts",
       "src/inngest/functions.ts",
     ]);
+    // …and the processor really does take it as a dependency rather than reaching for it.
+    expect(readFileSync("src/events/finance-capture-processor.ts", "utf8"))
+      .not.toMatch(/^import .*processSourceEvent/m);
   });
 
   it("no production path RETURNS `no_processor` any more", () => {

@@ -19,6 +19,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { drainInboundDispatch, type DrainableReceipt } from "@/events/dispatch-drain";
 import { dispatchReceipt } from "@/lib/inbound/dispatch-receipt";
 import { makeInboundDeps } from "@/lib/inbound/production-deps";
+import { adapterForSource } from "@/lib/inbound/adapters";
 import { log } from "@/lib/log";
 
 export const runtime = "nodejs";
@@ -56,6 +57,32 @@ export async function GET(req: Request): Promise<Response> {
         return (data ?? []) as DrainableReceipt[];
       },
       async dispatch(receipt, o) {
+        // Re-read the stored message through THE ADAPTER THAT WROTE IT. This route used to rebuild
+        // it from a guessed `{from, text}` shape; when the WhatsApp adapter began storing Meta's own
+        // message (whose `text` is `{ body }`), every retried message was re-dispatched with its
+        // body replaced by "[object Object]" — and the drain reported success.
+        const adapter = adapterForSource(receipt.source);
+        if (!adapter) {
+          // A receipt from a channel with no adapter is NOT dispatched as if it were WhatsApp.
+          // `claim_inbound_dispatch_batch` selects on dispatch state alone, so such a row is
+          // claimable the moment any other producer writes one (OF-006 anticipates exactly that).
+          await db.rpc("fail_inbound_dispatch", {
+            p_event: receipt.id, p_owner: o, p_error_code: "no_adapter",
+            p_error: `no inbound adapter is registered for source "${receipt.source}"`,
+          });
+          return "error";
+        }
+        const message = adapter.fromStored(
+          receipt.raw_payload, receipt.provider_account_id, receipt.correlation_id ?? receipt.id,
+        );
+        if (!message) {
+          await db.rpc("fail_inbound_dispatch", {
+            p_event: receipt.id, p_owner: o, p_error_code: "unreadable_payload",
+            p_error: `the stored ${receipt.source} payload could not be re-read as a message`,
+          });
+          return "error";
+        }
+
         // The SAME orchestration the webhook runs, on a receipt this run already leased. Async and
         // scheduled paths therefore cannot reach a different business outcome from the sync one.
         return dispatchReceipt(
@@ -72,13 +99,13 @@ export async function GET(req: Request): Promise<Response> {
             dispatchState: "dispatching",
           },
           {
-            channel: "whatsapp",
-            from: String((receipt.raw_payload as { from?: string } | null)?.from ?? ""),
-            text: String((receipt.raw_payload as { text?: string } | null)?.text ?? ""),
-            providerMessageId: receipt.provider_message_id ?? "",
+            channel: message.channel === "email" ? "email" : "whatsapp",
+            from: message.from ?? "",
+            text: message.text,
+            providerMessageId: message.providerMessageId ?? receipt.provider_message_id ?? "",
             rawPayload: receipt.raw_payload,
           },
-          receipt.provider_account_id,
+          message.providerAccountId ?? receipt.provider_account_id,
           makeInboundDeps,
           { owner: o, alreadyClaimed: true },
         );

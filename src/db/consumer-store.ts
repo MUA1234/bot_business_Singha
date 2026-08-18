@@ -94,13 +94,17 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
     },
 
     async recentEventsForDedup(companyId, within) {
-      const { data } = await db
+      const { data, error } = await db
         .from("financial_events")
         .select("id, amount, currency, transaction_date, counterparty_name")
         .eq("company_id", companyId)
         .not("state", "in", "(rejected,cancelled,duplicate,reversed,superseded)")
         .order("created_at", { ascending: false })
         .limit(50);
+      // A FAILED lookup is not "no duplicates". Discarding the error let a broken query read as a
+      // clean bill of health, which is the worst possible failure mode for duplicate detection:
+      // silent, and it makes every payment look like the first time it was seen.
+      if (error) throw new Error(`duplicate-candidate lookup failed: ${error.message}`);
       return (data ?? [])
         .filter((r) => r.id) // scored against the incoming candidate in the pipeline
         .map((r) => ({
@@ -117,6 +121,20 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
 
     async createDraft(draft) {
       const x = draft.extraction;
+      // IDEMPOTENT PER SOURCE EVENT. `processSourceEvent` documents that idempotency is guaranteed
+      // upstream by the Inngest function key — true for that caller, and NOT true for the sweeper
+      // R1 §4 added, which retries the same event up to five times. Any failure after this insert
+      // used to duplicate the drafted payment. Migration 0082 makes a second draft impossible; this
+      // returns the existing one so a legitimate retry continues rather than dying on the index.
+      if (draft.source_event_id) {
+        const { data: existing, error: exErr } = await db
+          .from("financial_events")
+          .select("id")
+          .eq("source_event_id", draft.source_event_id)
+          .maybeSingle();
+        if (exErr) throw new Error(`financial_events lookup failed: ${exErr.message}`);
+        if (existing?.id) return { financial_event_id: existing.id as string };
+      }
       const { data, error } = await db
         .from("financial_events")
         .insert({

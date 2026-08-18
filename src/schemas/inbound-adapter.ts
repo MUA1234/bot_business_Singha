@@ -71,4 +71,18 @@ export interface InboundAdapter {
   readonly provider: string;
   readonly channel: InboundChannel;
   parse(payload: unknown, correlationId: () => string): CanonicalInboundMessage[];
+  /**
+   * Re-read ONE message this adapter previously stored as `raw`. Required, because anything that
+   * recovers a stored receipt — the scheduled drain today, any replay tool later — must read it
+   * through the adapter that wrote it rather than guessing its shape. The drain guessed once: when
+   * the WhatsApp adapter started storing Meta's own message (whose `text` is `{ body }`), the
+   * drain's `String(raw.text)` turned every retried message into "[object Object]".
+   *
+   * Returns null when the stored value carries nothing to act on.
+   */
+  fromStored(
+    raw: unknown,
+    providerAccountId: string | null,
+    correlationId: string,
+  ): CanonicalInboundMessage | null;
 }

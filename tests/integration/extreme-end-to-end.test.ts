@@ -284,6 +284,7 @@ describe.skipIf(!enabled)("R1 §7 — extreme end to end (disposable local Postg
   // PATH 1 — the whole journey, receipt to health signal.
   // ─────────────────────────────────────────────────────────────────────────────────────────────
   it("PATH 1 — receipt → company → identity → classification → source event → drain → finance processor → policy → approval → audit → health", async () => {
+    const baseline = await row(`select * from public.inbound_dispatch_health()`);
     H.enqueued = [];
     H.extraction = VALID_EXTRACTION(coA);
     H.transportError = null;
@@ -358,20 +359,36 @@ describe.skipIf(!enabled)("R1 §7 — extreme end to end (disposable local Postg
     const backlog = await row(`select * from public.source_event_backlog($1)`, [coA]);
     expect(Number(backlog.pending)).toBe(0);
     expect(Number(backlog.dead_letter)).toBe(0);
+    // `inbound_dispatch_health()` is a GLOBAL operator signal, not a per-company one, and this
+    // suite shares a database with every other integration file. Assert the DELTA this path leaves
+    // behind rather than an absolute zero, which would be measuring other tests' fixtures.
     const health = await row(`select * from public.inbound_dispatch_health()`);
-    expect(Number(health.awaiting_dispatch)).toBe(0);
-    expect(Number(health.dispatching)).toBe(0);
+    expect(Number(health.awaiting_dispatch) - Number(baseline.awaiting_dispatch)).toBe(0);
+    expect(Number(health.dispatching) - Number(baseline.dispatching)).toBe(0);
 
     // (h) a MATERIAL transaction with NO supporting document stops for evidence rather than
     //     proceeding to approval. The model does not get to waive this.
-    H.extraction = { ...VALID_EXTRACTION(coA), evidence_document_ids: [] };
-    const undocumented = await inbound(ACCT_A, STAFF, "paid LKR 90,000 to Acme Cement, no bill yet",
-      `wamid.${rnd()}`, classifier("90000", "Acme Cement", true));
+    H.extraction = {
+      ...VALID_EXTRACTION(coA), evidence_document_ids: [],
+      amount: "90000.00", counterparty_name: "Ceylon Roofing", transaction_date: "2026-08-05",
+    };
+    const undocumented = await inbound(ACCT_A, STAFF, "paid LKR 90,000 to Ceylon Roofing, no bill yet",
+      `wamid.${rnd()}`, classifier("90000", "Ceylon Roofing", true));
     expect(undocumented.outcome).toBe("staff_finance");
     await runSweeper();
     const evFe = await row(`select state from financial_events where source_event_id=$1`, [undocumented.receipt.event.id]);
     expect(evFe.state).toBe("awaiting_evidence");
     expect((await row(`select count(*)::int as n from approval_requests where financial_event_id=(select id from financial_events where source_event_id=$1)`, [undocumented.receipt.event.id])).n).toBe(0);
+
+    // (i) DUPLICATE DETECTION runs. The same payment described twice is scored against what the
+    //     company already has, and the second one is flagged rather than drafted as new work.
+    H.extraction = { ...VALID_EXTRACTION(coA), evidence_document_ids: [] };
+    const again = await inbound(ACCT_A, STAFF, "paid LKR 90,000 to Ceylon Roofing (resending)",
+      `wamid.${rnd()}`, classifier("90000", "Ceylon Roofing", true));
+    await runSweeper();
+    const dupFe = await row(`select id, state from financial_events where source_event_id=$1`, [again.receipt.event.id]);
+    expect(dupFe.state).toBe("duplicate");
+    expect(Number((await row(`select count(*)::int as n from duplicate_candidates where financial_event_id=$1`, [dupFe.id])).n)).toBeGreaterThan(0);
     H.extraction = VALID_EXTRACTION(coA);
   });
 
@@ -527,12 +544,26 @@ describe.skipIf(!enabled)("R1 §7 — extreme end to end (disposable local Postg
     } finally { await db.query("rollback"); }
 
     // (c) a DIRECT table write claiming human provenance is refused by the database itself.
+    //     The columns here are the REAL ones — an earlier version of this assertion named columns
+    //     that do not exist, so it passed on a 42703 and established nothing about the boundary.
+    // AS service_role, not as the connection's own role: this test connects as the table OWNER, for
+    // which the positive owner allowlist legitimately returns true. Probing as the owner proves
+    // nothing about what a CALLER can do, which is the only question here.
     await db.query("begin");
     try {
+      await db.query("set local role service_role");
       await expect(db.query(
-        `insert into task_routing_events (company_id, task_id, decision, reason, actor_source, actor_id)
-         values ($1,$2,'needs_routing','forged','human',$3)`, [coA, t, reviewer]))
-        .rejects.toThrow();
+        `insert into task_routing_events (company_id, task_id, from_state, to_state, reason_code, actor_source, actor_id)
+         values ($1,$2,null,'assigned','forged','human',$3)`, [coA, t, reviewer]))
+        .rejects.toThrow(/routing boundary/i);
+      await db.query("rollback");
+      await db.query("begin");
+      await db.query("set local role service_role");
+      // …and so is a routing ROW that claims a person decided it.
+      await expect(db.query(
+        `insert into task_routing (company_id, task_id, routing_state, reason_code, decided_by, decided_by_source)
+         values ($1,$2,'assigned','forged',$3,'human')`, [coA, t, reviewer]))
+        .rejects.toThrow(/routing boundary/i);
     } finally { await db.query("rollback"); }
 
     // (d) the AI path works, and CANNOT name a person.

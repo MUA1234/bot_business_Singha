@@ -24,6 +24,8 @@ import { log } from "@/lib/log";
 /** One receipt as the claim returns it. */
 export interface DrainableReceipt {
   id: string;
+  /** Which channel produced this receipt. Decides WHICH adapter re-reads its stored payload. */
+  source: string;
   provider_message_id: string | null;
   provider_account_id: string | null;
   raw_payload: unknown;

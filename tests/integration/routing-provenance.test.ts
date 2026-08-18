@@ -99,6 +99,11 @@ describe.skipIf(!enabled)("0078 — routing provenance cannot be asserted by a c
     await db.query(`grant usage on schema public to ${BESPOKE}`);
     await db.query(`grant insert, update, select on public.task_routing to ${BESPOKE}`);
     await db.query(`grant insert on public.task_routing_events to ${BESPOKE}`);
+    // Deliberately GENEROUS: without EXECUTE here, a bespoke role is refused by "permission denied
+    // for function _is_task_routing_owner" — a different mechanism from the one under test, and the
+    // test would pass while proving nothing about the owner allowlist. Granting it makes the
+    // refusal below the boundary's own.
+    await db.query(`grant execute on function public._is_task_routing_owner() to ${BESPOKE}`);
     // One transaction for the whole file: `as()` uses savepoints, which require a transaction
     // block, and everything above is rolled back at the end.
     await db.query("begin");
@@ -120,6 +125,7 @@ describe.skipIf(!enabled)("0078 — routing provenance cannot be asserted by a c
     try {
       await db.query(`revoke all on public.task_routing from ${BESPOKE}`);
       await db.query(`revoke all on public.task_routing_events from ${BESPOKE}`);
+      await db.query(`revoke all on function public._is_task_routing_owner() from ${BESPOKE}`);
       await db.query(`revoke usage on schema public from ${BESPOKE}`);
       await db.query(`drop role if exists ${BESPOKE}`);
     } catch { /* noop */ }
@@ -160,6 +166,10 @@ describe.skipIf(!enabled)("0078 — routing provenance cannot be asserted by a c
       const r = await as(role, sub, insert, [co, t, manager]);
       expect(r.ok, `${role} could insert a forged human routing row`).toBe(false);
       expect(["42501", "42P01"], `${role}: ${r.message}`).toContain(r.code ?? "");
+      // The refusal must come from the ROUTING BOUNDARY, not from a missing grant elsewhere.
+      if (role === BESPOKE) {
+        expect(r.message, "the bespoke role was refused by the wrong mechanism").toMatch(/routing boundary/i);
+      }
     }
   });
 

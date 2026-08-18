@@ -18,6 +18,12 @@ export const metadata = { title: "Inbound setup — Singha Central" };
 interface AccountRow { id: string; channel: string; provider_account_id: string; display_label: string | null; is_active: boolean }
 interface PersonRow { id: string; full_name: string | null; username: string | null }
 
+/**
+ * The roles that let someone work the inbound review queue. Kept beside the query that uses it so
+ * the LIST on this screen and the COUNT from `inbound_setup_status` cannot drift apart.
+ */
+const REVIEWER_ROLE_KEYS = ["finance_reviewer", "owner_management", "system_administrator"];
+
 export default async function InboundSetupPage() {
   const membership = await requireMembership();
   const canConfigure = await membershipHasCapability(membership, "admin.organisation.manage");
@@ -39,7 +45,10 @@ export default async function InboundSetupPage() {
   let people: PersonRow[] = [];
   let reviewers = new Set<string>();
   let status: Record<string, unknown> | null = null;
-  let unavailable = false;
+  // What actually went wrong, rather than one boolean standing in for every possible failure. The
+  // page used to `catch { unavailable = true }` and then tell the reader "the configuration tables
+  // are not present in this database yet" — a specific claim it had not established.
+  let loadError: string | null = null;
 
   try {
     const { data: acc, error: accErr } = await db
@@ -50,38 +59,49 @@ export default async function InboundSetupPage() {
     if (accErr) throw new Error(accErr.message);
     accounts = (acc ?? []) as AccountRow[];
 
-    const { data: st } = await db.rpc("inbound_setup_status", { p_company: membership.companyId });
+    const { data: st, error: stErr } = await db.rpc("inbound_setup_status", { p_company: membership.companyId });
+    if (stErr) throw new Error(stErr.message);
     status = (Array.isArray(st) ? st[0] : st) as Record<string, unknown> | null;
 
-    const { data: profiles } = await db
+    const { data: profiles, error: pErr } = await db
       .from("profiles")
       .select("id, full_name, username")
       .eq("company_id", membership.companyId)
       .eq("is_active", true)
       .limit(200);
+    if (pErr) throw new Error(pErr.message);
     people = (profiles ?? []) as PersonRow[];
 
-    const { data: roles } = await db
+    // Reviewers are read with the SAME definition `inbound_setup_status` counts by — an ACTIVE
+    // membership. Joining without that filter meant the list beside the number was computed
+    // differently from the number, and the two could disagree on the same screen.
+    const { data: roles, error: rErr } = await db
       .from("membership_roles")
-      .select("role_key, memberships!inner(user_id, company_id, status)")
+      .select("role_key, membership_id")
       .eq("company_id", membership.companyId);
-    // The embedded relation comes back as an array or an object depending on the client's shape
-    // inference; normalise rather than assert, so a shape change fails visibly instead of silently.
-    reviewers = new Set(
-      ((roles ?? []) as unknown as { role_key: string; memberships: unknown }[])
-        .filter((r) => ["finance_reviewer", "owner_management", "system_administrator"].includes(r.role_key))
-        .flatMap((r) => {
-          const m = r.memberships as { user_id?: string } | { user_id?: string }[] | null;
-          const rows = Array.isArray(m) ? m : m ? [m] : [];
-          return rows.map((x) => x.user_id ?? "").filter(Boolean);
-        }),
+    if (rErr) throw new Error(rErr.message);
+    const { data: activeMemberships, error: mErr } = await db
+      .from("memberships")
+      .select("id, user_id")
+      .eq("company_id", membership.companyId)
+      .eq("status", "active");
+    if (mErr) throw new Error(mErr.message);
+    const userByMembership = new Map(
+      ((activeMemberships ?? []) as { id: string; user_id: string }[]).map((m) => [m.id, m.user_id]),
     );
-  } catch {
-    unavailable = true;
+    reviewers = new Set(
+      ((roles ?? []) as { role_key: string; membership_id: string }[])
+        .filter((r) => REVIEWER_ROLE_KEYS.includes(r.role_key))
+        .map((r) => userByMembership.get(r.membership_id) ?? "")
+        .filter(Boolean),
+    );
+  } catch (e) {
+    loadError = (e as Error).message;
   }
 
   const activeWhatsapp = accounts.filter((a) => a.channel === "whatsapp" && a.is_active).length;
   const bridgeInUse = status?.single_tenant_bridge_in_use === true;
+  const unavailable = loadError !== null;
 
   return (
     <div className="stack gap-3">
@@ -94,8 +114,10 @@ export default async function InboundSetupPage() {
 
       {unavailable && (
         <div className="notice err">
-          The configuration tables are not present in this database yet. Nothing is lost — inbound
-          messages are still persisted — but this screen cannot show or change the setup.
+          <strong>This screen could not read the setup.</strong> Nothing is lost — inbound messages
+          are still persisted — but the numbers and lists below are NOT being shown, because showing
+          zeros would state as fact something this page has not established.
+          <div className="muted small mt-1">The database reported: {loadError}</div>
         </div>
       )}
 

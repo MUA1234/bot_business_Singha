@@ -15,8 +15,15 @@ import { describe, it, expect, vi } from "vitest";
 import { drainInboundDispatch, type DrainDeps, type DrainOutcome, type DrainableReceipt } from "@/events/dispatch-drain";
 
 const receipt = (id: string): DrainableReceipt => ({
-  id, provider_message_id: `wamid.${id}`, provider_account_id: "acct-1",
-  raw_payload: { from: "94770001111", text: "hello" }, correlation_id: `cor_${id}`, dispatch_attempts: 1,
+  id, source: "whatsapp", provider_message_id: `wamid.${id}`, provider_account_id: "acct-1",
+  // THE SHAPE THE ADAPTER ACTUALLY STORES: Meta's own message, where `text` is `{ body }`. The
+  // earlier fixture used a flat `{from, text}` that nothing has written since R1 §6, which is why
+  // this file kept passing while the real drain destroyed every message body it retried.
+  raw_payload: {
+    id: `wamid.${id}`, from: "94770001111", timestamp: "1755500000",
+    type: "text", text: { body: "hello" },
+  },
+  correlation_id: `cor_${id}`, dispatch_attempts: 1,
 });
 
 function harness(over: Partial<DrainDeps> = {}, batch: DrainableReceipt[] = [receipt("a"), receipt("b")]) {
