@@ -80,7 +80,7 @@ requirements:
     test_evidence: tests/integration/inbound-event-identity.test.ts (17 scenarios across two connections — first delivery, replay before/during/after processing, concurrent deliveries, webhook-vs-worker race, both crash windows, sweeper exclusion, health); tests/integration/inbound-upgrade-reconciliation.test.ts (9 scenarios on a purpose-built database at 0075 upgraded to 0076); tests/integration/inbound-end-to-end.test.ts (8); tests/integration/channel-account-company.test.ts (10); tests/integration/inbound-review-queue.test.ts (14); tests/integration/routing-and-mapping-corrections.test.ts (12); tests/integration/channel-identity.test.ts (10); tests/campaign/dispatch-receipt.test.ts (8 order-of-operations scenarios); tests/campaign/webhook-callgraph.test.ts; tests/campaign/finance-intake.test.ts (18); tests/campaign/inbound-routing.test.ts (9); tests/campaign/company-resolution.test.ts (9); tests/campaign/provider-failure.test.ts (13); tests/campaign/inbound-review-surface.test.ts (10); tests/campaign/ui-rendered-truthfulness.test.ts (10); scripts/verify/browser-check.mjs. The new scenarios were run against the PRE-correction schema and fail there — 25 of 29 — so they discriminate rather than decorate.
     security_evidence: identity from trusted records evaluated BEFORE intent; unknown/ambiguous never staff; a customer asserting a financial event is never classified, let alone captured; the receiving account decides the company and an unattributable message is not processed at all; exact decimal amount parsing; currency never inferred or converted; material amounts require a referenced document; capture yields a source event for policy/authority only — no posting, payment or approval affordance exists on the result; the review queue is capability-gated for read AND for resolution, re-checked at the database against the named actor
     audit_health_evidence: inbound.finance_captured structured log with source event id and ingest status; inbound.review_resolved audit event written in the same transaction as the decision; unattributedInbound and openInboundReviews in /api/health; inbound_dispatch_health() and the company-scoped source_event_backlog(), both blind to reconciled duplicates
-    last_verified_sha: aeb4e8e
+    last_verified_sha: c8941ca
     last_verified_at: 2026-08-18
     owner_gate: a model provider credential for finance classification; mapping each receiving WhatsApp number to its company in channel_accounts; granting operations.inbound.review to the people who should work the queue; hosted migration application
     blocker: no model provider is configured for finance classification
@@ -191,7 +191,7 @@ requirements:
     test_evidence: tests/integration/task-dedup.test.ts (18 deterministic integration scenarios on live PostgreSQL); tests/integration/case-task-dedup-wiring.test.ts (13 scenarios covering the production wiring, non-merging of distinct work, and unchanged atomicity); tests/campaign/task-identity.test.ts (9 unit scenarios)
     security_evidence: identity is SERVER-computed by a SECURITY DEFINER trigger and recomputed on insert AND update so a caller or model cannot forge it; RPC is service-only with an in-function role gate; identity components are length-bounded; company_id is inside both the hash and the unique index; the suggestions table is service-write-only under RLS
     audit_health_evidence: the RPC returns a created flag distinguishing a new task from a replay
-    last_verified_sha: 6e354b7
+    last_verified_sha: c8941ca
     last_verified_at: 2026-08-18
     owner_gate: hosted migration application
     blocker: none
@@ -213,7 +213,7 @@ requirements:
     test_evidence: tests/integration/task-routing.test.ts; tests/integration/routing-and-mapping-corrections.test.ts (12 scenarios pinning the confirmed defects, proven to FAIL against the pre-correction schema); tests/campaign/capture-routing.test.ts; tests/campaign/analyze-ui-truthfulness.test.ts; tests/campaign/ui-rendered-truthfulness.test.ts (rendered output, not source text)
     security_evidence: route_task is service-only SECURITY DEFINER with an in-function caller_jwt_role gate; routing history is append-only against UPDATE, DELETE and TRUNCATE (the last was a real gap, closed by privilege AND by a statement trigger); a proposed assignee is revalidated at commit time by task_assignee_ineligible_reason using the ACTOR-scoped capability check (the previous call passed a user id where a company id was expected and was therefore a constant false); an automated actor cannot supersede a human assignment, and the refusal is recorded as history
     audit_health_evidence: every transition writes a task_routing_events row carrying the reason code and the actor
-    last_verified_sha: 6e354b7
+    last_verified_sha: c8941ca
     last_verified_at: 2026-08-18
     owner_gate: hosted migration application
     blocker: none

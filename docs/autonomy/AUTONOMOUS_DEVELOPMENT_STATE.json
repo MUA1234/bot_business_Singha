@@ -7,7 +7,7 @@
   "currentBranch": "feature/v3-3-part2-durable-processing",
   "currentPr": 24,
   "baseSha": "079fbb8",
-  "lastGreenSha": "aeb4e8e",
+  "lastGreenSha": "c8941ca",
   "latestMigration": "0076_inbound_boundary_correction.sql",
   "lastCompletedAction": "Correction loop 1 for the AIM-002 / AIM-003 / FOUND-003 boundary. Migration 0076 gives an inbound provider message ONE canonical identity (channel + receiving account + provider message id + purpose, never message text) and an explicit dispatch lifecycle with leases, so one message is one row, at most one business dispatch, and the sweeper claims a receipt only once it was dispatched as a finance capture — the defect that made every inbound message, customer orders included, look like unprocessed work. Existing in_/evt_ duplicate pairs are reconciled by supersede-with-link where equivalence is provable and left visible for a person where it is not; nothing is deleted. The same migration fixes the review's confirmed database defects: the assignee capability re-check was a constant false (a user id passed where a company id was expected), TRUNCATE bypassed append-only routing history, an approval reference could point at nothing, an AI actor could supersede a human assignment, and channel-account write-uniqueness used a different key from read-matching. On the application side both analysis paths now route what they capture through one shared implementation, identical titles within one analysis no longer collapse, currencies come from the company rather than a constant, a credential error no longer dead-letters the queue, and the UI's presentational components are rendered in tests rather than grepped.",
   "nextAction": "Re-run the independent reviewer on the corrected boundary (code materially changed). Accept only reproduced findings. If loop 2 surfaces a new blocker or material regression, fix it there; if a material issue remains after loop 2, keep AIM-003 unaccepted and stop with the blocker. Once the boundary passes, continue to FOUND-006: the RLS/service-role read and write cutover with its architectural test, then the no_processor resolution (processor registration before the sweeper flag can be enabled; authorized, audited, idempotent requeue; health distinguishing recoverable from terminal dead letters).",
@@ -19,7 +19,7 @@
     "tests/campaign/ui-rendered-truthfulness.test.ts"
   ],
   "lastFullGateResults": {
-    "sha": "pending",
+    "sha": "c8941ca",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
     "unit": "683 passed / 2 skipped / 101 files",
