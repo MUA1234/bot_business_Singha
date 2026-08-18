@@ -191,7 +191,7 @@ requirements:
     test_evidence: tests/integration/task-dedup.test.ts (18 deterministic integration scenarios on live PostgreSQL); tests/integration/case-task-dedup-wiring.test.ts (13 scenarios covering the production wiring, non-merging of distinct work, and unchanged atomicity); tests/campaign/task-identity.test.ts (9 unit scenarios)
     security_evidence: identity is SERVER-computed by a SECURITY DEFINER trigger and recomputed on insert AND update so a caller or model cannot forge it; RPC is service-only with an in-function role gate; identity components are length-bounded; company_id is inside both the hash and the unique index; the suggestions table is service-write-only under RLS
     audit_health_evidence: the RPC returns a created flag distinguishing a new task from a replay
-    last_verified_sha: ca0432a
+    last_verified_sha: 6e354b7
     last_verified_at: 2026-08-18
     owner_gate: hosted migration application
     blocker: none
@@ -213,7 +213,7 @@ requirements:
     test_evidence: tests/integration/task-routing.test.ts; tests/campaign/capture-routing.test.ts; tests/campaign/analyze-ui-truthfulness.test.ts
     security_evidence: route_task is service-only SECURITY DEFINER with an in-function caller_jwt_role gate; routing history is append-only at the database boundary; a proposed assignee is revalidated at commit time by task_assignee_ineligible_reason
     audit_health_evidence: every transition writes a task_routing_events row carrying the reason code and the actor
-    last_verified_sha: pending
+    last_verified_sha: 6e354b7
     last_verified_at: 2026-08-18
     owner_gate: hosted migration application
     blocker: none

@@ -110,6 +110,16 @@ export function loadRegister(path = REGISTER_PATH) {
 /** Group prefix, e.g. FOUND-001 → FOUND. */
 export const groupOf = (id) => String(id ?? "").split("-")[0] ?? "?";
 
+/**
+ * A completion status must name a REAL tested commit.
+ *
+ * "pending", "latest" or a branch name would let a completion claim carry no verifiable evidence
+ * while still passing the emptiness check — the exact gap this audit exists to close. The value must
+ * look like an abbreviated or full Git object name; `audit-requirements.mjs` additionally proves the
+ * commit exists in this repository.
+ */
+export const SHA_RE = /^[0-9a-f]{7,40}$/;
+
 /** Validate one requirement. Returns an array of problem strings (empty = fine). */
 export function validateRequirement(r) {
   const problems = [];
@@ -125,6 +135,11 @@ export function validateRequirement(r) {
       if (isEmptyValue(r[field])) {
         problems.push(`${id}: status "${r.status}" but ${field} is empty — a completion status requires evidence`);
       }
+    }
+    if (!isEmptyValue(r.last_verified_sha) && !SHA_RE.test(String(r.last_verified_sha).trim())) {
+      problems.push(
+        `${id}: last_verified_sha "${r.last_verified_sha}" is not a commit id — a completion status may not cite a placeholder`,
+      );
     }
   }
   return problems;

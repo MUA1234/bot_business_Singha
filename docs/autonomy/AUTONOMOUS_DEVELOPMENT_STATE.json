@@ -7,7 +7,7 @@
   "currentBranch": "feature/v3-3-part2-durable-processing",
   "currentPr": 24,
   "baseSha": "079fbb8",
-  "lastGreenSha": "c69024b",
+  "lastGreenSha": "6e354b7",
   "latestMigration": "0073_case_tasks_through_dedup.sql",
   "lastCompletedAction": "AIM-003 implemented and AIM-002 wired into production. Migration 0072 adds the durable task_routing state machine (seven states, one-active-row index, append-only history, service-only route_task); route-captured-tasks gives every analysis-captured task a routing row, and AnalyzeForm no longer claims 'routed for human approval' — it renders the states that exist. Migration 0073 makes create_management_case_atomic create every task THROUGH create_task_deduplicated, closing AIM-002's recorded residual risk that nothing in production called the dedup boundary. AIM-002's 18 deterministic integration scenarios ran against a disposable PostgreSQL 16 — no hosted system and no live provider was used, so they are not 'live cases'.",
   "nextAction": "Finish repository-controlled FOUND-003: remove the hardcoded DEFAULT_COMPANY_ID and resolve company from trusted channel configuration; build the manual-review queue UI so recordForReview writes to a surface a person opens; complete provider-adapter failure handling; test webhook -> identity -> intent -> source event -> dispatch -> routing/review -> audit -> UI end to end. Then resolve the temporary no_processor behaviour (processor registration before the sweeper flag can be enabled; authorized, audited, idempotent requeue; health that distinguishes recoverable from terminal dead letters). Then ONE independent review of the completed AIM-002 + AIM-003 + FOUND-003 cross-layer boundary.",
@@ -19,7 +19,7 @@
     "tests/campaign/analyze-ui-truthfulness.test.ts"
   ],
   "lastFullGateResults": {
-    "sha": "pending",
+    "sha": "6e354b7",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
     "unit": "619 passed / 2 skipped / 93 files",

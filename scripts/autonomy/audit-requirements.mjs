@@ -14,6 +14,7 @@
  *
  * Usage: node scripts/autonomy/audit-requirements.mjs [--strict] [--quiet]
  */
+import { execSync } from "node:child_process";
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
 import { loadRegister, validateRequirement, COMPLETE_STATUSES, groupOf } from "./requirements-lib.mjs";
 
@@ -64,6 +65,28 @@ if (existsSync(SNAPSHOT)) {
   for (const id of previous) {
     if (!ids.includes(id) && !retired.includes(id)) {
       problems.push(`requirement ${id} DISAPPEARED from the register and is not listed in ${RETIRED} — an owner decision is required to retire a requirement`);
+    }
+  }
+}
+
+// 5. A cited commit must EXIST. A well-formed SHA that is not in this repository is not evidence.
+//    Only checked when Git itself is usable here, so a shallow or Git-less checkout reports nothing
+//    rather than inventing a failure.
+let gitUsable = true;
+try {
+  execSync("git rev-parse HEAD", { stdio: "ignore" });
+} catch {
+  gitUsable = false;
+}
+if (gitUsable) {
+  for (const r of requirements) {
+    if (!COMPLETE_STATUSES.has(r.status)) continue;
+    const sha = String(r.last_verified_sha ?? "").trim();
+    if (!/^[0-9a-f]{7,40}$/.test(sha)) continue; // already reported by validateRequirement
+    try {
+      execSync(`git cat-file -e ${sha}^{commit}`, { stdio: "ignore" });
+    } catch {
+      problems.push(`${r.id}: last_verified_sha ${sha} is not a commit in this repository`);
     }
   }
 }
