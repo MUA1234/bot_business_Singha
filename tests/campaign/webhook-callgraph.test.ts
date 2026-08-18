@@ -123,7 +123,10 @@ describe("FOUND-003 — no production path can reach a hardcoded company", () =>
   });
 
   it("the company comes from the RECEIVING account, in the one shared orchestration", () => {
-    expect(readFileSync(ROUTE, "utf8")).toContain("phone_number_id");
+    // Since R1 §6 the route reads the CANONICAL contract; `phone_number_id` now lives in the
+    // adapter, which is the only place that knows Meta's payload shape.
+    expect(readFileSync(ROUTE, "utf8")).toContain("providerAccountId");
+    expect(readFileSync("src/lib/inbound/adapters/whatsapp.ts", "utf8")).toContain("phone_number_id");
     const orch = readFileSync(ORCHESTRATION, "utf8");
     expect(orch).toContain("resolveReceivingCompany");
     expect(orch).toContain("isUsableCompany");

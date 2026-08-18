@@ -1277,7 +1277,7 @@ requirements:
     last_verified_at: none
     owner_gate: transcription provider selection
     blocker: none
-    residual_risks: Currently dropped with no record — a receipt or instruction vanishes without trace.
+    residual_risks: R1 §6 added ONE canonical inbound adapter contract (src/schemas/inbound-adapter.ts) that WhatsApp now uses (src/lib/inbound/adapters/whatsapp.ts). This channel has no adapter, no runtime entrypoint and no tests, so the contract does NOT advance it: a schema is not an integration, and it stays foundation_only until it has its own entrypoint and scenarios. Currently dropped with no record — a receipt or instruction vanishes without trace.
   - id: COM-003
     title: Image and document intake with evidence preservation
     description: Images and documents are stored as evidence, linked to their source event, and processed.
@@ -1319,7 +1319,7 @@ requirements:
     last_verified_at: none
     owner_gate: email provider selection and credentials
     blocker: no provider chosen
-    residual_risks: The route is an honest 501 stub, not a silent failure.
+    residual_risks: R1 §6 added ONE canonical inbound adapter contract (src/schemas/inbound-adapter.ts) that WhatsApp now uses (src/lib/inbound/adapters/whatsapp.ts). This channel has no adapter, no runtime entrypoint and no tests, so the contract does NOT advance it: a schema is not an integration, and it stays foundation_only until it has its own entrypoint and scenarios. The route is an honest 501 stub, not a silent failure.
   - id: COM-005
     title: Calendar and meeting events
     description: Approved calendar integration for meetings, availability and action extraction.
@@ -1340,7 +1340,7 @@ requirements:
     last_verified_at: none
     owner_gate: connector approval
     blocker: none
-    residual_risks: none
+    residual_risks: R1 §6 added ONE canonical inbound adapter contract (src/schemas/inbound-adapter.ts) that WhatsApp now uses (src/lib/inbound/adapters/whatsapp.ts). This channel has no adapter, no runtime entrypoint and no tests, so the contract does NOT advance it: a schema is not an integration, and it stays foundation_only until it has its own entrypoint and scenarios. none
   - id: COM-006
     title: Approved data connectors (Google Sheets and similar)
     description: Read/write connectors to approved external data sources through the Integration Gateway.
