@@ -113,6 +113,11 @@ const SERVICE_ONLY = new Set([
  */
 const OWNER_ONLY = new Set([
   "_route_task_internal(uuid,uuid,text,text,text,jsonb,uuid,text,uuid,uuid,text,uuid,text,text,text)",
+  // 0081 (OF-013) — the approval-submitter provenance guard. A TRIGGER function: it runs as part of
+  // the statement that fires it, never as a callable entrypoint, so EXECUTE is revoked from every
+  // role including service_role. SECURITY DEFINER so its `search_path` is pinned and its refusal
+  // cannot be bypassed by a caller's own search_path.
+  "approval_requests_provenance_guard()",
 ]);
 
 // Must exist AND be locked on any DB reaching this migration (the legacy 7-arg is intentionally excluded).

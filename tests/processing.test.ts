@@ -65,7 +65,7 @@ interface Harness {
   deps: ConsumerDeps;
   audits: { action: string }[];
   drafts: { extraction: unknown; missing_fields: string[] }[];
-  approvals: { approvals_required: number; submitted_by: string }[];
+  approvals: { approvals_required: number; submitted_by: string | null }[];
   clarifications: { missing_fields: string[]; message: string }[];
   dupes: { matches: { matched_event_id: string }[] }[];
   policyEvals: { outcome: string }[];
@@ -82,7 +82,7 @@ function makeHarness(opts: {
 }): Harness {
   const audits: { action: string }[] = [];
   const drafts: { extraction: unknown; missing_fields: string[] }[] = [];
-  const approvals: { approvals_required: number; submitted_by: string }[] = [];
+  const approvals: { approvals_required: number; submitted_by: string | null }[] = [];
   const clarifications: { missing_fields: string[]; message: string }[] = [];
   const dupes: { matches: { matched_event_id: string }[] }[] = [];
   const policyEvals: { outcome: string }[] = [];

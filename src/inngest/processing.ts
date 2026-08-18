@@ -52,7 +52,8 @@ export interface CompanyContext {
   policy: ApprovalPolicy | null;
   known: KnownContext;
   /** The user this submission is attributed to (webhook sender → employee/user). */
-  submitterUserId: string;
+  /** The PERSON who submitted, or null when the pipeline itself did (OF-013 / migration 0081). */
+  submitterUserId: string | null;
 }
 
 export interface DraftInput {
@@ -100,7 +101,7 @@ export interface ConsumerDeps {
     financial_event_id: string;
     company_id: string;
     approvals_required: number;
-    submitted_by: string;
+    submitted_by: string | null;
   }): Promise<{ approval_request_id: string }>;
   createClarification(input: {
     financial_event_id: string;

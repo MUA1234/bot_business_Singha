@@ -85,8 +85,11 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
       return {
         policy,
         known: { companyKnown: !!companyId, employeeKnown: false, projectKnown: false },
-        // Webhook sender → user/employee resolution is a later step; system-attributed for now.
-        submitterUserId: "system",
+        // Nobody submitted this: the consumer pipeline did. `null` says so, and migration 0081
+        // records `submitted_by_source = 'system'` beside it. The previous value here was the
+        // literal string "system", which is not a uuid — every approval request the pipeline
+        // tried to create failed and the captured payment reached no approver (OF-013).
+        submitterUserId: null,
       };
     },
 
@@ -188,6 +191,8 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
           status: "pending",
           approvals_required: Math.max(1, input.approvals_required),
           submitted_by: input.submitted_by,
+          // Provenance is derived from WHETHER there is a person, never asserted by a caller.
+          submitted_by_source: input.submitted_by === null ? "system" : "human",
         })
         .select("id")
         .single();

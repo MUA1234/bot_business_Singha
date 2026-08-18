@@ -169,7 +169,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | src/app/app/sales/accounts/page.tsx:18 | `[]` |
 | src/app/app/sales/leads/page.tsx:24 | `error-discarding destructure` |
 | src/db/consumer-store.ts:74 | `error-discarding destructure` |
-| src/db/consumer-store.ts:94 | `error-discarding destructure` |
+| src/db/consumer-store.ts:97 | `error-discarding destructure` |
 | src/lib/access.ts:81 | `error-discarding destructure` |
 | src/lib/access.ts:112 | `error-discarding destructure` |
 | src/lib/documents.ts:52 | `error-discarding destructure` |

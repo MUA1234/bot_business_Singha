@@ -67,3 +67,28 @@ implementation_in_progress=2 locally_verified=13 specified=5
 
 The verified count goes **down** by one before a line of R1 code is written. That is the point of
 recording it here.
+
+---
+
+## Found DURING R1, not before it
+
+The owner's §1 asked for the twelve findings that existed when R1 began. §7's extreme testing then
+surfaced a thirteenth. It is recorded here rather than folded silently into a fix, because the point
+of this register is that nothing gets quietly reclassified.
+
+| ID | Finding | Sev | Requirement | Runtime path | Reproducible | Class | Disposition |
+|---|---|---|---|---|---|---|---|
+| **OF-013** | `loadCompanyContext` returned the literal string `"system"` as `submitterUserId`, and `approval_requests.submitted_by` is `uuid NOT NULL`. Every captured finance message that reached the approval branch failed with `invalid input syntax for type uuid: "system"`, retried under the sweeper's budget, and dead-lettered — so a message describing a real payment reached no approver | **P0** functional | FOUND-003 | `src/db/consumer-store.ts` → `createApprovalRequest` | Yes — reproduced on a disposable local PostgreSQL; `system-submitted-approval.test.ts` fails 4/5 at `0001–0080` and passes at `0081` | REPO | **FIXED (§7)** — migration **0081** gives the request an explicit provenance (`submitted_by_source`), mirroring what 0078 did for routing decisions |
+
+**Why it had never been seen.** The approval branch of `processSourceEvent` had no production caller
+until R1 §4 wired the finance consumer, and the classifier that gets a message that far is an owner
+gate (OF-003). The extreme end-to-end run is the first thing that ever executed it against a real
+database. It is exactly the class of defect §7 exists to find, and it argues against treating a
+pipeline as working because its unit tests pass.
+
+**What the fix does NOT do.** It does not weaken separation of duties. `canActOnApproval` refuses an
+approver who is also the submitter; a system-submitted request names no submitter, so it excludes
+nobody — and a person cannot create one, because migration 0081 refuses `submitted_by_source =
+'system'` to any caller that is not an explicit service context, and the existing RLS `with check`
+already forces `submitted_by = auth.uid()` for `authenticated`. Provenance is immutable after
+insert; the decision (`status`) stays mutable.
