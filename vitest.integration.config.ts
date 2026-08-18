@@ -8,12 +8,16 @@ import { fileURLToPath } from "node:url";
  * Supabase instance. Unit tests use the default `vitest.config.ts`.
  */
 export default defineConfig({
+  // The rendered-vs-persisted check (R1 §7 path 9) renders real components against rows read from
+  // the database, so this config needs JSX just as the unit one does. tsconfig has
+  // `"jsx": "preserve"` for Next, which leaves esbuild on the classic runtime and no React import.
+  esbuild: { jsx: "automatic" },
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
   test: {
     environment: "node",
-    include: ["tests/integration/**/*.test.ts"],
+    include: ["tests/integration/**/*.test.ts", "tests/integration/**/*.test.tsx"],
     testTimeout: 30000,
     hookTimeout: 30000,
     fileParallelism: false, // serialize files — one DB connection at a time
