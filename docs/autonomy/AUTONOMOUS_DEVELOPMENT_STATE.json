@@ -7,7 +7,7 @@
   "currentBranch": "feature/v3-3-part2-durable-processing",
   "currentPr": 24,
   "baseSha": "079fbb8",
-  "lastGreenSha": "6e354b7",
+  "lastGreenSha": "aeb4e8e",
   "latestMigration": "0075_inbound_review_queue.sql",
   "lastCompletedAction": "Repository-controlled FOUND-003 finished. Migration 0074 resolves the RECEIVING company from channel_accounts (DEFAULT_COMPANY_ID deleted; an unattributable message is not processed at all, and the documented single-tenant bridge closes the moment a second company or any mapping exists). Migration 0075 turns recordForReview into a real capability-gated queue with an audited, database-re-checked resolution RPC, and /app/admin/inbound-review is the surface a person opens. The durable Inngest worker now uses the SAME dispatcher as the request path — with WHATSAPP_ASYNC on it previously called the customer order handler directly, so identity routing did not apply. Provider failures are now classified transient / permanent / not-configured, with a send timeout, so a missing credential no longer consumes the retry budget and a permanent rejection is not retried eight times.",
   "nextAction": "ONE independent review of the completed AIM-002 + AIM-003 + FOUND-003 cross-layer boundary (0 of 2 correction loops used). Then FOUND-006: the remaining RLS/service-role read and write cutover with the architectural test, followed by resolving the temporary no_processor behaviour (processor registration before the sweeper flag can be enabled; authorized, audited, idempotent requeue; health that distinguishes recoverable from terminal dead letters), then the Stage 1 cross-layer review and completion report.",
@@ -19,7 +19,7 @@
     "tests/campaign/provider-failure.test.ts"
   ],
   "lastFullGateResults": {
-    "sha": "pending",
+    "sha": "aeb4e8e",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
     "unit": "661 passed / 2 skipped / 97 files",
