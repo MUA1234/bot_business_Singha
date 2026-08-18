@@ -191,7 +191,7 @@ requirements:
     test_evidence: tests/integration/task-dedup.test.ts (18 live-PostgreSQL cases)
     security_evidence: identity is SERVER-computed by a SECURITY DEFINER trigger and recomputed on insert AND update so a caller or model cannot forge it; RPC is service-only with an in-function role gate; identity components are length-bounded; company_id is inside both the hash and the unique index; the suggestions table is service-write-only under RLS
     audit_health_evidence: the RPC returns a created flag distinguishing a new task from a replay
-    last_verified_sha: PENDING_COMMIT
+    last_verified_sha: ca0432a
     last_verified_at: 2026-08-18
     owner_gate: hosted migration application
     blocker: none

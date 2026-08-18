@@ -65,7 +65,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | ID | Title | Pri | Status | Runtime entrypoint | Verified SHA | Owner gate |
 |---|---|---|---|---|---|---|
 | AIM-001 | Atomic AI case, task and audit persistence | P0 | **locally_verified** | src/management/ai-manager/analyze-conversation.ts; src/app/app/command/analyze/actions.ts | 7669ce1 | hosted migration application |
-| AIM-002 | Task-level deduplication | P0 | **locally_verified** | create_task_deduplicated RPC (service boundary); tasks_set_identity_hash trigger fires on every task write | PENDING_COMMIT | hosted migration application |
+| AIM-002 | Task-level deduplication | P0 | **locally_verified** | create_task_deduplicated RPC (service boundary); tasks_set_identity_hash trigger fires on every task write | ca0432a | hosted migration application |
 | AIM-003 | Truthful task routing | P0 | **absent** | none | none | — |
 | AIM-004 | Task Intelligence Profile | P1 | **specified** | none | none | flag activation |
 | AIM-005 | Decision-path ladder | P1 | **specified** | none | none | flag activation |
