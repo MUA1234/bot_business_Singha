@@ -15,12 +15,15 @@ import { planFromObservation } from "@/management/ai-manager/pipeline";
 import { buildManagementCase } from "@/management/ai-manager/case";
 import { caseRow } from "@/management/ai-manager/case-store";
 import { makeSupabaseCostLedger } from "@/db/consumer-store";
+import { taskIdentityParts, threadIdentity } from "@/management/ai-manager/task-identity";
 import { log } from "@/lib/log";
 
 export interface AnalyzeResult {
   ok: boolean;
   reason?: string;
   createdTasks?: number;
+  /** AIM-002: proposed tasks that already existed under the same identity and were NOT recreated. */
+  deduplicatedTasks?: number;
   needsApproval?: boolean;
 }
 
@@ -71,11 +74,19 @@ export async function analyzeConversationThread(
     aiRun: { ai_run_id: res.run.ai_run_id, model: res.run.model, prompt_version: res.run.prompt_version, cost_usd: res.run.cost_usd, latency_ms: res.run.latency_ms },
   });
   const idemKey = `wa:${opts.conversationId}:${createHash("sha256").update(text).digest("hex")}`;
+  const identity = threadIdentity(opts.conversationId);
   const { data: persisted, error: persistErr } = await db.rpc("create_management_case_atomic", {
     p_company: opts.companyId,
     p_idempotency_key: idemKey,
     p_case: { ...caseRow(mc, { createdBy: opts.actorId, createdTasks: 0, requiresHuman: plan.needsApproval }) },
-    p_tasks: plan.tasks.slice(0, 20).map((t) => ({ title: t.title, note: t.note, requires_evidence: t.requiresEvidence })),
+    // AIM-002 — identity is scoped to the CONVERSATION, so the same follow-up re-detected on the
+    // next inbound message returns the existing task instead of creating another one.
+    p_tasks: plan.tasks.slice(0, 20).map((t) => ({
+      title: t.title,
+      note: t.note,
+      requires_evidence: t.requiresEvidence,
+      ...(taskIdentityParts(t.title, identity) ?? {}),
+    })),
     p_actor: opts.actorId,
     p_audit_action: "manager.thread_analyzed",
   });
@@ -84,6 +95,7 @@ export async function analyzeConversationThread(
     return { ok: false, reason: "persist_failed" };
   }
   const created = Number((persisted as { created_tasks?: number }).created_tasks ?? 0);
+  const deduplicated = Number((persisted as { deduplicated_tasks?: number }).deduplicated_tasks ?? 0);
 
-  return { ok: true, createdTasks: created, needsApproval: plan.needsApproval };
+  return { ok: true, createdTasks: created, deduplicatedTasks: deduplicated, needsApproval: plan.needsApproval };
 }

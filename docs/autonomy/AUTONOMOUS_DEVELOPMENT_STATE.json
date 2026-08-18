@@ -2,40 +2,44 @@
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage1-core-reliability",
   "activeRequirementIds": [
-    "AIM-003"
+    "FOUND-003"
   ],
   "currentBranch": "feature/v3-3-part2-durable-processing",
   "currentPr": 24,
   "baseSha": "079fbb8",
   "lastGreenSha": "c69024b",
-  "latestMigration": "0071_task_identity_dedup.sql",
-  "lastCompletedAction": "Exact-head baseline verified at e603902 (fresh 0001-0070 and staged 0058-0070, 355/355 both). Completion accounting corrected so specified counts as incomplete (12/73/3/1). AIM-002 implemented: migration 0071 server-computed task identity, partial unique index, create-or-return RPC, advisory-only similarity suggestions, 18 live cases.",
-  "nextAction": "AIM-003 truthful routing: durable routing states on tasks (assigned / awaiting_approval / needs_routing / manual_review / no_eligible_assignee / failed_retryable / escalated) with persisted routing reason, required capability, proposed assignees, final assignee or queue, approval link and audit history; correct the AnalyzeForm string that claims a routing which does not happen; then wire analyze-conversation to create_task_deduplicated so the AI path inherits AIM-002.",
+  "latestMigration": "0073_case_tasks_through_dedup.sql",
+  "lastCompletedAction": "AIM-003 implemented and AIM-002 wired into production. Migration 0072 adds the durable task_routing state machine (seven states, one-active-row index, append-only history, service-only route_task); route-captured-tasks gives every analysis-captured task a routing row, and AnalyzeForm no longer claims 'routed for human approval' — it renders the states that exist. Migration 0073 makes create_management_case_atomic create every task THROUGH create_task_deduplicated, closing AIM-002's recorded residual risk that nothing in production called the dedup boundary. AIM-002's 18 deterministic integration scenarios ran against a disposable PostgreSQL 16 — no hosted system and no live provider was used, so they are not 'live cases'.",
+  "nextAction": "Finish repository-controlled FOUND-003: remove the hardcoded DEFAULT_COMPANY_ID and resolve company from trusted channel configuration; build the manual-review queue UI so recordForReview writes to a surface a person opens; complete provider-adapter failure handling; test webhook -> identity -> intent -> source event -> dispatch -> routing/review -> audit -> UI end to end. Then resolve the temporary no_processor behaviour (processor registration before the sweeper flag can be enabled; authorized, audited, idempotent requeue; health that distinguishes recoverable from terminal dead letters). Then ONE independent review of the completed AIM-002 + AIM-003 + FOUND-003 cross-layer boundary.",
   "lastTargetedTests": [
-    "tests/integration/durable-inbound-processing.test.ts",
-    "tests/campaign/inbound-sweeper.test.ts",
-    "tests/campaign/authority-engine.test.ts"
+    "tests/integration/case-task-dedup-wiring.test.ts",
+    "tests/integration/task-routing.test.ts",
+    "tests/campaign/task-identity.test.ts",
+    "tests/campaign/capture-routing.test.ts",
+    "tests/campaign/analyze-ui-truthfulness.test.ts"
   ],
   "lastFullGateResults": {
-    "sha": "1ebaa80",
+    "sha": "pending",
     "typecheck": "clean",
-    "lint": "0 errors",
-    "unit": "564 passed / 2 skipped / 87 files",
-    "integrationFresh": "345 passed / 44 files (0001-0069)",
-    "integrationUpgrade": "345 passed / 44 files (0058->0069)",
+    "lint": "0 errors (3 pre-existing next/image warnings)",
+    "unit": "619 passed / 2 skipped / 93 files",
+    "integrationFresh": "413 passed / 49 files (0001-0073)",
+    "integrationUpgrade": "413 passed / 49 files (0001-0072 then 0073 applied on top)",
     "build": "compiled",
     "secretScan": "clean",
-    "migrationLint": "69 sequential",
-    "audit": "npm audit --omit=dev: 2 high (next, postcss)"
+    "migrationLint": "73 sequential",
+    "note": "All database verification ran on a disposable PostgreSQL 16 in this container. No hosted database was migrated, no flag was enabled, and no live model provider was called."
   },
   "openFindings": [
-    "AIM-003: AnalyzeForm states 'routed for human approval' when no approver, queue or approval record exists — a truthfulness defect",
+    "AIM-003: captured work terminates in needs_routing or manual_review because no assignee recommender exists (WRK-002/WRK-005 unbuilt), and there is no queue UI a person opens to work that list",
+    "AIM-002: task_duplicate_suggestions has no producer, so semantic near-duplicates are not surfaced at all",
+    "FOUND-003: the receiving company is still a hardcoded pilot constant rather than resolved from the receiving WhatsApp number",
     "MOD-002: runQuotationTurn takes no CostLedger, so the highest-volume model call produces no ai_runs row",
     "FOUND-006: RLS_READS/RLS_WRITES are OFF, so the app reads through the RLS-bypassing service-role client"
   ],
   "ownerGates": [
     "PR merges (#22, #23, #24) — none merged",
-    "Hosted migration application (0042-0069) — hosted DB is at 0038-0041",
+    "Hosted migration application (0042-0073) — hosted DB is at 0038-0041",
     "Feature flag activation — all 8 V3.1 flags OFF",
     "ANTHROPIC_API_KEY for live-model evaluation (MOD-001)",
     "Company authority amounts, ceilings and regulated-action mappings (FOUND-004 configuration)",
@@ -54,5 +58,5 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-17"
+  "updatedAt": "2026-08-18"
 }

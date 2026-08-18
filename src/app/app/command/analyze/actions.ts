@@ -9,6 +9,8 @@ import { planFromObservation } from "@/management/ai-manager/pipeline";
 import { makeSupabaseCostLedger } from "@/db/consumer-store";
 import { buildManagementCase } from "@/management/ai-manager/case";
 import { caseRow } from "@/management/ai-manager/case-store";
+import { routeCapturedTasks, type RoutingSummary } from "@/management/routing/route-captured-tasks";
+import { manualIdentity, taskIdentityParts } from "@/management/ai-manager/task-identity";
 import { log } from "@/lib/log";
 
 export interface AnalyzeState {
@@ -17,7 +19,11 @@ export interface AnalyzeState {
     confirmedFacts: string[];
     inferredFacts: string[];
     createdTasks: number;
+    /** AIM-002: proposed tasks that already existed under the same identity and were NOT recreated. */
+    deduplicatedTasks: number;
     needsApproval: boolean;
+    /** What actually happened to the captured tasks. Rendered instead of a claim. */
+    routing: RoutingSummary;
     requiredAuthority: string;
     clarifications: string[];
     suggestedActions: string[];
@@ -72,12 +78,22 @@ export async function analyzeUpdate(_prev: AnalyzeState, formData: FormData): Pr
       latency_ms: obsResult.run.latency_ms,
     },
   });
-  const idemKey = `manual:${createHash("sha256").update(`${admin.companyId}\n${update}`).digest("hex")}`;
+  const contentKey = createHash("sha256").update(`${admin.companyId}\n${update}`).digest("hex");
+  const idemKey = `manual:${contentKey}`;
+  const identity = manualIdentity(contentKey);
   const { data: persisted, error: persistErr } = await db.rpc("create_management_case_atomic", {
     p_company: admin.companyId,
     p_idempotency_key: idemKey,
     p_case: { ...caseRow(mc, { createdBy: admin.userId, createdTasks: 0, requiresHuman: plan.needsApproval }) },
-    p_tasks: plan.tasks.slice(0, 20).map((t) => ({ title: t.title, note: t.note, requires_evidence: t.requiresEvidence })),
+    // AIM-002 — every task this path creates now goes through create_task_deduplicated. Identity is
+    // scoped to the SUBMITTED CONTENT: a free-text update names no stable entity, so two different
+    // updates must never merge on their titles alone.
+    p_tasks: plan.tasks.slice(0, 20).map((t) => ({
+      title: t.title,
+      note: t.note,
+      requires_evidence: t.requiresEvidence,
+      ...(taskIdentityParts(t.title, identity) ?? {}),
+    })),
     p_actor: admin.userId,
     p_audit_action: "manager.analyzed",
   });
@@ -86,12 +102,46 @@ export async function analyzeUpdate(_prev: AnalyzeState, formData: FormData): Pr
     return { error: "Analysis could not be recorded durably — nothing was saved. Try again." };
   }
   const created = Number((persisted as { created_tasks?: number }).created_tasks ?? 0);
+  const deduplicated = Number((persisted as { deduplicated_tasks?: number }).deduplicated_tasks ?? 0);
+  const caseId = String((persisted as { case_id?: string }).case_id ?? "");
+
+  // AIM-003: give every captured task a DURABLE routing row. The UI reports what actually happened
+  // — it no longer says "routed for human approval" when nothing was routed.
+  const routing = await routeCapturedTasks(
+    {
+      async listCaseTasks(companyId, managementCaseId) {
+        const { data, error } = await db
+          .from("tasks")
+          .select("id, title")
+          .eq("company_id", companyId)
+          .eq("management_case_id", managementCaseId);
+        if (error) throw new Error(error.message);
+        return (data ?? []) as { id: string; title: string | null }[];
+      },
+      async routeTask(i) {
+        const { data, error } = await db.rpc("route_task", {
+          p_company: i.companyId,
+          p_task: i.taskId,
+          p_desired_state: i.state,
+          p_reason_code: i.reasonCode,
+          p_actor: i.actorId,
+          p_actor_source: i.actorSource,
+        });
+        if (error) throw new Error(error.message);
+        const row = Array.isArray(data) ? data[0] : data;
+        return { state: String(row?.routing_state ?? i.state), reasonCode: String(row?.reason_code ?? i.reasonCode) };
+      },
+    },
+    { companyId: admin.companyId, managementCaseId: caseId, needsApproval: plan.needsApproval, actorId: admin.userId },
+  );
 
   return {
     result: {
+      routing,
       confirmedFacts: obsResult.observation.confirmedFacts ?? [],
       inferredFacts: obsResult.observation.inferredFacts ?? [],
       createdTasks: created,
+      deduplicatedTasks: deduplicated,
       needsApproval: plan.needsApproval,
       requiredAuthority: plan.requiredAuthority,
       clarifications: plan.clarifications,

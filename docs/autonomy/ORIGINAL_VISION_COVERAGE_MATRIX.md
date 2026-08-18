@@ -10,9 +10,9 @@ Generated at: 2026-08-18
 
 | Status | Count |
 |---|---|
-| absent | 42 |
+| absent | 41 |
 | foundation_only | 23 |
-| locally_verified | 13 |
+| locally_verified | 14 |
 | specified | 5 |
 | blocked_owner | 3 |
 | implementation_in_progress | 2 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **13** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **72** |
+| **Verified** (locally / preview / staging / production) | **14** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **71** |
 | **Blocked — owner** | **3** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -39,7 +39,7 @@ operating-mode claim that depends on it. Blocked is not done.
 
 | Group | Registered | Complete | Remaining |
 |---|---|---|---|
-| AIM | 8 | 2 | 6 |
+| AIM | 8 | 3 | 5 |
 | AST | 1 | 0 | 1 |
 | COM | 8 | 1 | 7 |
 | CRM | 5 | 0 | 5 |
@@ -65,8 +65,8 @@ operating-mode claim that depends on it. Blocked is not done.
 | ID | Title | Pri | Status | Runtime entrypoint | Verified SHA | Owner gate |
 |---|---|---|---|---|---|---|
 | AIM-001 | Atomic AI case, task and audit persistence | P0 | **locally_verified** | src/management/ai-manager/analyze-conversation.ts; src/app/app/command/analyze/actions.ts | 7669ce1 | hosted migration application |
-| AIM-002 | Task-level deduplication | P0 | **locally_verified** | create_task_deduplicated RPC (service boundary); tasks_set_identity_hash trigger fires on every task write | ca0432a | hosted migration application |
-| AIM-003 | Truthful task routing | P0 | **absent** | none | none | — |
+| AIM-002 | Task-level deduplication | P0 | **locally_verified** | src/management/ai-manager/analyze-conversation.ts and src/app/app/command/analyze/actions.ts — both production analysis paths now create tasks through create_task_deduplicated (migration 0073); tasks_set_identity_hash trigger fires on every task write | ca0432a | hosted migration application |
+| AIM-003 | Truthful task routing | P0 | **locally_verified** | src/management/routing/route-captured-tasks.ts, called by src/app/app/command/analyze/actions.ts after every analysis | pending | hosted migration application |
 | AIM-004 | Task Intelligence Profile | P1 | **specified** | none | none | flag activation |
 | AIM-005 | Decision-path ladder | P1 | **specified** | none | none | flag activation |
 | AIM-006 | Team formation and resource recommendation | P1 | **specified** | none | none | flag activation |
@@ -166,5 +166,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **72**; blocked (owner): **3**;
+mode. Incomplete and implementable: **71**; blocked (owner): **3**;
 deferred: **1**; unexpanded groups: **0**.
