@@ -204,7 +204,7 @@ requirements:
     phase: stage1
     priority: P0
     dependencies: [AIM-002]
-    status: locally_verified
+    status: implementation_in_progress
     feature_flag: none
     runtime_entrypoint: src/management/routing/route-captured-tasks.ts with makeSupabaseRoutingDeps, called by BOTH production analysis paths — src/app/app/command/analyze/actions.ts and src/management/ai-manager/analyze-conversation.ts
     database_evidence: src/db/migrations/0072_task_routing_state.sql (task_routing with seven states, reason_code, one-active-row partial unique index; append-only task_routing_events; route_task transition RPC; task_assignee_ineligible_reason); src/db/migrations/0076_inbound_boundary_correction.sql (the capability re-check corrected to actor_has_capability, an approval FK, TRUNCATE closed, and a human decision protected from automated supersession); src/db/migrations/0077_inbound_boundary_correction_2.sql (a human decision must name an active member)
@@ -217,7 +217,7 @@ requirements:
     last_verified_at: 2026-08-18
     owner_gate: hosted migration application
     blocker: none
-    residual_risks: No task is ever ASSIGNED BY THE SYSTEM, because no availability, workload or capability recommender exists yet (WRK-002/WRK-005 are unbuilt) — the assigned state itself now works and is tested, but nothing proposes an assignee. Captured work therefore terminates in needs_routing or manual_review, which is truthful but not yet useful: there is no queue UI a person opens to work that list, and no approver is notified. Inventing an eligible assignee was rejected as the failure this program exists to stop. An independent review found the earlier claim "every AI-created task terminates in a truthful routing state" was false because the WhatsApp thread-analysis path routed nothing at all; both production paths now route, through one shared implementation.
+    residual_risks: UNACCEPTED (OF-007). A service-role caller can still assert actor_source='human' by naming a real member, which is a hole in the exact trust boundary this requirement asserts — so it is NOT verified while that exists, whatever the tests show. Remediation package R1 section 2 splits the human and system decision paths; until that is built, tested and independently reviewed, this requirement stays incomplete. No task is ever ASSIGNED BY THE SYSTEM, because no availability, workload or capability recommender exists yet (WRK-002/WRK-005 are unbuilt) — the assigned state itself now works and is tested, but nothing proposes an assignee. Captured work therefore terminates in needs_routing or manual_review, which is truthful but not yet useful: there is no queue UI a person opens to work that list, and no approver is notified. Inventing an eligible assignee was rejected as the failure this program exists to stop. An independent review found the earlier claim "every AI-created task terminates in a truthful routing state" was false because the WhatsApp thread-analysis path routed nothing at all; both production paths now route, through one shared implementation.
 
   - id: AIM-004
     title: Task Intelligence Profile

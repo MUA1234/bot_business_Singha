@@ -12,10 +12,10 @@ Generated at: 2026-08-18
 |---|---|
 | absent | 41 |
 | foundation_only | 23 |
-| locally_verified | 14 |
+| locally_verified | 13 |
 | specified | 5 |
 | blocked_owner | 4 |
-| implementation_in_progress | 1 |
+| implementation_in_progress | 2 |
 | deliberately_deferred | 1 |
 
 ## Completion accounting
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **14** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **70** |
+| **Verified** (locally / preview / staging / production) | **13** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **71** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -39,7 +39,7 @@ operating-mode claim that depends on it. Blocked is not done.
 
 | Group | Registered | Complete | Remaining |
 |---|---|---|---|
-| AIM | 8 | 3 | 5 |
+| AIM | 8 | 2 | 6 |
 | AST | 1 | 0 | 1 |
 | COM | 8 | 1 | 7 |
 | CRM | 5 | 0 | 5 |
@@ -66,7 +66,7 @@ operating-mode claim that depends on it. Blocked is not done.
 |---|---|---|---|---|---|---|
 | AIM-001 | Atomic AI case, task and audit persistence | P0 | **locally_verified** | src/management/ai-manager/analyze-conversation.ts; src/app/app/command/analyze/actions.ts | 7669ce1 | hosted migration application |
 | AIM-002 | Task-level deduplication | P0 | **locally_verified** | src/management/ai-manager/analyze-conversation.ts and src/app/app/command/analyze/actions.ts — both production analysis paths now create tasks through create_task_deduplicated (migration 0073); tasks_set_identity_hash trigger fires on every task write | 1fd50b2 | hosted migration application |
-| AIM-003 | Truthful task routing | P0 | **locally_verified** | src/management/routing/route-captured-tasks.ts with makeSupabaseRoutingDeps, called by BOTH production analysis paths — src/app/app/command/analyze/actions.ts and src/management/ai-manager/analyze-conversation.ts | 1fd50b2 | hosted migration application |
+| AIM-003 | Truthful task routing | P0 | **implementation_in_progress** | src/management/routing/route-captured-tasks.ts with makeSupabaseRoutingDeps, called by BOTH production analysis paths — src/app/app/command/analyze/actions.ts and src/management/ai-manager/analyze-conversation.ts | 1fd50b2 | hosted migration application |
 | AIM-004 | Task Intelligence Profile | P1 | **specified** | none | none | flag activation |
 | AIM-005 | Decision-path ladder | P1 | **specified** | none | none | flag activation |
 | AIM-006 | Team formation and resource recommendation | P1 | **specified** | none | none | flag activation |
@@ -166,5 +166,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **70**; blocked (owner): **4**;
+mode. Incomplete and implementable: **71**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.
