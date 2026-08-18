@@ -165,3 +165,32 @@ describe("R1 §3 — the scheduled dispatch drain is REACHABLE, not just written
     expect(route).not.toMatch(/CRON_SECRET\s*=\s*["'][^"']{8,}["']/);
   });
 });
+
+describe("R1 §4 — the finance capture consumer is wired, and `no_processor` is gone", () => {
+  it("the sweeper runs the EXISTING pipeline, not a parallel one", () => {
+    const route = readFileSync("src/app/api/cron/inbound-sweeper/route.ts", "utf8");
+    expect(route).toContain("makeFinanceCaptureProcessor");
+    expect(route).toContain("processSourceEvent");
+    // The pipeline has exactly two production callers now: the Inngest consumer and the sweeper.
+    const callers = execSync(`grep -rln "processSourceEvent" src --include=*.ts || true`, { encoding: "utf8" })
+      .split("\n").map((x) => x.trim()).filter(Boolean)
+      .filter((f) => f !== "src/inngest/processing.ts"); // the definition itself
+    expect(callers.sort()).toEqual([
+      "src/app/api/cron/inbound-sweeper/route.ts",
+      "src/events/finance-capture-processor.ts",
+      "src/inngest/functions.ts",
+    ]);
+  });
+
+  it("no production path RETURNS `no_processor` any more", () => {
+    // Comments explaining what it used to do are history, not behaviour — the false-positive class
+    // this suite has been caught by before. What must be gone is the CODE that returns it.
+    const returning = execSync(`grep -rn "no_processor" src --include=*.ts || true`, { encoding: "utf8" })
+      .split("\n").map((x) => x.trim()).filter(Boolean)
+      .filter((line) => {
+        const code = line.replace(/^[^:]+:\d+:/, "").trim();
+        return !(code.startsWith("//") || code.startsWith("*") || code.startsWith("/*"));
+      });
+    expect(returning).toEqual([]);
+  });
+});

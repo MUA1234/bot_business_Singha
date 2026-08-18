@@ -99,9 +99,8 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | src/app/legal-config.ts:10 | TODO | `// TODO: replace with your registered legal company name.` |
 | src/app/legal-config.ts:12 | TODO | `// TODO: replace with a monitored business contact address.` |
 
-## 6. Stub routes (501 / not-implemented) — 2
+## 6. Stub routes (501 / not-implemented) — 1
 
-- src/app/api/cron/inbound-sweeper/route.ts
 - src/app/api/webhooks/email/route.ts
 
 ## 7. Error-masking suspects (catch → empty return) — 71 (Phase-1C triage list)
