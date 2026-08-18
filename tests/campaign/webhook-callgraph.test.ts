@@ -137,3 +137,31 @@ describe("FOUND-003 — no production path can reach a hardcoded company", () =>
     expect(src).not.toMatch(/input\.companyId \?\?/);
   });
 });
+
+describe("R1 §3 — the scheduled dispatch drain is REACHABLE, not just written", () => {
+  it("the batch claim built in 0076 now has a production caller", () => {
+    const callers = execSync(`grep -rln "claim_inbound_dispatch_batch" src --include=*.ts || true`, { encoding: "utf8" })
+      .split("\n").map((s) => s.trim()).filter(Boolean);
+    expect(callers).toContain("src/app/api/cron/dispatch-drain/route.ts");
+  });
+
+  it("the drain runs the SAME orchestration as the webhook, on an already-leased receipt", () => {
+    const route = readFileSync("src/app/api/cron/dispatch-drain/route.ts", "utf8");
+    expect(route).toContain("dispatchReceipt(");
+    expect(route).toContain("alreadyClaimed: true");
+    expect(route).toContain("makeInboundDeps");
+  });
+
+  it("it is scheduled, and the schedule is configuration rather than code", () => {
+    const vercel = JSON.parse(readFileSync("vercel.json", "utf8")) as { crons: { path: string }[] };
+    expect(vercel.crons.map((c) => c.path)).toContain("/api/cron/dispatch-drain");
+  });
+
+  it("no secret is committed — the route reads it from the environment", () => {
+    const route = readFileSync("src/app/api/cron/dispatch-drain/route.ts", "utf8");
+    expect(route).toContain("process.env.CRON_SECRET");
+    expect(route).toContain("timingSafeEqual");
+    // A literal long token in the route would be a committed credential.
+    expect(route).not.toMatch(/CRON_SECRET\s*=\s*["'][^"']{8,}["']/);
+  });
+});

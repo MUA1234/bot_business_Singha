@@ -73,7 +73,16 @@ export async function dispatchReceipt(
   message: Omit<InboundMessage, "companyId" | "receipt">,
   providerAccountId: string | null,
   makeDeps: (dispatchOwner: string, knownCurrencies: string[]) => DispatchDeps,
-  opts?: { owner?: string; leaseSeconds?: number; ports?: Partial<DispatchReceiptPorts> },
+  opts?: {
+    owner?: string;
+    leaseSeconds?: number;
+    ports?: Partial<DispatchReceiptPorts>;
+    /**
+     * The caller ALREADY holds the dispatch lease under `owner` (the batch drain claims a whole
+     * batch in one statement). Claiming again would be refused by its own live lease.
+     */
+    alreadyClaimed?: boolean;
+  },
 ): Promise<DispatchReceiptResult> {
   const ports: DispatchReceiptPorts = { ...DEFAULT_PORTS, ...(opts?.ports ?? {}) };
   // The provider gave no message id, so this receipt has no canonical identity and was never
@@ -84,7 +93,9 @@ export async function dispatchReceipt(
   }
 
   const owner = opts?.owner ?? `wa_dispatch_${randomUUID()}`;
-  const claimed = await ports.claim(db, receipt.event.id, owner, opts?.leaseSeconds ?? 120);
+  const claimed = opts?.alreadyClaimed === true
+    ? true
+    : await ports.claim(db, receipt.event.id, owner, opts?.leaseSeconds ?? 120);
   if (!claimed) {
     // WHY the claim was refused decides what the caller should do. A settled receipt is finished; a
     // receipt that is failed or being decided elsewhere is still OUTSTANDING, and reporting that as

@@ -87,6 +87,9 @@ const SERVICE_ONLY = new Set([
   "inbound_dispatch_health()",
   // 0077 — hand a claimed row back, unharmed, when nothing can process it yet.
   "release_source_event(uuid,text)",
+  // 0079 — the dispatch-lifecycle twin: a drain that runs out of time hands work back UNCHARGED
+  // rather than failing it, so a slow run cannot dead-letter healthy receipts.
+  "release_inbound_dispatch(uuid,text)",
   "resolve_inbound_review(uuid,uuid,uuid,text,text)",
   // 0075 — the single capability implementation, for an EXPLICIT actor. Service-only because it
   // takes an arbitrary user id; has_capability (same owner) wraps it for RLS in the caller's role.
