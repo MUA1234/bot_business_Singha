@@ -1,7 +1,12 @@
 /** Cross-cutting constants for the app layer. */
 
-/** Pilot company seeded in migration 0007. Single-company pilot. */
-export const DEFAULT_COMPANY_ID = "00000000-0000-0000-0000-00000000515a";
+/*
+ * DEFAULT_COMPANY_ID was removed (FOUND-003). A hardcoded company constant is not a placeholder in
+ * a multi-company system — it silently attributes every business's inbound messages, conversations
+ * and quotations to one company. The receiving account now decides the company
+ * (`resolve_channel_company`, migration 0074), and an account that cannot be attributed is not
+ * processed at all. The pilot company row itself still exists; it is seeded by migration 0007.
+ */
 
 /**
  * Employees log in with a username; Supabase Auth is email-based, so we map

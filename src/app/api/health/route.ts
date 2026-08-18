@@ -14,7 +14,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { probeCount, metricLabel, metricNumber, type Metric } from "@/lib/metric";
 import { classifyHealth } from "@/management/ai-manager/health";
 import { buildAlerts, stampSeen } from "@/management/ai-manager/alerts";
-import { missingConfig, outboxAgeLevel, ledgerIntegrityLevel, worstLevel, type SignalLevel } from "@/lib/health-signals";
+import { missingConfig, outboxAgeLevel, ledgerIntegrityLevel, unattributedInboundLevel, worstLevel, type SignalLevel } from "@/lib/health-signals";
 import { log } from "@/lib/log";
 
 export const runtime = "nodejs";
@@ -43,15 +43,20 @@ export async function GET(req: Request): Promise<Response> {
     });
 
   // Simple status counts (each classified value vs unavailable).
-  const [outboxPending, outboxFailed, outboxDead, sourceFailed, sourceUnprocessed, deadLetters, unanalysed] = await Promise.all([
-    probe(db.from("message_outbox").select("*", { count: "exact", head: true }).eq("status", "pending")),
-    probe(db.from("message_outbox").select("*", { count: "exact", head: true }).eq("status", "failed")),
-    probe(db.from("message_outbox").select("*", { count: "exact", head: true }).eq("status", "dead")),
-    probe(db.from("source_events").select("*", { count: "exact", head: true }).eq("status", "failed")),
-    probe(db.from("source_events").select("*", { count: "exact", head: true }).in("status", ["received", "processing"])),
-    probe(db.from("dead_letter_events").select("*", { count: "exact", head: true })),
-    probe(db.from("wa_conversations").select("*", { count: "exact", head: true }).is("ai_analyzed_at", null)),
-  ]);
+  const [outboxPending, outboxFailed, outboxDead, sourceFailed, sourceUnprocessed, deadLetters, unanalysed, openReviews, unattributed] =
+    await Promise.all([
+      probe(db.from("message_outbox").select("*", { count: "exact", head: true }).eq("status", "pending")),
+      probe(db.from("message_outbox").select("*", { count: "exact", head: true }).eq("status", "failed")),
+      probe(db.from("message_outbox").select("*", { count: "exact", head: true }).eq("status", "dead")),
+      probe(db.from("source_events").select("*", { count: "exact", head: true }).eq("status", "failed")),
+      probe(db.from("source_events").select("*", { count: "exact", head: true }).in("status", ["received", "processing"])),
+      probe(db.from("dead_letter_events").select("*", { count: "exact", head: true })),
+      probe(db.from("wa_conversations").select("*", { count: "exact", head: true }).is("ai_analyzed_at", null)),
+      // FOUND-003 — work waiting for a person, and inbound that belongs to NO company. The second
+      // has no company-scoped queue it could land in, so this is the only place it becomes visible.
+      probe(db.from("inbound_reviews").select("*", { count: "exact", head: true }).eq("state", "open")),
+      probe(db.from("source_events").select("*", { count: "exact", head: true }).is("company_id", null)),
+    ]);
 
   // Oldest pending outbox age (minutes) — value vs unavailable.
   let oldestPendingMin: number | null = null;
@@ -126,6 +131,7 @@ export async function GET(req: Request): Promise<Response> {
     ledger.level,
     missing.length ? (process.env.APP_ENV === "production" ? "crit" : "warn") : "ok",
     unavailableTables.length ? "warn" : "ok", // a dashboard-critical table failing is never "all clear"
+    unattributedInboundLevel(metricNumber(unattributed)),
   ]);
 
   if (overall === "crit") log("error", "health critical", { event: "health.critical", alerts: alerts.map((a) => a.key) });
@@ -136,6 +142,8 @@ export async function GET(req: Request): Promise<Response> {
     level: overall,
     generatedAt: new Date().toISOString(),
     metrics: {
+      openInboundReviews: label(openReviews),
+      unattributedInbound: label(unattributed),
       outboxPending: label(outboxPending),
       outboxFailed: label(outboxFailed),
       outboxDead: label(outboxDead),

@@ -17,7 +17,6 @@ import { withPendingFooter } from "@/lib/whatsapp";
 import { enqueueOutbox } from "@/lib/outbox-enqueue";
 import { drainOutbox } from "@/events/outbox-drain";
 import { createQuotationFromItems, tryFinalizeAndSend } from "@/lib/quotations";
-import { DEFAULT_COMPANY_ID } from "@/lib/constants";
 import { log } from "@/lib/log";
 
 interface ConvState {
@@ -32,10 +31,15 @@ export async function handleCustomerMessage(input: {
   from: string; // customer WA id (digits, no '+')
   text: string;
   waMessageId: string;
-  companyId?: string;
+  /**
+   * FOUND-003 — REQUIRED. This used to default to a hardcoded pilot company, which meant every
+   * conversation, quotation and reply belonged to that company whoever the message was actually
+   * for. The caller resolves the company from the receiving account; there is no fallback.
+   */
+  companyId: string;
 }): Promise<{ status: string }> {
   const db = supabaseAdmin();
-  const companyId = input.companyId ?? DEFAULT_COMPANY_ID;
+  const companyId = input.companyId;
   const from = input.from.replace(/^\+/, "");
 
   // Idempotency + resume-safety (§WP-C): treat as a duplicate ONLY if a prior run fully

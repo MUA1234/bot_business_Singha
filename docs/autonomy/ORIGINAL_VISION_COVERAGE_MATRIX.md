@@ -14,8 +14,8 @@ Generated at: 2026-08-18
 | foundation_only | 23 |
 | locally_verified | 14 |
 | specified | 5 |
-| blocked_owner | 3 |
-| implementation_in_progress | 2 |
+| blocked_owner | 4 |
+| implementation_in_progress | 1 |
 | deliberately_deferred | 1 |
 
 ## Completion accounting
@@ -26,8 +26,8 @@ specification describes what should be built; it is not built.
 | Category | Count |
 |---|---|
 | **Verified** (locally / preview / staging / production) | **14** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **71** |
-| **Blocked — owner** | **3** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **70** |
+| **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
 | Registered total | 89 |
@@ -100,7 +100,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | FIN-008 | Payment intelligence and evidence | P0 | **foundation_only** | src/app/app/finance/reconciliation/page.tsx | 1ebaa80 | — |
 | FOUND-001 | Durable inbound processing with leases, bounded retry and dead-letter | P0 | **locally_verified** | src/app/api/cron/inbound-sweeper/route.ts | 1ebaa80 | hosted migration application |
 | FOUND-002 | Worker fairness by eligibility rather than ordering | P0 | **locally_verified** | src/app/api/cron/inbound-sweeper/route.ts | 1ebaa80 | — |
-| FOUND-003 | Production-reachable staff and finance intake | P0 | **implementation_in_progress** | src/app/api/webhooks/whatsapp/route.ts (dispatchInbound) | none | — |
+| FOUND-003 | Production-reachable staff and finance intake | P0 | **blocked_owner** | src/app/api/webhooks/whatsapp/route.ts and src/inngest/functions.ts (both dispatch through src/lib/inbound/dispatch.ts via the shared src/lib/inbound/production-deps.ts) | pending | a model provider credential for finance classification; mapping each receiving WhatsApp number to its company in channel_accounts; granting operations.inbound.review to the people who should work the queue; hosted migration application |
 | FOUND-004 | Deterministic company-scoped authority engine | P0 | **locally_verified** | src/management/ai-manager/pipeline.ts (planFromObservation) | 079fbb8 | sign-off on the impact-to-level mapping, or replacement by authority_rules-driven mapping |
 | FOUND-005 | AI trust boundary — untrusted output cannot decide identity, scope or authority | P0 | **locally_verified** | src/ai/manager-observation.ts; src/ai/quotation.ts | 7669ce1 | — |
 | FOUND-006 | Service-role and RLS read/write cutover | P0 | **foundation_only** | src/lib/supabase/read.ts (shim returns the ADMIN client while flags are OFF) | none | flag activation |
@@ -166,5 +166,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **71**; blocked (owner): **3**;
+mode. Incomplete and implementable: **70**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

@@ -35,6 +35,7 @@ import {
   Shield,
   ClipboardList,
   Fuel,
+  Inbox,
   LayoutDashboard,
   type LucideIcon,
 } from "lucide-react";
@@ -70,6 +71,7 @@ const MAP: Record<string, LucideIcon> = {
   shield: Shield,
   clipboard: ClipboardList,
   fuel: Fuel,
+  inbox: Inbox,
 };
 
 export function Icon({

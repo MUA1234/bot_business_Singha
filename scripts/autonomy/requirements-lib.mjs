@@ -130,6 +130,16 @@ export function validateRequirement(r) {
   if (!r.status) problems.push(`${id}: missing status`);
   else if (!VALID_STATUSES.has(r.status)) problems.push(`${id}: invalid status "${r.status}"`);
 
+  // The register is read by a deliberately minimal parser (see the file header). A YAML BLOCK
+  // SCALAR (`>-`, `|`, …) parses as the marker itself and its indented text is silently dropped —
+  // the field looks present and says nothing. Caught here rather than discovered later as a
+  // requirement whose residual risks read ">-".
+  for (const [k, v] of Object.entries(r)) {
+    if (typeof v === "string" && [">", ">-", "|", "|-", ">+", "|+"].includes(v.trim())) {
+      problems.push(`${id}: ${k} is a YAML block scalar, which this register's parser drops — write it on one line`);
+    }
+  }
+
   if (r.status && COMPLETE_STATUSES.has(r.status)) {
     for (const field of REQUIRED_EVIDENCE_FOR_COMPLETE) {
       if (isEmptyValue(r[field])) {

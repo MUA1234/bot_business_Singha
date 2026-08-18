@@ -38,14 +38,29 @@ export interface DispatchDeps {
   classifyFinanceIntent(text: string): Promise<FinanceIntent | null>;
   /** The existing customer order-intake flow. */
   handleCustomerOrder(msg: InboundMessage): Promise<{ status: string }>;
-  /** Record a message that needs a person, without pretending it was handled. */
-  recordForReview(msg: InboundMessage, reason: string, identity: ResolvedIdentity): Promise<void>;
+  /**
+   * Record a message that needs a person, without pretending it was handled. `reasonCode` is a
+   * stable machine key for the queue and for metrics; `reason` is the human sentence beside it.
+   */
+  recordForReview(msg: InboundMessage, reason: string, identity: ResolvedIdentity, reasonCode: ReviewReasonCode): Promise<void>;
   /** Ask the sender one specific question. */
   askClarification(msg: InboundMessage, question: string): Promise<void>;
   store: SourceEventStore;
   queue: EventQueue;
   financeContext: FinanceGateContext;
 }
+
+/**
+ * Why a message needs a person. A closed set, so the queue can be filtered, counted and reasoned
+ * about — a free-text reason alone cannot be.
+ */
+export type ReviewReasonCode =
+  | "no_finance_classifier"
+  | "unroutable_identity"
+  | "supplier_message"
+  | "staff_other"
+  | "not_finance_capture"
+  | "finance_gate_manual_review";
 
 export type DispatchResult =
   | { handled: "customer_order"; status: string }
@@ -67,7 +82,7 @@ export async function dispatchInbound(msg: InboundMessage, deps: DispatchDeps): 
     if (intent === null) {
       // No classifier configured. A staff message must NOT fall through to order intake, and we
       // must not guess that it is routine — a person looks at it.
-      await deps.recordForReview(msg, "no finance classifier configured", identity);
+      await deps.recordForReview(msg, "no finance classifier configured", identity, "no_finance_classifier");
       return { handled: "manual_review", reason: "no finance classifier configured" };
     }
     messageIntent = intent.kind === "none" ? "other" : "finance";
@@ -82,7 +97,11 @@ export async function dispatchInbound(msg: InboundMessage, deps: DispatchDeps): 
   }
 
   if (route.route === "manual_review" || route.route === "supplier_message" || route.route === "staff_other") {
-    await deps.recordForReview(msg, route.reason, identity);
+    const code: ReviewReasonCode =
+      route.route === "supplier_message" ? "supplier_message"
+        : route.route === "staff_other" ? "staff_other"
+          : "unroutable_identity";
+    await deps.recordForReview(msg, route.reason, identity, code);
     return route.route === "manual_review"
       ? { handled: "manual_review", reason: route.reason }
       : { handled: "recorded", reason: route.reason };
@@ -90,7 +109,7 @@ export async function dispatchInbound(msg: InboundMessage, deps: DispatchDeps): 
 
   // 4. staff_finance. Second gate: nothing but this route may proceed.
   if (!isFinanceCapture(route.route)) {
-    await deps.recordForReview(msg, "route is not finance capture", identity);
+    await deps.recordForReview(msg, "route is not finance capture", identity, "not_finance_capture");
     return { handled: "manual_review", reason: "route is not finance capture" };
   }
 
@@ -101,7 +120,7 @@ export async function dispatchInbound(msg: InboundMessage, deps: DispatchDeps): 
     return { handled: "clarification", question: gate.question };
   }
   if (gate.outcome === "manual_review") {
-    await deps.recordForReview(msg, gate.reasons.join("; "), identity);
+    await deps.recordForReview(msg, gate.reasons.join("; "), identity, "finance_gate_manual_review");
     return { handled: "manual_review", reason: gate.reasons.join("; ") };
   }
 

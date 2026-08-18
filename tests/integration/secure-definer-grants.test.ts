@@ -61,6 +61,16 @@ const SERVICE_ONLY = new Set([
   // commit time; the append-only trigger refuses any rewrite of routing history.
   "route_task(uuid,uuid,text,text,text,jsonb,uuid,text,uuid,uuid,text,uuid)",
   "task_assignee_ineligible_reason(uuid,uuid,text,uuid)",
+  // 0074 FOUND-003 — the RECEIVING company is resolved from trusted channel configuration rather
+  // than a hardcoded constant. Service-only: the mapping decides which company owns a message.
+  "resolve_channel_company(text,text)",
+  // 0075 FOUND-003 — the manual-review queue. record is idempotent per message; resolve
+  // INDEPENDENTLY re-checks the named actor's capability rather than trusting the application.
+  "record_inbound_review(uuid,text,text,text,text,uuid,text,text,text,text)",
+  "resolve_inbound_review(uuid,uuid,uuid,text,text)",
+  // 0075 — the single capability implementation, for an EXPLICIT actor. Service-only because it
+  // takes an arbitrary user id; has_capability (same owner) wraps it for RLS in the caller's role.
+  "actor_has_capability(uuid,uuid,text)",
   // (task_routing_events_append_only is a plain trigger function, not SECURITY DEFINER — it only
   //  raises. This allowlist governs SECURITY DEFINER signatures, so it is deliberately absent.)
 ]);

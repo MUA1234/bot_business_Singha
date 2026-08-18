@@ -45,6 +45,23 @@ describe("requirement audit rules", () => {
     expect(validateRequirement({ id: "TST-002", title: "t", status: "absent" })).toEqual([]);
   });
 
+  it("REJECTS a YAML block scalar, whose text this register's parser silently drops", () => {
+    for (const marker of [">-", "|", "|-", ">"]) {
+      const problems = validateRequirement(complete({ residual_risks: marker }));
+      expect(problems.join(" "), marker).toMatch(/block scalar/);
+    }
+  });
+
+  it("no requirement in this register carries a dropped block scalar", () => {
+    const { requirements } = loadRegister();
+    const bad = requirements.flatMap((r: Record<string, unknown>) =>
+      Object.entries(r)
+        .filter(([, v]) => typeof v === "string" && [">", ">-", "|", "|-"].includes(v.trim()))
+        .map(([k]) => `${r.id}.${k}`),
+    );
+    expect(bad).toEqual([]);
+  });
+
   it("rejects an invented status", () => {
     expect(validateRequirement({ id: "TST-003", title: "t", status: "nearly_done" }).join(" ")).toMatch(/invalid status/);
   });

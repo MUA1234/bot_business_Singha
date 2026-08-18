@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendWhatsAppText, sendWhatsAppTemplate } from "@/lib/whatsapp";
 import { planAfterAttempt } from "@/events/outbox-delivery";
+import { classifyProviderFailure } from "@/lib/provider/failure";
 import { log } from "@/lib/log";
 
 interface ClaimedRow {
@@ -82,7 +83,24 @@ export async function drainOutbox(db: SupabaseClient, opts?: { batch?: number; l
       ? await sendWhatsAppTemplate(row.recipient, row.template_name, row.template_params ?? [], row.template_lang ?? "en")
       : await sendWhatsAppText(row.recipient, row.body);
 
-    const patch = planAfterAttempt({ attempts: row.attempts }, res.ok ? { ok: true } : { ok: false, error: res.reason ?? "send_failed" });
+    // Classify BEFORE planning: an absent credential, a rejected message and a 503 are three
+    // different situations, and treating them as one produced dead-lettered messages that were
+    // never actually offered to the provider.
+    const patch = planAfterAttempt(
+      { attempts: row.attempts },
+      res.ok
+        ? { ok: true }
+        : {
+            ok: false,
+            error: res.reason ?? "send_failed",
+            failure: classifyProviderFailure({
+              reason: res.reason ?? "send_failed",
+              status: res.status ?? null,
+              code: res.code ?? null,
+              notConfigured: res.notConfigured,
+            }),
+          },
+    );
 
     if (patch.status === "sent") {
       // WP12: flip the outbox row to `sent` AND advance the linked commercial document

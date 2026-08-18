@@ -3,7 +3,7 @@
 > Regenerate with `node scripts/completion-inventory.mjs`. Deterministic: changes only when code changes.
 > Suspect lists are HEURISTIC work lists (each entry needs triage), not verdicts.
 
-## 1. supabaseAdmin() usage — 39 file(s)
+## 1. supabaseAdmin() usage — 41 file(s)
 
 | file | refs |
 |---|---|
@@ -14,7 +14,7 @@
 | src/app/api/cron/outbox/route.ts | 2 |
 | src/app/api/exports/[kind]/route.ts | 2 |
 | src/app/api/health/route.ts | 2 |
-| src/app/api/webhooks/whatsapp/route.ts | 4 |
+| src/app/api/webhooks/whatsapp/route.ts | 2 |
 | src/app/app/_actions/price.ts | 2 |
 | src/app/app/admin/audit/page.tsx | 2 |
 | src/app/app/admin/catalog/page.tsx | 2 |
@@ -22,6 +22,7 @@
 | src/app/app/admin/employees/actions.ts | 6 |
 | src/app/app/admin/employees/page.tsx | 2 |
 | src/app/app/admin/health/page.tsx | 2 |
+| src/app/app/admin/inbound-review/actions.ts | 2 |
 | src/app/app/admin/objectives/page.tsx | 2 |
 | src/app/app/admin/outbox/actions.ts | 2 |
 | src/app/app/admin/outbox/page.tsx | 2 |
@@ -40,6 +41,7 @@
 | src/lib/audit.ts | 2 |
 | src/lib/auth.ts | 3 |
 | src/lib/documents.ts | 3 |
+| src/lib/inbound/production-deps.ts | 5 |
 | src/lib/ledger-report.ts | 2 |
 | src/lib/notify.ts | 2 |
 | src/lib/order-intake.ts | 2 |
@@ -54,7 +56,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | file:line | code |
 |---|---|
 | src/ai/anthropic-transport.ts:62 | `const maxTokens = Math.min(req.maxTokens, EVAL_LIMITS.maxOutputTokens);` |
-| src/app/api/health/route.ts:94 | `imbalancedJournals: Number(row.imbalanced_journals ?? 0),` |
+| src/app/api/health/route.ts:99 | `imbalancedJournals: Number(row.imbalanced_journals ?? 0),` |
 | src/app/app/finance/customer-invoices/[id]/page.tsx:55 | `<tr key={i}><td>{l.description}</td><td className="num">{Number(l.quantity)}</td><td className="num"` |
 | src/app/app/finance/supplier-bills/[id]/page.tsx:56 | `<tr key={i}><td>{l.description}</td><td className="num">{Number(l.quantity)}</td><td className="num"` |
 | src/app/app/finance/tax-codes/page.tsx:50 | `<td className="num dim">{fmtMoney(taxAmount("1000", Number(r.rate), "LKR"))}</td>` |
@@ -86,7 +88,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 |---|---|
 | RLS_READS | src/lib/supabase/read.ts |
 | RLS_WRITES | src/app/app/finance/customer-invoices/actions.ts<br>src/app/app/finance/supplier-bills/actions.ts<br>src/lib/auth.ts<br>src/lib/supabase/read.ts |
-| WHATSAPP_ASYNC | src/app/api/webhooks/whatsapp/route.ts |
+| WHATSAPP_ASYNC | src/app/api/webhooks/whatsapp/route.ts<br>src/inngest/functions.ts<br>src/lib/inbound/production-deps.ts |
 
 ## 5. TODO/FIXME markers — 3
 

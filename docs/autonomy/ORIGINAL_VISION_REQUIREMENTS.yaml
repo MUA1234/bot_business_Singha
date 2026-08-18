@@ -71,20 +71,20 @@ requirements:
     phase: stage1
     priority: P0
     dependencies: [FOUND-001]
-    status: implementation_in_progress
+    status: blocked_owner
     feature_flag: none
-    runtime_entrypoint: src/app/api/webhooks/whatsapp/route.ts (dispatchInbound)
-    database_evidence: src/db/migrations/0070_channel_identity_resolution.sql (channel_identities + resolve_channel_identity)
-    service_evidence: src/lib/inbound/dispatch.ts (calls ingestSourceEvent); src/lib/identity/inbound-routing.ts; src/lib/finance/intent-gate.ts; src/schemas/finance-intent.ts
-    ui_evidence: none
-    test_evidence: tests/campaign/webhook-callgraph.test.ts (5, route-level proof); tests/campaign/finance-intake.test.ts (18); tests/campaign/inbound-routing.test.ts (9); tests/integration/channel-identity.test.ts (10)
-    security_evidence: identity from trusted records evaluated BEFORE intent; unknown/ambiguous never staff; a customer asserting a financial event is never classified, let alone captured; exact decimal amount parsing; currency never inferred or converted; material amounts require a referenced document; capture yields a source event for policy/authority only — no posting, payment or approval affordance exists on the result
-    audit_health_evidence: inbound.finance_captured structured log with source event id and ingest status
-    last_verified_sha: none
-    last_verified_at: none
-    owner_gate: none
-    blocker: none
-    residual_risks: Wired end to end and proven at the route level. NOT complete because (a) classifyFinanceIntent returns null until a model provider is configured, so a staff message today fails closed to manual review rather than being captured — the capture path is exercised only by tests; (b) there is no review QUEUE UI, so recordForReview writes a structured log against an already-durable event rather than a surface a person opens (AIM-003); (c) the company is still the hardcoded pilot constant rather than resolved from the receiving WhatsApp number.
+    runtime_entrypoint: src/app/api/webhooks/whatsapp/route.ts and src/inngest/functions.ts (both dispatch through src/lib/inbound/dispatch.ts via the shared src/lib/inbound/production-deps.ts)
+    database_evidence: src/db/migrations/0070_channel_identity_resolution.sql (channel_identities + resolve_channel_identity); 0074_channel_account_company_resolution.sql (channel_accounts + resolve_channel_company); 0075_inbound_review_queue.sql (inbound_reviews, record/resolve RPCs, actor_has_capability)
+    service_evidence: src/lib/inbound/dispatch.ts (the only production caller of ingestSourceEvent); src/lib/inbound/company-resolution.ts; src/lib/identity/inbound-routing.ts; src/lib/finance/intent-gate.ts; src/lib/provider/failure.ts (transient vs permanent vs not-configured)
+    ui_evidence: src/app/app/admin/inbound-review/page.tsx — a capability-gated queue in the navigation; /api/health reports openInboundReviews and unattributedInbound
+    test_evidence: tests/integration/inbound-end-to-end.test.ts (8 scenarios, account → company → identity → intent → source event → review → audit → the UI query); tests/integration/channel-account-company.test.ts (10); tests/integration/inbound-review-queue.test.ts (14); tests/integration/channel-identity.test.ts (10); tests/campaign/webhook-callgraph.test.ts (10, route-level wiring); tests/campaign/finance-intake.test.ts (18); tests/campaign/inbound-routing.test.ts (9); tests/campaign/company-resolution.test.ts (9); tests/campaign/provider-failure.test.ts (12); tests/campaign/inbound-review-surface.test.ts (9)
+    security_evidence: identity from trusted records evaluated BEFORE intent; unknown/ambiguous never staff; a customer asserting a financial event is never classified, let alone captured; the receiving account decides the company and an unattributable message is not processed at all; exact decimal amount parsing; currency never inferred or converted; material amounts require a referenced document; capture yields a source event for policy/authority only — no posting, payment or approval affordance exists on the result; the review queue is capability-gated for read AND for resolution, re-checked at the database against the named actor
+    audit_health_evidence: inbound.finance_captured structured log with source event id and ingest status; inbound.review_resolved audit event written in the same transaction as the decision; unattributedInbound and openInboundReviews in /api/health
+    last_verified_sha: pending
+    last_verified_at: 2026-08-18
+    owner_gate: a model provider credential for finance classification; mapping each receiving WhatsApp number to its company in channel_accounts; granting operations.inbound.review to the people who should work the queue; hosted migration application
+    blocker: no model provider is configured for finance classification
+    residual_risks: Everything repository-controlled is implemented and verified locally. Marked blocked_owner rather than verified because the classifier that decides whether a staff message describes a financial event has no provider, so TODAY a staff message reaches the review queue rather than finance capture. That is the correct fail-closed behaviour and it is a real improvement on being asked for a delivery address, but it is not the requirement's full outcome, and the remaining step is an owner action rather than code. Two further owner actions matter: until a receiving number is mapped in channel_accounts the documented single-tenant bridge is what attributes messages (safe while exactly one company exists, and it stops applying the moment a second one does), and nobody can work the queue until someone is granted operations.inbound.review. A message that cannot be attributed to any company has no company-scoped queue to land in by construction; it is persisted and counted in health only.
 
   - id: FOUND-004
     title: Deterministic company-scoped authority engine

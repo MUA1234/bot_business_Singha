@@ -17,7 +17,8 @@ import { makeOpenAiTransport } from "@/ai/openai-transport";
 import { serviceClient } from "@/db/client";
 import { makeSupabaseConsumerStore, makeSupabaseCostLedger } from "@/db/consumer-store";
 import { processSourceEvent, type ConsumerDeps } from "./processing";
-import { handleCustomerMessage } from "@/lib/order-intake";
+import { dispatchInbound } from "@/lib/inbound/dispatch";
+import { makeInboundDeps } from "@/lib/inbound/production-deps";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { drainOutbox } from "@/events/outbox-drain";
 import { log } from "@/lib/log";
@@ -74,8 +75,30 @@ export const onCustomerWhatsAppMessage = inngest.createFunction(
       wa_message_id: string;
       company_id?: string;
     };
-    return await step.run("handle-customer-message", () =>
-      handleCustomerMessage({ from, text, waMessageId: wa_message_id, companyId: company_id }),
+    // FOUND-003 — the SAME dispatcher the synchronous route uses. This worker used to call the
+    // customer order handler directly, so with WHATSAPP_ASYNC on, every message was a customer
+    // order again and identity routing did not apply: the defect this requirement exists to fix,
+    // hidden behind a flag. The company now travels with the event; without one there is nothing
+    // to scope the message to and it is not processed.
+    if (!company_id) {
+      log("error", "inbound worker event carries no company", {
+        event: "inbound.worker_company_missing",
+        providerMessageId: wa_message_id,
+      });
+      return { status: "unattributed" };
+    }
+    return await step.run("dispatch-inbound-message", () =>
+      dispatchInbound(
+        {
+          companyId: company_id,
+          channel: "whatsapp",
+          from,
+          text,
+          providerMessageId: wa_message_id,
+          rawPayload: event.data,
+        },
+        makeInboundDeps(event.data),
+      ).then((r) => ({ status: r.handled })),
     );
   },
 );
