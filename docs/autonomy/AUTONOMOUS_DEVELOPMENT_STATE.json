@@ -7,7 +7,7 @@
   "currentBranch": "feature/v3-3-remediation-package",
   "currentPr": 25,
   "baseSha": "079fbb8",
-  "lastGreenSha": "1fd50b2",
+  "lastGreenSha": "3608c8a",
   "latestMigration": "0083_loop2_corrections.sql",
   "lastCompletedAction": "R1 remediation package, FROZEN AND UNACCEPTED at migration 0083. Two independent adversarial reviews, both CHANGES REQUESTED, both correction loops used. Review 1 found 14 findings including a scheduled drain that re-dispatched every retried message as '[object Object]' and a retry that duplicated the drafted payment; review 2 found 9 more, including a P0 my own loop-1 fix introduced \u2014 the pipeline was made idempotent but not resumable, so every second execution dead-lettered and left a captured payment in awaiting_approval with no approval request. All 23 are fixed. Review 2 also corrected this program's own claim: the duplicate-detection harness bug was TEST-ONLY and detection was never dead in production; that claim is withdrawn. OF-014 was assessed as directed \u2014 forging the JWT-role GUC does NOT generally grant service-role access because EXECUTE grants are the real gate, but _quotation_status_for_guard combined PUBLIC EXECUTE with a permissive claim branch and leaked a quotation status to anon; anon and PUBLIC lost EXECUTE, while the predicate itself could not be replaced (the function is SECURITY DEFINER so current_user is the owner, and session_user under PostgREST is authenticator, which Supabase grants service_role membership \u2014 trying it broke a fail-closed control). Evidence closure then found OF-016, a MATERIAL BLOCKER: a suspected duplicate has no resolution RPC, no screen and no write grant, so a real payment can pause reversibly with nothing able to move it again.",
   "nextAction": "Owner acceptance of the frozen 0083 package. No third correction loop. Then, in order: FOUND-006 (remove request-metadata/GUC text as an authorization signal; exact grants, split entrypoints, provable invocation identity \u2014 this subsumes OF-014's residual), then OF-016 (duplicate-review resolution RPC, screen and paused-payment visibility), then MOD-003 (provider-neutral Model Gateway and Policy Router, registered as `specified`).",
@@ -20,7 +20,7 @@
     "scripts/verify/legacy-upgrade-fixture.sql (hosted-style legacy upgrade)"
   ],
   "lastFullGateResults": {
-    "sha": "pending \u2014 stamped at the final commit",
+    "sha": "3608c8a (content) \u2014 this stamp is its child, no content change",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
     "unit": "752 passed / 2 skipped / 104 files",

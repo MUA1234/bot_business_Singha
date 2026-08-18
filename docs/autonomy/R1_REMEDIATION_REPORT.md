@@ -129,27 +129,33 @@ Confirmed at the reported SHA:
 
 ## 7. Verification
 
-Run at the final SHA of this package on a disposable local PostgreSQL 16.
+**Content SHA verified: `3608c8a`** (the stamp commit that records this line is its child; no
+content changed between them — only this paragraph and the state file).
+
+Run at that SHA on a **disposable local PostgreSQL 16**.
 
 | Gate | Result |
 |---|---|
-| Fresh migration apply, `0001–0081` | applied clean |
-| Staged upgrade, `0001–0080` then `0081` | applied clean |
-| Integration suite on the FRESH database | 62 files / 545 tests passed |
-| Integration suite on the UPGRADED database | 62 files / 545 tests passed |
-| Unit suite | 103 files / 736 passed, 2 skipped |
+| Fresh migration apply, `0001–0083` | applied clean |
+| Realistic legacy upgrade, `0001–0041` + data then `0042–0083` | applied clean |
+| Narrow upgrade, `0001–0082` then `0083` | applied clean |
+| Integration — FRESH database | **65 files / 586 tests passed** |
+| Integration — REALISTIC LEGACY upgrade | **65 files / 586 tests passed** |
+| Integration — NARROW upgrade | **65 files / 586 tests passed** |
+| Unit suite | **104 files / 752 passed, 2 skipped** |
 | `npm run typecheck` | clean |
 | `npm run lint` | 0 errors (3 pre-existing `next/image` warnings) |
 | `npm run build` | compiled |
 | `npm run secret-scan` | clean |
-| `npm run migration-lint` | 81 sequential, `0001–0081`, no gaps or duplicates |
-| Requirements audit | consistent; `registered=89 verified=13 incomplete-implementable=71 blocked-owner=4 deferred=1` |
+| `npm run migration-lint` | **83 sequential, `0001–0083`**, no gaps or duplicates |
+| Requirements audit | consistent; `registered=90 verified=13 incomplete-implementable=72 blocked-owner=4 deferred=1` |
 | SECURITY DEFINER grant allowlist | signature-exact, every function classified |
 | `search_path` safety gate | every application-owned SECURITY DEFINER and trigger function on the canonical path |
 | RLS coverage / matrix / company isolation | passed |
 | IP boundary check | no hard violation |
-| Browser check (real Chromium, production build) | review, setup and analyze routes served and gated to `/login`; `/` and `/login` render; both cron routes return **401** to an unauthenticated caller and to a wrong secret |
-| Targeted concurrency + scheduler tests | 6 files / 39 tests passed (`concurrency`, `rpc-concurrency`, `finance-concurrency`, `wp12-enqueue-item-race`, `durable-inbound-processing`, `dispatch-drain`) |
+| Browser check (real Chromium, production build) | review, setup and analyze routes served and gated to `/login`; `/` and `/login` render; both cron routes return **401** to an unauthenticated caller **and** to a wrong secret |
+| IP / anti-cloning audit | no hard boundary violation |
+| Targeted duplicate / approval / adapter / scheduler + security suites | **9 files / 73 tests passed** (`duplicate-review-and-approval-visibility`, `of015-section-coverage`, `r1-review-corrections`, `concurrency`, `rpc-concurrency`, `dispatch-drain`, `secure-definer-grants`, `search-path-safety`, `rls-matrix-coverage`) |
 | `npm run verify` | **exits 0** |
 
 **GitHub Actions CI could not run.** Both checks on PR #25 (`verify`, `db-tests`) failed within two
