@@ -92,3 +92,21 @@ nobody — and a person cannot create one, because migration 0081 refuses `submi
 'system'` to any caller that is not an explicit service context, and the existing RLS `with check`
 already forces `submitted_by = auth.uid()` for `authenticated`. Provenance is immutable after
 insert; the decision (`status`) stays mutable.
+
+---
+
+## Found by the R1 §8 independent review
+
+Fourteen findings, each reproduced on a disposable local PostgreSQL before being accepted. Twelve
+were fixed in correction loop 1 (see `R1_REMEDIATION_REPORT.md` §9). Two are recorded here instead,
+because fixing them inside this package would have been the wrong call.
+
+| ID | Finding | Sev | Requirement | Runtime path | Reproducible | Class | Disposition |
+|---|---|---|---|---|---|---|---|
+| **OF-014** | `caller_jwt_role()` reads `request.jwt.claims`, a SETTABLE GUC. An `authenticated` session that can execute arbitrary SQL can `set_config('request.jwt.claims','{"role":"service_role"}')` and every `caller_jwt_role()` gate then reads `service_role` | P1 security | FOUND-006 and every service-only boundary | Migrations **0038–0082** all rest on it | Yes — demonstrated by the reviewer on a disposable database | REPO | **STAYS OPEN.** Not introduced by R1, not reachable through PostgREST (which sets the claims itself and does not run caller SQL), and it is the single point every service-only boundary rests on — so changing it is a boundary-wide design change, not a line in a remediation package. It belongs with FOUND-006, the RLS/service-role cutover, where the trust model is the subject rather than a dependency |
+| **OF-015** | §3 (the scheduled drain), §5 (owner configuration) and §6 (the canonical adapter) have no DISCRIMINATING end-to-end coverage: extreme paths 2, 3, 5, 7 and 9 all pass against `0001–0077`, i.e. against a tree without any of them | P2 test-quality | FOUND-003 | n/a — a gap in evidence, not in behaviour | Yes — the reviewer re-ran the discrimination matrix and confirmed it | REPO | **PARTLY ADDRESSED, honestly stated.** Each of those sections has its own discriminating file (`dispatch-drain` 2 of 9 fail at `0078`; `owner-configuration` 12 of 12 fail at `0079`; `inbound-adapter` and the loop-1 corrections cover §6). What does NOT exist is an end-to-end path that fails without them, and the report says so rather than implying the nine paths cover all nine sections |
+
+**Why OF-014 is not quietly downgraded.** It is a real weakness in a control this package leans on
+heavily — every RPC added in §2 through §7 gates on `caller_jwt_role()`. Recording it as P1 and open
+is the honest position; silently treating it as out of scope because it predates R1 would be exactly
+the reclassification the owner ruled out.
