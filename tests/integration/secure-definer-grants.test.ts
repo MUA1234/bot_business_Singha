@@ -67,6 +67,17 @@ const SERVICE_ONLY = new Set([
   // 0075 FOUND-003 — the manual-review queue. record is idempotent per message; resolve
   // INDEPENDENTLY re-checks the named actor's capability rather than trusting the application.
   "record_inbound_review(uuid,text,text,text,text,uuid,text,text,text,text)",
+  // 0076 — the canonical inbound receipt and its dispatch lifecycle. Service-only: these decide
+  // which company owns a message and whether it becomes consumer work.
+  // (canonical_event_identity, channel_accounts_normalize and task_routing_events_no_truncate are
+  //  NOT SECURITY DEFINER — a plain immutable function and two trigger functions — so they are
+  //  deliberately absent from a list that governs SECURITY DEFINER signatures.)
+  "record_inbound_receipt(text,text,text,jsonb,text,text,text)",
+  "claim_inbound_dispatch(uuid,text,integer)",
+  "claim_inbound_dispatch_batch(integer,text,integer)",
+  "record_inbound_dispatch(uuid,text,text,uuid,text,uuid)",
+  "fail_inbound_dispatch(uuid,text,text,text,integer)",
+  "inbound_dispatch_health()",
   "resolve_inbound_review(uuid,uuid,uuid,text,text)",
   // 0075 — the single capability implementation, for an EXPLICIT actor. Service-only because it
   // takes an arbitrary user id; has_capability (same owner) wraps it for RLS in the caller's role.

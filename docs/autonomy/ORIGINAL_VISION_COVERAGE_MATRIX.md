@@ -66,7 +66,7 @@ operating-mode claim that depends on it. Blocked is not done.
 |---|---|---|---|---|---|---|
 | AIM-001 | Atomic AI case, task and audit persistence | P0 | **locally_verified** | src/management/ai-manager/analyze-conversation.ts; src/app/app/command/analyze/actions.ts | 7669ce1 | hosted migration application |
 | AIM-002 | Task-level deduplication | P0 | **locally_verified** | src/management/ai-manager/analyze-conversation.ts and src/app/app/command/analyze/actions.ts — both production analysis paths now create tasks through create_task_deduplicated (migration 0073); tasks_set_identity_hash trigger fires on every task write | 6e354b7 | hosted migration application |
-| AIM-003 | Truthful task routing | P0 | **locally_verified** | src/management/routing/route-captured-tasks.ts, called by src/app/app/command/analyze/actions.ts after every analysis | 6e354b7 | hosted migration application |
+| AIM-003 | Truthful task routing | P0 | **locally_verified** | src/management/routing/route-captured-tasks.ts with makeSupabaseRoutingDeps, called by BOTH production analysis paths — src/app/app/command/analyze/actions.ts and src/management/ai-manager/analyze-conversation.ts | 6e354b7 | hosted migration application |
 | AIM-004 | Task Intelligence Profile | P1 | **specified** | none | none | flag activation |
 | AIM-005 | Decision-path ladder | P1 | **specified** | none | none | flag activation |
 | AIM-006 | Team formation and resource recommendation | P1 | **specified** | none | none | flag activation |

@@ -39,14 +39,17 @@ describe("AIM-003 — Analyze UI truthfulness", () => {
   // work already exists reads as "nothing was found", which is a different and untrue statement.
   it("the action supplies AIM-002 identity on every proposed task", () => {
     const src = readFileSync(ACTIONS, "utf8");
-    expect(src).toMatch(/taskIdentityParts\(t\.title, identity\)/);
+    expect(src).toContain("taskIdentityPartsForPlan(");
     expect(src).toContain("manualIdentity(contentKey)");
   });
 
   it("the thread-analysis path supplies identity scoped to the conversation", () => {
     const src = readFileSync("src/management/ai-manager/analyze-conversation.ts", "utf8");
-    expect(src).toMatch(/taskIdentityParts\(t\.title, identity\)/);
+    expect(src).toContain("taskIdentityPartsForPlan(");
     expect(src).toContain("threadIdentity(opts.conversationId)");
+    // The thread path must ROUTE what it captures too — it previously did not, so tasks captured
+    // from a conversation reached nobody and appeared in no routing state.
+    expect(src).toContain("routeCapturedTasks(");
   });
 
   it("the form reports deduplicated work instead of silently showing zero", () => {

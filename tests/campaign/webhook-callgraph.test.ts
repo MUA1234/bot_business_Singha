@@ -14,6 +14,7 @@ import { execSync } from "node:child_process";
 const ROUTE = "src/app/api/webhooks/whatsapp/route.ts";
 const DEPS = "src/lib/inbound/production-deps.ts";
 const WORKER = "src/inngest/functions.ts";
+const ORCHESTRATION = "src/lib/inbound/dispatch-receipt.ts";
 
 /** Non-comment lines only — a mention in prose is not a call. */
 const codeLines = (file: string) =>
@@ -25,10 +26,21 @@ const codeLines = (file: string) =>
     });
 
 describe("FOUND-003 — the real webhook route reaches ingestSourceEvent", () => {
-  it("the route imports the dispatcher and calls it", () => {
-    const src = readFileSync(ROUTE, "utf8");
-    expect(src).toMatch(/from "@\/lib\/inbound\/dispatch"/);
-    expect(src).toMatch(/await dispatchInbound\(/);
+  it("BOTH inbound paths run the SAME orchestration, which is the only caller of the dispatcher", () => {
+    // The claim "async ON and OFF produce identical business outcomes" is only credible if there is
+    // literally one implementation. Behaviour of that orchestration is covered by
+    // tests/campaign/dispatch-receipt.test.ts; this asserts there is exactly one of it.
+    for (const f of [ROUTE, WORKER]) {
+      expect(readFileSync(f, "utf8"), f).toMatch(/from "@\/lib\/inbound\/dispatch-receipt"/);
+      expect(codeLines(f).some((l) => /dispatchReceipt\(/.test(l)), f).toBe(true);
+    }
+    // `dispatchInbound` as a VALUE (imported and used, not a type import or a comment) may appear
+    // in exactly one module besides its own definition.
+    const users = execSync(`grep -rln "dispatchInbound" src --include=*.ts || true`, { encoding: "utf8" })
+      .split("\n").map((x) => x.trim()).filter(Boolean)
+      .filter((f) => f !== "src/lib/inbound/dispatch.ts") // the definition itself
+      .filter((f) => codeLines(f).some((l) => /\bdispatchInbound\b/.test(l) && !/^import type/.test(l.trim())));
+    expect(users).toEqual([ORCHESTRATION]);
   });
 
   it("the route never calls the customer order handler itself", () => {
@@ -39,12 +51,22 @@ describe("FOUND-003 — the real webhook route reaches ingestSourceEvent", () =>
     expect(codeLines(DEPS).some((l) => /handleCustomerMessage\(/.test(l))).toBe(true);
   });
 
-  it("the durable worker uses the SAME dispatcher, not the order handler", () => {
+  it("the durable worker never calls the order handler directly", () => {
     // With WHATSAPP_ASYNC on, the worker used to call the order handler directly — so every message
     // was a customer order again and identity routing did not apply. The defect, behind a flag.
-    const worker = codeLines(WORKER);
-    expect(worker.some((l) => /handleCustomerMessage\(/.test(l))).toBe(false);
-    expect(worker.some((l) => /dispatchInbound\(/.test(l))).toBe(true);
+    expect(codeLines(WORKER).some((l) => /handleCustomerMessage\(/.test(l))).toBe(false);
+  });
+
+  it("ONE canonical receipt: nothing but the receipt RPC persists an inbound source event", () => {
+    // A single provider message used to produce TWO source_events rows, under two different
+    // idempotency keys, which made every inbound message look like unprocessed sweeper work.
+    const persisters = execSync(`grep -rln "from(\"source_events\")\\|makeSupabaseSourceEventStore(" src --include=*.ts || true`,
+      { encoding: "utf8" }).split("\n").map((x) => x.trim()).filter(Boolean)
+      .filter((f) => f !== "src/db/source-event-store.ts"); // the store implementation itself
+    expect(persisters).toEqual([]);
+    for (const f of [ROUTE, WORKER]) {
+      expect(codeLines(f).some((l) => /recordInboundReceipt\(/.test(l)), f).toBe(true);
+    }
   });
 
   it("the dispatcher is the only production caller of ingestSourceEvent", () => {
@@ -94,17 +116,19 @@ describe("FOUND-003 — no production path can reach a hardcoded company", () =>
       .map((l) => l.trim())
       .filter(Boolean)
       // The removal note in constants.ts explains WHY the constant is gone; it is not a use of it.
-      .filter((l) => !l.startsWith("src/lib/constants.ts:"));
+      // Two removal notes explain WHY the constant is gone. Neither is a use of it, and a grep that
+      // cannot tell a comment from a call is the false-positive class this repo has been caught by.
+      .filter((l) => !/^src\/lib\/(constants|inbound\/production-deps)\.ts:\d+:\s*(\*|\/\/)/.test(l));
     expect(out).toEqual([]);
   });
 
-  it("both inbound paths resolve the company from the RECEIVING account", () => {
-    const route = readFileSync(ROUTE, "utf8");
-    expect(route).toContain("resolveReceivingCompany");
-    expect(route).toContain("phone_number_id");
-    // Sync AND async: two resolution sites, and neither dispatches without a usable company.
-    expect([...route.matchAll(/resolveReceivingCompany\(/g)]).toHaveLength(2);
-    expect([...route.matchAll(/isUsableCompany\(company\)/g)]).toHaveLength(2);
+  it("the company comes from the RECEIVING account, in the one shared orchestration", () => {
+    expect(readFileSync(ROUTE, "utf8")).toContain("phone_number_id");
+    const orch = readFileSync(ORCHESTRATION, "utf8");
+    expect(orch).toContain("resolveReceivingCompany");
+    expect(orch).toContain("isUsableCompany");
+    // Behavioural proof that an unusable company never reaches a dispatch lives in
+    // tests/campaign/dispatch-receipt.test.ts.
   });
 
   it("the customer order handler REQUIRES a company — no silent default", () => {

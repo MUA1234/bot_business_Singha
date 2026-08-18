@@ -18,14 +18,13 @@ import {
   verifyWhatsappSignature,
 } from "@/lib/whatsapp-signature";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { makeSupabaseSourceEventStore } from "@/db/source-event-store";
-import { inboundEventKey } from "@/events/outbox";
 import { sha256 } from "@/lib/ids";
 import { newCorrelationId, log } from "@/lib/log";
 import { inngest, WHATSAPP_INBOUND_EVENT } from "@/inngest/client";
-import { dispatchInbound, type InboundMessage } from "@/lib/inbound/dispatch";
-import { makeInboundDeps, resolveCompanyForAccount, stampSourceEventCompany } from "@/lib/inbound/production-deps";
-import { isUsableCompany, resolveReceivingCompany } from "@/lib/inbound/company-resolution";
+import { type InboundMessage } from "@/lib/inbound/dispatch";
+import { makeInboundDeps } from "@/lib/inbound/production-deps";
+import { recordInboundReceipt, type InboundReceipt } from "@/lib/inbound/receipt";
+import { dispatchReceipt } from "@/lib/inbound/dispatch-receipt";
 
 /** §WP4: async, persist-first webhook. When on, the webhook only persists + enqueues +
  *  returns 200; a durable Inngest worker does the AI/order/reply. Requires INNGEST_*
@@ -61,26 +60,30 @@ export async function POST(req: Request): Promise<Response> {
     return new Response("bad json", { status: 400 });
   }
 
-  const store = makeSupabaseSourceEventStore(supabaseAdmin());
+  const db = supabaseAdmin();
   const messages = extractTextMessages(payload);
   // Statuses / non-text events: nothing to persist — acknowledge so Meta stops retrying.
   if (messages.length === 0) return NextResponse.json({ ok: true, processed: [] });
 
-  // §WP-C PERSIST-FIRST. Store every raw event durably BEFORE any processing. If ANY
-  // persist fails we return a RETRYABLE 503 and do NOT acknowledge — Meta redelivers,
-  // and the provider-message unique key makes a re-persist idempotent, so nothing is
-  // ever lost or duplicated. A 200 is only ever returned after durable acceptance.
+  // §WP-C PERSIST-FIRST, now through the CANONICAL receipt (migration 0076): one provider message
+  // is one row, identified by channel + receiving account + provider message id. If ANY persist
+  // fails we return a RETRYABLE 503 and do NOT acknowledge — Meta redelivers, and the canonical
+  // identity makes the re-persist a no-op, so nothing is ever lost or duplicated.
+  const received: { msg: InboundText; receipt: InboundReceipt }[] = [];
   for (const msg of messages) {
     try {
-      await store.upsert({
+      const receipt = await recordInboundReceipt(db, {
         source: "whatsapp",
-        provider_message_id: msg.id,
-        company_id: null,
-        raw_payload: msg as unknown as Record<string, unknown>,
-        content_hash: sha256(msg.text),
-        idempotency_key: inboundEventKey("whatsapp", msg.id),
-        correlation_id: newCorrelationId(),
+        providerAccountId: msg.receivedBy,
+        providerMessageId: msg.id,
+        // The SINGLE message, never the batched delivery. One Meta delivery can carry messages for
+        // several of our numbers, and storing the whole batch under one company's row would put
+        // another company's message text inside a row that company's members can read.
+        rawPayload: msg as unknown as Record<string, unknown>,
+        contentHash: sha256(msg.text),
+        correlationId: newCorrelationId(),
       });
+      received.push({ msg, receipt });
     } catch (e) {
       log("error", "whatsapp source event persist failed", { event: "wa.persist_failed", error: (e as Error).message });
       return new Response("persist failed — retry", { status: 503 });
@@ -88,21 +91,22 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   if (ASYNC_MODE) {
-    // §WP-C: enqueue a durable worker; NO AI call or outbound send in the request. If the
-    // enqueue fails we return 503 — the persisted event is recoverable and provider dedup
-    // prevents a duplicate on redelivery. Idempotency (wa_message_id) is enforced downstream.
-    //
-    // FOUND-003: the company travels WITH the event. Without it the worker fell back to a
-    // hardcoded constant, so the async path attributed every business's messages to the pilot.
+    // §WP-C: enqueue a durable worker; NO AI call or outbound send in the request. The receipt is
+    // already durable, so a failed enqueue loses nothing — the dispatch sweeper claims it from the
+    // database. The worker runs the SAME dispatcher on the SAME receipt id, which is what makes the
+    // async and sync paths produce identical business outcomes.
     let enqueued = 0;
-    for (const msg of messages) {
-      const company = await resolveReceivingCompany({ resolveCompany: resolveCompanyForAccount }, "whatsapp", msg.receivedBy);
-      if (!isUsableCompany(company)) continue; // already persisted + logged; never guess a company
-      await stampSourceEventCompany(inboundEventKey("whatsapp", msg.id), company.companyId);
+    for (const { msg, receipt } of received) {
       try {
         await inngest.send({
           name: WHATSAPP_INBOUND_EVENT,
-          data: { from: msg.from, text: msg.text, wa_message_id: msg.id, company_id: company.companyId },
+          data: {
+            from: msg.from,
+            text: msg.text,
+            wa_message_id: msg.id,
+            received_by: msg.receivedBy,
+            source_event_id: receipt.event.id,
+          },
         });
         enqueued += 1;
       } catch (e) {
@@ -110,43 +114,35 @@ export async function POST(req: Request): Promise<Response> {
         return new Response("enqueue failed — retry", { status: 503 });
       }
     }
-    return NextResponse.json({ ok: true, enqueued, unattributed: messages.length - enqueued });
+    return NextResponse.json({ ok: true, enqueued });
   }
 
-  // Synchronous mode (default): the event is already durably persisted, so a per-message
-  // handler failure never loses it — reply is best-effort and resume-safe (handled_at),
-  // and a Meta redelivery is a dedup no-op. Acknowledge 200 after durable persistence.
-  // FOUND-003: identity is resolved from TRUSTED RECORDS before anything reads the text, and only
-  // a staff finance message may reach ingestSourceEvent. Before this, every inbound message went to
-  // customer order intake regardless of sender — an employee reporting a payment was asked for a
-  // delivery address, and the finance consumer pipeline was unreachable in production.
-  const deps = makeInboundDeps(payload);
+  // Synchronous mode (default): the receipt is already durably persisted, so a per-message handler
+  // failure never loses it. Deciding what the message IS happens under a LEASE, so two concurrent
+  // deliveries of the same message produce at most one business dispatch.
   const results: string[] = [];
-  for (const msg of messages) {
-    try {
-      // FOUND-003: the RECEIVING account decides the company. Meta sets metadata.phone_number_id;
-      // a sender cannot influence it. An account we cannot attribute is NOT processed — the event
-      // stays durably persisted and is reported, rather than being credited to a default company.
-      const company = await resolveReceivingCompany({ resolveCompany: resolveCompanyForAccount }, "whatsapp", msg.receivedBy);
-      if (!isUsableCompany(company)) {
-        results.push("unattributed");
-        continue;
-      }
-      await stampSourceEventCompany(inboundEventKey("whatsapp", msg.id), company.companyId);
-      const inbound: InboundMessage = {
-        companyId: company.companyId,
-        channel: "whatsapp",
-        from: msg.from,
-        text: msg.text,
-        providerMessageId: msg.id,
-        rawPayload: payload,
-      };
-      const res = await dispatchInbound(inbound, deps);
-      results.push(res.handled);
-    } catch (e) {
-      log("error", "inbound dispatch failed", { event: "wa.handle_failed", error: (e as Error).message });
-      results.push("error");
-    }
+  for (const { msg, receipt } of received) {
+    const inbound: Omit<InboundMessage, "companyId" | "receipt"> = {
+      channel: "whatsapp",
+      from: msg.from,
+      text: msg.text,
+      providerMessageId: msg.id,
+      // The single message, not the batch — see the receipt loop above.
+      rawPayload: msg,
+    };
+    results.push(await dispatchReceipt(db, receipt, inbound, msg.receivedBy, makeInboundDeps));
+  }
+
+  // A message we could not decide — including one whose review row could not be queued — must NOT
+  // be acknowledged as handled. A 503 makes Meta redeliver, and redelivery is now SAFE: the
+  // canonical receipt already exists and the dispatch lease refuses a second decision, so the
+  // messages that did succeed are no-ops on the retry while the failed one gets another chance.
+  if (results.includes("error")) {
+    log("error", "acknowledging failure so the provider redelivers", {
+      event: "wa.dispatch_incomplete",
+      outcomes: results.join(","),
+    });
+    return new Response("dispatch failed — retry", { status: 503 });
   }
   return NextResponse.json({ ok: true, processed: results });
 }

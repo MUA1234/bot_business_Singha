@@ -32,8 +32,19 @@ const PERMANENT_META_CODES = new Set([
   132007, // template format character policy violated
   132012, // template parameter format mismatch
   133010, // phone number not registered
-  190,    // access token expired/invalid
 ]);
+
+/**
+ * Credential problems. These say nothing about the MESSAGE — an expired or rejected token is the
+ * operator's to fix, exactly like an absent one. Classifying them `permanent` dead-lettered the
+ * whole queue on the first attempt, which contradicts the reason the not-configured class exists:
+ * the queue must survive a credential problem so it drains once the credential is fixed.
+ */
+const CREDENTIAL_META_CODES = new Set([
+  190, // access token expired / invalid
+  10,  // permission denied — the app or number lost its grant
+]);
+const CREDENTIAL_STATUS = new Set([401, 403]);
 
 /** HTTP statuses that are retryable regardless of the body. */
 const TRANSIENT_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
@@ -51,8 +62,11 @@ export interface ProviderFailure {
 
 export function classifyProviderFailure(f: ProviderFailure): FailureClass {
   if (f.notConfigured || f.reason === "not_configured") return "not_configured";
+  // A credential the operator must fix behaves like an absent one: keep the queue alive.
+  if (f.code != null && CREDENTIAL_META_CODES.has(f.code)) return "not_configured";
   if (f.code != null && PERMANENT_META_CODES.has(f.code)) return "permanent";
   if (f.status != null) {
+    if (CREDENTIAL_STATUS.has(f.status)) return "not_configured";
     if (TRANSIENT_STATUS.has(f.status)) return "transient";
     // Any other 4xx is a request the provider rejected on its merits. Sending it again unchanged
     // produces the same rejection.

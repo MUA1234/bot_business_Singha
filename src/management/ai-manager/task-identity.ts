@@ -32,6 +32,13 @@
  * that paraphrases its own title produces a different identity and therefore a second task. That is
  * concern (2) of migration 0071 — semantic similarity — which is advisory by design and never
  * merges anything automatically.
+ *
+ * WITHIN ONE ANALYSIS the rule is different, and this was a real regression: a model that returned
+ * two tasks with the SAME title but different notes ("Follow up" / about the broken gate, "follow
+ * UP" / about the unpaid invoice) had the second one silently absorbed into the first, and its note
+ * discarded. Two proposals in one response are two pieces of work by construction — the model
+ * listed them separately — so `taskIdentityPartsForPlan` gives repeats within a single analysis a
+ * distinct identity. Across analyses, identical titles still deduplicate, which is the whole point.
  */
 
 /** Mirrors the DB bounds in `create_task_deduplicated`; the migration truncates as well. */
@@ -86,6 +93,30 @@ export function manualIdentity(contentKey: string, at?: Date): AnalysisIdentity 
  * — an empty title has no identity, and the DB treats a null purpose as "not deduplicated" rather
  * than guessing that two unnamed tasks are the same work.
  */
+/**
+ * Identity for EVERY task in one analysis, in order.
+ *
+ * Repeats of the same normalised purpose within this single response are disambiguated by ordinal,
+ * so two proposals never collapse into one and lose a note. The ordinal is derived from position
+ * among equal purposes, so re-running the same analysis produces the same identities and still
+ * deduplicates against the first run.
+ */
+export function taskIdentityPartsForPlan(
+  titles: string[],
+  identity: AnalysisIdentity,
+): (TaskIdentityParts | null)[] {
+  const seen = new Map<string, number>();
+  return titles.map((title) => {
+    const parts = taskIdentityParts(title, identity);
+    if (!parts) return null;
+    const n = (seen.get(parts.purpose) ?? 0) + 1;
+    seen.set(parts.purpose, n);
+    if (n === 1) return parts;
+    // The suffix is bounded with the purpose so the combined value still fits the DB limit.
+    return { ...parts, purpose: `${parts.purpose.slice(0, MAX.purpose - 8)}#${n}` };
+  });
+}
+
 export function taskIdentityParts(title: string, identity: AnalysisIdentity): TaskIdentityParts | null {
   const purpose = purposeFromTitle(title);
   if (!purpose) return null;

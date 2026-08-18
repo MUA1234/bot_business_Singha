@@ -15,7 +15,7 @@
  *   4. only the staff_finance route may reach `ingestSourceEvent`, and even then the result is a
  *      persisted event for review — never an accounting entry, a payment or a transfer.
  */
-import { ingestSourceEvent, type SourceEventStore, type EventQueue } from "@/events/source-event";
+import { ingestSourceEvent, type SourceEventStore, type EventQueue, type StoredSourceEvent } from "@/events/source-event";
 import { routeInbound, isFinanceCapture, type ResolvedIdentity, type MessageIntent } from "@/lib/identity/inbound-routing";
 import { gateFinanceIntent, type FinanceGateOutcome, type FinanceGateContext } from "@/lib/finance/intent-gate";
 import type { FinanceIntent } from "@/schemas/finance-intent";
@@ -29,6 +29,11 @@ export interface InboundMessage {
   text: string;
   providerMessageId: string;
   rawPayload: unknown;
+  /**
+   * The canonical receipt this message was already persisted as (migration 0076). Production always
+   * supplies it; without it the dispatcher would persist a SECOND row for the same message.
+   */
+  receipt?: StoredSourceEvent;
 }
 
 export interface DispatchDeps {
@@ -48,6 +53,12 @@ export interface DispatchDeps {
   store: SourceEventStore;
   queue: EventQueue;
   financeContext: FinanceGateContext;
+  /**
+   * Idempotently record the finance capture against the existing receipt, reporting whether it was
+   * ALREADY recorded. Required whenever `msg.receipt` is present — half-wiring the two is a
+   * configuration error and fails loudly rather than quietly persisting a duplicate.
+   */
+  markCapture?(eventId: string): Promise<{ alreadyCaptured: boolean }>;
 }
 
 /**
@@ -126,6 +137,12 @@ export async function dispatchInbound(msg: InboundMessage, deps: DispatchDeps): 
 
   // Capture. This persists the event and enqueues it for the policy/authority pipeline. It does not
   // post anything, pay anything or approve anything.
+  if (Boolean(msg.receipt) !== Boolean(deps.markCapture)) {
+    // One without the other means either a duplicate row (receipt ignored) or a capture that can
+    // never be marked. Neither may happen silently.
+    throw new Error("inbound capture is half-wired: msg.receipt and deps.markCapture must be supplied together");
+  }
+
   const result = await ingestSourceEvent(
     {
       source: msg.channel === "whatsapp" ? "whatsapp" : "email",
@@ -136,6 +153,7 @@ export async function dispatchInbound(msg: InboundMessage, deps: DispatchDeps): 
     },
     deps.store,
     deps.queue,
+    msg.receipt && deps.markCapture ? { event: msg.receipt, markCapture: deps.markCapture } : undefined,
   );
 
   log("info", "staff finance message captured for policy evaluation", {

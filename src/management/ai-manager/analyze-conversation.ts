@@ -15,7 +15,8 @@ import { planFromObservation } from "@/management/ai-manager/pipeline";
 import { buildManagementCase } from "@/management/ai-manager/case";
 import { caseRow } from "@/management/ai-manager/case-store";
 import { makeSupabaseCostLedger } from "@/db/consumer-store";
-import { taskIdentityParts, threadIdentity } from "@/management/ai-manager/task-identity";
+import { taskIdentityPartsForPlan, threadIdentity } from "@/management/ai-manager/task-identity";
+import { makeSupabaseRoutingDeps, routeCapturedTasks, type RoutingSummary } from "@/management/routing/route-captured-tasks";
 import { log } from "@/lib/log";
 
 export interface AnalyzeResult {
@@ -24,6 +25,8 @@ export interface AnalyzeResult {
   createdTasks?: number;
   /** AIM-002: proposed tasks that already existed under the same identity and were NOT recreated. */
   deduplicatedTasks?: number;
+  /** AIM-003: what actually happened to the captured tasks. */
+  routing?: RoutingSummary;
   needsApproval?: boolean;
 }
 
@@ -75,17 +78,19 @@ export async function analyzeConversationThread(
   });
   const idemKey = `wa:${opts.conversationId}:${createHash("sha256").update(text).digest("hex")}`;
   const identity = threadIdentity(opts.conversationId);
+  const plannedTasks = plan.tasks.slice(0, 20);
+  const taskIdentity = taskIdentityPartsForPlan(plannedTasks.map((t) => t.title), identity);
   const { data: persisted, error: persistErr } = await db.rpc("create_management_case_atomic", {
     p_company: opts.companyId,
     p_idempotency_key: idemKey,
     p_case: { ...caseRow(mc, { createdBy: opts.actorId, createdTasks: 0, requiresHuman: plan.needsApproval }) },
     // AIM-002 — identity is scoped to the CONVERSATION, so the same follow-up re-detected on the
     // next inbound message returns the existing task instead of creating another one.
-    p_tasks: plan.tasks.slice(0, 20).map((t) => ({
+    p_tasks: plannedTasks.map((t, i) => ({
       title: t.title,
       note: t.note,
       requires_evidence: t.requiresEvidence,
-      ...(taskIdentityParts(t.title, identity) ?? {}),
+      ...(taskIdentity[i] ?? {}),
     })),
     p_actor: opts.actorId,
     p_audit_action: "manager.thread_analyzed",
@@ -96,6 +101,24 @@ export async function analyzeConversationThread(
   }
   const created = Number((persisted as { created_tasks?: number }).created_tasks ?? 0);
   const deduplicated = Number((persisted as { deduplicated_tasks?: number }).deduplicated_tasks ?? 0);
+  const caseId = String((persisted as { case_id?: string }).case_id ?? "");
+  const isReplay = (persisted as { duplicate?: boolean }).duplicate === true;
 
-  return { ok: true, createdTasks: created, deduplicatedTasks: deduplicated, needsApproval: plan.needsApproval };
+  // AIM-003 — this path creates tasks too, so it must route them too. It previously did not, which
+  // made "every AI-created task terminates in a truthful routing state" false for the WhatsApp
+  // path — the very path AIM-002 was raised for.
+  //
+  // A REPLAY routes nothing: the tasks already carry a routing state, and re-running would supersede
+  // a decision a person may have made since. (The database refuses that too, but the caller should
+  // not be asking.)
+  const routing = isReplay
+    ? { routed: 0, byState: {}, failed: 0 }
+    : await routeCapturedTasks(makeSupabaseRoutingDeps(db), {
+        companyId: opts.companyId,
+        managementCaseId: caseId,
+        needsApproval: plan.needsApproval,
+        actorId: opts.actorId,
+      });
+
+  return { ok: true, createdTasks: created, deduplicatedTasks: deduplicated, routing, needsApproval: plan.needsApproval };
 }

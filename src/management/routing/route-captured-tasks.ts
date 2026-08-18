@@ -11,6 +11,7 @@
  * exactly the failure this program exists to stop. Until a recommender exists, captured work is
  * honestly unrouted rather than falsely assigned.
  */
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { log } from "@/lib/log";
 
 export interface RoutableTask {
@@ -94,4 +95,41 @@ export async function routeCapturedTasks(
   }
 
   return summary;
+}
+
+/**
+ * The production ports, in ONE place.
+ *
+ * Both analysis paths — the manual command centre and WhatsApp thread analysis — use this. They
+ * previously could not: only the manual path routed anything at all, so tasks captured from a
+ * conversation reached nobody and appeared in no routing state. One implementation is what makes
+ * "every captured task is routed" checkable rather than aspirational.
+ */
+export function makeSupabaseRoutingDeps(db: SupabaseClient): RoutingDeps {
+  return {
+    async listCaseTasks(companyId, managementCaseId) {
+      const { data, error } = await db
+        .from("tasks")
+        .select("id, title")
+        .eq("company_id", companyId)
+        .eq("management_case_id", managementCaseId);
+      if (error) throw new Error(error.message);
+      return (data ?? []) as RoutableTask[];
+    },
+    async routeTask(i) {
+      const { data, error } = await db.rpc("route_task", {
+        p_company: i.companyId,
+        p_task: i.taskId,
+        p_desired_state: i.state,
+        p_reason_code: i.reasonCode,
+        p_actor: i.actorId,
+        p_actor_source: i.actorSource,
+      });
+      if (error) throw new Error(error.message);
+      const row = Array.isArray(data) ? data[0] : data;
+      // The DB may return a DIFFERENT state than requested — an ineligible assignee degrades the
+      // outcome, and a human decision refuses to be superseded. Report what it actually is.
+      return { state: String(row?.routing_state ?? i.state), reasonCode: String(row?.reason_code ?? i.reasonCode) };
+    },
+  };
 }

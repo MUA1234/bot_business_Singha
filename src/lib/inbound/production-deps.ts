@@ -11,13 +11,13 @@
  * order intake. It is never treated as routine.
  */
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { makeSupabaseSourceEventStore } from "@/db/source-event-store";
 import { handleCustomerMessage } from "@/lib/order-intake";
 import { enqueueOutbox } from "@/lib/outbox-enqueue";
 import { inngestQueue } from "@/inngest/client";
 import type { DispatchDeps } from "@/lib/inbound/dispatch";
 import type { ResolvedIdentity } from "@/lib/identity/inbound-routing";
 import type { ResolvedCompany } from "@/lib/inbound/company-resolution";
+import { recordInboundDispatch } from "@/lib/inbound/receipt";
 import { log } from "@/lib/log";
 
 /** Resolve which company owns a receiving provider account. Fails closed on a lookup error. */
@@ -39,34 +39,49 @@ export async function resolveCompanyForAccount(channel: string, providerAccountI
 }
 
 /**
- * Stamp the resolved company onto an already-persisted source event.
- *
- * Persist-first stores the raw event BEFORE anything else runs, so at that moment the company is
- * genuinely unknown and the row is written with `company_id` null. Leaving it null forever would
- * make "events belonging to no company" — the health signal for an unmapped receiving number —
- * indistinguishable from every event that was handled perfectly well. Only ever fills a NULL: an
- * event never changes company.
+ * Wire the dispatch ports. `dispatchOwner` is the lease this dispatcher holds on the receipt — the
+ * capture marker is refused unless it matches, so a stale dispatcher cannot record an outcome after
+ * another one took the work over.
  */
-export async function stampSourceEventCompany(idempotencyKey: string, companyId: string): Promise<void> {
+/**
+ * Which currencies is this company known to transact in?
+ *
+ * `["LKR"]` was hardcoded for every company — the same single-tenant assumption as the deleted
+ * DEFAULT_COMPANY_ID, one layer down. The company's own base currency is the truthful answer; a
+ * message in anything else is not captured, which is the fail-closed direction (the finance gate
+ * sends it to a person rather than guessing a conversion). An empty list on a failed lookup means
+ * nothing is captured at all, which is also the safe direction.
+ */
+export async function companyKnownCurrencies(companyId: string): Promise<string[]> {
   const db = supabaseAdmin();
-  const { error } = await db
-    .from("source_events")
-    .update({ company_id: companyId })
-    .eq("idempotency_key", idempotencyKey)
-    .is("company_id", null);
-  if (error) {
-    log("warn", "could not stamp company onto source event", {
-      event: "inbound.company_stamp_failed",
+  const { data, error } = await db.from("companies").select("base_currency").eq("id", companyId).maybeSingle();
+  if (error || !data?.base_currency) {
+    log("error", "could not read the company base currency", {
+      event: "inbound.currency_lookup_failed",
       companyId,
-      error: error.message,
+      error: error?.message ?? "no row",
     });
+    return [];
   }
+  return [String(data.base_currency).toUpperCase()];
 }
 
-export function makeInboundDeps(rawPayload: unknown): DispatchDeps {
-  void rawPayload; // the raw event is persisted by the caller; kept for signature stability
+export function makeInboundDeps(dispatchOwner: string, knownCurrencies: string[]): DispatchDeps {
   const db = supabaseAdmin();
   return {
+    /**
+     * Record the finance capture against the EXISTING receipt, atomically making it consumer work.
+     * `alreadyCaptured` is what makes the enqueue exactly-once across redeliveries and retries.
+     */
+    async markCapture(eventId) {
+      const res = await recordInboundDispatch(db, {
+        eventId,
+        owner: dispatchOwner,
+        outcome: "staff_finance",
+      });
+      return { alreadyCaptured: res.already };
+    },
+
     async resolveIdentity(companyId, channel, from): Promise<ResolvedIdentity> {
       const { data, error } = await db.rpc("resolve_channel_identity", {
         p_company: companyId,
@@ -115,6 +130,9 @@ export function makeInboundDeps(rawPayload: unknown): DispatchDeps {
         p_provider_message_id: msg.providerMessageId,
         p_reason_code: reasonCode ?? "unspecified",
         p_reason_detail: reason,
+        // Link the queue item to the canonical receipt, so a reviewer can reach the original event
+        // and a replay finds the SAME row rather than creating a second one.
+        p_source_event: msg.receipt?.id ?? null,
         p_sender_identity: msg.from,
         p_actor_type: identity.actorType,
         p_identity_match: identity.match,
@@ -153,8 +171,18 @@ export function makeInboundDeps(rawPayload: unknown): DispatchDeps {
       });
     },
 
-    store: makeSupabaseSourceEventStore(supabaseAdmin()),
+    // A SECOND persistence path is precisely how one provider message became two `source_events`
+    // rows. Production always supplies the canonical receipt, so this port must never be reached —
+    // and if a future caller forgets the receipt, that is a loud failure rather than a quiet
+    // duplicate.
+    store: {
+      async upsert() {
+        throw new Error(
+          "the production inbound path must persist through record_inbound_receipt — a second persistence path is how one message became two rows",
+        );
+      },
+    },
     queue: inngestQueue,
-    financeContext: { knownCurrencies: ["LKR"] },
+    financeContext: { knownCurrencies },
   };
 }

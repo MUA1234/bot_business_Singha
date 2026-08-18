@@ -9,8 +9,8 @@ import { planFromObservation } from "@/management/ai-manager/pipeline";
 import { makeSupabaseCostLedger } from "@/db/consumer-store";
 import { buildManagementCase } from "@/management/ai-manager/case";
 import { caseRow } from "@/management/ai-manager/case-store";
-import { routeCapturedTasks, type RoutingSummary } from "@/management/routing/route-captured-tasks";
-import { manualIdentity, taskIdentityParts } from "@/management/ai-manager/task-identity";
+import { makeSupabaseRoutingDeps, routeCapturedTasks, type RoutingSummary } from "@/management/routing/route-captured-tasks";
+import { manualIdentity, taskIdentityPartsForPlan } from "@/management/ai-manager/task-identity";
 import { log } from "@/lib/log";
 
 export interface AnalyzeState {
@@ -81,6 +81,8 @@ export async function analyzeUpdate(_prev: AnalyzeState, formData: FormData): Pr
   const contentKey = createHash("sha256").update(`${admin.companyId}\n${update}`).digest("hex");
   const idemKey = `manual:${contentKey}`;
   const identity = manualIdentity(contentKey);
+  const plannedTasks = plan.tasks.slice(0, 20);
+  const taskIdentity = taskIdentityPartsForPlan(plannedTasks.map((t) => t.title), identity);
   const { data: persisted, error: persistErr } = await db.rpc("create_management_case_atomic", {
     p_company: admin.companyId,
     p_idempotency_key: idemKey,
@@ -88,11 +90,11 @@ export async function analyzeUpdate(_prev: AnalyzeState, formData: FormData): Pr
     // AIM-002 — every task this path creates now goes through create_task_deduplicated. Identity is
     // scoped to the SUBMITTED CONTENT: a free-text update names no stable entity, so two different
     // updates must never merge on their titles alone.
-    p_tasks: plan.tasks.slice(0, 20).map((t) => ({
+    p_tasks: plannedTasks.map((t, i) => ({
       title: t.title,
       note: t.note,
       requires_evidence: t.requiresEvidence,
-      ...(taskIdentityParts(t.title, identity) ?? {}),
+      ...(taskIdentity[i] ?? {}),
     })),
     p_actor: admin.userId,
     p_audit_action: "manager.analyzed",
@@ -107,33 +109,18 @@ export async function analyzeUpdate(_prev: AnalyzeState, formData: FormData): Pr
 
   // AIM-003: give every captured task a DURABLE routing row. The UI reports what actually happened
   // — it no longer says "routed for human approval" when nothing was routed.
-  const routing = await routeCapturedTasks(
-    {
-      async listCaseTasks(companyId, managementCaseId) {
-        const { data, error } = await db
-          .from("tasks")
-          .select("id, title")
-          .eq("company_id", companyId)
-          .eq("management_case_id", managementCaseId);
-        if (error) throw new Error(error.message);
-        return (data ?? []) as { id: string; title: string | null }[];
-      },
-      async routeTask(i) {
-        const { data, error } = await db.rpc("route_task", {
-          p_company: i.companyId,
-          p_task: i.taskId,
-          p_desired_state: i.state,
-          p_reason_code: i.reasonCode,
-          p_actor: i.actorId,
-          p_actor_source: i.actorSource,
-        });
-        if (error) throw new Error(error.message);
-        const row = Array.isArray(data) ? data[0] : data;
-        return { state: String(row?.routing_state ?? i.state), reasonCode: String(row?.reason_code ?? i.reasonCode) };
-      },
-    },
-    { companyId: admin.companyId, managementCaseId: caseId, needsApproval: plan.needsApproval, actorId: admin.userId },
-  );
+  // A REPLAY of the same submission routes NOTHING. The case RPC returns the original case, whose
+  // tasks already carry a routing state — and re-running would supersede a decision a person may
+  // have made since. Re-submitting an update must not quietly undo a manager's assignment.
+  const isReplay = (persisted as { duplicate?: boolean }).duplicate === true;
+  const routing: RoutingSummary = isReplay
+    ? { routed: 0, byState: {}, failed: 0 }
+    : await routeCapturedTasks(makeSupabaseRoutingDeps(db), {
+        companyId: admin.companyId,
+        managementCaseId: caseId,
+        needsApproval: plan.needsApproval,
+        actorId: admin.userId,
+      });
 
   return {
     result: {

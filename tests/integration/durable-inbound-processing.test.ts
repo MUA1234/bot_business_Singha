@@ -26,7 +26,15 @@ let coA: string, coB: string;
 const SERVICE = `select set_config('request.jwt.claims', '{"role":"service_role"}', false)`;
 const AUTHED = `select set_config('request.jwt.claims', '{"role":"authenticated","sub":"11111111-1111-1111-1111-111111111111"}', false)`;
 
-/** Insert a synthetic inbound event, optionally already eligible/waiting. */
+/**
+ * Insert a synthetic inbound event, optionally already eligible/waiting.
+ *
+ * Since migration 0076 a receipt is CONSUMER work only once it was dispatched as a finance capture:
+ * before that, `claim_source_events` claimed every inbound message, including customer orders, so
+ * the sweeper churned unrelated receipts through retries. These fixtures therefore seed the
+ * dispatched-capture state explicitly — that is what a row reaching this sweeper actually looks
+ * like in production. `tests/integration/inbound-event-identity.test.ts` proves the exclusion.
+ */
 async function seed(company: string, over: Record<string, unknown> = {}): Promise<string> {
   const cols: Record<string, unknown> = {
     source: "whatsapp",
@@ -36,6 +44,8 @@ async function seed(company: string, over: Record<string, unknown> = {}): Promis
     idempotency_key: `idem_${randomUUID()}`,
     correlation_id: `cor_${randomUUID().slice(0, 8)}`,
     status: "pending",
+    dispatch_state: "dispatched",
+    dispatch_outcome: "staff_finance",
     ...over,
   };
   const keys = Object.keys(cols);

@@ -8,34 +8,38 @@
   "currentPr": 24,
   "baseSha": "079fbb8",
   "lastGreenSha": "aeb4e8e",
-  "latestMigration": "0075_inbound_review_queue.sql",
-  "lastCompletedAction": "Repository-controlled FOUND-003 finished. Migration 0074 resolves the RECEIVING company from channel_accounts (DEFAULT_COMPANY_ID deleted; an unattributable message is not processed at all, and the documented single-tenant bridge closes the moment a second company or any mapping exists). Migration 0075 turns recordForReview into a real capability-gated queue with an audited, database-re-checked resolution RPC, and /app/admin/inbound-review is the surface a person opens. The durable Inngest worker now uses the SAME dispatcher as the request path — with WHATSAPP_ASYNC on it previously called the customer order handler directly, so identity routing did not apply. Provider failures are now classified transient / permanent / not-configured, with a send timeout, so a missing credential no longer consumes the retry budget and a permanent rejection is not retried eight times.",
-  "nextAction": "ONE independent review of the completed AIM-002 + AIM-003 + FOUND-003 cross-layer boundary (0 of 2 correction loops used). Then FOUND-006: the remaining RLS/service-role read and write cutover with the architectural test, followed by resolving the temporary no_processor behaviour (processor registration before the sweeper flag can be enabled; authorized, audited, idempotent requeue; health that distinguishes recoverable from terminal dead letters), then the Stage 1 cross-layer review and completion report.",
+  "latestMigration": "0076_inbound_boundary_correction.sql",
+  "lastCompletedAction": "Correction loop 1 for the AIM-002 / AIM-003 / FOUND-003 boundary. Migration 0076 gives an inbound provider message ONE canonical identity (channel + receiving account + provider message id + purpose, never message text) and an explicit dispatch lifecycle with leases, so one message is one row, at most one business dispatch, and the sweeper claims a receipt only once it was dispatched as a finance capture — the defect that made every inbound message, customer orders included, look like unprocessed work. Existing in_/evt_ duplicate pairs are reconciled by supersede-with-link where equivalence is provable and left visible for a person where it is not; nothing is deleted. The same migration fixes the review's confirmed database defects: the assignee capability re-check was a constant false (a user id passed where a company id was expected), TRUNCATE bypassed append-only routing history, an approval reference could point at nothing, an AI actor could supersede a human assignment, and channel-account write-uniqueness used a different key from read-matching. On the application side both analysis paths now route what they capture through one shared implementation, identical titles within one analysis no longer collapse, currencies come from the company rather than a constant, a credential error no longer dead-letters the queue, and the UI's presentational components are rendered in tests rather than grepped.",
+  "nextAction": "Re-run the independent reviewer on the corrected boundary (code materially changed). Accept only reproduced findings. If loop 2 surfaces a new blocker or material regression, fix it there; if a material issue remains after loop 2, keep AIM-003 unaccepted and stop with the blocker. Once the boundary passes, continue to FOUND-006: the RLS/service-role read and write cutover with its architectural test, then the no_processor resolution (processor registration before the sweeper flag can be enabled; authorized, audited, idempotent requeue; health distinguishing recoverable from terminal dead letters).",
   "lastTargetedTests": [
-    "tests/integration/inbound-end-to-end.test.ts",
-    "tests/integration/channel-account-company.test.ts",
-    "tests/integration/inbound-review-queue.test.ts",
-    "tests/campaign/webhook-callgraph.test.ts",
-    "tests/campaign/provider-failure.test.ts"
+    "tests/integration/inbound-event-identity.test.ts",
+    "tests/integration/inbound-upgrade-reconciliation.test.ts",
+    "tests/integration/routing-and-mapping-corrections.test.ts",
+    "tests/campaign/dispatch-receipt.test.ts",
+    "tests/campaign/ui-rendered-truthfulness.test.ts"
   ],
   "lastFullGateResults": {
-    "sha": "aeb4e8e",
+    "sha": "pending",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "661 passed / 2 skipped / 97 files",
-    "integrationFresh": "445 passed / 52 files (0001-0075)",
-    "integrationUpgrade": "445 passed / 52 files (0001-0073 then 0074-0075 applied on top)",
-    "build": "compiled; /app/admin/inbound-review present in the route manifest",
+    "unit": "683 passed / 2 skipped / 101 files",
+    "integrationFresh": "483 passed / 55 files (0001-0076)",
+    "integrationUpgrade": "483 passed / 55 files (0001-0075 then 0076 applied on top)",
+    "build": "compiled",
     "secretScan": "clean",
-    "migrationLint": "75 sequential",
-    "note": "All database verification ran on a disposable PostgreSQL 16 in this container. No hosted database was migrated, no flag was enabled, and no live model provider was called."
+    "migrationLint": "76 sequential, 0001-0076, no gaps or duplicates",
+    "browserCheck": "both screens served and gated (307 to /login); / and /login render in Chromium",
+    "discriminationProof": "the new scenarios run against the pre-correction schema (0001-0075) fail there — 25 of 29",
+    "note": "All database verification ran on a disposable PostgreSQL 16 in this container. No hosted database was migrated, no flag was enabled, no live model provider was called, and no real message was sent. These are deterministic integration scenarios, not live tests."
   },
   "openFindings": [
     "FOUND-003: finance classification has no model provider, so a staff finance message reaches the review queue rather than capture — correct fail-closed behaviour, but not the full outcome",
     "FOUND-003: until a receiving number is mapped in channel_accounts, the single-tenant bridge is what attributes messages; it stops applying the moment a second company exists",
     "FOUND-003: nobody can work the review queue until someone is granted operations.inbound.review",
-    "AIM-003: captured work terminates in needs_routing or manual_review because no assignee recommender exists (WRK-002/WRK-005 unbuilt), and there is no queue UI for that list",
+    "FOUND-003: no worker drains claim_inbound_dispatch_batch yet, so a dispatch that fails is recovered by provider redelivery rather than by a sweeper",
+    "AIM-002: the occurrence window is a UTC date and the monitor re-analyses on every inbound message, so an unresolved follow-up on an active thread is recreated once per day",
     "AIM-002: task_duplicate_suggestions has no producer, so semantic near-duplicates are not surfaced at all",
+    "AIM-003: nothing proposes an assignee (WRK-002/WRK-005 unbuilt), and there is no queue UI for needs_routing work",
     "MOD-002: runQuotationTurn takes no CostLedger, so the highest-volume model call produces no ai_runs row",
     "FOUND-006: RLS_READS/RLS_WRITES are OFF, so the app reads through the RLS-bypassing service-role client"
   ],
@@ -54,11 +58,11 @@
     "GitHub Actions runner provisioning"
   ],
   "usageState": {
-    "opusReviewsThisProgram": 3,
+    "opusReviewsThisProgram": 4,
     "correctionLoopsUsed": {
       "campaign": 2,
       "v3.3-part1": 0,
-      "v3.3-part2": 0
+      "v3.3-part2": 1
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },

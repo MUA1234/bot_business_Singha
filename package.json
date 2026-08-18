@@ -2,7 +2,7 @@
   "name": "ai-business-manager",
   "version": "0.1.0",
   "private": true,
-  "description": "Singha Central — business management system (multi-company, event-driven): finance, operations, people, procurement, compliance, fleet and sales.",
+  "description": "Singha Central \u2014 business management system (multi-company, event-driven): finance, operations, people, procurement, compliance, fleet and sales.",
   "type": "module",
   "scripts": {
     "dev": "next dev",
@@ -23,7 +23,8 @@
     "autonomy:status": "node scripts/autonomy/check-status.mjs",
     "autonomy:audit": "node scripts/autonomy/audit-requirements.mjs",
     "autonomy:ip-check": "node scripts/autonomy/check-ip-boundary.mjs",
-    "autonomy:checkpoint": "npm run autonomy:audit && npm run autonomy:ip-check"
+    "autonomy:checkpoint": "npm run autonomy:audit && npm run autonomy:ip-check",
+    "browser-check": "node scripts/verify/browser-check.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

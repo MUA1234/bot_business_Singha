@@ -20,9 +20,21 @@ describe("provider failure classification", () => {
   });
 
   it("Meta codes that cannot succeed on retry are permanent", () => {
-    for (const code of [131026, 131047, 132001, 133010, 190]) {
+    for (const code of [131026, 131047, 132001, 133010]) {
       expect(classifyProviderFailure({ reason: "x", status: 400, code }), String(code)).toBe("permanent");
     }
+  });
+
+  it("a CREDENTIAL problem is the operator's, not the message's — the queue must survive it", () => {
+    // Classifying an expired token as permanent dead-lettered the entire queue on the first
+    // attempt, contradicting the reason the not-configured class exists.
+    for (const code of [190, 10]) {
+      expect(classifyProviderFailure({ reason: "token expired", status: 401, code }), String(code)).toBe("not_configured");
+    }
+    for (const status of [401, 403]) {
+      expect(classifyProviderFailure({ reason: "unauthorised", status }), String(status)).toBe("not_configured");
+    }
+    expect(consumesRetryBudget("not_configured")).toBe(false);
   });
 
   it("rate limiting and server errors are transient", () => {
@@ -32,7 +44,7 @@ describe("provider failure classification", () => {
   });
 
   it("any other 4xx is permanent — the same request produces the same rejection", () => {
-    for (const status of [400, 401, 403, 404, 422]) {
+    for (const status of [400, 404, 422]) {
       expect(classifyProviderFailure({ reason: "x", status }), String(status)).toBe("permanent");
     }
   });
