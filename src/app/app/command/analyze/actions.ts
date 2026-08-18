@@ -24,6 +24,12 @@ export interface AnalyzeState {
     needsApproval: boolean;
     /** What actually happened to the captured tasks. Rendered instead of a claim. */
     routing: RoutingSummary;
+    /**
+     * True when this exact update was already analysed. The tasks below were captured and routed by
+     * the ORIGINAL analysis, so this run deliberately routed nothing — and the screen must say that
+     * rather than warning that no routing state exists.
+     */
+    alreadyAnalysed: boolean;
     requiredAuthority: string;
     clarifications: string[];
     suggestedActions: string[];
@@ -125,6 +131,7 @@ export async function analyzeUpdate(_prev: AnalyzeState, formData: FormData): Pr
   return {
     result: {
       routing,
+      alreadyAnalysed: isReplay,
       confirmedFacts: obsResult.observation.confirmedFacts ?? [],
       inferredFacts: obsResult.observation.inferredFacts ?? [],
       createdTasks: created,

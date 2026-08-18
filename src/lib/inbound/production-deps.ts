@@ -73,11 +73,12 @@ export function makeInboundDeps(dispatchOwner: string, knownCurrencies: string[]
      * Record the finance capture against the EXISTING receipt, atomically making it consumer work.
      * `alreadyCaptured` is what makes the enqueue exactly-once across redeliveries and retries.
      */
-    async markCapture(eventId) {
+    async markCapture(eventId, companyId) {
       const res = await recordInboundDispatch(db, {
         eventId,
         owner: dispatchOwner,
         outcome: "staff_finance",
+        companyId,
       });
       return { alreadyCaptured: res.already };
     },

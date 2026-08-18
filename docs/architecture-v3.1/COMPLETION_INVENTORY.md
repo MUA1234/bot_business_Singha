@@ -56,7 +56,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | file:line | code |
 |---|---|
 | src/ai/anthropic-transport.ts:62 | `const maxTokens = Math.min(req.maxTokens, EVAL_LIMITS.maxOutputTokens);` |
-| src/app/api/health/route.ts:99 | `imbalancedJournals: Number(row.imbalanced_journals ?? 0),` |
+| src/app/api/health/route.ts:119 | `imbalancedJournals: Number(row.imbalanced_journals ?? 0),` |
 | src/app/app/finance/customer-invoices/[id]/page.tsx:55 | `<tr key={i}><td>{l.description}</td><td className="num">{Number(l.quantity)}</td><td className="num"` |
 | src/app/app/finance/supplier-bills/[id]/page.tsx:56 | `<tr key={i}><td>{l.description}</td><td className="num">{Number(l.quantity)}</td><td className="num"` |
 | src/app/app/finance/tax-codes/page.tsx:50 | `<td className="num dim">{fmtMoney(taxAmount("1000", Number(r.rate), "LKR"))}</td>` |
@@ -98,8 +98,9 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | src/app/legal-config.ts:10 | TODO | `// TODO: replace with your registered legal company name.` |
 | src/app/legal-config.ts:12 | TODO | `// TODO: replace with a monitored business contact address.` |
 
-## 6. Stub routes (501 / not-implemented) — 1
+## 6. Stub routes (501 / not-implemented) — 2
 
+- src/app/api/cron/inbound-sweeper/route.ts
 - src/app/api/webhooks/email/route.ts
 
 ## 7. Error-masking suspects (catch → empty return) — 71 (Phase-1C triage list)

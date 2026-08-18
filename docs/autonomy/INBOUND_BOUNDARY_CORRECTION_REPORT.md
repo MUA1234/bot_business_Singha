@@ -1,4 +1,4 @@
-# Inbound boundary — correction loop 1
+# Inbound boundary — correction loops 1 and 2
 
 Scope: AIM-002 (task deduplication), AIM-003 (truthful routing) and the repository-controlled part
 of FOUND-003 (production-reachable staff and finance intake), corrected together because they are
@@ -32,9 +32,10 @@ Two sources of findings, both acted on:
 | 0073 | `case_tasks_through_dedup` | `create_management_case_atomic` creates every task THROUGH `create_task_deduplicated`, so the production analysis path inherits AIM-002. |
 | 0074 | `channel_account_company_resolution` | `channel_accounts` + `resolve_channel_company`: which COMPANY received a message, from the receiving provider account. |
 | 0075 | `inbound_review_queue` | `inbound_reviews` + record/resolve RPCs + `actor_has_capability`: manual review becomes a place a person opens. |
-| 0076 | `inbound_boundary_correction` | This correction loop — canonical event identity, the explicit dispatch lifecycle, reconciliation of existing duplicate rows, and the confirmed 0072/0074/0075 defects. |
+| 0076 | `inbound_boundary_correction` | Correction loop 1 — canonical event identity, the explicit dispatch lifecycle, reconciliation of existing duplicate rows, and the confirmed 0072/0074/0075 defects. |
+| 0077 | `inbound_boundary_correction_2` | Correction loop 2 — the regressions loop 1 introduced, plus the residual gaps a second review confirmed. |
 
-`migration-lint` proves the sequence 0001–0076 has no gaps and no duplicates.
+`migration-lint` proves the sequence 0001–0077 has no gaps and no duplicates. The instruction for loop 1 named `0076`; loop 2 added `0077` rather than editing `0076`, so what was reviewed and what the review changed stay separately auditable.
 
 ## What 0076 changes
 
@@ -103,3 +104,57 @@ API and there is no Supabase instance in this container, so no browser check her
 the queue, or run an analysis. What those screens SAY with data in them is asserted by rendering the
 components directly (`tests/campaign/ui-rendered-truthfulness.test.ts`). Neither check is sufficient
 alone, and neither is described as more than it is.
+
+
+---
+
+# Correction loop 2
+
+A second independent adversarial review of the loop-1 result found that **two of the fixes had
+traded one defect for another**, and that one gate was left red. Every finding was reproduced on
+live PostgreSQL before being accepted.
+
+## What loop 1 got wrong
+
+| # | Severity | Finding | Disposition |
+|---|---|---|---|
+| 1 | HIGH | **Every staff-finance capture ended with `company_id = NULL`.** Production records the dispatch twice — first from the capture marker, which carried no company, then from the orchestration, which does — and the second call took the idempotent-replay branch and never wrote it. Removing the duplicate row had replaced it with a lost tenant scope: claimable with a null company, invisible under RLS, absent from the company's backlog, and with duplicate scoring (which keys on the company) disabled. | **Confirmed** — reproduced in the exact production call order; the company-scoped backlog reported 0 for the company that received the message. Fixed three ways: the marker now carries the company, the replay branch fills a missing one, and a trigger makes a company-less capture **impossible** at the table. |
+| 2 | HIGH | The health defect the loop-1 commit was built around was **not fixed where health is served**: `/api/health` still counted raw `status in ('received','processing')`, and a decided non-capture receipt kept `status='received'` forever. The two new truthful functions had no caller anywhere. | **Confirmed.** A decided non-capture now settles to `processed`, and `/api/health` reports the inbound signals from `inbound_dispatch_health()` instead of a raw status count. |
+| 3 | MEDIUM | A `failed` dispatch had **no retrier**: the batch drain has no production caller, and a redelivery inside the backoff was answered `already_dispatched` → HTTP 200 → the provider stops. | **Confirmed.** A refused claim now distinguishes *settled* from *outstanding*: `retry_pending` makes the webhook answer 503 and the durable worker throw, so provider redelivery is the retrier. A scheduled drain over `claim_inbound_dispatch_batch` is still unbuilt and is recorded as an open finding. |
+| 4 | MEDIUM | **`npm run verify` was RED at HEAD** — the new browser-check script assigned a 25-character placeholder to `SUPABASE_SERVICE_ROLE_KEY` and tripped the repository's own secret scanner, so the gate aborted at its first step. The loop-1 report claimed the secret scan had passed; it had, but before that file existed. | **Confirmed and corrected.** The placeholder is now obviously not a credential; the scanner was not relaxed. The earlier claim was wrong and is withdrawn. |
+| 5 | MEDIUM | The replay-skip that protects human routing decisions made the Analyze screen assert **the opposite of the durable state**: it warned "No routing state was recorded" for tasks that do have routing rows. | **Confirmed** by rendering the component with the replay props. The result now carries `alreadyAnalysed` and the screen says the update was already analysed and nothing was re-routed. |
+| 6 | MEDIUM | Migration 0076 **aborted on a raw constraint error** on exactly the data condition it exists to fix (two companies holding one account in different letter case). | **Confirmed** — reproduced end to end. 0076 now detects the collision first and fails closed naming it, so an operator is told what to resolve. |
+| 7 | MEDIUM | The `not_configured` reclassification made a credential failure retry **every 60 seconds forever** — the backoff is a function of `attempts`, which that class deliberately freezes. | **Confirmed by arithmetic.** Credential failures keep their budget but back off on a fixed 15-minute interval. |
+| 8 | MEDIUM | `claim_source_events` now claims exactly the finance captures, and the only wired sweeper **dead-letters every one of them** (`no_processor`, `retryable:false`) within one cron interval. | **Confirmed** — reproduced: a capture went to `dead_letter` in one sweep. "Unbuilt" is now a distinct outcome from "failed": the row is RELEASED, uncharged, and stays visible as backlog. |
+| 9 | LOW | The `#n` ordinal collided with a model title already ending in `#n`, re-creating the collapse it was added to prevent. | **Confirmed.** The ordinal uses U+0001, which a title cannot contain. |
+| 10 | LOW | The reconciliation stamped the canonical identity on the superseded **tombstone** rather than the surviving capture. | **Confirmed.** Survivors only, and the receiving account is recovered onto the survivor first. |
+| 11 | LOW | Evidence overstated: "101 files" (actually 99) and "25 of 29" discrimination (the correct denominator was larger). | **Confirmed and corrected** — see the measured numbers below. |
+| 12 | LOW | `route_task`'s human-decision guard trusted a self-declared `actor_source`. | **Confirmed.** A `human` decision must now name an **active member** of the company. A service-role caller can still name a real member — recorded as a residual risk, since the production caller hard-codes `ai`. |
+| 13 | LOW | 0076's owner assertion matched an unqualified `regprocedure` with no pinned `search_path`. | **Confirmed** — reproduced by setting `search_path = pg_catalog`. Re-asserted in 0077 with a schema-qualified cast. |
+| 14 | LOW | The canonical identity joined components with an unescaped `:`. | **Confirmed as theoretical** (Meta's values contain no colon). Components are percent-escaped and existing identities re-stamped. |
+| 15 | INFO | A future non-WhatsApp ingestion would land in a state nothing can claim. | **Accepted** and recorded as an open finding. |
+
+## Measured, not asserted
+
+* All new boundary scenarios (3 files, **37** scenarios) against the pre-correction schema
+  `0001–0075`: **33 fail, 4 pass**.
+* The loop-2 scenarios (**8**) against the loop-1 schema `0001–0076`: **7 fail, 1 pass**.
+* The loop-1 report's "25 of 29" was wrong on the denominator. These are the numbers.
+
+## What the second review could NOT break
+
+Recorded because a negative result is evidence: the receipt race under two connections, lease
+fencing against a stale owner, `claim_inbound_dispatch_batch` eligibility, the supersede guards,
+the reconciliation's refusal to merge unprovable pairs (three rows sharing a provider id, both
+sides referenced, contradictory hashes, a null message id, cross-account collision), company
+movement between tenants, `fail_inbound_dispatch` resurrecting a settled row, the service-only
+boundary, route bypass of trusted identity, the 503-on-error redelivery being a clean no-op, and
+fresh-vs-upgrade schema equivalence.
+
+## Still open after loop 2
+
+* No scheduled drain calls `claim_inbound_dispatch_batch`; a failed dispatch is recovered by
+  provider redelivery, which is bounded by how long the provider keeps redelivering.
+* No processor exists for a captured finance event — the sweeper releases rather than processes it.
+* A service-role caller can still assert `actor_source='human'` by naming a real member.
+* Non-WhatsApp ingestion paths (email, upload, bank file) have no dispatch path yet.

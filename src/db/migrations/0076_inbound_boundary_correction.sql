@@ -253,10 +253,25 @@ declare
   r record;
   v_identity text;
 begin
+  -- A SUPERSEDED row is a tombstone. It must never take the identity the surviving canonical row
+  -- needs — an independent review found the older `in_` receipt winning it, leaving the live capture
+  -- unidentified and a redelivery resolving to the tombstone. Survivors only, and the receiving
+  -- account recovered from the paired receipt so the survivor is not stamped with the unknown-account
+  -- placeholder.
+  -- Alias `tomb`, not `r`: `r` is the loop's RECORD variable below, and plpgsql resolves the
+  -- FROM-clause name to it ("record r is not assigned yet").
+  update public.source_events c
+     set provider_account_id = tomb.provider_account_id
+    from public.source_events tomb
+   where tomb.superseded_by = c.id
+     and c.provider_account_id is null
+     and tomb.provider_account_id is not null;
+
   for r in
     select id, source, provider_account_id, provider_message_id, event_purpose
       from public.source_events
      where event_identity is null and provider_message_id is not null
+       and dispatch_state <> 'superseded'
      order by received_at, id
   loop
     v_identity := public.canonical_event_identity(r.source, r.provider_account_id, r.provider_message_id, r.event_purpose);
@@ -1026,6 +1041,31 @@ grant execute on function public.route_task(uuid,uuid,text,text,text,jsonb,uuid,
 -- normalised column. The resolver also normalises the CHANNEL, which previously let `WhatsApp`
 -- bypass the "any mapping is configured" guard.
 -- ─────────────────────────────────────────────────────────────────────────────────────────────
+-- Normalising can COLLIDE with 0074's unique index precisely when the defect described above is
+-- present (two companies registered the same account in different letter case). Detect it first and
+-- say so, naming the conflict: an operator resolving a genuine two-company dispute is a decision,
+-- not something a migration may silently make by keeping whichever row it happened to update first.
+-- Without this guard the migration died on a bare "duplicate key value violates unique constraint",
+-- which an independent review reproduced.
+do $$
+declare v_conflicts text;
+begin
+  select string_agg(format('%s/%s claimed by %s companies', x.channel, x.norm, x.n), '; ')
+    into v_conflicts
+    from (
+      select lower(btrim(a.channel)) as channel,
+             public.normalize_channel_account(a.provider_account_id) as norm,
+             count(distinct a.company_id) as n
+        from public.channel_accounts a
+       where a.is_active
+       group by 1, 2
+      having count(*) > 1
+    ) x;
+  if v_conflicts is not null then
+    raise exception '0076 fail-closed: the same receiving account is registered more than once once normalised — %. Resolve which company owns each account (deactivate the others) and re-run.', v_conflicts;
+  end if;
+end $$;
+
 update public.channel_accounts
    set provider_account_id = public.normalize_channel_account(provider_account_id)
  where provider_account_id is distinct from public.normalize_channel_account(provider_account_id);

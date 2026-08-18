@@ -64,16 +64,21 @@ export async function GET(req: Request): Promise<Response> {
         if (error) throw new Error(error.message);
         return String(data ?? "retry_wait");
       },
+      async release(id, o) {
+        const { error } = await db.rpc("release_source_event", { p_id: id, p_owner: o });
+        if (error) throw new Error(error.message);
+      },
       async process(event): Promise<ProcessOutcome> {
-        // Processing itself is section 5 of the follow-up program (staff/finance intake) and is NOT
-        // implemented. Until it is, an unclassifiable event is reported as a non-retryable failure
-        // so it dead-letters visibly instead of cycling forever — and so nothing here can pretend an
-        // event was handled. This is deliberately honest, not a placeholder success.
+        // Processing itself is NOT implemented. It used to be reported as a non-retryable failure
+        // "so it dead-letters visibly" — but since migration 0076 the only rows this sweeper claims
+        // are successful staff-finance captures, so that dead-lettered every captured finance
+        // message within one cron interval. Unbuilt work is handed back, uncharged, and stays
+        // visible as backlog until a processor exists.
         return {
           ok: false,
           code: "no_processor",
           message: `no inbound processor is wired for source "${event.source ?? "unknown"}"`,
-          retryable: false,
+          unprocessable: true,
         };
       },
     },
@@ -95,6 +100,7 @@ export async function GET(req: Request): Promise<Response> {
     completed: result.completed,
     retryScheduled: result.retryScheduled,
     deadLettered: result.deadLettered,
+    released: result.released,
     partialFailure: result.partialFailure,
   });
 }

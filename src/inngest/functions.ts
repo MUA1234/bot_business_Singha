@@ -102,7 +102,9 @@ export const onCustomerWhatsAppMessage = inngest.createFunction(
       );
       // A dispatch that could not be decided must FAIL the step so Inngest retries it — reporting
       // success would be the false-acknowledgement defect one layer up.
-      if (outcome === "error") throw new Error(`inbound dispatch failed for ${wa_message_id}`);
+      if (outcome === "error" || outcome === "retry_pending") {
+        throw new Error(`inbound dispatch is not finished for ${wa_message_id} (${outcome})`);
+      }
       return { status: outcome };
     });
   },

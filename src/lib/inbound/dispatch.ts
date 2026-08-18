@@ -58,7 +58,7 @@ export interface DispatchDeps {
    * ALREADY recorded. Required whenever `msg.receipt` is present — half-wiring the two is a
    * configuration error and fails loudly rather than quietly persisting a duplicate.
    */
-  markCapture?(eventId: string): Promise<{ alreadyCaptured: boolean }>;
+  markCapture?(eventId: string, companyId: string): Promise<{ alreadyCaptured: boolean }>;
 }
 
 /**
@@ -153,7 +153,12 @@ export async function dispatchInbound(msg: InboundMessage, deps: DispatchDeps): 
     },
     deps.store,
     deps.queue,
-    msg.receipt && deps.markCapture ? { event: msg.receipt, markCapture: deps.markCapture } : undefined,
+    msg.receipt && deps.markCapture
+      // The COMPANY travels with the marker. It is recorded before the orchestration records its
+      // own outcome, and the later call takes the idempotent-replay path — so a marker written
+      // without the company left every finance capture permanently unattributed.
+      ? { event: msg.receipt, markCapture: (id) => deps.markCapture!(id, msg.companyId) }
+      : undefined,
   );
 
   log("info", "staff finance message captured for policy evaluation", {

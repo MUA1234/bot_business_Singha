@@ -28,10 +28,21 @@ export function AnalyzeResultView({ r }: { r: NonNullable<AnalyzeState["result"]
           <div className="card stat"><div className="k">Authority</div><div className="v" style={{ fontSize: "1.1rem" }}>{r.requiredAuthority.replace(/_/g, " ")}</div></div>
         </div>
 
+        {/* An idempotent REPLAY of the same update. Nothing was captured or routed by this run,
+            and the counts below are deliberately zero — so showing the "no routing state was
+            recorded" warning here would assert the opposite of the durable state. */}
+        {r.alreadyAnalysed && (
+          <div className="notice">
+            This update was already analysed. The {r.createdTasks} task{r.createdTasks === 1 ? "" : "s"} it
+            captured were routed at the time; nothing was captured or re-routed now, so an earlier
+            decision by a person still stands.
+          </div>
+        )}
+
         {/* AIM-003 — report the DURABLE routing state. This used to say "routed for human
             approval" when no request, queue, recipient or record existed. A notice is not
             routing; the counts below come from task_routing rows that actually exist. */}
-        {r.createdTasks > 0 && (
+        {!r.alreadyAnalysed && r.createdTasks > 0 && (
           <div className={`notice ${r.routing.failed > 0 ? "err" : "ok"}`}>
             {Object.entries(r.routing.byState).map(([state, n]) => (
               <div key={state}>

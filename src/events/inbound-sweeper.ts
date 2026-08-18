@@ -26,15 +26,28 @@ export interface SweepableEvent {
   attempts: number | null;
 }
 
-/** Outcome of processing one event. `retryable: false` dead-letters immediately. */
+/**
+ * Outcome of processing one event.
+ *
+ *   `ok`                  — done; the row completes.
+ *   `unprocessable: true` — NOTHING CAN PROCESS THIS YET. The row is released, unharmed, and no
+ *                           attempt is charged. This is not the same as a failure: migration 0076
+ *                           narrowed claiming to exactly the finance captures, and the only wired
+ *                           processor reports `no_processor` for everything, so treating unbuilt
+ *                           work as a non-retryable failure destroyed every capture the inbound
+ *                           requirement exists to produce, within one cron interval.
+ *   `retryable: false`    — a real failure that retrying cannot fix; dead-letters immediately.
+ */
 export type ProcessOutcome =
   | { ok: true }
-  | { ok: false; code: string; message: string; retryable?: boolean };
+  | { ok: false; code: string; message: string; retryable?: boolean; unprocessable?: boolean };
 
 export interface SweepDeps {
   claim(limit: number, owner: string, leaseSeconds: number): Promise<SweepableEvent[]>;
   complete(id: string, owner: string): Promise<void>;
   fail(id: string, owner: string, code: string, message: string, maxAttempts: number): Promise<string>;
+  /** Put a claimed row back, unharmed and uncharged, when nothing can process it yet. */
+  release?(id: string, owner: string): Promise<void>;
   process(event: SweepableEvent): Promise<ProcessOutcome>;
 }
 
@@ -43,6 +56,8 @@ export interface SweepResult {
   completed: number;
   retryScheduled: number;
   deadLettered: number;
+  /** Claimed, then handed back because no processor exists for it yet. Not a failure. */
+  released: number;
   /** True when at least one row did not complete — the caller must not report a clean sweep. */
   partialFailure: boolean;
 }
@@ -65,6 +80,7 @@ export async function sweepInbound(deps: SweepDeps, opts: SweepOptions): Promise
     completed: 0,
     retryScheduled: 0,
     deadLettered: 0,
+    released: 0,
     partialFailure: false,
   };
 
@@ -88,6 +104,32 @@ export async function sweepInbound(deps: SweepDeps, opts: SweepOptions): Promise
         result.partialFailure = true;
         log("error", "inbound sweeper could not record completion", {
           event: "inbound.complete_failed",
+          sourceEventId: event.id,
+          error: (e as Error).message,
+        });
+      }
+      continue;
+    }
+
+    // Unbuilt is not broken. Hand the row back rather than consuming its life.
+    if (outcome.unprocessable) {
+      if (!deps.release) {
+        // No release port: refuse to dead-letter work nobody has tried to process. Say so.
+        result.partialFailure = true;
+        log("error", "inbound sweeper cannot release an unprocessable row — it stays leased until expiry", {
+          event: "inbound.release_unavailable",
+          sourceEventId: event.id,
+          code: outcome.code,
+        });
+        continue;
+      }
+      try {
+        await deps.release(event.id, opts.owner);
+        result.released++;
+      } catch (e) {
+        result.partialFailure = true;
+        log("error", "inbound sweeper could not release a row", {
+          event: "inbound.release_failed",
           sourceEventId: event.id,
           error: (e as Error).message,
         });

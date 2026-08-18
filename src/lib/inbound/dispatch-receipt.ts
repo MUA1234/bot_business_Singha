@@ -24,6 +24,7 @@ import { isUsableCompany, resolveReceivingCompany } from "@/lib/inbound/company-
 import { companyKnownCurrencies, resolveCompanyForAccount } from "@/lib/inbound/production-deps";
 import {
   claimInboundDispatch,
+  dispatchStateOf,
   failInboundDispatch,
   recordInboundDispatch,
   type DispatchOutcome,
@@ -36,6 +37,8 @@ export type DispatchReceiptResult =
   | DispatchOutcome
   | "no_provider_message_id"
   | "already_dispatched"
+  /** Undecided and waiting — a live lease elsewhere, or a backoff after a failed attempt. */
+  | "retry_pending"
   | "unattributed"
   | "error";
 
@@ -46,6 +49,7 @@ export type DispatchReceiptResult =
  */
 export interface DispatchReceiptPorts {
   claim(db: SupabaseClient, eventId: string, owner: string, leaseSeconds: number): Promise<boolean>;
+  state(db: SupabaseClient, eventId: string): Promise<string | null>;
   record(db: SupabaseClient, input: Parameters<typeof recordInboundDispatch>[1]): Promise<unknown>;
   fail(db: SupabaseClient, eventId: string, owner: string, code: string, message: string): Promise<string>;
   resolveCompany(channel: string, account: string): Promise<{ companyId: string | null; match: string }>;
@@ -55,6 +59,7 @@ export interface DispatchReceiptPorts {
 
 const DEFAULT_PORTS: DispatchReceiptPorts = {
   claim: claimInboundDispatch,
+  state: dispatchStateOf,
   record: recordInboundDispatch,
   fail: failInboundDispatch,
   resolveCompany: resolveCompanyForAccount,
@@ -81,8 +86,11 @@ export async function dispatchReceipt(
   const owner = opts?.owner ?? `wa_dispatch_${randomUUID()}`;
   const claimed = await ports.claim(db, receipt.event.id, owner, opts?.leaseSeconds ?? 120);
   if (!claimed) {
-    // Already decided, being decided by a live lease, superseded, or waiting out a backoff.
-    return "already_dispatched";
+    // WHY the claim was refused decides what the caller should do. A settled receipt is finished; a
+    // receipt that is failed or being decided elsewhere is still OUTSTANDING, and reporting that as
+    // "already dispatched" told the provider to stop redelivering something nobody had handled.
+    const state = await ports.state(db, receipt.event.id);
+    return state === "failed" || state === "dispatching" ? "retry_pending" : "already_dispatched";
   }
 
   const company = await resolveReceivingCompany(

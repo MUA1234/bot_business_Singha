@@ -78,6 +78,8 @@ const SERVICE_ONLY = new Set([
   "record_inbound_dispatch(uuid,text,text,uuid,text,uuid)",
   "fail_inbound_dispatch(uuid,text,text,text,integer)",
   "inbound_dispatch_health()",
+  // 0077 — hand a claimed row back, unharmed, when nothing can process it yet.
+  "release_source_event(uuid,text)",
   "resolve_inbound_review(uuid,uuid,uuid,text,text)",
   // 0075 — the single capability implementation, for an EXPLICIT actor. Service-only because it
   // takes an arbitrary user id; has_capability (same owner) wraps it for RLS in the caller's role.

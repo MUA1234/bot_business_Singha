@@ -112,8 +112,12 @@ export function taskIdentityPartsForPlan(
     const n = (seen.get(parts.purpose) ?? 0) + 1;
     seen.set(parts.purpose, n);
     if (n === 1) return parts;
-    // The suffix is bounded with the purpose so the combined value still fits the DB limit.
-    return { ...parts, purpose: `${parts.purpose.slice(0, MAX.purpose - 8)}#${n}` };
+    // U+0001, not "#n". A model title may legitimately end in "#2", and appending a bare "#2" to
+    // the second occurrence of "follow up" produced the SAME purpose as a first occurrence of
+    // "follow up#2" — re-creating the exact collision this function exists to prevent. A control
+    // character cannot appear in a title, and the database's own normalisation (which collapses
+    // POSIX whitespace only) leaves it intact.
+    return { ...parts, purpose: `${parts.purpose.slice(0, MAX.purpose - 8)}\u0001${n}` };
   });
 }
 

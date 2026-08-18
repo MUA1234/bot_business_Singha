@@ -119,6 +119,13 @@ export async function recordInboundDispatch(
   };
 }
 
+/** The receipt's current dispatch state, for deciding whether a refused claim is retryable. */
+export async function dispatchStateOf(db: SupabaseClient, eventId: string): Promise<string | null> {
+  const { data, error } = await db.from("source_events").select("dispatch_state").eq("id", eventId).maybeSingle();
+  if (error) return null;
+  return (data?.dispatch_state as string | undefined) ?? null;
+}
+
 /** A dispatch that threw. Bounded backoff, then a person — never a silent disappearance. */
 export async function failInboundDispatch(
   db: SupabaseClient,

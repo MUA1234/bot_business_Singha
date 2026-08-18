@@ -27,6 +27,13 @@ export function selectDueForDelivery(rows: OutboxRow[], now: Date = new Date()):
     .sort((a, b) => a.created_at.localeCompare(b.created_at)); // oldest first (FIFO)
 }
 
+/**
+ * How long to wait before re-offering a message that failed for a CREDENTIAL reason. Long enough
+ * not to hammer the provider while an owner fixes configuration; short enough that the queue drains
+ * promptly once they do.
+ */
+export const CREDENTIAL_RETRY_MS = 15 * 60_000;
+
 export interface AttemptPatch {
   status: OutboxStatus;
   attempts: number;
@@ -60,11 +67,16 @@ export function planAfterAttempt(
   const error = result.error.slice(0, 500);
 
   if (!consumesRetryBudget(failure)) {
-    // Deliberately NOT `row.attempts + 1`. The message was never offered to the provider.
+    // Deliberately NOT `row.attempts + 1`: the message was never offered to the provider, or the
+    // provider rejected the CREDENTIAL rather than the message. But freezing `attempts` also froze
+    // the backoff — which is a function of attempts — so such a message retried every 60 seconds
+    // forever and never reached a person. It keeps its budget AND backs off on a fixed, longer
+    // interval, so a credential problem is a slow, visible queue rather than a hot loop against the
+    // provider.
     return {
       status: "failed",
       attempts: row.attempts,
-      next_retry_at: nextRetryAt(row.attempts, now) ?? new Date(now.getTime() + 60_000).toISOString(),
+      next_retry_at: new Date(now.getTime() + CREDENTIAL_RETRY_MS).toISOString(),
       last_error: error,
     };
   }

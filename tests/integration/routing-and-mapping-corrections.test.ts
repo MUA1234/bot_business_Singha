@@ -82,7 +82,11 @@ describe.skipIf(!enabled)("correction loop 1 — confirmed 0072 / 0074 defects (
     expect((await db.query(`select public.task_assignee_ineligible_reason($1,$2,'operations.inbound.review',null) as r`, [co, capable])).rows[0].r).toBeNull();
 
     const t = await task(co);
-    const r = await route(co, t, "assigned", { capability: "operations.inbound.review", assignee: capable, actorSource: "human" });
+    // `actor` is required for a human decision since 0077: the guard that protects a person's
+    // assignment keys on actor_source, so it may not be claimed without naming an active member.
+    const r = await route(co, t, "assigned", {
+      capability: "operations.inbound.review", assignee: capable, actorSource: "human", actor: capable,
+    });
     expect(r.routing_state).toBe("assigned");
     const row = (await db.query(`select assignee_id from task_routing where task_id=$1 and is_active`, [t])).rows[0];
     expect(row.assignee_id).toBe(capable);

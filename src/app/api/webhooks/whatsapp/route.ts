@@ -133,11 +133,12 @@ export async function POST(req: Request): Promise<Response> {
     results.push(await dispatchReceipt(db, receipt, inbound, msg.receivedBy, makeInboundDeps));
   }
 
-  // A message we could not decide — including one whose review row could not be queued — must NOT
-  // be acknowledged as handled. A 503 makes Meta redeliver, and redelivery is now SAFE: the
-  // canonical receipt already exists and the dispatch lease refuses a second decision, so the
-  // messages that did succeed are no-ops on the retry while the failed one gets another chance.
-  if (results.includes("error")) {
+  // A message we could not decide — including one whose review row could not be queued, and one
+  // still waiting out a backoff — must NOT be acknowledged as handled. A 503 makes Meta redeliver,
+  // and redelivery is now SAFE: the canonical receipt already exists and the dispatch lease refuses
+  // a second decision, so the messages that did succeed are no-ops on the retry while the
+  // outstanding one gets another chance.
+  if (results.includes("error") || results.includes("retry_pending")) {
     log("error", "acknowledging failure so the provider redelivers", {
       event: "wa.dispatch_incomplete",
       outcomes: results.join(","),

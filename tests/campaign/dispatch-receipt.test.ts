@@ -32,6 +32,7 @@ function harness(over: Partial<DispatchReceiptPorts> = {}, handled: DispatchResu
   const calls: string[] = [];
   const ports: Partial<DispatchReceiptPorts> = {
     claim: async () => { calls.push("claim"); return true; },
+    state: async () => { calls.push("state"); return "dispatched"; },
     resolveCompany: async () => { calls.push("resolveCompany"); return { companyId: CO, match: "exact" }; },
     knownCurrencies: async () => { calls.push("knownCurrencies"); return ["LKR"]; },
     dispatch: (async () => { calls.push("dispatch"); return { handled, status: "ok" } as DispatchResult; }) as never,
@@ -52,12 +53,30 @@ describe("inbound dispatch orchestration", () => {
     expect(h.calls).toEqual(["claim", "resolveCompany", "knownCurrencies", "dispatch", "record"]);
   });
 
-  it("a REFUSED lease produces no business dispatch at all", async () => {
-    const h = harness({ claim: async () => false });
+  it("a REFUSED lease on a SETTLED receipt produces no business dispatch at all", async () => {
+    const h = harness({ claim: async () => { return false; }, state: async () => "dispatched" });
     const out = await dispatchReceipt(h.db, receipt(), message, "acct", h.makeDeps, { ports: h.ports });
     expect(out).toBe("already_dispatched");
-    expect(h.calls).toEqual([]); // no resolve, no dispatch, no marker
+    // It asks WHY the claim was refused (an overridden port, so not in `calls`) and stops there:
+    // no company resolution, no dispatch, no marker.
+    expect(h.calls).toEqual([]);
     expect(h.makeDeps).not.toHaveBeenCalled();
+  });
+
+  it("a REFUSED lease on an OUTSTANDING receipt reports retry_pending, not 'already dispatched'", async () => {
+    // Reporting a failed or in-flight receipt as dispatched told the provider to stop redelivering
+    // something nobody had handled, and nothing else re-drives it.
+    for (const state of ["failed", "dispatching"]) {
+      const h = harness({ claim: async () => false, state: async () => state });
+      expect(await dispatchReceipt(h.db, receipt(), message, "acct", h.makeDeps, { ports: h.ports }), state)
+        .toBe("retry_pending");
+    }
+  });
+
+  it("an unknown state after a refused claim is treated as settled, not retried forever", async () => {
+    const h = harness({ claim: async () => false, state: async () => null });
+    expect(await dispatchReceipt(h.db, receipt(), message, "acct", h.makeDeps, { ports: h.ports }))
+      .toBe("already_dispatched");
   });
 
   it("an unresolved company is a RETRYABLE failure, not a dispatch", async () => {
