@@ -73,9 +73,25 @@ for (const r of requirements) byStatus[r.status] = (byStatus[r.status] ?? 0) + 1
 
 const complete = requirements.filter((r) => COMPLETE_STATUSES.has(r.status));
 const notComplete = requirements.filter((r) => !COMPLETE_STATUSES.has(r.status));
-const unaccepted = requirements.filter((r) =>
-  ["absent", "foundation_only", "implementation_in_progress", "implemented_unverified"].includes(r.status),
-);
+/**
+ * INCOMPLETE AND IMPLEMENTABLE — work this program can still do without an owner.
+ *
+ * `specified` belongs here. A specification is not an implementation: it describes what should be
+ * built. Counting it outside the incomplete total let 5 requirements look settled when nothing had
+ * been built for them, which is exactly the "documentation is not implementation" rule this audit
+ * exists to enforce. Corrected on owner instruction.
+ */
+const IMPLEMENTABLE_INCOMPLETE = [
+  "absent",
+  "specified",
+  "foundation_only",
+  "implementation_in_progress",
+  "implemented_unverified",
+];
+const unaccepted = requirements.filter((r) => IMPLEMENTABLE_INCOMPLETE.includes(r.status));
+const blockedOwner = requirements.filter((r) => r.status === "blocked_owner");
+const blockedExternal = requirements.filter((r) => r.status === "blocked_external");
+const deferred = requirements.filter((r) => r.status === "deliberately_deferred");
 
 // ── Coverage matrix (generated — do not hand-edit) ───────────────────────────────────────────
 const groups = APPROVED_GROUPS.slice().sort();
@@ -107,7 +123,22 @@ ${Object.entries(byStatus)
   .map(([s, n]) => `| ${s} | ${n} |`)
   .join("\n")}
 
-**Registered:** ${requirements.length} · **Complete (any verification level):** ${complete.length} · **Not complete:** ${notComplete.length}
+## Completion accounting
+
+Reported in the four categories the owner requires. \`specified\` counts as INCOMPLETE — a
+specification describes what should be built; it is not built.
+
+| Category | Count |
+|---|---|
+| **Verified** (locally / preview / staging / production) | **${complete.length}** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **${unaccepted.length}** |
+| **Blocked — owner** | **${blockedOwner.length}** |
+| **Blocked — external** | **${blockedExternal.length}** |
+| **Deliberately deferred** | **${deferred.length}** |
+| Registered total | ${requirements.length} |
+
+A blocked-owner requirement is excluded from autonomous implementation, but it still PREVENTS any
+operating-mode claim that depends on it. Blocked is not done.
 
 ## Per approved group — no group is omitted from totals
 
@@ -130,9 +161,11 @@ ${pending.map((p) => `- ${p}`).join("\n") || "_none_"}
 
 ## Honest reading of this table
 
-The program is **not** code-complete while any requirement is \`absent\`, \`foundation_only\`,
-\`implementation_in_progress\` or \`implemented_unverified\`, or while any group above remains
-unexpanded. Current unaccepted count: **${unaccepted.length}**; unexpanded groups: **${pending.length}**.
+The program is **not** code-complete while any requirement is \`absent\`, \`specified\`,
+\`foundation_only\`, \`implementation_in_progress\` or \`implemented_unverified\`, or while any
+group above remains unexpanded, or while any \`blocked_owner\` requirement gates a claimed operating
+mode. Incomplete and implementable: **${unaccepted.length}**; blocked (owner): **${blockedOwner.length}**;
+deferred: **${deferred.length}**; unexpanded groups: **${pending.length}**.
 `;
 
 writeFileSync("docs/autonomy/ORIGINAL_VISION_COVERAGE_MATRIX.md", matrix);
@@ -144,8 +177,9 @@ if (problems.length === 0) writeFileSync(SNAPSHOT, ids.join("\n") + "\n");
 // ── Report ───────────────────────────────────────────────────────────────────────────────────
 if (!quiet) {
   console.log(
-    `autonomy:audit registered=${requirements.length} complete=${complete.length} ` +
-      `unaccepted=${unaccepted.length} unexpanded-groups=${pending.length}`,
+    `autonomy:audit registered=${requirements.length} verified=${complete.length} ` +
+      `incomplete-implementable=${unaccepted.length} blocked-owner=${blockedOwner.length} ` +
+      `blocked-external=${blockedExternal.length} deferred=${deferred.length} unexpanded-groups=${pending.length}`,
   );
   console.log(
     "  " +

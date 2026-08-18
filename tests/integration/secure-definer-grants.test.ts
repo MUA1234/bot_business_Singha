@@ -49,6 +49,13 @@ const SERVICE_ONLY = new Set([
   // company-scoped, fails closed on unknown/ambiguous. Migration 0070 asserts anon/authenticated
   // cannot execute it.
   "resolve_channel_identity(uuid,text,text)",
+  // 0071 AIM-002 task identity + deduplication. Service-only with an in-function caller_jwt_role
+  // gate; the identity hash is recomputed by a trigger so a caller can never forge it.
+  "create_task_deduplicated(uuid,text,text,text,text,text,text,uuid,boolean,uuid)",
+  // 0071 trigger function. SECURITY DEFINER because it computes the identity hash with
+  // extensions.digest, which `authenticated` cannot reach; it reads and writes no table. Fired by
+  // the trigger, never called directly.
+  "tasks_set_identity_hash()",
 ]);
 // Must exist AND be locked on any DB reaching this migration (the legacy 7-arg is intentionally excluded).
 const SERVICE_ONLY_REQUIRED = [...SERVICE_ONLY].filter((s) => s !== "_journal_post_internal(uuid,date,text,text,uuid,jsonb,text)");

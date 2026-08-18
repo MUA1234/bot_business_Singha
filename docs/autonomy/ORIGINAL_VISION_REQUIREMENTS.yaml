@@ -182,20 +182,20 @@ requirements:
     phase: stage1
     priority: P0
     dependencies: [AIM-001]
-    status: absent
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: none
+    runtime_entrypoint: create_task_deduplicated RPC (service boundary); tasks_set_identity_hash trigger fires on every task write
+    database_evidence: src/db/migrations/0071_task_identity_dedup.sql (identity columns, task_identity_hash, partial unique index, task_duplicate_suggestions)
+    service_evidence: create_task_deduplicated create-or-return; similarity suggestions are advisory only and never merge
     ui_evidence: none
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
-    owner_gate: none
+    test_evidence: tests/integration/task-dedup.test.ts (18 live-PostgreSQL cases)
+    security_evidence: identity is SERVER-computed by a SECURITY DEFINER trigger and recomputed on insert AND update so a caller or model cannot forge it; RPC is service-only with an in-function role gate; identity components are length-bounded; company_id is inside both the hash and the unique index; the suggestions table is service-write-only under RLS
+    audit_health_evidence: the RPC returns a created flag distinguishing a new task from a replay
+    last_verified_sha: PENDING_COMMIT
+    last_verified_at: 2026-08-18
+    owner_gate: hosted migration application
     blocker: none
-    residual_risks: The case identity hashes the whole transcript, so every new message creates a new case and re-detects the same task.
+    residual_risks: The dedup RPC is not yet called by the analysis path — analyze-conversation still inserts tasks via create_management_case_atomic. Until that is wired the guarantee protects any caller of the new RPC rather than the existing AI path.
 
   - id: AIM-003
     title: Truthful task routing

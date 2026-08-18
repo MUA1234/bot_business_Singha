@@ -14,7 +14,7 @@
 | src/app/api/cron/outbox/route.ts | 2 |
 | src/app/api/exports/[kind]/route.ts | 2 |
 | src/app/api/health/route.ts | 2 |
-| src/app/api/webhooks/whatsapp/route.ts | 2 |
+| src/app/api/webhooks/whatsapp/route.ts | 4 |
 | src/app/app/_actions/price.ts | 2 |
 | src/app/app/admin/audit/page.tsx | 2 |
 | src/app/app/admin/catalog/page.tsx | 2 |
@@ -100,7 +100,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 
 - src/app/api/webhooks/email/route.ts
 
-## 7. Error-masking suspects (catch → empty return) — 70 (Phase-1C triage list)
+## 7. Error-masking suspects (catch → empty return) — 71 (Phase-1C triage list)
 
 | file:line | returns |
 |---|---|
@@ -169,6 +169,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | src/lib/access.ts:112 | `error-discarding destructure` |
 | src/lib/documents.ts:52 | `error-discarding destructure` |
 | src/lib/documents.ts:54 | `null` |
+| src/lib/finance/intent-gate.ts:85 | `null` |
 | src/lib/ledger-report.ts:13 | `[]` |
 | src/lib/money.ts:139 | `null` |
 | src/lib/task-access.ts:27 | `error-discarding destructure` |

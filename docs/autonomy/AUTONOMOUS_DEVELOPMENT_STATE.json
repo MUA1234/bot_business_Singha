@@ -2,15 +2,15 @@
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage1-core-reliability",
   "activeRequirementIds": [
-    "FOUND-003"
+    "AIM-003"
   ],
   "currentBranch": "feature/v3-3-part2-durable-processing",
   "currentPr": 24,
   "baseSha": "079fbb8",
   "lastGreenSha": "c69024b",
-  "latestMigration": "0070_channel_identity_resolution.sql",
-  "lastCompletedAction": "FOUND-003 part 3: WhatsApp webhook wired to dispatchInbound; ingestSourceEvent now has a real production caller, proven by a route-level call-graph test.",
-  "nextAction": "AIM-002 task-level deduplication (stable company-scoped task identity, migration 0071), then AIM-003 truthful routing incl. correcting the AnalyzeForm string that claims a routing which does not happen, then the no_processor requeue path, then the RLS/service-role cutover.",
+  "latestMigration": "0071_task_identity_dedup.sql",
+  "lastCompletedAction": "Exact-head baseline verified at e603902 (fresh 0001-0070 and staged 0058-0070, 355/355 both). Completion accounting corrected so specified counts as incomplete (12/73/3/1). AIM-002 implemented: migration 0071 server-computed task identity, partial unique index, create-or-return RPC, advisory-only similarity suggestions, 18 live cases.",
+  "nextAction": "AIM-003 truthful routing: durable routing states on tasks (assigned / awaiting_approval / needs_routing / manual_review / no_eligible_assignee / failed_retryable / escalated) with persisted routing reason, required capability, proposed assignees, final assignee or queue, approval link and audit history; correct the AnalyzeForm string that claims a routing which does not happen; then wire analyze-conversation to create_task_deduplicated so the AI path inherits AIM-002.",
   "lastTargetedTests": [
     "tests/integration/durable-inbound-processing.test.ts",
     "tests/campaign/inbound-sweeper.test.ts",

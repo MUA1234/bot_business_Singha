@@ -4,27 +4,42 @@
 > A status is only as good as the evidence columns beside it; the audit refuses a completion status
 > with empty evidence.
 
-Generated at: 2026-08-17
+Generated at: 2026-08-18
 
 ## Totals
 
 | Status | Count |
 |---|---|
-| absent | 43 |
+| absent | 42 |
 | foundation_only | 23 |
-| locally_verified | 12 |
+| locally_verified | 13 |
 | specified | 5 |
 | blocked_owner | 3 |
 | implementation_in_progress | 2 |
 | deliberately_deferred | 1 |
 
-**Registered:** 89 · **Complete (any verification level):** 12 · **Not complete:** 77
+## Completion accounting
+
+Reported in the four categories the owner requires. `specified` counts as INCOMPLETE — a
+specification describes what should be built; it is not built.
+
+| Category | Count |
+|---|---|
+| **Verified** (locally / preview / staging / production) | **13** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **72** |
+| **Blocked — owner** | **3** |
+| **Blocked — external** | **0** |
+| **Deliberately deferred** | **1** |
+| Registered total | 89 |
+
+A blocked-owner requirement is excluded from autonomous implementation, but it still PREVENTS any
+operating-mode claim that depends on it. Blocked is not done.
 
 ## Per approved group — no group is omitted from totals
 
 | Group | Registered | Complete | Remaining |
 |---|---|---|---|
-| AIM | 8 | 1 | 7 |
+| AIM | 8 | 2 | 6 |
 | AST | 1 | 0 | 1 |
 | COM | 8 | 1 | 7 |
 | CRM | 5 | 0 | 5 |
@@ -50,7 +65,7 @@ Generated at: 2026-08-17
 | ID | Title | Pri | Status | Runtime entrypoint | Verified SHA | Owner gate |
 |---|---|---|---|---|---|---|
 | AIM-001 | Atomic AI case, task and audit persistence | P0 | **locally_verified** | src/management/ai-manager/analyze-conversation.ts; src/app/app/command/analyze/actions.ts | 7669ce1 | hosted migration application |
-| AIM-002 | Task-level deduplication | P0 | **absent** | none | none | — |
+| AIM-002 | Task-level deduplication | P0 | **locally_verified** | create_task_deduplicated RPC (service boundary); tasks_set_identity_hash trigger fires on every task write | PENDING_COMMIT | hosted migration application |
 | AIM-003 | Truthful task routing | P0 | **absent** | none | none | — |
 | AIM-004 | Task Intelligence Profile | P1 | **specified** | none | none | flag activation |
 | AIM-005 | Decision-path ladder | P1 | **specified** | none | none | flag activation |
@@ -148,6 +163,8 @@ _none_
 
 ## Honest reading of this table
 
-The program is **not** code-complete while any requirement is `absent`, `foundation_only`,
-`implementation_in_progress` or `implemented_unverified`, or while any group above remains
-unexpanded. Current unaccepted count: **68**; unexpanded groups: **0**.
+The program is **not** code-complete while any requirement is `absent`, `specified`,
+`foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
+group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
+mode. Incomplete and implementable: **72**; blocked (owner): **3**;
+deferred: **1**; unexpanded groups: **0**.
