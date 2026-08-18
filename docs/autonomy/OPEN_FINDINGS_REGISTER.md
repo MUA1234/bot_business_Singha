@@ -110,3 +110,22 @@ because fixing them inside this package would have been the wrong call.
 heavily — every RPC added in §2 through §7 gates on `caller_jwt_role()`. Recording it as P1 and open
 is the honest position; silently treating it as out of scope because it predates R1 would be exactly
 the reclassification the owner ruled out.
+
+---
+
+## Found by evidence closure (package 0083)
+
+| ID | Finding | Sev | Requirement | Runtime path | Reproducible | Class | Disposition |
+|---|---|---|---|---|---|---|---|
+| **OF-016** | A suspected duplicate has **no authorized resolution path**. `duplicate_reviews` rows are durable, correctly evidenced and readable by an authorized member, but there is no resolution RPC, no screen, and no write grant — and the paused payment appears on no screen, because the only page rendering financial events reads exclusively from `approval_requests`. A real payment therefore pauses in `awaiting_information` and nothing in the product can move it again | **P0** functional | FOUND-003, AIM-002 | `duplicate_reviews` is written by `src/db/consumer-store.ts` and read by nothing | Yes — `tests/integration/duplicate-review-and-approval-visibility.test.ts` proves each half: no `%duplicate%resolve%` function exists, an authorized member's UPDATE is refused `42501`, and a paused event exists with no approval request | REPO | **MATERIAL BLOCKER. NOT FIXED.** The package's two correction loops are spent, and the owner's directive is explicit that a defect found during evidence closure is recorded and placed in the next bounded package rather than repaired in a third loop |
+
+**Is it a regression?** No — it is a sideways move that is strictly better in one respect and no better in
+another. Before 0083 a scored duplicate went to the **terminal** `duplicate` state: equally invisible,
+and additionally irreversible. After 0083 it goes to `awaiting_information`: still invisible and still
+unresolvable, but **reversible**, so every row a future resolution path finds can be recovered without
+a data migration. What 0083 fixed is that a *score alone* no longer discards a payment; what it did
+not build is the workflow a person uses to decide.
+
+**What the next package must add:** a resolution RPC (confirm-duplicate / declare-distinct, capability
+gated, audited, company scoped, idempotent so "distinct" resumes processing exactly once), a review
+screen, and the paused-payment visibility that today only `approval_requests` provides.

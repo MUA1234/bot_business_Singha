@@ -170,25 +170,198 @@ run locally instead, and the CI result is reported as unavailable rather than as
 | Email, voice/transcription and calendar providers | Owner. COM-002, COM-004 and COM-005 remain `absent`; the canonical contract does not advance them |
 | FOUND-006 RLS cutover (OF-012) | Next slice, plus an owner flag flip |
 
-## 9. Independent review — IN PROGRESS
+## 9. Independent review — TWO LOOPS, BOTH USED
 
-**This section is not yet filled in, and the report is not final until it is.** One independent
-adversarial review of the eight commits `f940f93..31967aa` is running against the eleven areas the
-owner named, with two surfaces explicitly called out as the least-reviewed:
+**Loop budget: 2 of 2 spent. There is no third loop.**
 
-* `tests/integration/helpers/pg-supabase.ts` — a test harness that failed to reproduce PostgREST
-  semantics faithfully would make tests pass that production would fail, which is worse than no test
-  at all;
-* migration `0081` and OF-013 — written last, and the only change in this package that touches the
-  separation-of-duties path.
+### Review 1 — CHANGES REQUESTED, 14 findings
 
-The verdict, the findings, how many of this package's **two** correction loops were used, and any
-finding that remains unresolved will be recorded here before the package is reported complete. A
-finding is reproduced before it is accepted, and the loop budget is not exceeded: if a material
-issue survives loop 2, AIM-003 stays unaccepted and the blocker stands.
+| ID | Sev | Disposition |
+|---|---|---|
+| R-01 | P0 | **FIXED.** The scheduled drain rebuilt the message from a guessed `{from, text}` shape. §6 had changed `raw_payload` to Meta's own message, where `text` is `{ body }`, so `String(raw_payload.text)` re-dispatched every retried message as `"[object Object]"` — and returned `ok: true`. `InboundAdapter.fromStored` now makes the adapter the only reader |
+| R-02 | P0 | **FIXED, then re-fixed** — see S-01. A retry duplicated the drafted payment |
+| R-03 | P1 | **FIXED (0082).** An automated caller could deactivate a standing human routing decision and route again as AI |
+| R-04 | P1 | **FIXED**, and **its scope was wrong** — see the correction below |
+| R-05 | P1 | **FIXED.** `parse` threw on a non-iterable container, losing a whole delivery |
+| R-06 | P1 | **FIXED.** A PATH 6 assertion named columns that do not exist and passed on a 42703 |
+| R-07 | P2 | **FIXED (0082, corrected in 0083).** No last-holder protection on `owner_management` |
+| R-08 | P2 | **FIXED.** The setup page swallowed every failure and rendered zeros as facts |
+| R-09 | P2 | **FIXED.** AIM-003 stated OF-007 as live four commits after §2 fixed it |
+| R-10 | P2 | **FIXED.** The drain hardcoded `channel: "whatsapp"` for every claimed row |
+| R-11 | P2 | **FIXED.** Harness: global kind cache, embedded projections, unfiltered UPDATE, overload resolution |
+| R-12 | P2 | **FIXED.** The bespoke-role case was refused by a missing grant, not by the boundary |
+| R-13 | P2 | **FIXED.** 0081 had no transaction of its own |
+| R-14 | P2 | **FIXED.** An image caption is the message; reading only `text.body` emptied every media message |
 
-## 10. Next resumable requirement
+### Review 2 — CHANGES REQUESTED, 9 findings
 
-**FOUND-006** — the RLS / service-role read-and-write cutover with its architectural test (OF-012).
-It is the next slice regardless of this package's verdict; flipping `RLS_READS` / `RLS_WRITES` is an
-owner action, and the code path has to exist and be proven before that flip is safe to offer.
+| ID | Sev | Disposition |
+|---|---|---|
+| S-01 | **P0** | **FIXED (0083).** My own loop-1 R-02 fix introduced it: `createDraft` returned an event no longer in `detected`, and the next step asserted that it was. Every second execution failed permanently and dead-lettered — leaving a captured payment in `awaiting_approval` with **no approval request**, invisible and unapprovable. And nothing settled `source_events.status` on the Inngest path, so the sweeper re-processed rows Inngest had already handled: with the mandated stack configured, **every** finance capture. Fixed three ways — the pipeline resumes from the persisted stage, the crash window creates the missing approval request, and the durable consumer settles its own receipt |
+| S-02 | P1 | **FIXED (0083)** — and it **corrected my scope claim**, see below |
+| S-03 | P2 | **FIXED (0083).** Two concurrent revokes both saw two holders and emptied the company; the holder rows are now locked |
+| S-04 | P2 | **FIXED (0083).** The last-holder check fired when the subject held nothing |
+| S-05 | P2 | **FIXED (0083).** The reviewer LIST used role keys while the COUNT used capability including delegations |
+| S-06 | P2 | **FIXED.** The TRUNCATE assertion was satisfied by a foreign key and would have passed with the guard deleted |
+| S-07 | P2 | **FIXED.** `fromStored` returned null for the pre-§6 flat payload current production still writes |
+| S-08 | P2 | **FIXED.** Two `fail_inbound_dispatch` calls discarded their error |
+| S-09 | P2 (hypothesis) | **FIXED.** The resumed draft now fails closed on a company mismatch |
+
+## 10. A correction to this report's own earlier claim
+
+Loop 1 stated that duplicate detection was **"silently dead in every end-to-end path"** and implied
+production. **That was wrong, and the second review was right to correct it.** The
+`.in()` / `.not(…, "in", …)` defect was in the TEST HARNESS
+(`tests/integration/helpers/pg-supabase.ts`) only — production's supabase-js emits valid PostgREST,
+and `processSourceEvent` has been Inngest-wired since before R1. Duplicate detection was never dead
+in production. The harness bug is fixed; the claim about production is withdrawn.
+
+## 11. OF-014 — narrow fix, and the boundary that remains
+
+**Assessed as the directive required.** All 28 functions consulting `caller_jwt_role()` enumerated
+with signature, DEFINER/INVOKER, owner, grants and reachability. Attacked from a **genuine
+`authenticated`-only login role**, not the harness superuser.
+
+| Probe | Result |
+|---|---|
+| `SET ROLE service_role` | permission denied |
+| forge `request.jwt.claims` | succeeds; `caller_jwt_role()` returns `service_role` |
+| `inbound_dispatch_health()`, `claim_source_events`, `record_inbound_receipt`, `admin_set_membership_role` | **permission denied for function** — all four |
+| direct DML on `source_events` | permission denied for table |
+| the approval provenance trigger, via INSERT | refused by RLS before the trigger |
+| the individual-claim GUC form (`request.jwt.claim.role`) | not read — vector does not apply |
+| `_quotation_status_for_guard` with the forged claim | **returned `sent`** — and **`anon` could too** |
+
+**Conclusion: forging the role claim does not generally grant service-role access.** Database
+EXECUTE grants, table grants and RLS are the effective systemic gates for every tested service-only
+path — 24 of 27 callable functions are unreachable by `authenticated` and `anon` outright.
+
+**The one genuine exception is fixed only in part, deliberately.** The directive permitted a
+`pg_has_role` predicate *only after proving its behaviour in that function's exact context*. **The
+proof failed:** the function is SECURITY DEFINER, so `current_user` is the owner; and `session_user`
+under PostgREST is `authenticator`, which Supabase grants membership of `service_role` — the check
+would have been true for every ordinary web request. Trying it turned `wp12-enqueue-item-race` red
+by breaking a fail-closed control. Migration 0083 therefore takes only what is provable: **`anon`
+and PUBLIC lose EXECUTE**, closing the unauthenticated disclosure entirely.
+
+**What remains, and is NOT solved:** a caller able to run ARBITRARY SQL as the `authenticated`
+database role can still forge the claim and read one quotation status per known id — and, more
+broadly, can forge `sub` and so control `auth.uid()` and every RLS policy. That is the FOUND-006
+boundary. **FOUND-006 is not solved and stays unaccepted.** It is the next package.
+
+## 12. The duplicate-detection behaviour change
+
+`duplicate` is a TERMINAL state with no transition out. The old rule declared a duplicate on
+`score >= 0.7` alone, and the arithmetic let two features carry it — so a payment could be
+terminally discarded with **no counterparty evidence at all**, or with **no date proximity at all**.
+
+Now: exact idempotency (canonical event identity, one draft per source event) is separate from
+heuristic suspicion; every feature must contribute; missing evidence is never a match; and a
+suspicion pauses the event in the **reversible** `awaiting_information` with a `duplicate_reviews`
+row carrying the pair, score, per-feature contributions, evidence present and missing, and the rule
+version.
+
+| Scenario | Old | New |
+|---|---|---|
+| Same payment, same document, twice | duplicate (1.0) | suspected — a person decides |
+| Same amount, same day, **different suppliers** | **terminally discarded** (0.8) | not suspected |
+| **Recurring rent / salary / instalment** | **terminally discarded** (0.7) | not suspected |
+| Identical generic descriptions, no counterparty | **terminally discarded** (0.8) | not suspected |
+| Counterparty missing on one side | terminally discarded | not suspected |
+| Same supplier + amount, one day apart, different invoices | terminally discarded | suspected — a person decides |
+| Same amount, different currency | not a match | not a match |
+| Window boundary (exactly 3 days) | 0.7, discarded | not suspected |
+| Paraphrase sharing the supplier name | suspected | suspected |
+| Cross-company | not a match | not a match |
+| Rejected/cancelled predecessor | excluded from scoring | excluded from scoring |
+| Exact provider replay / concurrent replay / retry | never scored (identity, lease, one-draft index) | unchanged |
+
+**16 scenarios measured in `tests/duplicate-scenarios.test.ts`.**
+
+## 13. OF-015 — section coverage, and what it does and does not establish
+
+`tests/integration/of015-section-coverage.test.ts` — 17 scenarios through real production
+entrypoints.
+
+| Group | Covered | Discrimination |
+|---|---|---|
+| §3 scheduled drain | credential refusal (absent / wrong / malformed), persist → adapter round-trip → claim → decide → lease release, unknown source failed `no_adapter` with no company invented, transient failure with a **growing** backoff and no dead-letter, overlapping runs deciding once, a settled receipt unclaimable, health matching actual state | **1 of 7 fails at 0082.** The rest is CODE, not schema — a schema rollback cannot remove the drain route, so its discrimination is the reproduction recorded in loop 1 (the `"[object Object]"` body and the absent `no_adapter` outcome) |
+| §5 owner configuration | create-inactive → activate → deactivate → replace, unauthorized and cross-company refused, ambiguity reported at creation **and** re-validated at activation, capability assignment audited with a closed list, setup status honest before and after, list and count agreeing | **5 of 5 fail at 0079** — genuine schema-level discrimination |
+| §6 canonical adapter | round-trip with sender, account, message id and trace identity intact, the pre-§6 flat payload still readable, malformed payloads null, source selects the adapter and no unregistered source resolves to WhatsApp (`constructor`/`__proto__` included), unsupported channels still `absent` in the register | CODE-level, as §3 |
+
+**Honest limit:** §3 and §6 are implemented in application code, so a migration-level rollback cannot
+express "the tree before them". Their discrimination rests on the in-session reproductions recorded
+in the loop-1 and loop-2 commits, not on a re-runnable schema head. §5 discriminates properly.
+
+## 14. The three upgrade paths
+
+| Path | Result |
+|---|---|
+| **1. Fresh `0001 → 0083`** | applied clean; integration **586 passed / 65 files** |
+| **2. Realistic legacy → `0083`** | hosted-style baseline `0001–0041` (the documented hosted state), seeded with 2 companies, 3 people, 3 memberships, an approval policy, 4 source events **including the `in_`/`evt_` duplicate pair and a receipt with no provider message id**, 2 financial events, 2 approval requests, 3 tasks, 2 quotations, 2 outbox rows and audit history — then `0042 → 0083` in order. Applied clean; integration **586 passed / 65 files** |
+| **3. Narrow `0082 → 0083`** | applied clean; integration **586 passed / 65 files** |
+
+**Invariants after the legacy upgrade:** nothing lost — 4 source events still 4, of which **1 was
+superseded** by 0076's reconciliation of the `in_`/`evt_` pair and 2 carry a canonical identity; both
+approval requests were backfilled with submitter provenance by 0081; 0 service-only functions are
+reachable by `anon` or `authenticated`.
+
+**No operational precondition or hosted privilege script was required on this path.** That is
+expected rather than a gap: the disposable baseline is built by the repository's own migrations, so
+it does not carry the hosted drift that `HOSTED_SECDEF_PRIVILEGE_HOTFIX.md` exists to correct. The
+hotfix remains an owner action against the hosted database and was **not** executed anywhere.
+
+## 15. MATERIAL BLOCKER — OF-016
+
+**A suspected duplicate has no authorized resolution path.** The `duplicate_reviews` row is durable,
+correctly evidenced and readable by an authorized member — but there is no resolution RPC, no screen
+and no write grant, and the paused payment appears on **no screen**, because the only page rendering
+financial events reads exclusively from `approval_requests`. A real payment can pause in
+`awaiting_information` with nothing in the product able to move it again.
+
+Proven in `tests/integration/duplicate-review-and-approval-visibility.test.ts`: no
+`%duplicate%resolve%` function exists; an authorized member's UPDATE is refused `42501`; a paused
+event exists with no approval request; the review is open and is not counted as finished.
+
+**Not a regression** — before 0083 the same event went to the *terminal* `duplicate` state, equally
+invisible and additionally irreversible. 0083 made it reversible; it did not build the workflow.
+
+**Recorded, not repaired.** Both correction loops are spent, and the directive is explicit that a
+defect found during evidence closure goes to the next bounded package.
+
+## 16. Package disposition
+
+**FROZEN AND UNACCEPTED.**
+
+* Correction loops: **2 of 2 used**.
+* Requirements: **90 registered, 13 verified** (unchanged from the pre-R1 decision), 72
+  incomplete-implementable, 4 blocked-owner, 1 deferred.
+* **AIM-003** stays `implementation_in_progress` — taken off `locally_verified` before any R1 code
+  and not restored on this package's own say-so.
+* **FOUND-003** stays `blocked_owner`, now for two reasons: no live finance classifier (OF-003) and
+  the OF-016 blocker.
+* **FOUND-006** stays unaccepted — OF-014's residual is its boundary.
+* **MOD-003** registered as `specified` from the C1 audit: a provider-neutral transport interface
+  and one static route table exist; `src/ai/model-routes.ts` has **no production caller**; fallback,
+  provider health, circuit breaking, budgets, privacy policy, ensembles and adjudication are absent.
+
+### Live model / provider status
+
+No live provider was called. The model transport is a deterministic fixture; production's
+`classifyFinanceIntent` still returns `null`. **MOD-001 stays `blocked_owner`** pending a credential
+supplied privately.
+
+### Owner configuration still required
+
+Mapping each receiving WhatsApp number to its company; granting `operations.inbound.review`; hosted
+scheduling for `/api/cron/dispatch-drain`; hosted migration application (`0042–0083`); GitHub Actions
+runner provisioning; email/voice/calendar provider selection.
+
+## 17. Next package order
+
+1. **FOUND-006** — eliminate request-metadata/GUC text as an authorization signal wherever it can
+   affect database privileges; exact grants, split entrypoints, provable invocation identity. This
+   subsumes OF-014's residual.
+2. **OF-016** — the duplicate-review resolution RPC, screen and paused-payment visibility.
+3. **MOD-003** — the provider-neutral Model Gateway and Policy Router.
+4. Continue through the requirement register in dependency order.
