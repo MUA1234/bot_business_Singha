@@ -7,7 +7,7 @@
   "currentBranch": "feature/v3-3-part2-durable-processing",
   "currentPr": 24,
   "baseSha": "079fbb8",
-  "lastGreenSha": "c8941ca",
+  "lastGreenSha": "1fd50b2",
   "latestMigration": "0077_inbound_boundary_correction_2.sql",
   "lastCompletedAction": "Correction loop 2. A second independent review found that two loop-1 fixes traded one defect for another: removing the duplicate source_events row lost the COMPANY SCOPE on every finance capture (the capture marker was recorded before the company was threaded through, and the later company-bearing call took the idempotent-replay branch), and narrowing the sweeper to exactly the finance captures meant the only wired processor dead-lettered every capture within one cron interval. It also found npm run verify RED at HEAD — the browser-check placeholder tripped the repository's own secret scanner, so the loop-1 claim that the secret scan passed was wrong and is withdrawn. Migration 0077 makes a company-less capture impossible at the table, settles a decided non-capture so the health signal stops counting it, releases rather than destroys work no processor can handle yet, requires a human routing decision to name an active member, escapes the identity delimiter, and re-asserts the capability-owner check search_path-independently. 0076 gained a fail-closed pre-check for the account-case collision it previously died on, and now stamps the canonical identity on the survivor rather than the tombstone.",
   "nextAction": "Owner review of the corrected boundary. Both correction loops are used, so no further loop is authorised: if the owner's next review finds a material issue, AIM-003 stays unaccepted and the blocker stands. If the boundary is accepted, continue to FOUND-006 (the RLS/service-role cutover with its architectural test), then a scheduled dispatch drain over claim_inbound_dispatch_batch and a real processor for captured finance events — both recorded as open findings.",
@@ -19,7 +19,7 @@
     "tests/campaign/dispatch-receipt.test.ts"
   ],
   "lastFullGateResults": {
-    "sha": "pending",
+    "sha": "1fd50b2",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
     "unit": "685 passed / 2 skipped / 99 files",
