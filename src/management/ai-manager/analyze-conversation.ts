@@ -117,7 +117,6 @@ export async function analyzeConversationThread(
         companyId: opts.companyId,
         managementCaseId: caseId,
         needsApproval: plan.needsApproval,
-        actorId: opts.actorId,
       });
 
   return { ok: true, createdTasks: created, deduplicatedTasks: deduplicated, routing, needsApproval: plan.needsApproval };

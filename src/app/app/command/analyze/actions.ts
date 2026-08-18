@@ -125,7 +125,6 @@ export async function analyzeUpdate(_prev: AnalyzeState, formData: FormData): Pr
         companyId: admin.companyId,
         managementCaseId: caseId,
         needsApproval: plan.needsApproval,
-        actorId: admin.userId,
       });
 
   return {

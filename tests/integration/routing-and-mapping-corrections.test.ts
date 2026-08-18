@@ -42,12 +42,50 @@ async function member(company: string, role: "owner_management" | "staff_submitt
 const task = async (company: string) =>
   (await db.query(`insert into tasks (company_id, title, status) values ($1,$2,'captured') returning id`, [company, `t_${rnd()}`])).rows[0].id;
 
-const route = (company: string, taskId: string, state: string, o: Record<string, unknown> = {}) =>
-  db.query(
-    `select * from public.route_task($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12)`,
-    [company, taskId, state, o.reason ?? "test", o.capability ?? null, JSON.stringify(o.proposed ?? []),
-     o.assignee ?? null, o.queue ?? null, o.approval ?? null, o.actor ?? null, o.actorSource ?? "system", o.submitter ?? null],
-  ).then((r: any) => r.rows[0]);
+/**
+ * Since migration 0078 provenance comes from WHICH function is called. A `human` scenario therefore
+ * runs as a real authenticated session — there is no actor parameter to pass — and a machine
+ * scenario goes through the AI/system wrapper, which fixes its own source.
+ */
+async function route(company: string, taskId: string, state: string, o: Record<string, any> = {}) {
+  const src = o.actorSource ?? "system";
+  if (src === "human") {
+    // A human decision needs an authenticated session, and `set local role` is transaction-scoped —
+    // so this opens its own transaction when the caller is not already inside one.
+    const ownTx = !(await db.query(`select pg_catalog.txid_current_if_assigned() is not null as in_tx`)).rows[0].in_tx;
+    if (ownTx) await db.query("begin");
+    await db.query("savepoint hr");
+    try {
+      await db.query("set local role authenticated");
+      await db.query(`select set_config('request.jwt.claims', $1, true)`,
+        [JSON.stringify({ sub: o.actor, role: "authenticated" })]);
+      const r = await db.query(
+        `select * from public.route_task_as_human($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10)`,
+        [company, taskId, state, o.reason ?? "test", o.capability ?? null, JSON.stringify(o.proposed ?? []),
+         o.assignee ?? null, o.queue ?? null, o.approval ?? null, o.submitter ?? null]);
+      await db.query("release savepoint hr");
+      await db.query("reset role").catch(() => {});
+      if (ownTx) await db.query("commit");
+      await db.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', false)`).catch(() => {});
+      return r.rows[0];
+    } catch (e) {
+      await db.query("rollback to savepoint hr").catch(() => {});
+      await db.query("reset role").catch(() => {});
+      if (ownTx) await db.query("rollback").catch(() => {});
+      await db.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', false)`).catch(() => {});
+      throw e;
+    }
+  }
+  const sql = src === "ai"
+    ? `select * from public.route_task_as_ai($1,$2,$3,$4,$5,null,null,$6,$7::jsonb,$8,$9,$10,$11)`
+    : `select * from public.route_task_as_system($1,$2,$3,$4,$5,null,$6,$7::jsonb,$8,$9,$10,$11)`;
+  const r = await db.query(sql, [
+    company, taskId, state, o.reason ?? "test", o.component ?? "corrections-test",
+    o.capability ?? null, JSON.stringify(o.proposed ?? []), o.assignee ?? null, o.queue ?? null,
+    o.approval ?? null, o.submitter ?? null,
+  ]);
+  return r.rows[0];
+}
 
 describe.skipIf(!enabled)("correction loop 1 — confirmed 0072 / 0074 defects (live)", () => {
   beforeAll(async () => {

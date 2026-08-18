@@ -137,13 +137,18 @@ describe.skipIf(!enabled)("0077 — correction loop 2 (live)", () => {
     expect(a).not.toBe(b);
   });
 
-  it("a HUMAN routing decision must name an active member of the company", async () => {
+  it("a HUMAN routing decision cannot be made from the service context AT ALL (superseded by 0078)", async () => {
+    // 0077 required a human decision to name an active member. 0078 went further and removed the
+    // parameter entirely: provenance now comes from WHICH function is called, and the human path is
+    // not granted to service_role. The full boundary is proven in routing-provenance.test.ts.
     const t = (await db.query(`insert into tasks (company_id, title, status) values ($1,'l2 task','captured') returning id`, [co])).rows[0].id;
-    await expect(db.query(
-      `select * from public.route_task($1,$2,'needs_routing','x',null,'[]'::jsonb,null,null,null,null,'human',null)`, [co, t]))
-      .rejects.toThrow(/must name the person/);
-    await expect(db.query(
-      `select * from public.route_task($1,$2,'needs_routing','x',null,'[]'::jsonb,null,null,null,gen_random_uuid(),'human',null)`, [co, t]))
-      .rejects.toMatchObject({ code: "42501" });
+    await db.query("begin");
+    try {
+      await expect(db.query(
+        `select * from public.route_task_as_human($1,$2,'needs_routing','x')`, [co, t]))
+        .rejects.toMatchObject({ code: "42501" });
+    } finally {
+      await db.query("rollback");
+    }
   });
 });
