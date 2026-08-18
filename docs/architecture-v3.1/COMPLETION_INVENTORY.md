@@ -40,7 +40,7 @@
 | src/app/app/operations/tasks/actions.ts | 15 |
 | src/app/login/actions.ts | 2 |
 | src/components/PriceRequests.tsx | 3 |
-| src/inngest/functions.ts | 3 |
+| src/inngest/functions.ts | 4 |
 | src/lib/audit.ts | 2 |
 | src/lib/auth.ts | 3 |
 | src/lib/documents.ts | 3 |

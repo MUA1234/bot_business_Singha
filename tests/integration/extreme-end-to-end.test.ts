@@ -387,8 +387,14 @@ describe.skipIf(!enabled)("R1 §7 — extreme end to end (disposable local Postg
       `wamid.${rnd()}`, classifier("90000", "Ceylon Roofing", true));
     await runSweeper();
     const dupFe = await row(`select id, state from financial_events where source_event_id=$1`, [again.receipt.event.id]);
-    expect(dupFe.state).toBe("duplicate");
+    // PAUSED for a person, not terminated. `duplicate` has no transition out, so writing it from a
+    // similarity SCORE silently discarded a second genuine payment; `awaiting_information` is
+    // reversible and a human decides.
+    expect(dupFe.state).toBe("awaiting_information");
     expect(Number((await row(`select count(*)::int as n from duplicate_candidates where financial_event_id=$1`, [dupFe.id])).n)).toBeGreaterThan(0);
+    const dupRev = await row(`select state, score, algorithm_version from duplicate_reviews where financial_event_id=$1`, [dupFe.id]);
+    expect(dupRev.state).toBe("open");
+    expect(dupRev.algorithm_version).toBe("dup/v2-evidence-required");
     H.extraction = VALID_EXTRACTION(coA);
   });
 

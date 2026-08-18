@@ -18,12 +18,6 @@ export const metadata = { title: "Inbound setup — Singha Central" };
 interface AccountRow { id: string; channel: string; provider_account_id: string; display_label: string | null; is_active: boolean }
 interface PersonRow { id: string; full_name: string | null; username: string | null }
 
-/**
- * The roles that let someone work the inbound review queue. Kept beside the query that uses it so
- * the LIST on this screen and the COUNT from `inbound_setup_status` cannot drift apart.
- */
-const REVIEWER_ROLE_KEYS = ["finance_reviewer", "owner_management", "system_administrator"];
-
 export default async function InboundSetupPage() {
   const membership = await requireMembership();
   const canConfigure = await membershipHasCapability(membership, "admin.organisation.manage");
@@ -72,28 +66,16 @@ export default async function InboundSetupPage() {
     if (pErr) throw new Error(pErr.message);
     people = (profiles ?? []) as PersonRow[];
 
-    // Reviewers are read with the SAME definition `inbound_setup_status` counts by — an ACTIVE
-    // membership. Joining without that filter meant the list beside the number was computed
-    // differently from the number, and the two could disagree on the same screen.
-    const { data: roles, error: rErr } = await db
-      .from("membership_roles")
-      .select("role_key, membership_id")
-      .eq("company_id", membership.companyId);
+    // Reviewers come from `inbound_reviewer_user_ids`, which is the SAME predicate
+    // `inbound_setup_status` counts by — an active membership holding the capability, DELEGATIONS
+    // INCLUDED. A role-key filter beside a capability count is two different questions on one
+    // screen, and it showed "2 people who can review" next to a list of one.
+    const { data: revs, error: rErr } = await db.rpc("inbound_reviewer_user_ids", {
+      p_company: membership.companyId,
+    });
     if (rErr) throw new Error(rErr.message);
-    const { data: activeMemberships, error: mErr } = await db
-      .from("memberships")
-      .select("id, user_id")
-      .eq("company_id", membership.companyId)
-      .eq("status", "active");
-    if (mErr) throw new Error(mErr.message);
-    const userByMembership = new Map(
-      ((activeMemberships ?? []) as { id: string; user_id: string }[]).map((m) => [m.id, m.user_id]),
-    );
     reviewers = new Set(
-      ((roles ?? []) as { role_key: string; membership_id: string }[])
-        .filter((r) => REVIEWER_ROLE_KEYS.includes(r.role_key))
-        .map((r) => userByMembership.get(r.membership_id) ?? "")
-        .filter(Boolean),
+      ((revs ?? []) as { user_id: string }[]).map((r) => r.user_id).filter(Boolean),
     );
   } catch (e) {
     loadError = (e as Error).message;

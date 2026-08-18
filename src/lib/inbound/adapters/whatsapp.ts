@@ -31,7 +31,8 @@ interface MetaMessage {
   from?: string;
   type?: string;
   timestamp?: string;
-  text?: { body?: string };
+  /** Meta sends `{ body }`. A plain string is the pre-§6 stored shape — see `contentOf`. */
+  text?: { body?: string } | string;
   image?: MetaMedia;
   document?: MetaMedia;
   audio?: MetaMedia;
@@ -66,7 +67,12 @@ function mediaOf(m: MetaMessage) {
  * gave every one of them the same content hash.
  */
 function contentOf(m: MetaMessage): string {
-  if (m.type === "text") return m.text?.body ?? "";
+  // BACKWARD COMPATIBILITY (review S-07). Receipts written by the pre-§6 webhook stored a FLAT
+  // `{id, from, text: "…"}` with no `type`, and reading `text.body` only when `type === "text"`
+  // returned null for every one of them — so the drain would have failed rows the OLD drain read
+  // correctly. A plain string `text` is accepted for exactly that reason.
+  if (typeof m.text === "string") return m.text;
+  if (m.type === "text" || m.type === undefined) return m.text?.body ?? "";
   return m.image?.caption ?? m.document?.caption ?? m.video?.caption ?? m.audio?.caption ?? "";
 }
 

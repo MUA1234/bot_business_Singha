@@ -14,11 +14,14 @@ import type { InboundAdapter } from "@/schemas/inbound-adapter";
 import { whatsappAdapter } from "@/lib/inbound/adapters/whatsapp";
 
 /** Keyed by `source_events.source`, which is the CHANNEL, not the provider. */
-const BY_SOURCE: Record<string, InboundAdapter> = {
+// `Object.create(null)`: a plain literal would resolve `source = "constructor"` or `"toString"` to
+// an Object.prototype member instead of null. Unreachable today (`source_events.source` is
+// CHECK-constrained to seven values) but the registry should not depend on that staying true.
+const BY_SOURCE: Record<string, InboundAdapter> = Object.assign(Object.create(null), {
   whatsapp: whatsappAdapter,
-};
+});
 
 export function adapterForSource(source: string | null | undefined): InboundAdapter | null {
   if (!source) return null;
-  return BY_SOURCE[source] ?? null;
+  return Object.prototype.hasOwnProperty.call(BY_SOURCE, source) ? BY_SOURCE[source]! : null;
 }

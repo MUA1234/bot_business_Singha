@@ -66,20 +66,25 @@ export async function GET(req: Request): Promise<Response> {
           // A receipt from a channel with no adapter is NOT dispatched as if it were WhatsApp.
           // `claim_inbound_dispatch_batch` selects on dispatch state alone, so such a row is
           // claimable the moment any other producer writes one (OF-006 anticipates exactly that).
-          await db.rpc("fail_inbound_dispatch", {
+          // THROW on a failed record. Returning "error" here counted as a recorded outcome, while
+          // `result.errors` is documented as "threw AND could not be recorded" — so a broken
+          // failure path would have been invisible. Every other call site in this package throws.
+          const { error } = await db.rpc("fail_inbound_dispatch", {
             p_event: receipt.id, p_owner: o, p_error_code: "no_adapter",
             p_error: `no inbound adapter is registered for source "${receipt.source}"`,
           });
+          if (error) throw new Error(`could not record no_adapter for ${receipt.id}: ${error.message}`);
           return "error";
         }
         const message = adapter.fromStored(
           receipt.raw_payload, receipt.provider_account_id, receipt.correlation_id ?? receipt.id,
         );
         if (!message) {
-          await db.rpc("fail_inbound_dispatch", {
+          const { error } = await db.rpc("fail_inbound_dispatch", {
             p_event: receipt.id, p_owner: o, p_error_code: "unreadable_payload",
             p_error: `the stored ${receipt.source} payload could not be re-read as a message`,
           });
+          if (error) throw new Error(`could not record unreadable_payload for ${receipt.id}: ${error.message}`);
           return "error";
         }
 

@@ -71,6 +71,11 @@ const SERVICE_ONLY = new Set([
   // 0074 FOUND-003 — the RECEIVING company is resolved from trusted channel configuration rather
   // than a hardcoded constant. Service-only: the mapping decides which company owns a message.
   "resolve_channel_company(text,text)",
+  // 0083 — the durable consumer settles a receipt it finished, so the scheduled sweeper does not
+  // re-process it. Service-only: it decides that a receipt is done.
+  "settle_processed_source_event(uuid)",
+  // 0083 — the reviewer LIST, using the same capability predicate inbound_setup_status counts by.
+  "inbound_reviewer_user_ids(uuid)",
   // 0075 FOUND-003 — the manual-review queue. record is idempotent per message; resolve
   // INDEPENDENTLY re-checks the named actor's capability rather than trusting the application.
   "record_inbound_review(uuid,text,text,text,text,uuid,text,text,text,text)",

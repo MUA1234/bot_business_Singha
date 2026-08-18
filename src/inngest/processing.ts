@@ -32,7 +32,7 @@ import {
   type KnownContext,
   type PipelineAction,
 } from "@/events/intelligence";
-import { scoreDuplicate, type DuplicateCandidateInput } from "@/events/duplicate";
+import { scoreDuplicate, DUPLICATE_ALGORITHM_VERSION, type DuplicateCandidateInput } from "@/events/duplicate";
 import { evaluatePolicy, toEvaluatable, type PolicyDecision } from "@/policy/authority";
 import { assertTransition, type FinancialEventState } from "@/domain/lifecycle";
 
@@ -85,7 +85,14 @@ export interface ConsumerDeps {
     companyId: string,
     within: DuplicateCandidateInput,
   ): Promise<{ id: string; candidate: DuplicateCandidateInput }[]>;
-  createDraft(draft: DraftInput): Promise<{ financial_event_id: string }>;
+  /**
+   * Draft the event, or return the one this source event already has.
+   *
+   * `resumedFromState` is set ONLY when an existing event was returned, and carries its current
+   * state. The pipeline has two callers and both retry, so a second execution must resume from
+   * where the first stopped rather than replay the state machine from `detected`.
+   */
+  createDraft(draft: DraftInput): Promise<{ financial_event_id: string; resumedFromState?: string }>;
   transitionState(
     financialEventId: string,
     from: FinancialEventState,
@@ -113,6 +120,24 @@ export interface ConsumerDeps {
     financial_event_id: string;
     company_id: string;
     matches: { matched_event_id: string; score: number; reasons: string[] }[];
+  }): Promise<void>;
+  /**
+   * Open a REVIEWABLE duplicate suspicion for a person. Distinct from `createDuplicateCandidates`,
+   * which is the raw scoring trace: this is the item someone opens and decides. Idempotent per
+   * (event, matched event) so a resumed run does not stack reviews.
+   */
+  openDuplicateReview(input: {
+    financial_event_id: string;
+    company_id: string;
+    matches: {
+      matched_event_id: string;
+      score: number;
+      reasons: string[];
+      contributions?: { amount: number; date: number; counterparty: number };
+      evidence_present?: string[];
+      evidence_missing?: string[];
+    }[];
+    algorithm_version: string;
   }): Promise<void>;
   appendAudit(input: AuditInput): Promise<void>;
 }
@@ -212,7 +237,7 @@ export async function processSourceEvent(
   const action = derivePipelineAction(x, missing, { possibleDuplicate });
 
   // ── Step 5: create the draft + immutable v1 snapshot ──
-  const { financial_event_id } = await deps.createDraft({
+  const { financial_event_id, resumedFromState } = await deps.createDraft({
     source_event_id: src.id,
     company_id: src.company_id,
     correlation_id: src.correlation_id,
@@ -220,6 +245,32 @@ export async function processSourceEvent(
     missing_fields: missing,
     recommended_action: action,
   });
+
+  // ── RESUME (S-01) ──────────────────────────────────────────────────────────────────────────
+  // This source event already has a financial event, so a previous execution got at least this
+  // far. Replaying the state machine from `detected` fails — the event has moved on — and treating
+  // that failure as a processing error burned every retry and dead-lettered a captured payment.
+  //
+  // Resume from where it actually is. The one case that still needs WORK is an event parked in
+  // `awaiting_approval` whose approval request never landed (a crash between the two): without it
+  // the payment shows on no screen and can never be approved.
+  if (resumedFromState && resumedFromState !== "draft") {
+    if (resumedFromState === "awaiting_approval") {
+      await deps.createApprovalRequest({
+        financial_event_id,
+        company_id: src.company_id ?? "",
+        approvals_required: 1,
+        submitted_by: ctx.submitterUserId,
+      });
+      await audit(deps, src, financial_event_id, "resumed_awaiting_approval", {});
+      return result(src, financial_event_id, "awaiting_approval", true);
+    }
+    // Everything else is already a real outcome someone owns — a person, a policy, or a terminal
+    // decision. Report it rather than redoing it.
+    await audit(deps, src, financial_event_id, "resumed_no_further_work", { state: resumedFromState });
+    return result(src, financial_event_id, outcomeForState(resumedFromState), true);
+  }
+
   // Every event is drafted first (detected → draft) so it always has a versioned record.
   await deps.transitionState(financial_event_id, "detected", "draft", "extracted");
   await deps.appendAudit({
@@ -236,16 +287,30 @@ export async function processSourceEvent(
   const target = targetStateFor(action);
 
   if (action === "flag_duplicate") {
+    // SUSPICION, NOT A VERDICT. A similarity score may ask a person to look; it may not discard a
+    // payment. This used to write the TERMINAL `duplicate` state (no transition out), while
+    // `duplicate_candidates` was read by no screen — so a second genuine payment to the same
+    // supplier on the same day was silently and irreversibly lost.
     if (src.company_id && dupMatches.length) {
       await deps.createDuplicateCandidates({
         financial_event_id,
         company_id: src.company_id,
         matches: dupMatches,
       });
+      // The reviewable record: the pair, the score, the per-feature contributions, what evidence
+      // was present and what was missing, and the rule version that produced it.
+      await deps.openDuplicateReview({
+        financial_event_id,
+        company_id: src.company_id,
+        matches: dupMatches,
+        algorithm_version: DUPLICATE_ALGORITHM_VERSION,
+      });
     }
-    await deps.transitionState(financial_event_id, "draft", "duplicate", "possible duplicate");
-    await audit(deps, src, financial_event_id, "flagged_duplicate", { matches: dupMatches.length });
-    return result(src, financial_event_id, "duplicate", true);
+    // A REVERSIBLE pause. `awaiting_information` can go back to draft, on to approval, or to a
+    // terminal state once a HUMAN decides — which is what "confirmed duplicate" now means.
+    await deps.transitionState(financial_event_id, "draft", "awaiting_information", "possible duplicate — awaiting a person");
+    await audit(deps, src, financial_event_id, "duplicate_suspected", { matches: dupMatches.length });
+    return result(src, financial_event_id, "awaiting_information", true);
   }
 
   if (action === "request_clarification" || action === "flag_for_review") {
@@ -321,11 +386,21 @@ export async function processSourceEvent(
   return result(src, financial_event_id, "awaiting_approval", true);
 }
 
+/** One scored resemblance, with the evidence that produced it. */
+export interface DuplicateMatch {
+  matched_event_id: string;
+  score: number;
+  reasons: string[];
+  contributions?: { amount: number; date: number; counterparty: number };
+  evidence_present?: string[];
+  evidence_missing?: string[];
+}
+
 async function findDuplicates(
   companyId: string | null,
   x: AiExtraction,
   deps: ConsumerDeps,
-): Promise<{ matched_event_id: string; score: number; reasons: string[] }[]> {
+): Promise<DuplicateMatch[]> {
   if (!companyId) return [];
   const candidate: DuplicateCandidateInput = {
     company_id: companyId,
@@ -335,11 +410,20 @@ async function findDuplicates(
     counterparty_name: x.counterparty_name,
   };
   const recent = await deps.recentEventsForDedup(companyId, candidate);
-  const matches: { matched_event_id: string; score: number; reasons: string[] }[] = [];
+  const matches: DuplicateMatch[] = [];
   for (const r of recent) {
     const s = scoreDuplicate(candidate, r.candidate);
     if (s.isLikelyDuplicate) {
-      matches.push({ matched_event_id: r.id, score: s.score, reasons: s.reasons });
+      // Carry the EVIDENCE, not just the number — a reviewer needs to see why, and a past decision
+      // must be readable against the rule version that produced it.
+      matches.push({
+        matched_event_id: r.id,
+        score: s.score,
+        reasons: s.reasons,
+        contributions: s.contributions,
+        evidence_present: s.evidencePresent,
+        evidence_missing: s.evidenceMissing,
+      });
     }
   }
   return matches;
@@ -388,6 +472,23 @@ function result(
   aiOk: boolean,
 ): ProcessResult {
   return { source_event_id: src.id, financial_event_id: financialEventId, outcome, ai_ok: aiOk };
+}
+
+/**
+ * Map a persisted financial-event state back to the pipeline's outcome vocabulary, for a resumed
+ * run that has no work left to do.
+ */
+function outcomeForState(state: string): ProcessOutcome {
+  switch (state) {
+    case "awaiting_information": return "awaiting_information";
+    case "awaiting_evidence": return "awaiting_evidence";
+    case "awaiting_approval": return "awaiting_approval";
+    case "approved": return "approved";
+    case "rejected": return "rejected";
+    case "duplicate": return "duplicate";
+    // Anything further along (posted, reconciled, locked…) is finished as far as ingestion cares.
+    default: return "approved";
+  }
 }
 
 /** Re-export so the DB layer can validate transitions the same way the pipeline does. */

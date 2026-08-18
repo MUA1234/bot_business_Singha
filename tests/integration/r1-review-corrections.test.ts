@@ -275,13 +275,15 @@ describe.skipIf(!enabled)("R1 correction loop 1 (disposable local PostgreSQL)", 
     }
 
     // TRUNCATE bypasses row triggers entirely, so it has its own statement-level refusal.
+    //
+    // Asserted AS THE OWNER and in the CASCADE form deliberately. As service_role the plain form is
+    // stopped by a foreign key and the cascade form by a missing grant — so the earlier version of
+    // this assertion passed without ever reaching the new trigger, and would still have passed with
+    // the trigger deleted. The owner is the only caller for whom the trigger is the sole defence.
     await db.query("begin");
     try {
-      await db.query("set local role service_role");
-      // (A foreign key from task_routing_events refuses it first; the statement trigger is the
-      // backstop for when nothing references the row.)
-      await expect(db.query(`truncate table task_routing`))
-        .rejects.toThrow(/cannot be truncated|permission denied|referenced in a foreign key/i);
+      await expect(db.query(`truncate table task_routing cascade`))
+        .rejects.toThrow(/task_routing cannot be truncated/);
     } finally { await db.query("rollback"); }
 
     const still = await row(`select is_active, decided_by_source from task_routing where id=$1`, [human.id]);
@@ -347,6 +349,257 @@ describe.skipIf(!enabled)("R1 correction loop 1 (disposable local PostgreSQL)", 
     for (const bad of [{ entry: { not: "an array" } }, { entry: [{ changes: [{ value: { messages: 42 } }] }] }]) {
       expect(() => whatsappAdapter.parse(bad, newCorrelationId)).not.toThrow();
     }
+  });
+
+  // ── loop 2: S-01, the P0 the loop-1 R-02 fix introduced ──────────────────────────────────────
+  it("S-01: a RESUMED pipeline run finishes the work instead of stalling forever", async () => {
+    // A distinct amount and counterparty: this file creates several LKR 45,000 Acme Cement events,
+    // and a duplicate SUSPICION would legitimately take a different branch, making the assertion
+    // depend on test order rather than on the resume behaviour under test.
+    H.extraction = { ...EXTRACTION(co), amount: "17250.00", counterparty_name: "Kandy Roofing", transaction_date: "2026-07-02" };
+    const r = await receiptFor("paid LKR 17,250 to Kandy Roofing, bill attached");
+    await db.query(
+      `update source_events set dispatch_state='dispatched', dispatch_outcome='staff_finance',
+              company_id=$2, status='pending', next_attempt_at=now() - interval '1 minute' where id=$1`,
+      [r.event.id, co]);
+
+    // Fail AFTER the draft exists — the exact shape OF-013 had, and the shape of any downstream
+    // failure. Loop 1 stopped the duplicate draft but left the retry asserting `detected → draft`
+    // on an event long past `detected`, so every retry failed and the capture dead-lettered with a
+    // payment sitting in awaiting_approval and NO approval request: invisible and unapprovable.
+    await db.query(`create or replace function public._s1_fail() returns trigger language plpgsql as $$
+                    begin raise exception 's1: downstream failure after the draft'; end $$`);
+    await db.query(`create trigger _s1_fail_trg before insert on approval_requests
+                    for each row execute function public._s1_fail()`);
+    await runSweeper();
+    await db.query(`drop trigger _s1_fail_trg on approval_requests`);
+    await db.query(`drop function public._s1_fail()`);
+
+    // The retry must now RESUME and finish.
+    await db.query(`update source_events set next_attempt_at=now() - interval '1 minute' where id=$1`, [r.event.id]);
+    await runSweeper();
+
+    const fe = await row(`select id, state from financial_events where source_event_id=$1`, [r.event.id]);
+    expect(fe).toBeTruthy();
+    const dbg = await row(`select status, attempts, last_error_code, last_error from source_events where id=$1`, [r.event.id]);
+    expect(dbg.status).toBe("completed");
+    // The resume is VISIBLE in the audit trail — it is not a silent second run.
+    const acts = (await db.query(`select action from audit_events where entity_id=$1`, [fe.id])).rows.map((x: any) => x.action);
+    expect(acts).toContain("resumed_awaiting_approval");
+    H.extraction = EXTRACTION(co);
+    const ap = await row(`select count(*)::int as n from approval_requests where financial_event_id=$1`, [fe.id]);
+    expect(ap.n).toBe(1);                       // the approval a person can act on EXISTS
+
+    expect((await row(`select count(*)::int as n from financial_events where source_event_id=$1`, [r.event.id])).n).toBe(1);
+  });
+
+  it("S-01b: running the pipeline TWICE over with no failure at all is a clean no-op", async () => {
+    const r = await receiptFor("paid LKR 45,000 to Acme Cement, second bill");
+    await db.query(
+      `update source_events set dispatch_state='dispatched', dispatch_outcome='staff_finance',
+              company_id=$2, status='pending', next_attempt_at=now() - interval '1 minute' where id=$1`,
+      [r.event.id, co]);
+    await runSweeper();
+    const first = await row(`select id, state from financial_events where source_event_id=$1`, [r.event.id]);
+    expect(first).toBeTruthy();
+
+    // The durable consumer and the sweeper both process; nothing may break or double.
+    await db.query(`update source_events set status='pending', lease_owner=null, lease_expires_at=null,
+                    next_attempt_at=now() - interval '1 minute' where id=$1`, [r.event.id]);
+    const second = await runSweeper();
+    expect(second.status).toBe(200);
+    const after = await row(`select status, attempts from source_events where id=$1`, [r.event.id]);
+    expect(after.status).toBe("completed");
+    expect((await row(`select count(*)::int as n from financial_events where source_event_id=$1`, [r.event.id])).n).toBe(1);
+    expect(Number((await row(`select count(*)::int as n from approval_requests where financial_event_id=$1`, [first.id])).n)).toBeLessThanOrEqual(1);
+  });
+
+  it("S-01c: the durable consumer SETTLES its receipt, so the sweeper never re-claims it", async () => {
+    const r = await receiptFor("paid LKR 45,000 to Acme Cement, third bill");
+    await db.query(
+      `update source_events set dispatch_state='dispatched', dispatch_outcome='staff_finance',
+              company_id=$2, status='pending', next_attempt_at=now() - interval '1 minute' where id=$1`,
+      [r.event.id, co]);
+    expect((await db.query(`select public.settle_processed_source_event($1) as s`, [r.event.id])).rows[0].s).toBe("completed");
+    // A settled receipt is invisible to the sweeper's claim.
+    const claimable = await db.query(`select id from public.claim_source_events(50,'probe',60) where id=$1`, [r.event.id]);
+    expect(claimable.rows).toHaveLength(0);
+    // …and settling never steals a row another worker holds.
+    const r2 = await receiptFor("paid LKR 1,200 for a padlock");
+    await db.query(`update source_events set dispatch_state='dispatched', dispatch_outcome='staff_finance',
+                    company_id=$2, status='pending', lease_owner='someone-else',
+                    lease_expires_at=now() + interval '5 minutes' where id=$1`, [r2.event.id, co]);
+    expect((await db.query(`select public.settle_processed_source_event($1) as s`, [r2.event.id])).rows[0].s).toBe("leased_elsewhere");
+  });
+
+  it("S-02/A2: a scored duplicate PAUSES reversibly and never terminally discards a payment", async () => {
+    const mk = async (n: string) => {
+      const r = await receiptFor(`paid LKR 45,000 to Acme Cement ${n}`);
+      await db.query(
+        `update source_events set dispatch_state='dispatched', dispatch_outcome='staff_finance',
+                company_id=$2, status='pending', next_attempt_at=now() - interval '1 minute' where id=$1`,
+        [r.event.id, co]);
+      await runSweeper();
+      return r;
+    };
+    const a = await mk("first");
+    const b = await mk("second");
+
+    const feB = await row(`select id, state from financial_events where source_event_id=$1`, [b.event.id]);
+    expect(feB).toBeTruthy();
+    // REVERSIBLE, not terminal. `duplicate` has no transition out; `awaiting_information` does.
+    expect(feB.state).toBe("awaiting_information");
+
+    const rev = await row(
+      `select score, feature_contributions, evidence_present, evidence_missing, algorithm_version, state
+         from duplicate_reviews where financial_event_id=$1`, [feB.id]);
+    expect(rev).toBeTruthy();
+    expect(rev.state).toBe("open");
+    expect(Number(rev.score)).toBeGreaterThanOrEqual(0.7);
+    expect(rev.algorithm_version).toBe("dup/v2-evidence-required");
+    expect(rev.evidence_present).toEqual(expect.arrayContaining(["amount"]));
+    expect(Number(rev.feature_contributions.amount)).toBeGreaterThan(0);
+    expect(a.event.id).not.toBe(b.event.id);
+  });
+
+  it("S-03: two CONCURRENT revokes cannot empty a company of its administrators", async () => {
+    const mk = async (name: string) => {
+      const id = randomUUID();
+      await db.query(`insert into auth.users (id) values ($1) on conflict do nothing`, [id]);
+      await db.query(`insert into users (id, full_name, is_active) values ($1,$2,true) on conflict do nothing`, [id, name]);
+      const m = (await row(`insert into memberships (company_id, user_id, status) values ($1,$2,'active') returning id`, [co, id])).id;
+      return { id, m };
+    };
+    const admin = await mk("s3 admin");
+    const o1 = await mk("s3 owner 1");
+    const o2 = await mk("s3 owner 2");
+    await db.query(`insert into membership_roles (membership_id, company_id, role_key) values ($1,$2,'system_administrator')`, [admin.m, co]);
+    for (const o of [o1, o2]) {
+      await db.query(`insert into membership_roles (membership_id, company_id, role_key) values ($1,$2,'owner_management')`, [o.m, co]);
+    }
+
+    const { default: pg } = await import("pg" as string);
+    const conns = await Promise.all([0, 1].map(async () => {
+      const c = new pg.Client({ connectionString: URL, ssl: mkSsl(URL) });
+      await c.connect();
+      await c.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
+      await c.query(`set statement_timeout = '10s'`);
+      return c;
+    }));
+    try {
+      // A takes the lock and HOLDS it. B then blocks inside the function at the same lock — which
+      // is the point: without it both read "2 holders" and both proceed, leaving the company with
+      // none. B is awaited only AFTER A commits, so the two are genuinely concurrent rather than
+      // deadlocked by the test's own structure.
+      await conns[0]!.query("begin");
+      await conns[0]!.query(
+        `select * from public.admin_set_membership_role($1,$2,'owner_management',false,$3)`, [co, o1.id, admin.id]);
+
+      await conns[1]!.query("begin");
+      const blocked = conns[1]!.query(
+        `select * from public.admin_set_membership_role($1,$2,'owner_management',false,$3)`, [co, o2.id, admin.id]);
+
+      await conns[0]!.query("commit");
+      const second = await blocked.then(() => "ok" as const).catch((e: Error) => e);
+      await conns[1]!.query("commit").catch(() => conns[1]!.query("rollback"));
+
+      // The second revoke must be REFUSED — it would have emptied the company.
+      expect(second).toBeInstanceOf(Error);
+      expect((second as Error).message).toMatch(/last holder of owner_management/);
+      const left = await row(`select count(*)::int as n from membership_roles where company_id=$1 and role_key='owner_management'`, [co]);
+      expect(left.n).toBe(1);
+    } finally {
+      for (const c of conns) await c.end().catch(() => {});
+    }
+
+    for (const x of [admin, o1, o2]) {
+      await db.query(`delete from membership_roles where membership_id=$1`, [x.m]);
+      await db.query(`delete from memberships where id=$1`, [x.m]);
+      await db.query(`delete from users where id=$1`, [x.id]).catch(() => {});
+    }
+  });
+
+  it("S-04: revoking a role the subject does not hold is a no-op, not a false refusal", async () => {
+    const id = randomUUID();
+    await db.query(`insert into auth.users (id) values ($1) on conflict do nothing`, [id]);
+    await db.query(`insert into users (id, full_name, is_active) values ($1,'s4 person',true) on conflict do nothing`, [id]);
+    const m = (await row(`insert into memberships (company_id, user_id, status) values ($1,$2,'active') returning id`, [co, id])).id;
+    const admin = randomUUID();
+    await db.query(`insert into auth.users (id) values ($1) on conflict do nothing`, [admin]);
+    await db.query(`insert into users (id, full_name, is_active) values ($1,'s4 admin',true) on conflict do nothing`, [admin]);
+    const am = (await row(`insert into memberships (company_id, user_id, status) values ($1,$2,'active') returning id`, [co, admin])).id;
+    await db.query(`insert into membership_roles (membership_id, company_id, role_key) values ($1,$2,'system_administrator')`, [am, co]);
+
+    // Nobody in this company holds owner_management, and the subject certainly does not.
+    await db.query(`delete from membership_roles where company_id=$1 and role_key='owner_management'`, [co]);
+    const res = await row(`select * from public.admin_set_membership_role($1,$2,'owner_management',false,$3)`, [co, id, admin]);
+    expect(res.granted).toBe(false);
+
+    for (const x of [[m, id], [am, admin]] as [string, string][]) {
+      await db.query(`delete from membership_roles where membership_id=$1`, [x[0]]);
+      await db.query(`delete from memberships where id=$1`, [x[0]]);
+      await db.query(`delete from users where id=$1`, [x[1]]).catch(() => {});
+    }
+  });
+
+  it("OF-014: the UNAUTHENTICATED disclosure is closed; the authenticated one is a RECORDED residual", async () => {
+    const q = (await row(
+      `insert into quotations (company_id, quote_number, currency, status, public_token)
+       values ($1,$2,'LKR','sent',$3) returning id`, [co, `Q-l2-${rnd()}`, `tok-${rnd()}`])).id;
+
+    // A GENUINE `authenticated`-only login role. This suite connects as the superuser, and
+    // `pg_has_role(session_user, 'service_role', 'MEMBER')` is legitimately true for it — so
+    // probing as itself would prove nothing about what a caller can do. (The same mistake the
+    // review found in PATH 6(c).)
+    const role = `of014_${rnd()}`;
+    await db.query(`create role ${role} login password 'probe'`);
+    await db.query(`grant authenticated to ${role}`);
+    const { default: pg } = await import("pg" as string);
+    const attacker = new pg.Client({
+      connectionString: URL.replace(/\/\/[^@]*@/, `//${role}:probe@`), ssl: mkSsl(URL),
+    });
+    try {
+      await attacker.connect();
+      // It cannot escalate by role — the EXECUTE grants, not the claim, are the real gate, and
+      // that is what holds for the other 27 functions consulting caller_jwt_role().
+      await expect(attacker.query(`set role service_role`)).rejects.toMatchObject({ code: "42501" });
+
+      // THE RESIDUAL, PINNED HONESTLY. This function is SECURITY DEFINER, so `current_user` inside
+      // it is the OWNER and `session_user` under PostgREST is `authenticator` — which Supabase
+      // grants membership of service_role. Neither identifies the caller, so a privilege-based
+      // predicate could not replace the claim check without breaking a fail-closed control
+      // (measured: wp12-enqueue-item-race went red when I tried). The claim check therefore stands,
+      // and an authenticated caller able to run ARBITRARY SQL can still read one status per known
+      // id. That is recorded as part of the FOUND-006 residual and named as the next package — this
+      // assertion exists so the day it changes, this test says so.
+      await attacker.query(`select set_config('request.jwt.claims','{"role":"service_role"}',false)`);
+      expect((await attacker.query(`select public.caller_jwt_role() as r`)).rows[0].r).toBe("service_role");
+      const stillLeaks = await attacker.query(`select public._quotation_status_for_guard($1,$2) as s`, [co, q]);
+      expect(stillLeaks.rows[0].s).toBe("sent");
+    } finally {
+      await attacker.end().catch(() => {});
+    }
+
+    // WHAT IS FIXED: anon has no EXECUTE at all any more, so the disclosure no longer needs a
+    // session of any kind. Measured before the fix: an anon-only login role read `sent`.
+    const anonRole = `of014a_${rnd()}`;
+    await db.query(`create role ${anonRole} login password 'probe'`);
+    await db.query(`grant anon to ${anonRole}`);
+    const anonClient = new (await import("pg" as string)).default.Client({
+      connectionString: URL.replace(/\/\/[^@]*@/, `//${anonRole}:probe@`), ssl: mkSsl(URL),
+    });
+    try {
+      await anonClient.connect();
+      await anonClient.query(`select set_config('request.jwt.claims','{"role":"service_role"}',false)`);
+      await expect(anonClient.query(`select public._quotation_status_for_guard($1,$2)`, [co, q]))
+        .rejects.toMatchObject({ code: "42501" });
+    } finally {
+      await anonClient.end().catch(() => {});
+      await db.query(`drop role if exists ${anonRole}`);
+    }
+
+    await db.query(`delete from quotations where id=$1`, [q]);
+    await db.query(`drop role if exists ${role}`);
   });
 
   it("R-07: the LAST holder of company administration cannot be revoked away", async () => {
