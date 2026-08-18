@@ -56,6 +56,13 @@ const SERVICE_ONLY = new Set([
   // extensions.digest, which `authenticated` cannot reach; it reads and writes no table. Fired by
   // the trigger, never called directly.
   "tasks_set_identity_hash()",
+  // 0072 AIM-003 durable routing. route_task is the atomic transition boundary (service-only,
+  // in-function role gate); task_assignee_ineligible_reason revalidates a proposed assignee at
+  // commit time; the append-only trigger refuses any rewrite of routing history.
+  "route_task(uuid,uuid,text,text,text,jsonb,uuid,text,uuid,uuid,text,uuid)",
+  "task_assignee_ineligible_reason(uuid,uuid,text,uuid)",
+  // (task_routing_events_append_only is a plain trigger function, not SECURITY DEFINER — it only
+  //  raises. This allowlist governs SECURITY DEFINER signatures, so it is deliberately absent.)
 ]);
 // Must exist AND be locked on any DB reaching this migration (the legacy 7-arg is intentionally excluded).
 const SERVICE_ONLY_REQUIRED = [...SERVICE_ONLY].filter((s) => s !== "_journal_post_internal(uuid,date,text,text,uuid,jsonb,text)");
