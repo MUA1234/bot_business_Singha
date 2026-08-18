@@ -90,6 +90,12 @@ const SERVICE_ONLY = new Set([
   // 0079 — the dispatch-lifecycle twin: a drain that runs out of time hands work back UNCHARGED
   // rather than failing it, so a slow run cannot dead-letter healthy receipts.
   "release_inbound_dispatch(uuid,text)",
+  // 0080 — the owner configuration surface. Each re-checks the ACTING PERSON's capability inside
+  // the transaction and audits the change in it; none of them grants anything by itself.
+  "admin_upsert_channel_account(uuid,text,text,text,uuid)",
+  "admin_set_channel_account_active(uuid,uuid,boolean,uuid)",
+  "admin_set_membership_role(uuid,uuid,text,boolean,uuid)",
+  "inbound_setup_status(uuid)",
   "resolve_inbound_review(uuid,uuid,uuid,text,text)",
   // 0075 — the single capability implementation, for an EXPLICIT actor. Service-only because it
   // takes an arbitrary user id; has_capability (same owner) wraps it for RLS in the caller's role.
