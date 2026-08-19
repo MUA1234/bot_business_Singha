@@ -146,10 +146,6 @@ const AUTHENTICATED_OK = new Set([
   // 0084 (FOUND-006) — the HUMAN half of the quotation-status split. Granted to `authenticated`
   // only, and it authorizes on the CAPABILITY rather than on anything the caller can assert.
   "quotation_status_for_capable(uuid,uuid)",
-  // Self-gating read helper (0066): returns a quotation status enum ONLY to a caller who already holds
-  // sales.quotation.manage in that company (or the service worker), so the quotation_items freeze trigger
-  // can read the parent status even when the department-scoped read policy would hide it — no cross-company leak.
-  "_quotation_status_for_guard(uuid,uuid)",
   "authority_ceiling(uuid,text)",
   "has_capability(uuid,text)",
   "has_company_access(uuid)",

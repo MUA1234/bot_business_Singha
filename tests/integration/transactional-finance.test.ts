@@ -10,6 +10,7 @@
  * Skipped unless DATABASE_URL is set.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { authClaims, seedCapableActor, TEST_ACTOR } from "./helpers/capable-actor";
 
 const URL = process.env.DATABASE_URL ?? "";
 const enabled = !!URL;
@@ -27,7 +28,7 @@ async function asUser(u: string) {
   await client.query("set local role authenticated");
   await client.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: u, role: "authenticated" })]);
 }
-async function asWorker() { await client.query("reset role"); await client.query(`select set_config('request.jwt.claims','{"role":"service_role"}',true)`); }
+async function asWorker() { await client.query("reset role"); await client.query(`select set_config('request.jwt.claims','${authClaims()}',true)`); }
 async function call(sql: string, params: unknown[] = []): Promise<{ ok: boolean; value?: string; error?: string }> {
   try { const r = await q(sql, params); return { ok: true, value: r.rows[0]?.v }; }
   catch (e) { return { ok: false, error: (e as Error).message }; }
@@ -51,15 +52,17 @@ describe.skipIf(!enabled)("transactional finance (0042/0043) — live, zero-pers
     await client.connect();
     await client.query("begin");
     co = (await client.query(`insert into companies (name, base_currency) values ('wp_tf','LKR') returning id`)).rows[0].id;
+    await seedCapableActor(client, co, TEST_ACTOR, "accountant");
     await client.query(`insert into chart_of_accounts (company_id, code, name, type) values ($1,'1000','Cash','asset'),($1,'1100','AR','asset'),($1,'2000','AP','liability'),($1,'4000','Sales','income'),($1,'5000','Expense','expense')`, [co]);
     customer = (await client.query(`insert into customers (company_id, name, status) values ($1,'C','active') returning id`, [co])).rows[0].id;
     const mkUser = async (n: string) => (await client.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(),$1,true) returning id`, [n])).rows[0].id;
-    uAcct = await mkUser("tf_acct"); uEmp = await mkUser("tf_emp"); uOther = await mkUser("tf_other");
+    uAcct = TEST_ACTOR;   // FOUND-006/0086: p_by must be the authenticated subject
+    uEmp = await mkUser("tf_emp"); uOther = await mkUser("tf_other");
     const mkMem = async (u: string, role: string) => {
       const id = (await client.query(`insert into memberships (company_id, user_id, status) values ($1,$2,'active') returning id`, [co, u])).rows[0].id;
       await client.query(`insert into membership_roles (membership_id, company_id, role_key) values ($1,$2,$3)`, [id, co, role]);
     };
-    await mkMem(uAcct, "accountant"); await mkMem(uEmp, "staff_submitter"); await mkMem(uOther, "staff_submitter");
+    await mkMem(uEmp, "staff_submitter"); await mkMem(uOther, "staff_submitter");
     empSelf = (await client.query(`insert into employees (company_id, user_id, name, status) values ($1,$2,'Emp Self','active') returning id`, [co, uEmp])).rows[0].id;
     empOther = (await client.query(`insert into employees (company_id, user_id, name, status) values ($1,$2,'Emp Other','active') returning id`, [co, uOther])).rows[0].id;
   });

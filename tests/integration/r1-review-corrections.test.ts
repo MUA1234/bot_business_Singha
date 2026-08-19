@@ -542,7 +542,11 @@ describe.skipIf(!enabled)("R1 correction loop 1 (disposable local PostgreSQL)", 
     }
   });
 
-  it("OF-014: CLOSED by migration 0084 — a forged claim no longer discloses a quotation's status", async () => {
+  it("OF-014 (the DISCLOSURE half): migration 0084 stops a forged claim disclosing a quotation's status", async () => {
+    // Renamed after security review 2. The old name said "OF-014: CLOSED by migration 0084",
+    // which read as though the whole finding was closed. It was not: `_resolve_actor` still
+    // converted a forged `role=service_role` claim into a skipped capability check across nine
+    // finance RPCs until migration 0086 (G-01). This test only ever covered the disclosure half.
     const q = (await row(
       `insert into quotations (company_id, quote_number, currency, status, public_token)
        values ($1,$2,'LKR','sent',$3) returning id`, [co, `Q-l2-${rnd()}`, `tok-${rnd()}`])).id;

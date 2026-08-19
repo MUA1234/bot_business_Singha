@@ -11,6 +11,7 @@
  * Skipped unless DATABASE_URL is set.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { authClaims, seedCapableActor, TEST_ACTOR } from "./helpers/capable-actor";
 
 const URL = process.env.DATABASE_URL ?? "";
 const enabled = !!URL;
@@ -51,8 +52,9 @@ describe.skipIf(!enabled)("WP15 source-binding fingerprint (0056) — live, zero
     client = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } });
     await client.connect();
     await client.query("begin");
-    await client.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+    await client.query(`select set_config('request.jwt.claims', '${authClaims()}', true)`);
     co = (await client.query(`insert into companies (name, base_currency) values ('wp15sb','LKR') returning id`)).rows[0].id;
+    await seedCapableActor(client, co);
     await client.query(`insert into chart_of_accounts (company_id, code, name, type) values ($1,'1100','AR','asset'),($1,'1200','AR2','asset'),($1,'2000','AP','liability'),($1,'4000','Sales','income'),($1,'4100','Sales2','income'),($1,'5000','Expense','expense')`, [co]);
     customer = (await client.query(`insert into customers (company_id, name, status) values ($1,'C','active') returning id`, [co])).rows[0].id;
     supplier = (await client.query(`insert into suppliers (company_id, name, status) values ($1,'S','active') returning id`, [co])).rows[0].id;
@@ -133,7 +135,7 @@ describe.skipIf(!enabled)("WP15 source-binding fingerprint (0056) — live, zero
       await q(`select public._journal_fp_matches(gen_random_uuid(),'x',gen_random_uuid(),'x',gen_random_uuid(),'2026-07-15','LKR','m','[]'::jsonb)`);
     } catch (e) { sqlstate = (e as { code?: string }).code ?? (e as Error).message; }
     await client.query("reset role");
-    await client.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+    await client.query(`select set_config('request.jwt.claims', '${authClaims()}', true)`);
     expect(sqlstate).toBe("42501"); // insufficient_privilege
   });
 });

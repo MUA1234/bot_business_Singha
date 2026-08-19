@@ -18,6 +18,14 @@
 
 begin;
 
+-- `regprocedure` renders SCHEMA-QUALIFIED whenever `public` is not on the ambient search_path, so
+-- an allowlist of bare signatures silently stops matching and this assertion aborts a deployment
+-- that is perfectly healthy. A hosted runner, or a role whose default search_path omits `public`,
+-- is exactly that case. Pin it for the transaction (0067's doctrine, applied to a DO block —
+-- `DO` takes no SET clause of its own), and compare on the bare signature as well, so neither
+-- rendering can produce a false alarm. (Security review 2, G-06.)
+set local search_path = pg_catalog, extensions, public, pg_temp;
+
 do $$
 declare
   -- Compared as `regprocedure` text, NOT `pg_get_function_identity_arguments` — the latter includes
@@ -35,7 +43,7 @@ declare
 begin
   select string_agg(sig, ', ' order by sig) into v_bad
     from (
-      select p.oid::regprocedure::text as sig
+      select replace(p.oid::regprocedure::text, 'public.', '') as sig
         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
        where n.nspname = 'public'
          and p.prosecdef

@@ -49,7 +49,18 @@ caller holds a GRANT. Measured: `authenticated` → false, `service_role` → tr
 `authenticated`; grant to `service_role` and any required owner/internal role. No branch may convert
 a claimed role into service authority, and no caller-supplied boolean or actor-source may stand in
 for service identity. A `service_role` request whose JWT text reads `authenticated` **keeps** its
-access; an `authenticated` role whose claim reads `service_role` stays **refused**. Both are tested.
+access; an `authenticated` role whose claim reads `service_role` stays **refused**.
+
+> **Corrected after security review 2.** An earlier draft ended that paragraph with "Both are
+> tested", which was true only of the quotation split. It was NOT true of the tree. `_resolve_actor`
+> (migration 0049) read `request.jwt.claims` directly and turned `role=service_role` into
+> `actor_type='system'`; nine SECURITY DEFINER finance RPCs, every one EXECUTE-able by
+> `authenticated`, gated their capability check on that value and so skipped it entirely. A login
+> role holding no service membership at all posted a 999,999 journal with one forged GUC, and
+> defeated the supplier bank-change maker-checker the same way. **Migration 0086 removes the
+> branch** — there is no role test left, the actor is the authenticated subject, and the capability
+> check is unconditional. The rule above is now enforced across the api-reachable surface, and
+> `found-006-caller-trust.test.ts` re-runs the exploit from a genuine unprivileged login role.
 
 **Authenticated human entrypoints.** Grant to `authenticated` only. Derive the person from the
 trusted request context (`auth.uid()`), resolve active membership inside the transaction, and
@@ -112,17 +123,48 @@ login roles, with the public one holding no `service_role` membership. That is a
 the hosted project and an **owner action**; a migration cannot make it, and revoking
 `service_role` from `authenticator` on a live Supabase project would break the service path outright.
 
-`tests/integration/found-006-caller-trust.test.ts` therefore contains a **topology detector**: it
-fails when the role a request runs as can `SET ROLE` to `service_role`. It is expected to fail against
-the current single-`authenticator` shape and to pass once the owner separates the roles, so the
-control is real rather than aspirational.
+`tests/integration/found-006-caller-trust.test.ts` carries two separate things here, and security
+review 2 was right that an earlier draft confused them:
+
+* a **topology detector** — it enumerates the real non-superuser login roles in the database under
+  test, excluding the probe roles the integration suite itself creates, and FAILS naming any role
+  that holds both `service_role` and an api-role membership. On a disposable test database there is
+  no deployment login role at all, so it passes while saying exactly that; an empty pass is not a
+  statement about the hosted project.
+* a **mechanism demonstration** — it builds a merged login role deliberately and shows the
+  escalation is one statement long. It is titled as a demonstration because that is what it is.
+
+An earlier draft said the detector "is expected to fail against the current single-`authenticator`
+shape and to pass once the owner separates the roles". **That was the opposite of what the code did**
+— it asserted the escalation SUCCEEDS, so it was green today and would have gone red on the fix, and
+it measured a role the test itself had created rather than the deployed topology. A reader of the
+document alone would have concluded the suite was red pending owner action. Both the code and this
+paragraph are corrected.
+
+**A note on what PostgreSQL 16 does offer.** `GRANT … WITH SET FALSE` is the in-database control for
+this class in general: it lets a role inherit privileges without being able to `SET ROLE` to the
+grantor. It does not help *here*, because PostgREST needs `SET ROLE` on the very login role that
+serves API traffic in order to switch between `anon`, `authenticated` and `service_role` at all. So
+the accurate statement is not "no in-database control exists" but **"no in-database control closes
+this while one login role must switch into both the api roles and `service_role`."** The remedy is
+still the separate service login identity. For completeness: event triggers cannot intercept
+`SET ROLE`, `NOINHERIT` does not restrict it, and revoking `service_role` from `authenticator` on a
+live project breaks the service path.
 
 ### What FOUND-006 actually guarantees
 
-Stated exactly, and no wider: **no forged request claim yields service-only database privilege.** A
-caller must hold the `service_role` GRANT — by membership — and holding it is a database fact, not a
-request assertion. Everything above about `SET ROLE` and `sub` is about who can *obtain* that
-membership, which is a deployment question this package does not close.
+Stated exactly, and no wider: **as of migration 0086, no forged request claim yields service-only
+database privilege or skips a capability check on the api-reachable surface.** A caller must hold
+the `service_role` GRANT — by membership — and holding it is a database fact, not a request
+assertion. Everything above about `SET ROLE` and `sub` is about who can *obtain* that membership,
+which is a deployment question this package does not close.
+
+> **What this sentence looked like before, and why it was wrong.** At 0084/0085 it read "no forged
+> request claim yields service-only database privilege" with no qualifier, and it was false: the
+> claim did not need to yield *privilege* to do damage, only to select a *branch*. `_resolve_actor`
+> gave a forged `service_role` claim an actor_type that nine finance RPCs read as "skip the
+> capability check". Reproduced, then closed by 0086. The lesson is in the wording: a guarantee
+> about grants says nothing about what a function does with claim text once the caller is inside.
 
 ## 6. Inventory — every identity/privilege decision
 
@@ -130,25 +172,48 @@ Measured on a fresh `0001–0085` disposable database, counting functions in `pu
 references `auth.uid()`, `caller_jwt_role`, `request.jwt`, `current_user`, `session_user` or
 `pg_has_role`:
 
-**45 functions, of which 15 are reachable by `anon` or `authenticated`.** (An earlier draft said
-"48 / 17"; 17 was the pre-0084 count and 48 matched no definition. Both are corrected, and the
-classes below now sum to the totals.)
+**45 functions, of which 15 are reachable by `anon` or `authenticated`.** Both counts verified
+against `pg_proc` on a fresh `0001–0086` disposable database. (An earlier draft said "48 / 17"; 17
+was the pre-0084 count and 48 matched no definition.)
 
-| Classification | Count | Members | Why |
-|---|---|---|---|
-| **Security-sensitive, CHANGED** | 1 | `_quotation_status_for_guard` (**dropped**) | The only DEFINER function reachable by an api role that converted a claimed role into authority |
-| **Safe — the exact grant is the gate** | 30 | `claim_source_events`, `record_inbound_receipt`, `admin_*`, `route_task_as_ai`, `settle_processed_source_event`, `quotation_status_for_service`, … | `anon` and `authenticated` hold no EXECUTE. Forging a claim is irrelevant when the call itself is refused |
-| **Safe — the claim use is RESTRICTIVE** | 2 | `decide_approval`, `route_task_as_human` | The claim can only *tighten*. Enforced by migration 0085's allowlist: these two are the only api-reachable DEFINER functions permitted to reference `caller_jwt_role` at all |
-| **Identity/audit inside the trusted request boundary** | 10 | `has_capability`, `has_company_access`, `has_membership`, `has_permission`, `is_admin`, `my_company`, `my_department`, `within_authority`, `within_authority_for_event`, `authority_ceiling` | RLS predicate helpers evaluated in the caller's role. They decide which ROWS are visible, never service privilege. Their exposure to a forged `sub` is §5a |
-| **Capability-gated api entrypoint** | 1 | `quotation_status_for_capable` | Authorizes on `sales.quotation.manage`; granted to `authenticated` only |
-| **Trigger functions (fire in the caller's context)** | 2 | `quotation_items_enforce_frozen`, `quotations_enforce_insert_initial_state` | INVOKER, so `current_user` is the caller — the one context where that is true |
-| **Helper called FROM an invoker trigger body** | 1 | `_is_quotation_delivery_owner()` | Reads `pg_catalog` and returns a boolean about the current user. **The grant is needed because the trigger BODY calls it as the caller — not because a trigger needs EXECUTE to fire.** A trigger function itself needs no EXECUTE at fire time; an earlier draft of this table said otherwise and was wrong |
-| **Internal, EXECUTE removed by 0084** | 2 | `caller_jwt_role()`, `_resolve_actor(uuid)` | Verified first: no SECURITY INVOKER function calls either, so every caller is a DEFINER body running as its owner |
+The clean decomposition is **30 non-api-reachable + 15 api-reachable = 45**, with nothing counted
+twice.
 
-Totals: 30 + 2 + 10 + 1 + 2 + 1 + 2 = **48 classifications across 45 functions** — three appear in two
-rows (`quotation_status_for_capable` is also grant-gated; the two trigger functions are also
-api-reachable). The api-reachable 15 are: the 10 RLS helpers, `decide_approval`,
-`route_task_as_human`, `quotation_status_for_capable`, and the two trigger functions.
+The 15 api-reachable members, exactly:
+
+| Group | Count | Members |
+|---|---|---|
+| RLS/identity predicate helpers | 10 | `has_capability`, `has_company_access`, `has_membership`, `has_permission`, `is_admin`, `my_company`, `my_department`, `within_authority`, `within_authority_for_event`, `authority_ceiling` |
+| Restrictive claim readers | 2 | `decide_approval`, `route_task_as_human` — the claim can only *tighten*; both verified by execution, not only by reading |
+| Trigger functions (INVOKER — `current_user` is the caller) | 2 | `quotation_items_enforce_frozen`, `quotations_enforce_insert_initial_state` |
+| Helper called from an invoker trigger body | 1 | `_is_quotation_delivery_owner()` — resolves the delivery owner's OID from `pg_catalog`. The grant is needed because the trigger BODY calls it as the caller; a trigger function needs no EXECUTE to fire |
+
+The other 30 are not reachable by any api role: `anon` and `authenticated` hold no EXECUTE, so
+forging a claim is irrelevant when the call itself is refused. `caller_jwt_role()` and
+`_resolve_actor(uuid)` are among them — 0084 revoked their EXECUTE, and no SECURITY INVOKER function
+calls either, so every caller is a DEFINER body running as its owner. That revoke is worth naming
+honestly: because those functions were only ever reached from owner-context bodies, it changed
+nothing about who could exercise them. It reads like remediation and was not; **migration 0086** is
+what removed `_resolve_actor`'s claim-to-authority conversion.
+
+> **Corrected after security review 2 (G-04).** An earlier draft named
+> `quotation_status_for_capable` as one of the 15 and offered "30 + 2 + 10 + 1 + 2 + 1 + 2 = 48
+> classifications across 45 functions — three appear in two rows". Both were wrong.
+> `quotation_status_for_capable` is not in the population at all: its body references none of the
+> six identity tokens the population is defined by (nor does `quotation_status_for_service`) — they
+> are covered by §7 instead. The real 15th member is `_is_quotation_delivery_owner()`. The "three
+> appear in two rows" explanation was invented to reconcile 48 down to 45, and the sum silently
+> dropped the table's own first row. There is no double counting; the decomposition above adds up.
+
+**The nine finance entrypoints** — `post_manual_journal`, `post_customer_invoice`,
+`post_supplier_bill`, `settle_customer_invoice`, `settle_supplier_bill`, `reimburse_expense_claim`,
+`reverse_journal`, `request_supplier_bank_change`, `decide_supplier_bank_change` — are api-reachable
+SECURITY DEFINER functions that reach claim text *transitively*, through `_resolve_actor` and
+`has_capability`. They are outside the 45 because their own bodies name none of the six tokens, and
+that is precisely why a source-text inventory missed the G-01 defect. Migration 0086 adds a
+**call-graph** invariant that catches them (and the permanent gate mirrors it): every api-reachable
+DEFINER function that can reach claim text by any path must sit on a reviewed allowlist of 22, so
+the set cannot grow without someone deciding it should.
 
 ## 7. What migration 0084 changed
 
@@ -156,7 +221,10 @@ api-reachable). The api-reachable 15 are: the 10 RLS helpers, `decide_approval`,
 
 * `_quotation_status_read(company, id)` — the shared implementation, with the `FOR UPDATE` lock
   migration 0067 added. **No authorization inside it, and reachable by no API role** — only its two
-  wrappers and the WP12 delivery functions, which run as the same owner.
+  wrappers, `quotation_status_for_capable` and `quotation_status_for_service`, which run as the same
+  owner. (Corrected after security review 2, G-05: an earlier draft also credited the WP12 delivery
+  functions with calling it. They do not — the catalog shows exactly two callers, both wrappers.
+  F-06 was recorded as fixed in the previous loop but this sentence was never actually edited.)
 * `quotation_status_for_capable(company, id)` — authorizes on `sales.quotation.manage`. Granted to
   **`authenticated` only**.
 * `quotation_status_for_service(company, id)` — **no branch at all**. Granted to **`service_role`

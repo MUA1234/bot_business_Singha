@@ -9,6 +9,7 @@
  * Skipped unless DATABASE_URL is set.  Run:  DATABASE_URL=… npm run test:integration
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { authClaims, seedCapableActor, TEST_ACTOR } from "./helpers/capable-actor";
 
 const URL = process.env.DATABASE_URL ?? "";
 const enabled = !!URL;
@@ -47,8 +48,9 @@ describe.skipIf(!enabled)("WP14 canonical-JSON fingerprint — live, zero-persis
     client = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } });
     await client.connect();
     await client.query("begin");
-    await client.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+    await client.query(`select set_config('request.jwt.claims', '${authClaims()}', true)`);
     co = (await client.query(`insert into companies (name, base_currency) values ('wp14','LKR') returning id`)).rows[0].id;
+    await seedCapableActor(client, co);
     await client.query(`insert into chart_of_accounts (company_id, code, name, type) values ($1,'1000','Cash','asset'),($1,'4000','Sales','income')`, [co]);
   });
   afterAll(async () => {

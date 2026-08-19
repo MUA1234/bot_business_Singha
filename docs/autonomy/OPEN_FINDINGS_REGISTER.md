@@ -163,12 +163,93 @@ a live project. The fix is topological: **the service backend must connect as a 
 not the one serving public API traffic, and the public one must hold no `service_role` membership.**
 That is a deployment change and an owner action.
 
+PostgreSQL 16's `GRANT … WITH SET FALSE` is the general in-database control for this class — inherit
+the privileges, forbid the `SET ROLE`. It does not help here, because PostgREST needs `SET ROLE` on
+that same login role to switch between `anon`, `authenticated` and `service_role` at all. So the
+accurate claim is not "no in-database control exists" but **"none closes this while one login role
+must switch into both sets"**. Event triggers cannot intercept `SET ROLE` and `NOINHERIT` does not
+restrict it. (Precision added after security review 2.)
+
 **Why it is not a regression.** At 0083 the same attacker forged the GUC and arrived in the same
 place. 0084 removed the door that needed no escalation; it never claimed to remove `SET ROLE` — and
 an earlier draft of the trust model wrongly said the two problems were separable. That claim is
 withdrawn.
 
-**How it is kept honest.** `tests/integration/found-006-caller-trust.test.ts` pins the current state:
-the escalation is asserted to SUCCEED, with a message naming the remediation. The day the owner
-separates the roles, that assertion fails and forces the trust model, the test and FOUND-006's status
-to be updated together.
+**How it is kept honest.** `tests/integration/found-006-caller-trust.test.ts` carries two separate
+tests. A **detector** enumerates the real non-superuser login roles in the database under test —
+excluding the probe roles the integration suite creates — and fails naming any role that holds both
+`service_role` and an api-role membership. A **demonstration** builds a merged role deliberately and
+shows the escalation is one statement long.
+
+> **Corrected after security review 2 (G-03).** This paragraph previously said the test "pins the
+> current state: the escalation is asserted to SUCCEED … the day the owner separates the roles, that
+> assertion fails". That was false. The test created the merged role itself in `beforeAll`, so it
+> measured its own fixture — the owner could separate every role in the deployment and it would have
+> gone on passing. It was also titled as the security property while asserting the property was
+> violated, so a green tick read as "safe". Both the test and this description are fixed.
+
+---
+
+## FOUND-006 — security review 2 of 2 (findings G-01 … G-07)
+
+Reviewed at `0fd5f7b` (migrations 0084 + 0085). Verdict **CHANGES REQUESTED**. All seven are fixed
+in correction loop 2 of 2; migration **0086** carries the production change.
+
+| | Finding | Severity | Disposition |
+|---|---|---|---|
+| **G-01** | `_resolve_actor` (0049) read `request.jwt.claims` directly and turned `role=service_role` into `actor_type='system'`. Nine SECURITY DEFINER finance RPCs — all EXECUTE-able by `authenticated` — gated their capability check on that value, so a forged claim **skipped it entirely**. Also defeated the supplier bank-change maker-checker, because the system path set `v_actor := null` and `v_requested_by = v_actor` is never true against NULL | **P0** security | **FIXED (0086).** Reproduced independently before fixing, then re-verified closed. See below |
+| G-02 | The 0085 invariant filtered on `prosrc like '%caller_jwt_role%'`, so it could not see G-01 at all: `_resolve_actor` is SECURITY **INVOKER** (outside the `prosecdef` population no matter how the text predicate widens) and its nine definer callers name neither the helper nor `current_setting`. The reviewer also evaded the text form with dynamic SQL and with a direct GUC read | P1 | **FIXED (0086).** Replaced with a **call-graph** invariant: every api-reachable definer function that can reach claim text by any path must be on a reviewed allowlist of 22. Mirrored in the permanent test gate |
+| G-03 | The "topology detector" created the merged role itself in `beforeAll`, so it measured its own fixture — the owner could separate every role in the deployment and it would still pass. It was also titled as the security property while asserting the property was violated, and §5b of the trust model described the opposite polarity from the code | P1 | **FIXED.** Split into a detector that reads the real login roles (excluding suite probes) and a demonstration that is titled as one. §5b corrected |
+| G-04 | The corrected inventory's counts (45 / 15) were right, but `quotation_status_for_capable` was named as one of the 15 while not being in the population at all; the real member is `_is_quotation_delivery_owner()`. The "48 classifications … three appear in two rows" reconciliation was invented and dropped the table's own first row | P2 | **FIXED.** Recomputed against `pg_proc`: 30 + 15 = 45, no double counting |
+| G-05 | F-06 was recorded FIXED in the previous loop, but the sentence carrying the error was **byte-identical** across both commits — the WP12 delivery functions were still credited with calling `_quotation_status_read` | P2 | **FIXED.** The sentence is now actually edited |
+| G-06 | (a) 0085's DO block compared `regprocedure` renderings without pinning `search_path`, so a runner whose path omits `public` aborts a healthy migration — reproduced. (b) The allowlist is signature-exact but body-blind: a permissive rewrite of either allowed function would pass | P2 | **FIXED.** (a) `search_path` pinned and the comparison made rendering-independent. (b) Both allowlisted functions now asserted **by execution** |
+| G-07 | `secure-definer-grants.test.ts` still allowlisted `_quotation_status_for_guard(uuid,uuid)`, which 0084 drops — pre-approving the claim-branch function if it ever returned | P2 | **FIXED.** Entry removed; 0086 also fails closed on any stale allowlist entry |
+
+### G-01 (P0) — reproduced, then closed
+
+From a genuine login role that is a member of `authenticated` and nothing else
+(`pg_has_role(current_user,'service_role','MEMBER')` = false, and the same for `session_user`, so
+this is **not** OF-017 — no `SET ROLE` is involved):
+
+```
+set local role authenticated;
+-- honest claim:  ERROR: missing capability finance.journal.post
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+select public.post_manual_journal(…);
+--> journal_entries: memo 'FORGED-BY-CLAIM-TEXT', status 'posted', posted_by NULL, total_debit 999999.0000
+```
+
+After migration 0086, the identical call:
+
+```
+ERROR:  access denied: caller without a subject — this entrypoint is human-only
+-- and with a subject, it falls through to a REAL check:
+ERROR:  missing capability finance.journal.post
+```
+
+**Pre-existing** — it reproduces identically at 0083, so 0084/0085 did not introduce it. That is a
+scoping fact, not a defence: FOUND-006 is the package chartered to close this class, and the
+precondition is context 5 of its own threat model.
+
+**Why the fix is one function and not a nine-way split.** The split *is* the right pattern where a
+service caller exists. None does: `supabaseRpcClient()` — the only client any of the nine is called
+through — is "ALWAYS the authenticated client … NEVER routes a user-initiated financial RPC through
+the service role", and no worker, accounting-core module or other database function calls any of
+them. Posting a material journal with no human and no permission check is also what CLAUDE.md's
+financial control forbids. So the branch is removed at the single point all nine already share, and
+a future service caller gets a `service_role`-granted sibling entrypoint per 0084's pattern.
+
+**Residual, stated plainly:** identity still comes from the `sub` claim. That is impersonation —
+the documented inherent residual — and it is strictly smaller: an impersonator must know a real
+privileged user's id *and* that user must genuinely hold the capability, which is now checked. It is
+not a free pass.
+
+### A related correctness gap found while auditing, recorded not fixed
+
+**OF-018 (P2, not exploitable).** `resolve_inbound_review` and `record_inbound_review` (migration
+0075) guard with `caller_jwt_role() is distinct from 'service_role'` **in addition to** their
+EXECUTE grant. That is fail-closed, so it is not a hole — but it contradicts the second half of the
+rule this package enforces: a genuine `service_role` database caller whose claim text differs (a
+direct connection sets no GUC at all) is refused. Cheap to correct — delete the claim branch, the
+grant already gates it — and it belongs in a bounded follow-up, not in this loop and not in frozen
+0083.

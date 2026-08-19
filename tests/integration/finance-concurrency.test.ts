@@ -9,6 +9,7 @@
  * are rolled back. Skipped unless DATABASE_URL is set.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { authClaims, seedCapableActor, TEST_ACTOR, TEST_ACTOR_2 } from "./helpers/capable-actor";
 
 const URL = process.env.DATABASE_URL ?? "";
 const enabled = !!URL;
@@ -16,12 +17,12 @@ const enabled = !!URL;
 let setup: any, c1: any, c2: any;
 let co: string, inv: string, change: string, poster: string, checker: string;
 
-async function blocksOnLock(hold: string, holdParams: unknown[], contend: string, contendParams: unknown[]): Promise<boolean> {
+async function blocksOnLock(hold: string, holdParams: unknown[], contend: string, contendParams: unknown[], actor: string = TEST_ACTOR): Promise<boolean> {
   await c1.query("begin");
-  await c1.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+  await c1.query(`select set_config('request.jwt.claims', $1, true)`, [authClaims(actor)]);
   await c1.query(hold, holdParams);
   await c2.query("begin");
-  await c2.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+  await c2.query(`select set_config('request.jwt.claims', $1, true)`, [authClaims(actor)]);
   await c2.query("set local statement_timeout = '1500ms'");
   let blocked = false;
   try { await c2.query(contend, contendParams); } catch (e) { blocked = /statement timeout|canceling statement/i.test((e as Error).message); }
@@ -36,9 +37,11 @@ describe.skipIf(!enabled)("finance concurrency — live, two connections", () =>
     const mk = async () => { const c = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } }); await c.connect(); return c; };
     setup = await mk();
     co = (await setup.query(`insert into companies (name, base_currency) values ('fconc','LKR') returning id`)).rows[0].id;
+    await seedCapableActor(setup, co);
     await setup.query(`insert into chart_of_accounts (company_id, code, name, type) values ($1,'1100','AR','asset'),($1,'4000','Sales','income')`, [co]);
-    poster = (await setup.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(),'fc_p',true) returning id`)).rows[0].id;
-    checker = (await setup.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(),'fc_c',true) returning id`)).rows[0].id;
+    poster = TEST_ACTOR;   // FOUND-006/0086: the acting human is the JWT subject
+    checker = TEST_ACTOR_2;   // FOUND-006/0086: a real second human, not a NULL system actor
+    await seedCapableActor(setup, co, TEST_ACTOR_2, "payment_approver");
     const cust = (await setup.query(`insert into customers (company_id, name, status) values ($1,'C','active') returning id`, [co])).rows[0].id;
     inv = (await setup.query(`insert into customer_invoices (company_id, customer_id, invoice_number, currency, issue_date, total_amount, amount_settled, status) values ($1,$2,'INV-FC','LKR','2026-07-01',100,0,'draft') returning id`, [co, cust])).rows[0].id;
     await setup.query(`insert into customer_invoice_lines (invoice_id, company_id, description, unit_price, amount) values ($1,$2,'x',100,100)`, [inv, co]); // WP15: header == line total so the post proceeds to the FOR UPDATE lock
@@ -62,8 +65,10 @@ describe.skipIf(!enabled)("finance concurrency — live, two connections", () =>
   });
 
   it("a second concurrent bank-change approval BLOCKS on the FOR UPDATE lock", async () => {
-    // Worker path (no JWT) so the lock — not the capability check — is what serialises.
+    // Both connections act as the CHECKER — a different human from the requester, holding
+    // finance.bank_details.approve — so the FOR UPDATE lock, not the capability check or the
+    // maker-checker rule, is what serialises them.
     const sql = `select public.decide_supplier_bank_change($1,$2,'approved',$3,null)`;
-    expect(await blocksOnLock(sql, [co, change, checker], sql, [co, change, checker])).toBe(true);
+    expect(await blocksOnLock(sql, [co, change, checker], sql, [co, change, checker], checker)).toBe(true);
   });
 });
