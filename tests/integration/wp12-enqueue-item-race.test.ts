@@ -30,6 +30,7 @@ const ENQ = `select public.enqueue_quotation_outbox($1,$2,'9471','body',$3,$4,'L
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let setup: any, cA: any, cB: any;
 let co: string, coB: string, capUser: string;
+const customRole = `wp12_custom_${rnd()}`;
 
 // Seed (as owner) a `ready` quotation whose total equals the sum of its priced item line_totals.
 async function seedReadyWithItems(company: string, total: string, lineTotals: string[]) {
@@ -58,6 +59,16 @@ describe.skipIf(!enabled)("0067 enqueue vs item-mutation race (live, two connect
     const { default: pg } = await import("pg" as string);
     const mk = async () => { const c = new pg.Client({ connectionString: URL, ssl: mkSsl(URL) }); await c.connect(); return c; };
     setup = await mk(); cA = await mk(); cB = await mk();
+    // A bespoke role that can WRITE the table but holds neither the capability nor the service
+    // grant — the caller "fail closed" is really about after migration 0084.
+    // BYPASSRLS deliberately: without it the role sees no rows, the trigger never fires, and the
+    // UPDATE "succeeds" against zero rows — which would prove nothing. This mirrors exactly what the
+    // original service_role session had, so the ONLY difference under test is the grant.
+    await setup.query(`do $$ begin if not exists (select 1 from pg_roles where rolname='${customRole}') then create role ${customRole} bypassrls; end if; end $$`);
+    await setup.query(`grant authenticated to ${customRole}`);
+    await setup.query(`grant usage on schema public to ${customRole}`);
+    await setup.query(`grant select, insert, update, delete on public.quotation_items to ${customRole}`);
+    await setup.query(`grant select on public.quotations to ${customRole}`);
     await setup.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
     co = (await setup.query(`insert into companies (name, base_currency) values ('itemrace','LKR') returning id`)).rows[0].id;
     coB = (await setup.query(`insert into companies (name, base_currency) values ('itemraceB','LKR') returning id`)).rows[0].id;
@@ -76,6 +87,13 @@ describe.skipIf(!enabled)("0067 enqueue vs item-mutation race (live, two connect
     try { await setup.query(`delete from membership_roles where company_id=$1`, [co]); } catch { /* noop */ }
     try { await setup.query(`delete from memberships where company_id=$1`, [co]); } catch { /* noop */ }
     for (const cid of [co, coB]) { try { await setup.query(`delete from companies where id=$1`, [cid]); } catch { /* noop */ } }
+    for (const sql of [`revoke authenticated from ${customRole}`,
+                       `revoke all on public.quotation_items from ${customRole}`,
+                       `revoke all on public.quotations from ${customRole}`,
+                       `revoke usage on schema public from ${customRole}`,
+                       `drop role if exists ${customRole}`]) {
+      try { await setup.query(sql); } catch { /* noop */ }
+    }
     await Promise.all([cA?.end(), cB?.end(), setup?.end()].map((p) => p?.catch?.(() => {})));
   });
 
@@ -216,27 +234,37 @@ describe.skipIf(!enabled)("0067 enqueue vs item-mutation race (live, two connect
     expect(await statusOf(quoOk)).toBe("queued");
   });
 
-  it("FAIL CLOSED: a raw service_role session with NO JWT claims cannot mutate quotation_items in any status (42501)", async () => {
-    // BYPASSRLS + no claims = the caller the guard cannot classify; 0066 treated the NULL guard result as
-    // "not frozen" (silent bypass of the queued freeze). 0067 refuses it outright — queued AND pre-queue.
+  it("FAIL CLOSED: the QUEUED freeze holds for the service worker, and an UNCLASSIFIABLE caller is refused outright", async () => {
+    // SEMANTIC CHANGE, migration 0084 (FOUND-006), stated rather than absorbed.
+    //
+    // This case used to assert that a raw `service_role` session with NO JWT claims was refused
+    // even PRE-queue, because the guard classified callers by the JWT CLAIM and a claimless session
+    // could not be classified. 0084 replaced that with the database GRANT: a session holding the
+    // `service_role` role IS the service worker whatever its request metadata says — which is the
+    // point of the change, since request text is not privilege. So the service worker may now edit
+    // a pre-queue item, exactly as it does when its claims are present.
+    //
+    // What must still hold, and does: the QUEUED freeze, and a refusal for a caller holding neither
+    // the capability nor the grant.
     const { quo, itemIds } = await seedReadyWithItems(co, "30", ["30"]);
     const { default: pg } = await import("pg" as string);
     const cC = new pg.Client({ connectionString: URL, ssl: mkSsl(URL) });
     await cC.connect(); // fresh connection: request.jwt.claims has never been set
     try {
       await cC.query("set role service_role");
-      let preQueue: string | undefined;
-      try { await cC.query(`update quotation_items set line_total='99' where id=$1 and company_id=$2`, [itemIds[0], co]); }
-      catch (e) { preQueue = (e as { code?: string }).code; }
-      expect(preQueue).toBe("42501"); // even pre-queue: unclassifiable caller is refused
+      // PRE-QUEUE: allowed now, because the grant is the authorization.
+      await cC.query(`update quotation_items set line_total='31' where id=$1 and company_id=$2`, [itemIds[0], co]);
+      await cC.query(`update quotation_items set line_total='30' where id=$1 and company_id=$2`, [itemIds[0], co]);
+
       const key = "k_" + rnd();
       expect((await setup.query(ENQ, [co, quo, key, "30"])).rows[0].v).toBe("enqueued"); // owner ctx → queued
+
+      // POST-QUEUE: the snapshot freeze still refuses the service worker itself. A queued quotation
+      // is frozen for everyone but the trusted delivery owner.
       let postQueue: string | undefined;
       try { await cC.query(`update quotation_items set line_total='99' where id=$1 and company_id=$2`, [itemIds[0], co]); }
       catch (e) { postQueue = (e as { code?: string }).code; }
-      expect(postQueue).toBe("42501"); // the 0066 fail-open path (NULL → skip freeze) is closed
-      // and a direct item DELETE by the same unclassifiable session is refused too (NOT waved through
-      // like the authorised parent cascade, which runs as the table owner — a different current_user)
+      expect(postQueue).toBe("42501");
       let delCode: string | undefined;
       try { await cC.query(`delete from quotation_items where id=$1 and company_id=$2`, [itemIds[0], co]); }
       catch (e) { delCode = (e as { code?: string }).code; }
@@ -245,6 +273,27 @@ describe.skipIf(!enabled)("0067 enqueue vs item-mutation race (live, two connect
     } finally {
       await cC.end().catch(() => {});
     }
+
+    // AND the genuinely unclassifiable caller — neither capability nor grant — is refused even
+    // pre-queue. That is where "fail closed" now lives.
+    //
+    // The role INHERITS `authenticated` deliberately. A bespoke role with no membership dies in the
+    // ACL on `quotation_status_for_capable` — same SQLSTATE, so the assertion passed while never
+    // reaching the guard at all (F-05). Inheriting `authenticated` lets it execute the capability
+    // path, which then returns null for a caller with no capability, which is the branch under test.
+    const { quo: quo2, itemIds: items2 } = await seedReadyWithItems(co, "40", ["40"]);
+    await setup.query("begin");
+    try {
+      await setup.query(`set local role ${customRole}`);
+      let code: string | undefined;
+      let msg = "";
+      try { await setup.query(`update quotation_items set line_total='41' where id=$1 and company_id=$2`, [items2[0], co]); }
+      catch (e) { code = (e as { code?: string }).code; msg = (e as Error).message; }
+      expect(code).toBe("42501");
+      // The GUARD's refusal, not an ACL denial on the way to it.
+      expect(msg).toMatch(/holds neither sales\.quotation\.manage/);
+    } finally { await setup.query("rollback"); }
+    expect(quo2).toBeTruthy();
   });
 
   it("two concurrent finalisers on an itemised quotation → exactly one logical outbox row (enqueued + duplicate)", async () => {

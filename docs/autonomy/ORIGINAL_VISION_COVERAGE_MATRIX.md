@@ -4,18 +4,18 @@
 > A status is only as good as the evidence columns beside it; the audit refuses a completion status
 > with empty evidence.
 
-Generated at: 2026-08-18
+Generated at: 2026-08-19
 
 ## Totals
 
 | Status | Count |
 |---|---|
 | absent | 41 |
-| foundation_only | 23 |
+| foundation_only | 22 |
 | locally_verified | 13 |
 | specified | 6 |
 | blocked_owner | 4 |
-| implementation_in_progress | 2 |
+| implementation_in_progress | 3 |
 | deliberately_deferred | 1 |
 
 ## Completion accounting
@@ -103,7 +103,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | FOUND-003 | Production-reachable staff and finance intake | P0 | **blocked_owner** | src/app/api/webhooks/whatsapp/route.ts and src/inngest/functions.ts (both dispatch through src/lib/inbound/dispatch.ts via the shared src/lib/inbound/production-deps.ts) | 1fd50b2 | a model provider credential for finance classification; mapping each receiving WhatsApp number to its company in channel_accounts; granting operations.inbound.review to the people who should work the queue; hosted migration application |
 | FOUND-004 | Deterministic company-scoped authority engine | P0 | **locally_verified** | src/management/ai-manager/pipeline.ts (planFromObservation) | 079fbb8 | sign-off on the impact-to-level mapping, or replacement by authority_rules-driven mapping |
 | FOUND-005 | AI trust boundary — untrusted output cannot decide identity, scope or authority | P0 | **locally_verified** | src/ai/manager-observation.ts; src/ai/quotation.ts | 7669ce1 | — |
-| FOUND-006 | Service-role and RLS read/write cutover | P0 | **foundation_only** | src/lib/supabase/read.ts (shim returns the ADMIN client while flags are OFF) | none | flag activation |
+| FOUND-006 | Service-role and RLS read/write cutover | P0 | **implementation_in_progress** | src/lib/supabase/read.ts (shim returns the ADMIN client while flags are OFF) | none | flag activation |
 | GOV-001 | Management directives with response obligations | P1 | **absent** | none | none | — |
 | GOV-002 | Directive acknowledgement and escalation | P1 | **absent** | none | none | — |
 | GOV-003 | Conflicting-instruction detection and resolution | P1 | **absent** | none | none | — |

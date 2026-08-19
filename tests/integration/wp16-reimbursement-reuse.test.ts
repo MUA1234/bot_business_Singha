@@ -14,6 +14,7 @@
  * Skipped unless DATABASE_URL is set.  Run:  DATABASE_URL=… npm run test:integration
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { authClaims, seedCapableActor, TEST_ACTOR } from "./helpers/capable-actor";
 
 const URL = process.env.DATABASE_URL ?? "";
 const enabled = !!URL;
@@ -37,7 +38,7 @@ async function asUser(u: string) {
 }
 async function asWorker() {
   await client.query("reset role");
-  await client.query(`select set_config('request.jwt.claims','{"role":"service_role"}',true)`);
+  await client.query(`select set_config('request.jwt.claims','${authClaims()}',true)`);
 }
 async function mkClaim(amount: number, status = "approved", emp?: string): Promise<string> {
   return (await q(`insert into expense_claims (company_id, employee_id, currency, amount, purpose, status) values ($1,$2,'LKR',${amount},'x',$3) returning id`, [co, emp ?? empX, status])).rows[0].id;
@@ -54,8 +55,9 @@ describe.skipIf(!enabled)("WP16 reimbursement/payment reuse validation — live,
     client = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } });
     await client.connect();
     await client.query("begin");
-    await client.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+    await client.query(`select set_config('request.jwt.claims', '${authClaims()}', true)`);
     co = (await client.query(`insert into companies (name, base_currency) values ('wp16','LKR') returning id`)).rows[0].id;
+    await seedCapableActor(client, co);
     await client.query(`insert into chart_of_accounts (company_id, code, name, type) values ($1,'1000','Cash','asset'),($1,'5000','Expense','expense')`, [co]);
     empX = (await client.query(`insert into employees (company_id, name, status) values ($1,'EmpX','active') returning id`, [co])).rows[0].id;
     otherEmp = (await client.query(`insert into employees (company_id, name, status) values ($1,'Other','active') returning id`, [co])).rows[0].id;
@@ -155,10 +157,10 @@ let cco: string, cclaim: string;
 
 async function blocksOnLock(sql: string, p1: unknown[], p2: unknown[]): Promise<boolean> {
   await c1.query("begin");
-  await c1.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+  await c1.query(`select set_config('request.jwt.claims', '${authClaims()}', true)`);
   await c1.query(sql, p1);
   await c2.query("begin");
-  await c2.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+  await c2.query(`select set_config('request.jwt.claims', '${authClaims()}', true)`);
   await c2.query("set local statement_timeout = '1500ms'");
   let blocked = false;
   try { await c2.query(sql, p2); } catch (e) { blocked = /statement timeout|canceling statement/i.test((e as Error).message); }
@@ -173,6 +175,7 @@ describe.skipIf(!enabled)("WP16 reimbursement concurrency — live, two connecti
     const mk = async () => { const c = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } }); await c.connect(); return c; };
     setup = await mk();
     cco = (await setup.query(`insert into companies (name, base_currency) values ('wp16c','LKR') returning id`)).rows[0].id;
+    await seedCapableActor(setup, cco);
     await setup.query(`insert into chart_of_accounts (company_id, code, name, type) values ($1,'1000','Cash','asset'),($1,'5000','Expense','expense')`, [cco]);
     const emp = (await setup.query(`insert into employees (company_id, name, status) values ($1,'CE','active') returning id`, [cco])).rows[0].id;
     cclaim = (await setup.query(`insert into expense_claims (company_id, employee_id, currency, amount, purpose, status) values ($1,$2,'LKR',50,'x','approved') returning id`, [cco, emp])).rows[0].id;

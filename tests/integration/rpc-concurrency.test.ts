@@ -10,6 +10,7 @@
  * so no journals persist. Skipped unless DATABASE_URL is set.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { authClaims, seedCapableActor, TEST_ACTOR } from "./helpers/capable-actor";
 
 const URL = process.env.DATABASE_URL ?? "";
 const enabled = !!URL;
@@ -32,9 +33,10 @@ describe.skipIf(!enabled)("reversal concurrency — live, two connections", () =
     setup = await mk();
     // setup autocommits (no txn), so set the service_role claim at SESSION level for its
     // service-path post below (WP17/0049).
-    await setup.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
+    await setup.query(`select set_config('request.jwt.claims', '${authClaims()}', false)`);
     company = (await setup.query(`insert into companies (name, base_currency) values ('wp_revconc','LKR') returning id`)).rows[0].id;
-    poster = (await setup.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(),'wp_revconc_p',true) returning id`)).rows[0].id;
+    await seedCapableActor(setup, company);
+    poster = TEST_ACTOR;   // FOUND-006/0086: the acting human is the JWT subject
     await setup.query(`insert into chart_of_accounts (company_id, code, name, type) values ($1,'1000','Cash','asset'),($1,'1100','AR','asset')`, [company]);
     // Post a journal to reverse (worker path — no JWT).
     journal = (
@@ -66,11 +68,11 @@ describe.skipIf(!enabled)("reversal concurrency — live, two connections", () =
 
   it("a second concurrent reversal BLOCKS on the FOR UPDATE lock", async () => {
     await c1.query("begin");
-    await c1.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+    await c1.query(`select set_config('request.jwt.claims', '${authClaims()}', true)`);
     await c1.query(`select public.reverse_journal($1,$2,$3,'2026-07-16','R1')`, [company, journal, poster]);
 
     await c2.query("begin");
-    await c2.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+    await c2.query(`select set_config('request.jwt.claims', '${authClaims()}', true)`);
     await c2.query("set local statement_timeout = '1500ms'");
     let blocked = false;
     try {

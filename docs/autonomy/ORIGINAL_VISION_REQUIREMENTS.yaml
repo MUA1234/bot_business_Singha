@@ -137,7 +137,7 @@ requirements:
     phase: stage1
     priority: P0
     dependencies: []
-    status: foundation_only
+    status: implementation_in_progress
     feature_flag: RLS_READS, RLS_WRITES
     runtime_entrypoint: src/lib/supabase/read.ts (shim returns the ADMIN client while flags are OFF)
     database_evidence: RLS policies exist across migrations 0008+
@@ -150,7 +150,7 @@ requirements:
     last_verified_at: none
     owner_gate: flag activation
     blocker: none
-    residual_risks: Any unscoped query is a live cross-company leak while the flags are OFF.
+    residual_risks: Migration 0084 establishes the caller/trust boundary — a caller's database PRIVILEGE decides service authority and request text never does. Proven under the real PostgREST role pattern that `session_user` is `authenticator` for every request (so a pg_has_role check on it would have granted service access universally) and that `current_user` inside a SECURITY DEFINER body is the OWNER; the only provable primitive is `has_function_privilege(current_user, ...)` inside a SECURITY INVOKER body, which is what the quotation freeze trigger now uses. The last claim-branch function is dropped and replaced by a capability path granted to authenticated, a service path granted to service_role, and a shared implementation reachable by no api role. NOT SOLVED, and must not be claimed: anon/authenticated/service_role are SHARED database roles, so a caller with arbitrary SQL as `authenticated` can forge `sub` and impersonate any user to every RLS policy. That is outside the supported client boundary and needs per-user database identity or in-database claim verification — see docs/architecture-v2/FOUND_006_TRUST_MODEL.md §5. OF-017 is a SECOND unresolved boundary, found by the security review and NOT fixable here: `SET ROLE` is authorized against `session_user`, which under PostgREST is `authenticator` — a member of `service_role` — so a caller with arbitrary SQL as `authenticated` escalates to full service privilege in one statement without forging anything. The remediation is topological (a separate login role for the service backend) and is an owner action; a test pins the current unsafe state so the day it changes, the status must change with it. The flag cutover (RLS_READS/RLS_WRITES, OF-012) is also still off and is a separate owner action, so this requirement stays incomplete.
 
   # ── AIM — AI-management runtime ─────────────────────────────────────────────────────────────
   - id: AIM-001

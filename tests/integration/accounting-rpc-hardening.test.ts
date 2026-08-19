@@ -14,6 +14,7 @@
  * Skipped unless DATABASE_URL is set.  Run:  DATABASE_URL=… npm run test:integration
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { authClaims, seedCapableActor, TEST_ACTOR } from "./helpers/capable-actor";
 
 const URL = process.env.DATABASE_URL ?? "";
 const enabled = !!URL;
@@ -43,7 +44,7 @@ async function asAnon() {
 }
 async function asWorker() {
   await client.query("reset role");
-  await client.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+  await client.query(`select set_config('request.jwt.claims', '${authClaims()}', true)`);
 }
 async function call(sql: string, params: unknown[] = []): Promise<{ ok: boolean; value?: string; error?: string }> {
   try {
@@ -81,18 +82,18 @@ describe.skipIf(!enabled)("WP B accounting RPC hardening — live, zero-persiste
     await client.connect();
     await client.query("begin");
     company = (await client.query(`insert into companies (name, base_currency) values ('wp_b','LKR') returning id`)).rows[0].id;
+    await seedCapableActor(client, company, TEST_ACTOR, "accountant");
     await client.query(`insert into chart_of_accounts (company_id, code, name, type) values ($1,'1000','Cash','asset'),($1,'1100','AR','asset'),($1,'2000','AP','liability')`, [company]);
     customer = (await client.query(`insert into customers (company_id, name, status) values ($1,'CusB','active') returning id`, [company])).rows[0].id;
     supplier = (await client.query(`insert into suppliers (company_id, name, status) values ($1,'SupB','active') returning id`, [company])).rows[0].id;
     const mkUser = async (n: string) => (await client.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(),$1,true) returning id`, [n])).rows[0].id;
-    uAcct = await mkUser("wp_b_acct");
+    uAcct = TEST_ACTOR;   // FOUND-006/0086: p_by must be the authenticated subject
     uStaff = await mkUser("wp_b_staff");
     const mkMem = async (u: string, role: string) => {
       const id = (await client.query(`insert into memberships (company_id, user_id, status) values ($1,$2,'active') returning id`, [company, u])).rows[0].id;
       await client.query(`insert into membership_roles (membership_id, company_id, role_key) values ($1,$2,$3)`, [id, company, role]);
     };
-    await mkMem(uAcct, "accountant");
-    await mkMem(uStaff, "staff_submitter");
+        await mkMem(uStaff, "staff_submitter");
   });
 
   afterAll(async () => {

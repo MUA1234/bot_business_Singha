@@ -4,41 +4,41 @@
   "activeRequirementIds": [
     "FOUND-006"
   ],
-  "currentBranch": "feature/v3-3-remediation-package",
-  "currentPr": 25,
-  "baseSha": "079fbb8",
+  "currentBranch": "feature/found-006-caller-trust-boundary",
+  "currentPr": 26,
+  "baseSha": "3608c8a",
   "lastGreenSha": "3608c8a",
-  "latestMigration": "0083_loop2_corrections.sql",
-  "lastCompletedAction": "R1 remediation package, FROZEN AND UNACCEPTED at migration 0083. Two independent adversarial reviews, both CHANGES REQUESTED, both correction loops used. Review 1 found 14 findings including a scheduled drain that re-dispatched every retried message as '[object Object]' and a retry that duplicated the drafted payment; review 2 found 9 more, including a P0 my own loop-1 fix introduced \u2014 the pipeline was made idempotent but not resumable, so every second execution dead-lettered and left a captured payment in awaiting_approval with no approval request. All 23 are fixed. Review 2 also corrected this program's own claim: the duplicate-detection harness bug was TEST-ONLY and detection was never dead in production; that claim is withdrawn. OF-014 was assessed as directed \u2014 forging the JWT-role GUC does NOT generally grant service-role access because EXECUTE grants are the real gate, but _quotation_status_for_guard combined PUBLIC EXECUTE with a permissive claim branch and leaked a quotation status to anon; anon and PUBLIC lost EXECUTE, while the predicate itself could not be replaced (the function is SECURITY DEFINER so current_user is the owner, and session_user under PostgREST is authenticator, which Supabase grants service_role membership \u2014 trying it broke a fail-closed control). Evidence closure then found OF-016, a MATERIAL BLOCKER: a suspected duplicate has no resolution RPC, no screen and no write grant, so a real payment can pause reversibly with nothing able to move it again.",
-  "nextAction": "Owner acceptance of the frozen 0083 package. No third correction loop. Then, in order: FOUND-006 (remove request-metadata/GUC text as an authorization signal; exact grants, split entrypoints, provable invocation identity \u2014 this subsumes OF-014's residual), then OF-016 (duplicate-review resolution RPC, screen and paused-payment visibility), then MOD-003 (provider-neutral Model Gateway and Policy Router, registered as `specified`).",
+  "latestMigration": "0086_actor_privilege_not_claim.sql",
+  "lastCompletedAction": "FOUND-006 correction loop 2 of 2 (final). Security review 2 returned CHANGES REQUESTED with seven findings, one a P0 I reproduced independently before fixing: `_resolve_actor` (migration 0049) read request.jwt.claims directly and turned `role=service_role` into actor_type='system', and nine SECURITY DEFINER finance RPCs -- every one EXECUTE-able by `authenticated` -- gated their capability check on that value, so a forged claim skipped it entirely. From a login role that is a member of `authenticated` and NOTHING else (pg_has_role false for both current_user and session_user, so no SET ROLE, not OF-017), one set_config posted a 999,999 journal: status 'posted', posted_by NULL. The same forgery defeated the supplier bank-change maker-checker, because the system path set v_actor := null and `v_requested_by = v_actor` is never true against NULL. Pre-existing (reproduces at 0083), but this is the package chartered to close the class. Migration 0086 deletes the branch: no role test remains, the actor is the authenticated subject, v_type is always 'user', and all nine capability checks become unconditional without editing one line of their bodies. The nine-way human/service split was considered and rejected on evidence -- supabaseRpcClient() is documented as ALWAYS the authenticated client and never routes a financial RPC through the service role, no worker/accounting-core/database function calls any of the nine, and posting a material journal with no human and no permission check is what CLAUDE.md forbids -- so the dead branch is removed rather than re-granted. G-02: the 0085 invariant could not see the defect at all, because the claim reader was SECURITY INVOKER (outside the prosecdef population) and the nine callers named neither the helper nor current_setting; replaced with a call-graph invariant over a reviewed 22-function allowlist, mirrored in the permanent gate. G-03: the topology detector created the merged role itself in beforeAll and measured its own fixture, titled as the security property while asserting it was violated; split into a real detector (reads deployed login roles, excludes suite probes) and a demonstration titled as one. G-04/G-05: inventory membership and a sentence recorded FIXED last loop but never actually edited. G-06/G-07: 0085's search_path-fragile assertion, the body-blind allowlist, and a stale allowlist entry for a dropped function.",
+  "nextAction": "Owner acceptance of FOUND-006 (both correction loops used). Then OF-016 (duplicate-review resolution RPC, screen and paused-payment visibility -- design audit already done: `resolve_inbound_review` from migration 0075 is the exact template), then MOD-003 (provider-neutral Model Gateway, registered as `specified`). Package 0083 stays permanently frozen and unaccepted at content SHA 3608c8a.",
   "lastTargetedTests": [
-    "tests/integration/duplicate-review-and-approval-visibility.test.ts",
-    "tests/integration/of015-section-coverage.test.ts",
-    "tests/integration/r1-review-corrections.test.ts",
-    "tests/duplicate-scenarios.test.ts",
-    "tests/integration/extreme-end-to-end.test.ts",
+    "tests/integration/found-006-caller-trust.test.ts (21 cases incl. the G-01 exploit from a genuine unprivileged login role)",
+    "tests/integration/wp17-system-actor.test.ts (rewritten: 14 cases asserting the NEW actor boundary)",
+    "tests/integration/secure-definer-grants.test.ts (G-07 stale allowlist entry)",
+    "tests/integration/r1-review-corrections.test.ts (OF-014 test renamed -- it only ever covered the disclosure half)",
+    "15 finance integration files migrated from a service_role claim to a genuine capable human",
     "scripts/verify/legacy-upgrade-fixture.sql (hosted-style legacy upgrade)"
   ],
   "lastFullGateResults": {
-    "sha": "3608c8a (content) \u2014 this stamp is its child, no content change",
+    "sha": "pending -- stamped by the commit that carries this file",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
     "unit": "752 passed / 2 skipped / 104 files",
-    "integrationFresh": "586 passed / 65 files (fresh 0001-0083)",
-    "integrationLegacyUpgrade": "586 passed / 65 files (hosted-style baseline 0001-0041 + realistic data, then 0042-0083)",
-    "integrationNarrowUpgrade": "586 passed / 65 files (0082 then 0083)",
+    "integrationFresh": "611 passed / 66 files (fresh 0001-0086)",
+    "integrationLegacyUpgrade": "611 passed / 66 files (hosted-style baseline 0001-0041 + realistic data, then 0042-0086)",
+    "integrationNarrowUpgrade": "611 passed / 66 files (0085 then 0086)",
     "build": "compiled",
     "verify": "npm run verify exits 0",
     "secretScan": "clean",
-    "migrationLint": "83 sequential, 0001-0083, no gaps or duplicates",
-    "browserCheck": "review/setup/analyze routes served and gated; / and /login render; both cron routes return 401 to an absent AND a wrong secret",
-    "requirementsAudit": "registered=90 verified=13 incomplete-implementable=72 blocked-owner=4 deferred=1",
-    "discriminationProof": "OF-015 section coverage: 5 of 5 owner-configuration scenarios fail at 0079. Loop-2 corrections: 5 of 20 fail at 0082. Loop-1 corrections: 8 of 9 reproduced against the pre-fix tree. Sections 3 and 6 are application code, so their discrimination is the in-session reproduction, not a schema head \u2014 stated as such.",
+    "migrationLint": "86 sequential, 0001-0086, no gaps or duplicates",
+    "discriminationProof": "MEASURED, not asserted: 10 of the new/changed tests FAIL on a database at 0085 and PASS at 0086 -- the two G-01 end-to-end cases from a genuine unprivileged login role, and eight actor-boundary cases. The G-01 exploit itself was reproduced end to end before the fix (a persisted 999,999 journal on the pre-0086 database) and the identical call refused after it. G-06a was reproduced as an actual spurious migration abort under `search_path = pg_catalog`, then verified passing. The call-graph invariant (G-02) deliberately does NOT discriminate: it is a standing no-silent-growth gate, not a fix, and is described as such.",
     "note": "All database verification ran on a DISPOSABLE LOCAL PostgreSQL 16 in this container. No hosted database was migrated, no flag enabled, no live model provider called, no real message sent. GitHub Actions CI could not run (no runner assigned) and is reported unavailable, not green."
   },
   "openFindings": [
-    "OF-016 (P0, MATERIAL BLOCKER): a suspected duplicate has no authorized resolution path \u2014 no RPC, no screen, no write grant \u2014 and the paused payment is on no screen. Reversible, so nothing is stranded permanently, but not a usable workflow.",
-    "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims \u2014 reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
+    "OF-018 (P2, NOT exploitable, recorded not fixed): `resolve_inbound_review` and `record_inbound_review` (0075) guard with `caller_jwt_role() is distinct from 'service_role'` IN ADDITION to their EXECUTE grant. Fail-closed, so not a hole -- but it contradicts the second half of the rule this package enforces: a genuine service_role caller whose claim text differs (a direct connection sets no GUC) is refused. Cheap to correct; belongs in a bounded follow-up.",
+    "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
+    "OF-016 (P0, MATERIAL BLOCKER): a suspected duplicate has no authorized resolution path — no RPC, no screen, no write grant — and the paused payment is on no screen. Reversible, so nothing is stranded permanently, but not a usable workflow.",
+    "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
     "OF-015 (P2): sections 3 and 6 have no re-runnable schema-level end-to-end discrimination, because they are application code.",
     "OF-003: finance classification has no model provider, so a staff finance message reaches the review queue rather than capture",
     "OF-004: until a receiving number is mapped in channel_accounts, the single-tenant bridge is what attributes messages",
@@ -50,11 +50,11 @@
     "OF-012: RLS_READS/RLS_WRITES are OFF, so the app reads through the RLS-bypassing service-role client"
   ],
   "ownerGates": [
-    "PR merges (#22, #23, #24) \u2014 none merged",
-    "Hosted migration application (0042-0083) \u2014 hosted DB is at 0038-0041",
+    "PR merges (#22, #23, #24) — none merged",
+    "Hosted migration application (0042-0083) — hosted DB is at 0038-0041",
     "Map each receiving WhatsApp number to its company in channel_accounts (FOUND-003)",
     "Grant operations.inbound.review to whoever should work the inbound queue (FOUND-003)",
-    "Feature flag activation \u2014 all 8 V3.1 flags OFF",
+    "Feature flag activation — all 8 V3.1 flags OFF",
     "ANTHROPIC_API_KEY for live-model evaluation (MOD-001) and a provider for finance classification (FOUND-003)",
     "Company authority amounts, ceilings and regulated-action mappings (FOUND-004 configuration)",
     "GitHub authorization before creating the private repository/package (IP-001)",
@@ -64,14 +64,15 @@
     "GitHub Actions runner provisioning"
   ],
   "usageState": {
-    "opusReviewsThisProgram": 7,
+    "opusReviewsThisProgram": 8,
     "correctionLoopsUsed": {
       "campaign": 2,
       "v3.3-part1": 0,
       "v3.3-part2": 2,
-      "v3.3-remediation-R1": 2
+      "v3.3-remediation-R1": 2,
+      "found-006": 2
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-18"
+  "updatedAt": "2026-08-19"
 }
