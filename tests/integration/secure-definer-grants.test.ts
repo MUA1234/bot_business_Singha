@@ -76,6 +76,9 @@ const SERVICE_ONLY = new Set([
   "settle_processed_source_event(uuid)",
   // 0083 — the reviewer LIST, using the same capability predicate inbound_setup_status counts by.
   "inbound_reviewer_user_ids(uuid)",
+  // 0084 (FOUND-006) — the SERVICE half of the quotation-status split. There is no branch inside
+  // it: the EXECUTE grant IS the authorization, which is the whole point of the change.
+  "quotation_status_for_service(uuid,uuid)",
   // 0075 FOUND-003 — the manual-review queue. record is idempotent per message; resolve
   // INDEPENDENTLY re-checks the named actor's capability rather than trusting the application.
   "record_inbound_review(uuid,text,text,text,text,uuid,text,text,text,text)",
@@ -123,6 +126,10 @@ const OWNER_ONLY = new Set([
   // role including service_role. SECURITY DEFINER so its `search_path` is pinned and its refusal
   // cannot be bypassed by a caller's own search_path.
   "approval_requests_provenance_guard()",
+  // 0084 (FOUND-006) — the shared quotation-status implementation. It carries NO authorization of
+  // its own, so it is reachable by no role at all: only its two wrappers, and the WP12 delivery
+  // functions, run as the owner that can execute it.
+  "_quotation_status_read(uuid,uuid)",
   // 0082 (R-07) — counts the ACTIVE holders of a role in a company, so the admin surface can refuse
   // to remove the last one. SECURITY DEFINER because it reads memberships across the RLS boundary;
   // reachable by no role at all, and called only from inside admin_set_membership_role.
@@ -136,6 +143,9 @@ const SERVICE_ONLY_REQUIRED = [...SERVICE_ONLY].filter((s) => s !== "_journal_po
 // evaluate in the CALLER's role, and the authenticated write-path RPCs (fail-closed internally). Each
 // classified by its exact signature — NOT by name — so a new overload of any of these must be re-approved.
 const AUTHENTICATED_OK = new Set([
+  // 0084 (FOUND-006) — the HUMAN half of the quotation-status split. Granted to `authenticated`
+  // only, and it authorizes on the CAPABILITY rather than on anything the caller can assert.
+  "quotation_status_for_capable(uuid,uuid)",
   // Self-gating read helper (0066): returns a quotation status enum ONLY to a caller who already holds
   // sales.quotation.manage in that company (or the service worker), so the quotation_items freeze trigger
   // can read the parent status even when the department-scoped read policy would hide it — no cross-company leak.

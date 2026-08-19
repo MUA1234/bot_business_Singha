@@ -542,7 +542,7 @@ describe.skipIf(!enabled)("R1 correction loop 1 (disposable local PostgreSQL)", 
     }
   });
 
-  it("OF-014: the UNAUTHENTICATED disclosure is closed; the authenticated one is a RECORDED residual", async () => {
+  it("OF-014: CLOSED by migration 0084 — a forged claim no longer discloses a quotation's status", async () => {
     const q = (await row(
       `insert into quotations (company_id, quote_number, currency, status, public_token)
        values ($1,$2,'LKR','sent',$3) returning id`, [co, `Q-l2-${rnd()}`, `tok-${rnd()}`])).id;
@@ -564,18 +564,19 @@ describe.skipIf(!enabled)("R1 correction loop 1 (disposable local PostgreSQL)", 
       // that is what holds for the other 27 functions consulting caller_jwt_role().
       await expect(attacker.query(`set role service_role`)).rejects.toMatchObject({ code: "42501" });
 
-      // THE RESIDUAL, PINNED HONESTLY. This function is SECURITY DEFINER, so `current_user` inside
-      // it is the OWNER and `session_user` under PostgREST is `authenticator` — which Supabase
-      // grants membership of service_role. Neither identifies the caller, so a privilege-based
-      // predicate could not replace the claim check without breaking a fail-closed control
-      // (measured: wp12-enqueue-item-race went red when I tried). The claim check therefore stands,
-      // and an authenticated caller able to run ARBITRARY SQL can still read one status per known
-      // id. That is recorded as part of the FOUND-006 residual and named as the next package — this
-      // assertion exists so the day it changes, this test says so.
+      // CLOSED BY 0084. When this test was written the claim-branch function still existed and this
+      // assertion pinned the leak as a recorded residual. FOUND-006 replaced the architecture: the
+      // status read is split into a capability path granted to `authenticated` and a service path
+      // granted to `service_role`, over a shared implementation reachable by no api role. There is
+      // no claim branch left to forge.
       await attacker.query(`select set_config('request.jwt.claims','{"role":"service_role"}',false)`);
-      expect((await attacker.query(`select public.caller_jwt_role() as r`)).rows[0].r).toBe("service_role");
-      const stillLeaks = await attacker.query(`select public._quotation_status_for_guard($1,$2) as s`, [co, q]);
-      expect(stillLeaks.rows[0].s).toBe("sent");
+      await expect(attacker.query(`select public._quotation_status_for_guard($1,$2)`, [co, q]))
+        .rejects.toMatchObject({ code: "42883" });                 // the claim-branch function is GONE
+      await expect(attacker.query(`select public.quotation_status_for_service($1,$2)`, [co, q]))
+        .rejects.toMatchObject({ code: "42501" });                 // the service path needs the GRANT
+      // The capability path IS reachable, and correctly returns nothing to a caller with no capability.
+      const capable = await attacker.query(`select public.quotation_status_for_capable($1,$2) as s`, [co, q]);
+      expect(capable.rows[0].s).toBeNull();
     } finally {
       await attacker.end().catch(() => {});
     }
@@ -591,8 +592,10 @@ describe.skipIf(!enabled)("R1 correction loop 1 (disposable local PostgreSQL)", 
     try {
       await anonClient.connect();
       await anonClient.query(`select set_config('request.jwt.claims','{"role":"service_role"}',false)`);
-      await expect(anonClient.query(`select public._quotation_status_for_guard($1,$2)`, [co, q]))
-        .rejects.toMatchObject({ code: "42501" });
+      for (const fn of ["quotation_status_for_capable", "quotation_status_for_service"]) {
+        await expect(anonClient.query(`select public.${fn}($1,$2)`, [co, q]), fn)
+          .rejects.toMatchObject({ code: "42501" });
+      }
     } finally {
       await anonClient.end().catch(() => {});
       await db.query(`drop role if exists ${anonRole}`);
