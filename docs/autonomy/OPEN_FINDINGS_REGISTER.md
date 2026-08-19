@@ -129,3 +129,46 @@ not build is the workflow a person uses to decide.
 **What the next package must add:** a resolution RPC (confirm-duplicate / declare-distinct, capability
 gated, audited, company scoped, idempotent so "distinct" resumes processing exactly once), a review
 screen, and the paused-payment visibility that today only `approval_requests` provides.
+
+---
+
+## Found by the FOUND-006 independent security review
+
+Six findings, each reproduced on a disposable local PostgreSQL before being accepted. Five are fixed
+in correction loop 1 (migration **0085** + doc + tests). One cannot be fixed by this repository at
+all and is recorded as an owner gate.
+
+| ID | Finding | Sev | Disposition |
+|---|---|---|---|
+| **F-01 / OF-017** | `SET ROLE` is authorized against `session_user`, which under PostgREST is `authenticator` — a member of `service_role`. A caller with arbitrary SQL as `authenticated` escalates to full service privilege in ONE statement, no forgery needed | **P1** security | **NOT FIXABLE HERE — owner gate.** See below |
+| F-02 | 0084's "no claim-to-authority" assertion matched one syntactic form; a bare `if caller_jwt_role() = 'service_role' then …` sailed past it | P2 | **FIXED (0085).** Replaced with a reachability invariant against an exact-signature allowlist — any api-reachable SECURITY DEFINER function referencing `caller_jwt_role`, in any syntax, now fails |
+| F-03 | The trust-model inventory said "48 functions / 17 api-reachable"; 17 was the pre-0084 number and 48 matched no definition. The table's own columns did not sum to either | P2 | **FIXED.** Recomputed: **45 / 15**, classes reconciled, and the false claim that a trigger function needs EXECUTE to fire is corrected |
+| F-04 | No test in the FOUND-006 file fired `quotation_items_enforce_frozen` — the split's only consumer. A reviewer reinstated the `CASE` regression and the file stayed green | P2 | **FIXED.** Two trigger cases added, from genuine login roles, covering both branches and the fail-closed path |
+| F-05 | The rewritten wp12 "fail closed" assertion passed vacuously: the bespoke role died in the ACL before the guard's own refusal, same SQLSTATE | P2 | **FIXED.** The probe role now inherits `authenticated` so it reaches the guard, and the guard's own message is asserted |
+| F-06 | The doc credited the WP12 delivery functions with calling `_quotation_status_read`; they do not | P2 | **FIXED.** Corrected from the catalog — exactly two callers |
+
+### OF-017 (P1) — the `SET ROLE` escalation
+
+```
+begin; set local role authenticated;      -- the shape a PostgREST request runs in
+  has_function_privilege(current_user, 'quotation_status_for_service…', 'EXECUTE')  → f
+set role service_role;                    -- ONE statement, nothing forged
+  current_user → service_role;  has_function_privilege(…) → t;  quotation_status_for_service(…) → 'sent'
+```
+
+**Why the repository cannot fix it.** `SET ROLE` succeeds because ONE login role (`authenticator`) is
+a member of both the API roles and `service_role` — which PostgREST requires in order to serve
+service-key requests at all. A migration that revoked that membership would break the service path on
+a live project. The fix is topological: **the service backend must connect as a login role that is
+not the one serving public API traffic, and the public one must hold no `service_role` membership.**
+That is a deployment change and an owner action.
+
+**Why it is not a regression.** At 0083 the same attacker forged the GUC and arrived in the same
+place. 0084 removed the door that needed no escalation; it never claimed to remove `SET ROLE` — and
+an earlier draft of the trust model wrongly said the two problems were separable. That claim is
+withdrawn.
+
+**How it is kept honest.** `tests/integration/found-006-caller-trust.test.ts` pins the current state:
+the escalation is asserted to SUCCEED, with a message naming the remediation. The day the owner
+separates the roles, that assertion fails and forces the trust model, the test and FOUND-006's status
+to be updated together.

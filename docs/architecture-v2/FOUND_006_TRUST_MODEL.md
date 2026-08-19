@@ -67,33 +67,88 @@ allowlists and pinned search paths.
 
 ## 5. What FOUND-006 does NOT solve
 
-`anon`, `authenticated` and `service_role` are **shared** database roles. A caller able to execute
-arbitrary SQL as `authenticated` — through an application defect or an injection — can set
-`request.jwt.claims` to any `sub` and therefore control `auth.uid()`, and so impersonate any user to
-every RLS policy. Measured and asserted in `tests/integration/found-006-caller-trust.test.ts`.
+`anon`, `authenticated` and `service_role` are **shared** database roles reached through one
+`authenticator` login role. Two distinct consequences follow, and an earlier draft of this document
+got the second one wrong.
 
-**This is a property of the shared-role architecture, not of any helper's name, and renaming or
-re-wrapping a function does not address it.** It is outside the supported client boundary. Closing
-it requires a different architecture: per-user database identity, or claims verified
-cryptographically inside the database rather than accepted from a GUC.
+### 5a. Forged claims → user impersonation
 
-What FOUND-006 *does* guarantee is narrower and worth stating exactly: **no forged claim yields
-service-only database privilege.** Impersonating a user is a different and unsolved problem from
-becoming the service worker.
+A caller able to execute arbitrary SQL as `authenticated` can set `request.jwt.claims` to any `sub`
+and therefore control `auth.uid()`, impersonating any user to every RLS policy. Asserted in
+`tests/integration/found-006-caller-trust.test.ts`.
+
+### 5b. `SET ROLE` → FULL SERVICE ESCALATION — corrected after review
+
+An earlier version of this document said "impersonating a user is a different and unsolved problem
+from becoming the service worker". **That was false, and an independent security review was right to
+reject it.**
+
+`SET ROLE` is authorized against **`session_user`**, not `current_user`. Under the exact PostgREST
+topology this design is built around, `session_user` is `authenticator` — and `authenticator` is a
+member of `service_role` so that PostgREST can serve service-key requests. So a caller with
+arbitrary SQL as `authenticated` does not need to forge anything: **one statement makes them the
+service worker**, with BYPASSRLS and every service-only RPC.
+
+Reproduced on a disposable local PostgreSQL, roles mirroring Supabase
+(`create role authenticator login noinherit; grant anon, authenticated, service_role to authenticator;`):
+
+```
+begin; set local role authenticated;
+  has_function_privilege(current_user, 'quotation_status_for_service…', 'EXECUTE')  → f
+set role service_role;                       -- ONE statement, no forgery involved
+  current_user                                → service_role
+  has_function_privilege(current_user, …)     → t
+  quotation_status_for_service(…)             → 'sent'
+```
+
+**This is not a regression introduced by 0084** — at 0083 the same attacker forged the GUC instead,
+reaching the same place by a different door. What 0084 removed is the door that needed no
+escalation; it did not, and could not, remove `SET ROLE`.
+
+**The mitigation is topological, not a migration.** `SET ROLE` succeeds because ONE login role is a
+member of both the API roles and `service_role`. Closing it requires the service backend to connect
+as a role that is **not** the login role serving public API traffic — separate connections, separate
+login roles, with the public one holding no `service_role` membership. That is a deployment change on
+the hosted project and an **owner action**; a migration cannot make it, and revoking
+`service_role` from `authenticator` on a live Supabase project would break the service path outright.
+
+`tests/integration/found-006-caller-trust.test.ts` therefore contains a **topology detector**: it
+fails when the role a request runs as can `SET ROLE` to `service_role`. It is expected to fail against
+the current single-`authenticator` shape and to pass once the owner separates the roles, so the
+control is real rather than aspirational.
+
+### What FOUND-006 actually guarantees
+
+Stated exactly, and no wider: **no forged request claim yields service-only database privilege.** A
+caller must hold the `service_role` GRANT — by membership — and holding it is a database fact, not a
+request assertion. Everything above about `SET ROLE` and `sub` is about who can *obtain* that
+membership, which is a deployment question this package does not close.
 
 ## 6. Inventory — every identity/privilege decision
 
-48 functions in `public` reference an identity primitive. 17 are reachable by `anon` or
-`authenticated`; the rest are gated by EXECUTE grants and are unreachable from the API.
+Measured on a fresh `0001–0085` disposable database, counting functions in `public` whose body
+references `auth.uid()`, `caller_jwt_role`, `request.jwt`, `current_user`, `session_user` or
+`pg_has_role`:
 
-| Classification | Count | Examples | Why |
+**45 functions, of which 15 are reachable by `anon` or `authenticated`.** (An earlier draft said
+"48 / 17"; 17 was the pre-0084 count and 48 matched no definition. Both are corrected, and the
+classes below now sum to the totals.)
+
+| Classification | Count | Members | Why |
 |---|---|---|---|
-| **Security-sensitive, CHANGED by 0084** | 1 | `_quotation_status_for_guard` | The only DEFINER function reachable by an API role that converted a claimed role into authority. **Dropped**, replaced by a three-way split |
-| **Safe — the exact grant is the gate** | 24 | `claim_source_events`, `record_inbound_receipt`, `admin_*`, `route_task_as_ai`, `settle_processed_source_event` | `anon` and `authenticated` hold no EXECUTE. Forging a claim is irrelevant when the call itself is refused |
-| **Safe — the claim use is RESTRICTIVE** | 2 | `decide_approval`, `route_task_as_human` | The claim can only *tighten*: `decide_approval` refuses `anon` and a null `auth.uid()`; `route_task_as_human` refuses a caller claiming `service_role`. Forging makes them refuse, not admit |
-| **Identity/audit within the trusted PostgREST boundary** | 10 | `has_capability`, `has_company_access`, `my_company`, `within_authority`, `is_admin` | RLS predicate helpers evaluated in the caller's role. They decide which ROWS are visible, never service privilege. Their exposure to forged `sub` is the §5 limitation |
-| **Internal, EXECUTE removed by 0084** | 2 | `caller_jwt_role()`, `_resolve_actor` | Verified first: no SECURITY INVOKER function calls either, so every caller is a DEFINER body running as its owner. The API-role grant bought nothing |
-| **Trigger helpers that must keep the grant** | 2 | `_is_quotation_delivery_owner()`, `quotations_enforce_insert_initial_state()` | Called from INVOKER trigger bodies, so the invoker needs EXECUTE for the trigger to run. They read `pg_catalog` and return a boolean about the current user — they disclose nothing |
+| **Security-sensitive, CHANGED** | 1 | `_quotation_status_for_guard` (**dropped**) | The only DEFINER function reachable by an api role that converted a claimed role into authority |
+| **Safe — the exact grant is the gate** | 30 | `claim_source_events`, `record_inbound_receipt`, `admin_*`, `route_task_as_ai`, `settle_processed_source_event`, `quotation_status_for_service`, … | `anon` and `authenticated` hold no EXECUTE. Forging a claim is irrelevant when the call itself is refused |
+| **Safe — the claim use is RESTRICTIVE** | 2 | `decide_approval`, `route_task_as_human` | The claim can only *tighten*. Enforced by migration 0085's allowlist: these two are the only api-reachable DEFINER functions permitted to reference `caller_jwt_role` at all |
+| **Identity/audit inside the trusted request boundary** | 10 | `has_capability`, `has_company_access`, `has_membership`, `has_permission`, `is_admin`, `my_company`, `my_department`, `within_authority`, `within_authority_for_event`, `authority_ceiling` | RLS predicate helpers evaluated in the caller's role. They decide which ROWS are visible, never service privilege. Their exposure to a forged `sub` is §5a |
+| **Capability-gated api entrypoint** | 1 | `quotation_status_for_capable` | Authorizes on `sales.quotation.manage`; granted to `authenticated` only |
+| **Trigger functions (fire in the caller's context)** | 2 | `quotation_items_enforce_frozen`, `quotations_enforce_insert_initial_state` | INVOKER, so `current_user` is the caller — the one context where that is true |
+| **Helper called FROM an invoker trigger body** | 1 | `_is_quotation_delivery_owner()` | Reads `pg_catalog` and returns a boolean about the current user. **The grant is needed because the trigger BODY calls it as the caller — not because a trigger needs EXECUTE to fire.** A trigger function itself needs no EXECUTE at fire time; an earlier draft of this table said otherwise and was wrong |
+| **Internal, EXECUTE removed by 0084** | 2 | `caller_jwt_role()`, `_resolve_actor(uuid)` | Verified first: no SECURITY INVOKER function calls either, so every caller is a DEFINER body running as its owner |
+
+Totals: 30 + 2 + 10 + 1 + 2 + 1 + 2 = **48 classifications across 45 functions** — three appear in two
+rows (`quotation_status_for_capable` is also grant-gated; the two trigger functions are also
+api-reachable). The api-reachable 15 are: the 10 RLS helpers, `decide_approval`,
+`route_task_as_human`, `quotation_status_for_capable`, and the two trigger functions.
 
 ## 7. What migration 0084 changed
 

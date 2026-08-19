@@ -136,6 +136,47 @@ describe.skipIf(!enabled)("FOUND-006 — privilege decides, request text does no
     expect((await failed(c, `set role service_role`))?.code).toBe("42501");
   });
 
+  /**
+   * F-01, found by an independent security review and reproduced before being accepted.
+   *
+   * `SET ROLE` is authorized against `session_user`, not `current_user`. Under the exact PostgREST
+   * topology this package is designed around, `session_user` is `authenticator` — a member of
+   * `service_role` so PostgREST can serve service-key requests. A caller with arbitrary SQL as
+   * `authenticated` therefore does not need to forge anything: ONE statement makes them the service
+   * worker. An earlier version of the trust-model document claimed the opposite.
+   *
+   * This is NOT closed by migration 0084 and cannot be — the mitigation is topological (the service
+   * backend must connect as a login role that is not the one serving public API traffic). The
+   * assertion below is a DETECTOR: it fails while the topology is unsafe and passes once the owner
+   * separates the roles, so it is a real control rather than a note in a document.
+   */
+  it("TOPOLOGY DETECTOR: the role a request runs as must NOT be able to SET ROLE service_role", async () => {
+    const c = await connectAs(ROLES.authenticator);
+    await c.query("begin");
+    try {
+      await c.query("set local role authenticated");
+      expect((await c.query(`select current_user::text as cu`)).rows[0].cu).toBe("authenticated");
+      const e = await failed(c, "set role service_role");
+      const escalated = e === null;
+      // PINNED KNOWN-BAD STATE. On the single-`authenticator` topology this repository targets, the
+      // escalation SUCCEEDS — so asserting it fails would leave a permanently red suite that tells
+      // nobody anything new. Instead the current state is pinned: the day the owner separates the
+      // roles, `escalated` goes false, THIS assertion fails, and whoever sees it must update the
+      // trust model, this test and FOUND-006's status together. That is the point.
+      expect(
+        escalated,
+        "TOPOLOGY CHANGED — `authenticated` can no longer SET ROLE service_role. That is the fix " +
+        "FOUND-006 §5b asks for. Update docs/architecture-v2/FOUND_006_TRUST_MODEL.md §5b, this " +
+        "assertion, and FOUND-006's residual_risks, then flip this expectation to `false`.",
+      ).toBe(true);
+      // …and record WHY it is possible, so the reason is in the evidence and not only in prose.
+      const m = await c.query(
+        `select pg_has_role(session_user,'service_role','MEMBER') as member, session_user::text as su`);
+      expect(m.rows[0].member).toBe(true);
+      expect(m.rows[0].su).toBe(ROLES.authenticator);
+    } finally { await c.query("rollback"); }
+  });
+
   it("an AUTHENTICATED role forging `sub` changes auth.uid() — the DOCUMENTED shared-role limit", async () => {
     const c = await connectAs(ROLES.auth);
     const victim = randomUUID();
@@ -213,15 +254,82 @@ describe.skipIf(!enabled)("FOUND-006 — privilege decides, request text does no
     }
   });
 
+  // ── the ENFORCEMENT POINT: the freeze trigger, from genuine roles ────────────────────────────
+  // F-04: the split's only consumer is `quotation_items_enforce_frozen`, and nothing in this file
+  // fired it. A reviewer reintroduced the `CASE` regression the commit message describes at length
+  // and this file stayed fully green while two other files went red. These cases close that.
+  it("the TRIGGER runs the capability path for a capable member and the service path for the worker", async () => {
+    const draft = (await row(`insert into quotations (company_id, quote_number, currency, status, public_token)
+                              values ($1,$2,'LKR','draft',$3) returning id`, [co, `Q-trg-${rnd()}`, `tok-${rnd()}`])).id;
+
+    const c = await connectAs(ROLES.authenticator);
+    await c.query("begin");
+    try {
+      await c.query("set local role authenticated");
+      await c.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ role: "authenticated", sub: capUser })]);
+      // A CASE expression here raised `permission denied for function quotation_status_for_service`
+      // for exactly this caller, because PostgreSQL ACL-checks the untaken branch of a planned
+      // expression. If that regression returns, this INSERT fails.
+      await c.query(`insert into quotation_items (quotation_id, company_id, description, quantity, currency)
+                     values ($1,$2,'trigger probe',1,'LKR')`, [draft, co]);
+    } finally { await c.query("rollback"); }
+
+    // `SET ROLE service_role` deliberately — exactly what PostgREST does for a service-key request.
+    // BYPASSRLS is a role ATTRIBUTE and is NOT inherited through membership, so a role that is
+    // merely a member of `service_role` is still subject to RLS until it sets the role.
+    const svc = await connectAs(ROLES.svc);
+    await svc.query("set role service_role");
+    await svc.query(`insert into quotation_items (quotation_id, company_id, description, quantity, currency)
+                     values ($1,$2,'service probe',1,'LKR')`, [draft, co]);
+    await db.query(`delete from quotation_items where quotation_id=$1`, [draft]);
+    await db.query(`delete from quotations where id=$1`, [draft]);
+  });
+
+  it("the TRIGGER fails CLOSED for a caller holding neither the capability nor the grant", async () => {
+    const draft = (await row(`insert into quotations (company_id, quote_number, currency, status, public_token)
+                              values ($1,$2,'LKR','draft',$3) returning id`, [co, `Q-fc-${rnd()}`, `tok-${rnd()}`])).id;
+    const item = (await row(`insert into quotation_items (quotation_id, company_id, description, quantity, currency)
+                             values ($1,$2,'x',1,'LKR') returning id`, [draft, co])).id;
+
+    // A role that INHERITS `authenticated` — so it can execute the capability path and reach the
+    // guard's own RAISE — and BYPASSRLS so it can see the row at all. Without both, the statement
+    // dies in the ACL or matches zero rows, and the fail-closed branch is never exercised. That is
+    // exactly how the sibling wp12 assertion was passing for the wrong reason (F-05).
+    const probe = `f6_nocap_${SUFFIX}`;
+    await db.query(`drop role if exists ${probe}`);
+    await db.query(`create role ${probe} login password 'probe' bypassrls`);
+    await db.query(`grant authenticated to ${probe}`);
+    const c = await connectAs(probe);
+    await c.query(`select set_config('request.jwt.claims','{"role":"service_role"}',false)`);  // forged, and useless
+    const e = await failed(c, `update quotation_items set description='y' where id=$1`, [item]);
+    expect(e).toBeTruthy();
+    expect(e.code).toBe("42501");
+    expect(e.message).toMatch(/holds neither sales\.quotation\.manage/);
+
+    await c.end().catch(() => {});
+    await db.query(`delete from quotation_items where quotation_id=$1`, [draft]);
+    await db.query(`delete from quotations where id=$1`, [draft]);
+    await db.query(`drop role if exists ${probe}`);
+  });
+
   // ── the systemic invariant ──────────────────────────────────────────────────────────────────
-  it("NO api-reachable SECURITY DEFINER function converts a JWT claim into service authority", async () => {
-    const bad = (await db.query(
-      `select p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' as sig
+  it("only TWO api-reachable SECURITY DEFINER functions may consult caller_jwt_role at all", async () => {
+    // REACHABILITY, not syntax (F-02). The earlier version matched one textual form — the shape that
+    // happened to exist in the function being removed — and a reviewer showed a bare
+    // `if caller_jwt_role() = 'service_role' then ...` sailed straight past it. Both allowed entries
+    // use the claim RESTRICTIVELY (it can only tighten), which is why they are allowed; anything
+    // else, in any syntax, fails here and fails migration 0085's own assertion.
+    const found = (await db.query(
+      `select p.oid::regprocedure::text as sig
          from pg_proc p join pg_namespace n on n.oid=p.pronamespace
         where n.nspname='public' and p.prosecdef
           and (has_function_privilege('anon',p.oid,'EXECUTE') or has_function_privilege('authenticated',p.oid,'EXECUTE'))
-          and p.prosrc ~ 'or\\s+public\\.caller_jwt_role\\(\\)\\s*=\\s*''service_role'''`)).rows;
-    expect(bad.map((r: any) => r.sig)).toEqual([]);
+          and p.prosrc like '%caller_jwt_role%'
+        order by 1`)).rows;
+    expect(found.map((r: any) => r.sig)).toEqual([
+      "decide_approval(uuid,uuid,text,text)",
+      "route_task_as_human(uuid,uuid,text,text,text,jsonb,uuid,text,uuid,uuid)",
+    ]);
   });
 
   it("internal helpers are no longer executable by an api role", async () => {

@@ -65,6 +65,7 @@ describe.skipIf(!enabled)("0067 enqueue vs item-mutation race (live, two connect
     // UPDATE "succeeds" against zero rows — which would prove nothing. This mirrors exactly what the
     // original service_role session had, so the ONLY difference under test is the grant.
     await setup.query(`do $$ begin if not exists (select 1 from pg_roles where rolname='${customRole}') then create role ${customRole} bypassrls; end if; end $$`);
+    await setup.query(`grant authenticated to ${customRole}`);
     await setup.query(`grant usage on schema public to ${customRole}`);
     await setup.query(`grant select, insert, update, delete on public.quotation_items to ${customRole}`);
     await setup.query(`grant select on public.quotations to ${customRole}`);
@@ -86,7 +87,8 @@ describe.skipIf(!enabled)("0067 enqueue vs item-mutation race (live, two connect
     try { await setup.query(`delete from membership_roles where company_id=$1`, [co]); } catch { /* noop */ }
     try { await setup.query(`delete from memberships where company_id=$1`, [co]); } catch { /* noop */ }
     for (const cid of [co, coB]) { try { await setup.query(`delete from companies where id=$1`, [cid]); } catch { /* noop */ } }
-    for (const sql of [`revoke all on public.quotation_items from ${customRole}`,
+    for (const sql of [`revoke authenticated from ${customRole}`,
+                       `revoke all on public.quotation_items from ${customRole}`,
                        `revoke all on public.quotations from ${customRole}`,
                        `revoke usage on schema public from ${customRole}`,
                        `drop role if exists ${customRole}`]) {
@@ -274,14 +276,22 @@ describe.skipIf(!enabled)("0067 enqueue vs item-mutation race (live, two connect
 
     // AND the genuinely unclassifiable caller — neither capability nor grant — is refused even
     // pre-queue. That is where "fail closed" now lives.
+    //
+    // The role INHERITS `authenticated` deliberately. A bespoke role with no membership dies in the
+    // ACL on `quotation_status_for_capable` — same SQLSTATE, so the assertion passed while never
+    // reaching the guard at all (F-05). Inheriting `authenticated` lets it execute the capability
+    // path, which then returns null for a caller with no capability, which is the branch under test.
     const { quo: quo2, itemIds: items2 } = await seedReadyWithItems(co, "40", ["40"]);
     await setup.query("begin");
     try {
       await setup.query(`set local role ${customRole}`);
       let code: string | undefined;
+      let msg = "";
       try { await setup.query(`update quotation_items set line_total='41' where id=$1 and company_id=$2`, [items2[0], co]); }
-      catch (e) { code = (e as { code?: string }).code; }
+      catch (e) { code = (e as { code?: string }).code; msg = (e as Error).message; }
       expect(code).toBe("42501");
+      // The GUARD's refusal, not an ACL denial on the way to it.
+      expect(msg).toMatch(/holds neither sales\.quotation\.manage/);
     } finally { await setup.query("rollback"); }
     expect(quo2).toBeTruthy();
   });
