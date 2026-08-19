@@ -1,5 +1,5 @@
 /**
- * WP2 posting authority — live Postgres, ZERO-PERSISTENCE. Proves the capability gate that
+ * WP2 posting authority — a disposable local PostgreSQL, ZERO-PERSISTENCE. Proves the capability gate that
  * a user-triggered RPC enforces via auth.uid() (the authenticated-RPC path), independent of
  * RLS_WRITES: a finance_reviewer may CREATE a draft but may NOT post; an accountant may
  * post; a SUSPENDED accountant may not. p_by spoofing + actor identity are covered in

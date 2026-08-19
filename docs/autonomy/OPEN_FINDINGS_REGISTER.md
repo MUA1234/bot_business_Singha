@@ -320,3 +320,30 @@ event goes first because it is the processing linearization object — `claim_so
 queue behind human review.
 
 **Discrimination: all 24 database tests fail at 0086 and pass at 0087.**
+
+
+### OF-016 — what the browser evidence does and does not cover
+
+Stated plainly, because the gap is permanent in this container and a reader should not have to infer it.
+
+**Tested, in real Chromium at 390 / 768 / 1440** (`scripts/verify/browser-check-duplicate-reviews.mjs`,
+22 checks, three consecutive green runs): every OF-016 route is served and redirects a signed-out
+visitor to sign-in rather than rendering a paused payment; the pages that do render lay out with **no
+horizontal overflow, measured in the browser** (`documentElement.scrollWidth <= innerWidth + 1`, not
+inferred from CSS); no console errors and no failed requests at any width.
+
+**Tested, against a disposable local PostgreSQL 16** — the component rendered against rows the real
+`resolve_duplicate_review` RPC actually wrote, asserting the displayed money, dates, counterparties,
+score, contributions, missing evidence, rule version, decision, actor name and reason against the
+stored values (`of016-rendered-matches-persisted.test.tsx`).
+
+**NOT tested: authenticated Supabase browser end-to-end.** There is no Supabase instance in this
+container, and the application reaches its database over Supabase's HTTP API — so no local browser
+check can sign in, load the queue with rows in it, or click a button that resolves one. Session
+behaviour across refresh and restart, and RLS as enforced by the real PostgREST request pipeline, are
+likewise unproven locally. This is an environmental limit, not an oversight, and it is **not** closed
+by any amount of further local work.
+
+Those gaps are exactly what `docs/autonomy/OF016_STAGING_TEST_CHECKLIST.md` is for. It is prepared
+for a human tester and **has not been run** — no hosted or staging migration has been applied, no
+flag activated, nothing deployed.

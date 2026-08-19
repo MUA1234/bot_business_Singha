@@ -1,5 +1,5 @@
 /**
- * FOUND-003 — the whole inbound chain, against live PostgreSQL:
+ * FOUND-003 — the whole inbound chain, against a disposable local PostgreSQL:
  *
  *   receiving account → company → sender identity → intent → routing → source event
  *   → review queue → audit → what the UI reads.

@@ -1,5 +1,5 @@
 /**
- * WP B accounting-RPC hardening — live Postgres, ZERO-PERSISTENCE (BEGIN … ROLLBACK).
+ * WP B accounting-RPC hardening — a disposable local PostgreSQL, ZERO-PERSISTENCE (BEGIN … ROLLBACK).
  * Proves migration 0039's guarantees for settlement/journal/reversal RPCs (brief §6):
  *   - same idempotency key, same request → one journal + one payment, applied once;
  *   - same key, changed amount → rejected as a CONFLICT;

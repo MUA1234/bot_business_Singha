@@ -1,5 +1,5 @@
 /**
- * WP B/A follow-up (migrations 0042/0043) — live Postgres, ZERO-PERSISTENCE. Proves the
+ * WP B/A follow-up (migrations 0042/0043) — a disposable local PostgreSQL, ZERO-PERSISTENCE. Proves the
  * review findings are fixed:
  *   - full-PAYLOAD idempotency: same key + different lines (even same total) → conflict;
  *   - invoice/bill posting is ONE transaction (journal + status + audit) and idempotent,

@@ -179,7 +179,7 @@ try {
   console.log(
     "\nNOTE: the queue WITH ROWS IN IT is not exercised here — there is no Supabase instance in " +
     "this container, so no browser check can sign in and load it. That the screen's words match " +
-    "what the RPC actually persisted is asserted against live PostgreSQL in " +
+    "what the RPC actually persisted is asserted against a disposable local PostgreSQL in " +
     "tests/integration/of016-rendered-matches-persisted.test.tsx.",
   );
 } finally {

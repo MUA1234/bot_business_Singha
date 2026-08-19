@@ -1,5 +1,5 @@
 /**
- * WP A adversarial authority tests — live Postgres, ZERO-PERSISTENCE (one BEGIN … ROLLBACK).
+ * WP A adversarial authority tests — a disposable local PostgreSQL, ZERO-PERSISTENCE (one BEGIN … ROLLBACK).
  *
  * Proves migration 0038 makes the DB the final authority boundary using the AUTHENTICATED
  * role + realistic JWT claims (request.jwt.claims.sub = user id), exactly as a direct

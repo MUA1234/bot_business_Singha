@@ -1,5 +1,5 @@
 /**
- * Migration 0070 — trusted channel identity resolution, against live PostgreSQL.
+ * Migration 0070 — trusted channel identity resolution, against a disposable local PostgreSQL.
  *
  * The property under test: identity is decided by records the business holds, resolution is
  * company-scoped, and anything less than exactly one match fails closed. Synthetic data only.
