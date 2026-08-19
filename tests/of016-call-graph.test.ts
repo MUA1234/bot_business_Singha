@@ -66,8 +66,14 @@ describe("OF-016 — the UI reaches the duplicate-review RPCs as the USER, never
     // so the ops picture stays truthful even for an admin who cannot resolve them. It exposes no
     // amount, counterparty or evidence — those come only from the capability-gated queue RPC.
     const src = read("src/app/app/admin/health/page.tsx");
-    expect(src).toMatch(/from\("duplicate_reviews"\)\s*\.select\("id"\)/);
+    expect(src).toMatch(/from\("duplicate_reviews"\)/);
+    expect(src, "a count, not evidence").toMatch(/count:\s*"exact",\s*head:\s*true/);
     expect(src, "the health page must not read the capability-gated queue")
       .not.toMatch(/duplicate_review_queue/);
+    // §WP6.3: a failed read must render as "unavailable", never as a reassuring 0. The first
+    // version used `rows()`, which catches and returns [] — the outage-hiding pattern `Metric`
+    // exists to prevent, and the review reproduced it against a database without the table.
+    expect(src, "the duplicate count must go through probeCount").toMatch(
+      /probeCount\(\(\) =>\s*\n?\s*db\.from\("duplicate_reviews"\)/);
   });
 });

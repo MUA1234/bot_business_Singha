@@ -94,13 +94,24 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
     },
 
     async recentEventsForDedup(companyId, within, sourceEventId) {
-      // OF-016: counterparts a person has already ruled DISTINCT for this event. Without this the
-      // dismissal would not survive one pass of the pipeline — the same pair would score the same
-      // way, raise the same suspicion, and re-pause the payment the reviewer just released. The
-      // exclusion is deliberately narrow: it is keyed to THIS event, so the same counterpart is
-      // still scored against every other event, and it is derived from the authoritative
-      // `duplicate_reviews` record rather than from a second store of decisions.
+      // TWO exclusions, and BOTH are required. Either one alone leaves the resume path broken.
+      //
+      //  1. THE EVENT ITSELF. On the first pass the event does not exist yet — `findDuplicates`
+      //     runs before `createDraft` — so it cannot appear in its own candidate set. On a RESUME
+      //     it does exist, in `draft`, which is not a terminal state and so is not filtered out
+      //     below. It would then be scored against itself at 1.0 and `openDuplicateReview` would
+      //     try to insert `financial_event_id = matched_event_id`, which 0083's
+      //     `duplicate_reviews_distinct_ck` rejects — the pipeline throws on every sweep and the
+      //     sweeper DEAD-LETTERS the payment a reviewer just released. Reproduced end to end
+      //     before this line existed; see of016-resume-through-real-store.test.ts.
+      //
+      //  2. COUNTERPARTS A PERSON RULED DISTINCT for this event. Without this the dismissal would
+      //     not survive one pass — the same pair would score the same way, raise the same
+      //     suspicion, and re-pause the payment. Deliberately narrow: keyed to THIS event, so the
+      //     same counterpart is still scored against every other event, and derived from the
+      //     authoritative `duplicate_reviews` record rather than a second store of decisions.
       const dismissed = new Set<string>();
+      let selfId: string | null = null;
       if (sourceEventId) {
         const { data: fe, error: feErr } = await db
           .from("financial_events")
@@ -109,6 +120,7 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
           .maybeSingle();
         if (feErr) throw new Error(`duplicate-dismissal lookup failed: ${feErr.message}`);
         if (fe?.id) {
+          selfId = String(fe.id);
           const { data: rows, error: revErr } = await db
             .from("duplicate_reviews")
             .select("matched_event_id")
@@ -134,7 +146,7 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
       // silent, and it makes every payment look like the first time it was seen.
       if (error) throw new Error(`duplicate-candidate lookup failed: ${error.message}`);
       return (data ?? [])
-        .filter((r) => r.id && !dismissed.has(String(r.id))) // scored against the incoming candidate
+        .filter((r) => r.id && String(r.id) !== selfId && !dismissed.has(String(r.id)))
         .map((r) => ({
           id: r.id as string,
           candidate: {

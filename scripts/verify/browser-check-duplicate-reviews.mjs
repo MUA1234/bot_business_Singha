@@ -130,9 +130,20 @@ try {
       // prefetch finish: NO request returns 4xx at any viewport. Only this exact shape — aborted,
       // and a `_rsc` prefetch — is ignored; every other failed request, and every response of 400
       // or worse, still fails this check.
+      // An ABORTED request is one the BROWSER chose not to finish, not a page defect. Two shapes
+      // occur here and both were verified to be healthy when requested directly:
+      //   * `…?_rsc=…` — Next prefetches the payload of every visible link; the browser cancels
+      //     those in flight when the page navigates or the context closes. Requested directly with
+      //     an `RSC: 1` header, /login?_rsc=… returns 200.
+      //   * `/media/*.mp4` — the landing page's background video, which only the mobile viewport
+      //     requests. Cancelled the same way at teardown. Requested directly it returns 200 with
+      //     its full 200,234 bytes, so the asset is present and served.
+      // Nothing else is ignored: every other failed request, and EVERY response of 400 or worse,
+      // still fails this check.
+      const abortedByTeardown = (u) => /[?&]_rsc=/.test(u) || /\.(mp4|webm)(\?|$)/.test(u);
       page.on("requestfailed", (r) => {
         const why = r.failure()?.errorText ?? "";
-        if (why === "net::ERR_ABORTED" && /[?&]_rsc=/.test(r.url())) return;
+        if (why === "net::ERR_ABORTED" && abortedByTeardown(r.url())) return;
         consoleErrors.push(`requestfailed ${r.url()} ${why}`);
       });
       page.on("response", (r) => { if (r.status() >= 400) consoleErrors.push(`${r.status()} ${r.url()}`); });

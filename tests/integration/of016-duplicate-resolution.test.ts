@@ -406,14 +406,17 @@ describe.skipIf(!enabled)("OF-016 — duplicate-review resolution", () => {
 
     // (b) the trigger refuses the caller that CAN write
     const svc = await connectAs(ROLES.svc);
+    // NO try/catch around the assertion. The first version of this block ended with
+    // `rollback to savepoint sp` — a savepoint it never created — wrapped in a bare `catch {}`,
+    // so the failing rollback swallowed the AssertionError with it. The review proved the test was
+    // inert by reverting the very control it claims to prove and watching all 17 tests still pass.
+    // A test that cannot fail is worse than no test: it reports safety it never checked.
     await svc.query("begin");
     try {
       await svc.query("set local role service_role");
       const upd = await failed(svc, `update duplicate_reviews set resolution_note='tampered' where id=$1`, [s2.review]);
       expect(upd?.message, "a resolved decision is immutable").toMatch(/is resolved .* a terminal decision is immutable/i);
-      await svc.query("rollback to savepoint sp");
-    } catch { /* savepoint may not exist on the first path */ }
-    finally { await svc.query("rollback").catch(() => {}); }
+    } finally { await svc.query("rollback").catch(() => {}); }
 
     await svc.query("begin");
     try {

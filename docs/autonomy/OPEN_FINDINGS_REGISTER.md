@@ -347,3 +347,55 @@ by any amount of further local work.
 Those gaps are exactly what `docs/autonomy/OF016_STAGING_TEST_CHECKLIST.md` is for. It is prepared
 for a human tester and **has not been run** — no hosted or staging migration has been applied, no
 flag activated, nothing deployed.
+
+
+---
+
+## OF-016 — independent review 1, and correction loop 1 of 2
+
+Reviewed at `14f5fd6`. Verdict **CHANGES REQUESTED**: one P0, three P1s, five P2s and one process
+finding. Every one reproduced independently before being accepted. Migration **0088** carries the
+database corrections.
+
+| | Finding | Severity | Disposition |
+|---|---|---|---|
+| **H-01** | **"Dismissed as distinct" did not release the payment — it dead-lettered it.** The exclusion removed the dismissed *counterpart* but not **the event itself**, which is in `draft` after a release and so is not filtered out of its own candidate set. On the next pass it scored against itself at 1.0, `openDuplicateReview` tried to insert `financial_event_id = matched_event_id`, 0083's `duplicate_reviews_distinct_ck` rejected it, the pipeline threw on every sweep, and the sweeper dead-lettered the payment | **P0** | **FIXED.** The store now excludes the event under consideration; the pipeline repeats the check as defence in depth |
+| **H-02** | `service_role` could **fabricate** a resolved review by INSERT — 0087's trigger was `before update or delete` only. It rendered on the reviewer's screen as a real decision by a real named person, with no audit row, and a forged `dismissed_distinct` also silently suppressed detection for that pair | **P1** | **FIXED (0088).** A `before insert` boundary: a non-trusted writer may create a review only in the initial open state. The pipeline's own open insert still works |
+| **H-03** | A resolved decision was destroyable two ways: `TRUNCATE` (row triggers do not fire) and cascade through the parent `financial_events` delete | **P1** | **FIXED (0088).** A statement-level truncate guard, and a parent-delete guard that refuses when a **resolved** review references either side. An **open** suspicion still cascades, so authorised pre-decision cleanup keeps working |
+| **H-04** | The immutability test could not fail: a `rollback to savepoint sp` for a savepoint never created threw inside a bare `catch {}`, which swallowed the AssertionError with it. Proven inert by reverting the control and watching 17/17 pass | **P1** | **FIXED.** The `catch` is gone. Verified the test now FAILS against a clone with the control reverted |
+| **H-05** | The AB-BA test did not discriminate — six reviewers each on their **own** review, and the only other actor used `skip locked`, which never waits. It passed with the RPC's lock order inverted | **P2** | **FIXED.** Split into a **positive control** (a deliberate inverting actor, asserted to deadlock) and a real same-row stress (six reviewers on ONE review plus three workers, zero deadlocks, one decision, one audit row) |
+| **H-06** | `duplicate_review_queue` joined both events with no company predicate, and the RPC checked only the candidate's company — a malformed row leaked another company's amount and counterparty, and a confirmation persisted a cross-tenant link | **P2** | **FIXED (0088).** Composite `(id, company_id)` FKs make such a row unwritable; the queue joins on company; the RPC checks the matched event too |
+| **H-07** | Three screens gave three answers to the same failed read: health rendered **0** (`rows()` swallows errors), approvals **silently dropped the banner** (supabase-js returns errors rather than throwing, so the `catch` was never reached), the finance hub was right | **P2** | **FIXED.** Health uses `probeCount`/`metricLabel` per §WP6.3; approvals reads `error` and shows an explicit "could not check" notice |
+| **H-08** | Releasing an event whose source had been **dead-lettered** produced `status='pending'` still carrying `dead_lettered_at` — a claimable row wearing a terminal stamp | **P2** | **FIXED (0088).** The stamp is cleared, and the audit payload records `cleared_dead_letter` and the prior reason rather than letting the revival vanish |
+| **H-09** | Documentation claims the database did not support | **P2** | **CORRECTED** — see below |
+| **H-10** | The verification numbers were produced from a tree that was not the reviewed commit: I continued committing evidence work while the review ran, so files appeared under it mid-review | **P2 (process)** | **ACCEPTED.** The claim happened to describe `14f5fd6`, but a reviewer given those numbers and the working tree could not reproduce them. Corrected practice: the tree stays frozen at the reviewed SHA until the review returns |
+
+### The claims that were wrong, corrected
+
+* *"a service worker cannot forge a human decision"* — **was false** (H-02: by INSERT, not by calling
+  the function). True as of 0088.
+* *"a resolved decision cannot be altered or deleted, including by `service_role`"* — **was false**
+  (H-03: TRUNCATE and parent cascade). True as of 0088.
+* *"the table takes no direct DML from an api role" / "the RPC is the only writer"* — true for `anon`
+  and `authenticated`; **was false for `service_role` INSERT**. True as of 0088.
+* *"six reviewers and three workers contending on the same rows … tested rather than asserted"* —
+  **was false**: different rows, and the test passed with the lock order inverted. True now, with a
+  positive control proving the arrangement can detect an inversion.
+* *"recurring rent / salary → released, source event re-armed"* — **half-true and misleading**:
+  released and re-armed, then dead-lettered (H-01). True as of the H-01 fix.
+* *"all **24** database tests fail at 0086 and pass at 0087. Not a sample — the whole suite"* —
+  **wrong as stated.** 24 was two files, not the package. Measured correctly now: **54 of 58**
+  OF-016 database tests fail at 0086 and pass at the head; the 4 that pass are negative assertions
+  that hold vacuously before the feature exists (e.g. "a non-carrying role does not hold the
+  capability", trivially true when the capability does not exist). That is the honest figure, and
+  the direction of the original claim held even though its number did not.
+
+### What the review tried and could not break
+
+Authorization from genuine login roles (anon, no-capability member, ended membership, cross-company
+reviewer, `service_role`, missing `sub`, another company's review id); replay after a worker had
+already processed the event; the state machine; the confirm-races-approval window; confirmed-duplicate
+having no business effect and the original staying untouched; the stale-worker path; the
+pre-resolved-row migration guard; the legacy upgrade; and a genuine AB-BA deadlock from anything in
+the repository. `sub` forgery works, as it does everywhere in this repository — the documented
+inherent residual recorded in 0086's own header, not a finding here.

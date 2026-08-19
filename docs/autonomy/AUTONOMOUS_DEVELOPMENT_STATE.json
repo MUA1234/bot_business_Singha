@@ -8,30 +8,35 @@
   "currentPr": null,
   "baseSha": "be2f13e",
   "lastGreenSha": "be2f13e",
-  "latestMigration": "0087_duplicate_review_resolution.sql",
-  "lastCompletedAction": "FOUND-006 ACCEPTED by the owner as locally verified at be2f13e (local technical acceptance only -- not merged, not deployed, no hosted migration, no flag). OF-018 recorded as a separate P2 fail-closed defect and SCHEDULED, deliberately not folded into OF-016 because OF-016's RPCs do not call the affected inbound path. Then built OF-016: the authorized resolution workflow around 0083's existing evidence, with no destructive data migration -- historic pending rows are visible and resolvable as they stand. Migration 0087 adds the `finance.duplicate.resolve` capability, `resolve_duplicate_review` (human-only BY GRANT: authenticated yes, anon and service_role no; actor from auth.uid(); company read from the review row, never from caller input; active membership and capability re-checked under the row locks; state change and audit in one transaction; idempotent on replay, with the standing decision winning a conflicting one), `duplicate_review_queue` (capability checked inside its own predicate), `financial_events.duplicate_of_event_id`, and an immutability trigger that is SECURITY INVOKER on purpose -- a DEFINER version would see its own owner as current_user and wave every writer through, which is the trap FOUND-006 measured and which my first draft fell into until a test that actually exercised the path caught it. The lock order source_events -> financial_events -> duplicate_reviews is documented once and shared with the worker; the source event goes first because claim_source_events takes `for update skip locked` on it, so a reviewer holding it makes the worker SKIP rather than queue behind human review. The subtle part is the resume loop: a dismissal returns the event to draft and re-arms its source event, so without a durable record of the decision the next pass would re-score the same pair and re-pause the payment -- `recentEventsForDedup` now excludes counterparts already ruled distinct FOR THAT EVENT, narrowly, so every other pairing is still scored. UI: /app/finance/duplicate-reviews plus a finance-hub count, an approvals banner (a paused payment has NO approval request, so it can never appear in that list), and a health signal.",
-  "nextAction": "Independent high-reasoning review of OF-016 (max two correction loops). Then, if it passes, MOD-003 -- the provider-neutral Model Gateway. Package 0083 stays permanently frozen and unaccepted at content SHA 3608c8a; OF-018 is a scheduled bounded cleanup before any module needs service-role access to the 0075 inbound RPCs.",
+  "latestMigration": "0088_duplicate_review_boundary_corrections.sql",
+  "lastCompletedAction": "OF-016 correction loop 1 of 2. The independent review returned CHANGES REQUESTED with one P0, three P1s, five P2s and one process finding; I reproduced every one before accepting it. H-01 (P0) is the serious one and it was my own: 'dismissed as distinct' did not release the payment, it DEAD-LETTERED it. The exclusion I added removed the dismissed counterpart but not the EVENT ITSELF, which sits in `draft` after a release and so is not filtered out of its own candidate set -- on the next pass it scored against itself at 1.0, openDuplicateReview tried to insert financial_event_id = matched_event_id, 0083's distinct_ck rejected it, the pipeline threw on every sweep and the sweeper dead-lettered the payment the reviewer had just released. My own unit test hid it: its mock createDraft minted a fresh event id every call and its candidate list never contained the event under consideration, so it modelled a world the resume path cannot be in. The replacement drives the REAL store and the REAL pipeline across a REAL dismissal. H-02/H-03 (P1): 0087's immutability trigger was `before update or delete` only, so service_role could FABRICATE a resolved review by INSERT (rendering as a real decision by a real named person, with no audit row) and could destroy resolved evidence by TRUNCATE or by cascading a parent delete. Migration 0088 adds an insert boundary, a statement-level truncate guard and a parent-delete guard -- while leaving an OPEN suspicion cascadable, so authorised pre-decision cleanup still works. H-04 (P1): my immutability test could not fail -- a rollback to a savepoint that was never created threw inside a bare catch{}, swallowing the AssertionError; proven inert by reverting the control and watching 17/17 pass. H-05: the AB-BA test gave each reviewer its own review and its other actor used skip locked, so it passed with the lock order inverted; it now has a positive control that deliberately inverts and is asserted to deadlock. H-06: composite (id, company_id) FKs plus a company-joined queue make a cross-company review unwritable rather than merely unrenderable. H-07: three screens gave three answers to the same failed read -- health rendered a reassuring 0 via rows(), approvals silently dropped its banner because supabase-js RETURNS errors rather than throwing; both corrected. H-08: releasing an event whose source had been dead-lettered left a claimable row wearing a terminal stamp. H-09: several documentation claims were false and are corrected, including my '24 database tests' figure -- that was two files, not the package; measured properly, 54 of 58 fail at 0086. H-10 (process): I kept committing evidence work while the review ran, so the tree moved under it; the numbers happened to describe the reviewed SHA but a reviewer could not have reproduced them. The tree now stays frozen at the reviewed SHA until a review returns.",
+  "nextAction": "Independent review 2 of 2 on OF-016 at the final SHA, with the tree frozen. If it passes, OF-016 is locally accepted and MOD-003 (the provider-neutral Model Gateway) begins. The human staging checklist (docs/autonomy/OF016_STAGING_TEST_CHECKLIST.md) is prepared and NOT run: no hosted or staging migration applied, no flag activated, nothing deployed.",
   "lastTargetedTests": [
-    "tests/integration/of016-duplicate-resolution.test.ts (17: authorization, both decisions, replay, immutability, fail-closed)",
-    "tests/integration/of016-duplicate-concurrency.test.ts (7: two reviewers, worker races, AB-BA stress, stale worker, crash-after-commit)",
-    "tests/integration/of016-duplicate-scenarios.test.ts (10: same-day, recurring rent, salary, exact replay, rejected predecessor, historic 0083 row, existing payment, retry, backlog count)",
-    "tests/integration/of016-rendered-matches-persisted.test.tsx (3: the screen's words vs the rows the RPC wrote)",
-    "tests/of016-resume-after-dismissal.test.ts (4: the release survives a pipeline pass)",
-    "scripts/verify/browser-check-duplicate-reviews.mjs (22 checks across 390/768/1440)"
+    "tests/integration/of016-resume-through-real-store.test.ts (4: the H-01 reproduction and fix, through the real store and pipeline)",
+    "tests/integration/of016-evidence-boundary.test.ts (9: H-02 insert, H-03 truncate + cascade, H-06 composite FK, H-08 dead-letter)",
+    "tests/integration/of016-duplicate-resolution.test.ts (17, H-04 fixed: the immutability probe can now fail)",
+    "tests/integration/of016-duplicate-concurrency.test.ts (8, H-05: positive control + same-row stress)",
+    "tests/integration/of016-duplicate-scenarios.test.ts (10)",
+    "tests/integration/of016-capability-provisioning.test.ts (7)",
+    "tests/integration/of016-rendered-matches-persisted.test.tsx (3)",
+    "tests/of016-call-graph.test.ts (4) + tests/of016-resume-after-dismissal.test.ts (4)"
   ],
   "lastFullGateResults": {
     "sha": "pending -- stamped by the commit that carries this file",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "756 passed / 2 skipped",
-    "integrationFresh": "648 passed / 70 files (fresh 0001-0087)",
+    "unit": "760 passed / 2 skipped",
+    "integrationFresh": "669 passed / 73 files (fresh 0001-0088)",
+    "integrationNarrowUpgrade": "669 passed / 73 files (0087 then 0088)",
+    "integrationLegacyUpgrade": "669 passed / 73 files (hosted-style baseline 0001-0041 + realistic data, then 0042-0088)",
+    "migrationIdempotency": "0088 re-applied clean -- re-runnable",
     "build": "compiled",
     "verify": "npm run verify exits 0",
     "secretScan": "clean",
-    "migrationLint": "87 sequential, 0001-0087, no gaps or duplicates",
-    "browserCheck": "22 checks passed across 390/768/1440 -- routes served and gated, no horizontal overflow measured IN the browser, no console errors. Three consecutive green runs.",
-    "discriminationProof": "ALL 24 database tests for OF-016 FAIL on a database at 0086 and PASS at 0087. Not a sample -- the whole suite, because before 0087 there was no resolution path of any kind.",
-    "note": "All database verification ran on a DISPOSABLE LOCAL PostgreSQL 16 in this container. No hosted database was migrated, no flag enabled, no live model provider called, no real message sent. GitHub Actions CI could not run (no runner assigned) and is reported unavailable, not green."
+    "migrationLint": "88 sequential, 0001-0088, no gaps or duplicates",
+    "grantAudit": "resolve_duplicate_review: authenticated=t, anon=f, service_role=f. duplicate_reviews DML for authenticated: none. Three boundary triggers present.",
+    "discriminationProof": "MEASURED, and the earlier figure corrected: 54 of 58 OF-016 database tests fail at 0086 and pass at head. The 4 that pass are negative assertions that hold vacuously before the feature exists. The H-04 immutability probe was separately proven to FAIL against a clone with the control reverted -- before the fix it passed 17/17 with the control broken. The H-05 lock test now carries a positive control: an actor taking the locks in the opposite order is asserted to deadlock, so the negative result means something.",
+    "note": "All database verification ran on a DISPOSABLE LOCAL PostgreSQL 16 in this container. No hosted database was migrated, no flag enabled, no live model provider called, no real message sent. Authenticated Supabase browser end-to-end was NOT available locally and is not claimed. GitHub Actions could not run (no runner assigned) and is reported unavailable, not green."
   },
   "openFindings": [
     "OF-016: RESOLVED by migration 0087 (pending independent review). The paused payment now has an authorized, audited, idempotent resolution path and a screen; historic 0083 rows work as they stand.",
@@ -63,14 +68,14 @@
     "GitHub Actions runner provisioning"
   ],
   "usageState": {
-    "opusReviewsThisProgram": 8,
+    "opusReviewsThisProgram": 9,
     "correctionLoopsUsed": {
       "campaign": 2,
       "v3.3-part1": 0,
       "v3.3-part2": 2,
       "v3.3-remediation-R1": 2,
       "found-006": 2,
-      "of-016": 0
+      "of-016": 1
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },

@@ -29,10 +29,16 @@ export default async function ApprovalsPage() {
   // Counted through the capability-gated queue: someone without `finance.duplicate.resolve`
   // sees 0 rather than a number they cannot act on.
   let pausedDuplicates = 0;
+  let pausedUnknown = false;
   try {
-    const { data } = await supabaseRpcClient().rpc("duplicate_review_queue", { p_company: p.companyId });
-    pausedDuplicates = ((data ?? []) as { state: string }[]).filter((r) => r.state === "open").length;
-  } catch { /* the banner is additive — its absence never blocks the approvals list */ }
+    const { data, error } = await supabaseRpcClient().rpc("duplicate_review_queue", { p_company: p.companyId });
+    // supabase-js RETURNS errors in the result rather than throwing, so the first version's
+    // `catch` was never reached and a failed read silently removed the banner — leaving an
+    // approver with an empty queue and no warning, which is the precise situation the banner
+    // exists to prevent.
+    if (error) pausedUnknown = true;
+    else pausedDuplicates = ((data ?? []) as { state: string }[]).filter((r) => r.state === "open").length;
+  } catch { pausedUnknown = true; }
 
   const requests = await safe<any>(() =>
     db.from("approval_requests")
@@ -82,6 +88,13 @@ export default async function ApprovalsPage() {
       {/* OF-016: a payment paused as a suspected duplicate has NO approval request, so it can
           never appear in the list below. Without this line an approver would see an empty queue
           and reasonably conclude there was nothing waiting on them. */}
+      {pausedUnknown && (
+        <div className="notice err" data-testid="approvals-paused-unknown">
+          This page could not check whether any payments are paused as suspected duplicates, so the
+          list below may not be everything waiting on you. This is not a statement that there are
+          none.
+        </div>
+      )}
       {pausedDuplicates > 0 && (
         <div className="notice warn" data-testid="approvals-paused-duplicates">
           <strong>{pausedDuplicates}</strong> payment{pausedDuplicates === 1 ? " is" : "s are"} paused

@@ -67,13 +67,22 @@ export default async function HealthPage() {
   // invisible to every other signal on this page: it is not a failure, not a dead letter, not
   // unprocessed, and it has no approval request. Read straight from the evidence table so the
   // operations view stays truthful even for an admin who cannot resolve them.
-  const pausedDupRows = await rows<any>(() =>
-    db.from("duplicate_reviews").select("id").eq("company_id", cid).eq("state", "open") as any,
+  // probeCount, NOT rows() — this is the §WP6.3 rule and the first version broke it. `rows()`
+  // catches and returns [], so a database error rendered the tile as a calm "0" while payments sat
+  // paused: exactly the outage-hiding pattern `Metric` exists to prevent. Reproduced against a
+  // database without the table, which is the realistic "app deployed, hosted DB not yet migrated"
+  // window this repository is in right now.
+  const pausedDuplicates = await probeCount(() =>
+    db.from("duplicate_reviews").select("id", { count: "exact", head: true })
+      .eq("company_id", cid).eq("state", "open") as any,
   );
-  const pausedDuplicates = pausedDupRows.length;
 
   const tiles = [
-    { k: "Paused — suspected duplicates", v: String(pausedDuplicates), danger: pausedDuplicates > 0 },
+    {
+      k: "Paused — suspected duplicates",
+      v: metricLabel(pausedDuplicates),
+      danger: metricState(pausedDuplicates) === "nonzero",
+    },
     { k: "Failed events", v: metricLabel(failedEvents), danger: metricState(failedEvents) === "nonzero" },
     { k: "Dead letters", v: metricLabel(deadLetters), danger: metricState(deadLetters) === "nonzero" },
     { k: "Outbox failed", v: metricLabel(outboxFailed), danger: metricState(outboxFailed) === "nonzero" },

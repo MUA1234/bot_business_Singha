@@ -196,26 +196,65 @@ describe.skipIf(!enabled)("OF-016 — concurrency and lock order", () => {
     await w2.query("rollback");
   });
 
-  it("AB-BA stress: many reviewers and workers on the same rows, zero deadlocks", async () => {
-    // The structural claim is that every actor takes source_events → financial_events →
-    // duplicate_reviews and never the reverse. A deadlock detector firing under real contention is
-    // how that claim fails, so drive real contention rather than asserting the order by reading.
-    const seeds: { src: string; earlier: string; candidate: string; review: string }[] = [];
-    for (let i = 0; i < 6; i++) seeds.push(await seed());
-    for (const sd of seeds) {
-      await db.query(`update source_events set status='pending', next_attempt_at=now() where id=$1`, [sd.src]);
-    }
+  it("AB-BA: an actor taking the locks in the OPPOSITE order deadlocks — and the shipped order does not", async () => {
+    // The first version of this test was inert. It gave each of six reviewers its OWN review, so
+    // they never contended, and its only other actor called `claim_source_events`, which is
+    // `for update skip locked` and by construction never waits. The review proved it by INVERTING
+    // the RPC's lock order in a clone and watching all 7 tests still pass.
+    //
+    // This one earns the claim. It puts a deliberate inverting actor — duplicate_reviews first,
+    // then financial_events — against the real RPC on the SAME rows, and asserts the deadlock
+    // detector fires. That is the positive control: it proves the arrangement CAN produce a
+    // deadlock, so the negative result below means something.
+    const s = await seed();
+    const inverter = await mkConn();          // superuser: the only session that can lock these directly
+    const reviewer = await mkConn(AUTH);
+    await inverter.query(`select set_config('request.jwt.claims','{"role":"service_role"}',false)`);
 
-    const reviewers = await Promise.all(seeds.map(() => mkConn(AUTH)));
+    await inverter.query("begin");
+    await inverter.query("set local statement_timeout = '10s'");
+    // WRONG ORDER on purpose: the review before the event.
+    await inverter.query(`select id from duplicate_reviews where id=$1 for update`, [s.review]);
+
+    await reviewer.query("begin");
+    await asHuman(reviewer, rev1);
+    await reviewer.query("set local statement_timeout = '10s'");
+    // The RPC takes source_events → financial_events → duplicate_reviews, so it will hold the
+    // financial event and then wait for the review the inverter is holding.
+    const rpc = failed(reviewer,
+      `select * from public.resolve_duplicate_review($1,'confirmed_duplicate','ab-ba probe')`, [s.review]);
+
+    // Give the RPC time to take its first two locks, then close the cycle from the other side.
+    await new Promise((r) => setTimeout(r, 400));
+    const inv = await failed(inverter, `select id from financial_events where id=$1 for update`, [s.candidate]);
+    const rpcResult = await rpc;
+
+    const messages = [inv.err?.message ?? "", rpcResult.err?.message ?? ""].join(" | ");
+    expect(messages, "an inverting actor MUST be able to deadlock — otherwise this test proves nothing")
+      .toMatch(/deadlock/i);
+    await inverter.query("rollback").catch(() => {});
+    await reviewer.query("rollback").catch(() => {});
+    await inverter.end().catch(() => {});
+  });
+
+  it("every actor that follows the documented order contends on the SAME rows without deadlocking", async () => {
+    // The negative result the positive control above makes meaningful: with everyone taking
+    // source_events → financial_events → duplicate_reviews, real contention on ONE review — many
+    // reviewers plus workers — produces no deadlock at all.
+    const s = await seed();
+    await db.query(`update source_events set status='pending', next_attempt_at=now() where id=$1`, [s.src]);
+
+    const reviewers = await Promise.all([0, 1, 2, 3, 4, 5].map(() => mkConn(AUTH)));
     const workers = await Promise.all([0, 1, 2].map(() => mkConn(AUTH)));
 
     const revWork = reviewers.map(async (c, i) => {
       await c.query("begin");
       await asHuman(c, i % 2 === 0 ? rev1 : rev2);
       await c.query("set local statement_timeout = '15s'");
+      // ALL SIX on the same review, which is what "contending on the same rows" has to mean.
       const r = await failed(c,
         `select * from public.resolve_duplicate_review($1,$2,'stress')`,
-        [seeds[i]!.review, i % 2 === 0 ? "dismissed_distinct" : "confirmed_duplicate"]);
+        [s.review, i % 2 === 0 ? "dismissed_distinct" : "confirmed_duplicate"]);
       await c.query("commit").catch(() => c.query("rollback").catch(() => {}));
       return r;
     });
@@ -232,10 +271,14 @@ describe.skipIf(!enabled)("OF-016 — concurrency and lock order", () => {
     const results = await Promise.all([...revWork, ...workWork]);
     const deadlocks = results.filter((r) => /deadlock/i.test(r.err?.message ?? ""));
     expect(deadlocks.map((d) => d.err.message), "no actor may take the locks in the other order").toEqual([]);
-    // And every review actually reached a terminal decision.
-    const states = (await db.query(
-      `select state from duplicate_reviews where id = any($1)`, [seeds.map((x) => x.review)])).rows.map((r: any) => r.state);
-    expect(states.every((st: string) => st === "resolved"), "all six resolved").toBe(true);
+
+    // Exactly ONE decision stands, and the other five reviewers were told so.
+    const row = (await db.query(`select state, resolution from duplicate_reviews where id=$1`, [s.review])).rows[0];
+    expect(row.state).toBe("resolved");
+    const audits = (await db.query(
+      `select count(*)::int n from audit_events where entity_id=$1 and action='finance.duplicate_review_resolved'`,
+      [s.review])).rows[0].n;
+    expect(audits, "six concurrent reviewers, one decision, one audit row").toBe(1);
   });
 
   it("a STALE worker cannot resume a payment after a reviewer confirmed the duplicate", async () => {
