@@ -12,7 +12,13 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { sweepInbound, type SweepableEvent, type ProcessOutcome } from "@/events/inbound-sweeper";
+import { sweepInbound, type SweepableEvent } from "@/events/inbound-sweeper";
+import { makeFinanceCaptureProcessor } from "@/events/finance-capture-processor";
+import { processSourceEvent, type ConsumerDeps } from "@/inngest/processing";
+import { AiGateway } from "@/ai/gateway";
+import { makeOpenAiTransport } from "@/ai/openai-transport";
+import { serviceClient } from "@/db/client";
+import { makeSupabaseConsumerStore, makeSupabaseCostLedger } from "@/db/consumer-store";
 import { log } from "@/lib/log";
 
 export const runtime = "nodejs";
@@ -68,19 +74,39 @@ export async function GET(req: Request): Promise<Response> {
         const { error } = await db.rpc("release_source_event", { p_id: id, p_owner: o });
         if (error) throw new Error(error.message);
       },
-      async process(event): Promise<ProcessOutcome> {
-        // Processing itself is NOT implemented. It used to be reported as a non-retryable failure
-        // "so it dead-letters visibly" — but since migration 0076 the only rows this sweeper claims
-        // are successful staff-finance captures, so that dead-lettered every captured finance
-        // message within one cron interval. Unbuilt work is handed back, uncharged, and stays
-        // visible as backlog until a processor exists.
-        return {
-          ok: false,
-          code: "no_processor",
-          message: `no inbound processor is wired for source "${event.source ?? "unknown"}"`,
-          unprocessable: true,
-        };
-      },
+      // R1 §4 — the REAL consumer. This used to return `no_processor` for everything, which
+      // (after 0076 narrowed claiming to exactly the finance captures) released every captured
+      // finance message back to the queue forever. It now runs the SAME pipeline the Inngest
+      // consumer runs: extraction → deterministic action → drafted financial event → policy →
+      // approval → audit. No parallel implementation, and no model output choosing a company, an
+      // authority level, a ledger account or a permission to pay.
+      process: makeFinanceCaptureProcessor({
+        extractionConfigured: () => Boolean(process.env.OPENAI_API_KEY),
+        async companyOf(id) {
+          const { data, error } = await db.from("source_events").select("company_id").eq("id", id).maybeSingle();
+          if (error) throw new Error(error.message);
+          return (data?.company_id as string | null) ?? null;
+        },
+        async queueForReview(input) {
+          const { error } = await db.rpc("record_inbound_review", {
+            p_company: input.companyId,
+            p_channel: "whatsapp",
+            p_provider_message_id: `source_event:${input.sourceEventId}`,
+            p_reason_code: input.reasonCode,
+            p_reason_detail: input.reasonDetail,
+            p_source_event: input.sourceEventId,
+          });
+          if (error) throw new Error(error.message);
+        },
+        process: (i) => {
+          const svc = serviceClient();
+          const consumer: ConsumerDeps = {
+            gateway: new AiGateway(makeOpenAiTransport(), makeSupabaseCostLedger(svc)),
+            ...makeSupabaseConsumerStore(svc),
+          };
+          return processSourceEvent(i, consumer);
+        },
+      }),
     },
     { owner, limit: 25, leaseSeconds: 120, maxAttempts: 5 },
   );

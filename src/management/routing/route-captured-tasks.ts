@@ -14,6 +14,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { log } from "@/lib/log";
 
+/** Identifies this component in the routing audit trail, separately from any human identity. */
+export const ROUTING_COMPONENT = "capture-routing";
+/** The deterministic policy this component applied. Bumped when captureRoutingState changes. */
+export const ROUTING_POLICY_VERSION = "capture-routing/v1";
+
 export interface RoutableTask {
   id: string;
   title?: string | null;
@@ -22,13 +27,21 @@ export interface RoutableTask {
 /** Minimal client surface, so this is testable without a database. */
 export interface RoutingDeps {
   listCaseTasks(companyId: string, managementCaseId: string): Promise<RoutableTask[]>;
+  /**
+   * Record a routing decision made by THIS component.
+   *
+   * There is no actor or actor-source parameter, and there deliberately cannot be: provenance comes
+   * from which database function is called (migration 0078). A caller that could describe itself as
+   * human would make the "a person's decision stands" guard a formality.
+   */
   routeTask(input: {
     companyId: string;
     taskId: string;
     state: string;
     reasonCode: string;
-    actorId: string | null;
-    actorSource: "ai" | "human" | "system";
+    component: string;
+    model?: string | null;
+    policyVersion?: string | null;
   }): Promise<{ state: string; reasonCode: string }>;
 }
 
@@ -53,7 +66,9 @@ export function captureRoutingState(needsApproval: boolean): { state: string; re
 
 export async function routeCapturedTasks(
   deps: RoutingDeps,
-  input: { companyId: string; managementCaseId: string; needsApproval: boolean; actorId: string | null },
+  // No actorId. This component's decisions are ITS decisions; attributing them to whoever happened
+  // to press "Analyse" is exactly the conflation migration 0078 removes.
+  input: { companyId: string; managementCaseId: string; needsApproval: boolean },
 ): Promise<RoutingSummary> {
   const summary: RoutingSummary = { routed: 0, byState: {}, failed: 0 };
   const decision = captureRoutingState(input.needsApproval);
@@ -77,8 +92,8 @@ export async function routeCapturedTasks(
         taskId: t.id,
         state: decision.state,
         reasonCode: decision.reasonCode,
-        actorId: input.actorId,
-        actorSource: "ai",
+        component: ROUTING_COMPONENT,
+        policyVersion: ROUTING_POLICY_VERSION,
       });
       summary.routed++;
       summary.byState[res.state] = (summary.byState[res.state] ?? 0) + 1;
@@ -117,13 +132,16 @@ export function makeSupabaseRoutingDeps(db: SupabaseClient): RoutingDeps {
       return (data ?? []) as RoutableTask[];
     },
     async routeTask(i) {
-      const { data, error } = await db.rpc("route_task", {
+      // route_task_as_ai — NOT the old route_task, which took provenance as arguments. The 'ai'
+      // source is a literal inside that function; nothing here can assert it is a person.
+      const { data, error } = await db.rpc("route_task_as_ai", {
         p_company: i.companyId,
         p_task: i.taskId,
         p_desired_state: i.state,
         p_reason_code: i.reasonCode,
-        p_actor: i.actorId,
-        p_actor_source: i.actorSource,
+        p_component: i.component,
+        p_model: i.model ?? null,
+        p_policy_version: i.policyVersion ?? null,
       });
       if (error) throw new Error(error.message);
       const row = Array.isArray(data) ? data[0] : data;

@@ -36,6 +36,7 @@ export const DEPARTMENTS: Department[] = [
       { href: "/app/admin/objectives", label: "Objectives", icon: "target" },
       { href: "/app/admin/employees", label: "Employees", icon: "users" },
       { href: "/app/admin/inbound-review", label: "Inbound Review", icon: "inbox" },
+      { href: "/app/admin/inbound-setup", label: "Inbound Setup", icon: "settings" },
       { href: "/app/admin/health", label: "System Health", icon: "shield" },
       { href: "/app/admin/audit", label: "Audit Log", icon: "clipboard" },
       { href: "/app/admin/departments", label: "Departments", icon: "building-2" },

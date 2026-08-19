@@ -149,17 +149,22 @@ describe.skipIf(!enabled)("WP11 approval fail-closed + domain caps (0057) — li
   });
 
   it("domain capability matrix: right domain allowed, wrong domain denied, ordinary staff denied", async () => {
+    // One event per case. Migration 0083 allows only ONE OPEN approval request per financial event
+    // — two live approval tracks for one payment is precisely what must not happen — so reusing a
+    // single event across cases was testing an arrangement the business does not permit.
     const pay = await mkEvent(co, { amount: 500 }); // domain 'payment'
-    const claim = await mkEvent(co, { amount: 500, type: "expense_claim" }); // domain 'expense_claim'
+    const claimWrong = await mkEvent(co, { amount: 500, type: "expense_claim" });
+    const claimOwner = await mkEvent(co, { amount: 500, type: "expense_claim" });
+    const payStaff = await mkEvent(co, { amount: 500 });
     // payment_approver holds finance.approve.payment only
     expect((await decide(uPay, co, await mkReq(co, pay, maker))).value).toBe("approved");
-    const wrong = await decide(uPay, co, await mkReq(co, claim, maker));
+    const wrong = await decide(uPay, co, await mkReq(co, claimWrong, maker));
     expect(wrong.ok).toBe(false);
     expect(wrong.error).toMatch(/missing approval capability finance\.approve\.expense/i);
     // owner holds both domains → the claim approves
-    expect((await decide(uOwner, co, await mkReq(co, claim, maker))).value).toBe("approved");
+    expect((await decide(uOwner, co, await mkReq(co, claimOwner, maker))).value).toBe("approved");
     // ordinary staff holds no approval capability
-    const st = await decide(staff, co, await mkReq(co, pay, maker));
+    const st = await decide(staff, co, await mkReq(co, payStaff, maker));
     expect(st.ok).toBe(false);
     expect(st.error).toMatch(/missing approval capability/i);
   });

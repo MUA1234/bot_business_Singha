@@ -54,6 +54,26 @@ export const onSourceEventReceived = inngest.createFunction(
       processSourceEvent({ source_event_id, correlation_id }, liveDeps()),
     );
 
+    // SETTLE THE RECEIPT (S-01 case b). Nothing here used to write `source_events.status`, so the
+    // scheduled sweeper R1 §4 added went on to claim rows this consumer had already processed
+    // successfully — and once the pipeline became idempotent, re-processing them exhausted the
+    // attempt budget and dead-lettered healthy captures. With the mandated stack configured that
+    // was EVERY finance capture. Settling here is the primary fix; the pipeline being resumable is
+    // the backstop for the crash window between the two.
+    await step.run("settle-source-event", async () => {
+      const { error } = await supabaseAdmin().rpc("settle_processed_source_event", {
+        p_id: source_event_id,
+      });
+      // Not fatal: the receipt is durable and the sweeper's own run is now idempotent. Reporting
+      // the failure beats pretending the settle happened.
+      if (error) {
+        log("error", "could not settle a processed source event", {
+          event: "inbound.settle_failed", sourceEventId: source_event_id, error: error.message,
+        });
+      }
+      return { settled: !error };
+    });
+
     return outcome;
   },
 );

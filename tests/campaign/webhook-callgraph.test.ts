@@ -123,7 +123,10 @@ describe("FOUND-003 — no production path can reach a hardcoded company", () =>
   });
 
   it("the company comes from the RECEIVING account, in the one shared orchestration", () => {
-    expect(readFileSync(ROUTE, "utf8")).toContain("phone_number_id");
+    // Since R1 §6 the route reads the CANONICAL contract; `phone_number_id` now lives in the
+    // adapter, which is the only place that knows Meta's payload shape.
+    expect(readFileSync(ROUTE, "utf8")).toContain("providerAccountId");
+    expect(readFileSync("src/lib/inbound/adapters/whatsapp.ts", "utf8")).toContain("phone_number_id");
     const orch = readFileSync(ORCHESTRATION, "utf8");
     expect(orch).toContain("resolveReceivingCompany");
     expect(orch).toContain("isUsableCompany");
@@ -135,5 +138,74 @@ describe("FOUND-003 — no production path can reach a hardcoded company", () =>
     const src = readFileSync("src/lib/order-intake.ts", "utf8");
     expect(src).toMatch(/companyId: string;/);
     expect(src).not.toMatch(/input\.companyId \?\?/);
+  });
+});
+
+describe("R1 §3 — the scheduled dispatch drain is REACHABLE, not just written", () => {
+  it("the batch claim built in 0076 now has a production caller", () => {
+    const callers = execSync(`grep -rln "claim_inbound_dispatch_batch" src --include=*.ts || true`, { encoding: "utf8" })
+      .split("\n").map((s) => s.trim()).filter(Boolean);
+    expect(callers).toContain("src/app/api/cron/dispatch-drain/route.ts");
+  });
+
+  it("the drain runs the SAME orchestration as the webhook, on an already-leased receipt", () => {
+    const route = readFileSync("src/app/api/cron/dispatch-drain/route.ts", "utf8");
+    expect(route).toContain("dispatchReceipt(");
+    expect(route).toContain("alreadyClaimed: true");
+    expect(route).toContain("makeInboundDeps");
+  });
+
+  it("it is scheduled, and the schedule is configuration rather than code", () => {
+    const vercel = JSON.parse(readFileSync("vercel.json", "utf8")) as { crons: { path: string }[] };
+    expect(vercel.crons.map((c) => c.path)).toContain("/api/cron/dispatch-drain");
+  });
+
+  it("no secret is committed — the route reads it from the environment", () => {
+    const route = readFileSync("src/app/api/cron/dispatch-drain/route.ts", "utf8");
+    expect(route).toContain("process.env.CRON_SECRET");
+    expect(route).toContain("timingSafeEqual");
+    // A literal long token in the route would be a committed credential.
+    expect(route).not.toMatch(/CRON_SECRET\s*=\s*["'][^"']{8,}["']/);
+  });
+});
+
+describe("R1 §4 — the finance capture consumer is wired, and `no_processor` is gone", () => {
+  it("the sweeper runs the EXISTING pipeline, not a parallel one", () => {
+    const route = readFileSync("src/app/api/cron/inbound-sweeper/route.ts", "utf8");
+    expect(route).toContain("makeFinanceCaptureProcessor");
+    expect(route).toContain("processSourceEvent");
+    // The pipeline has exactly two production callers now: the Inngest consumer and the sweeper
+    // (plus the processor module that receives it as an injected dependency).
+    //
+    // Filtered through `codeLines`, the same helper the rest of this file uses: a comment naming
+    // `processSourceEvent` is documentation, not a caller. Counting one is the false-positive class
+    // this campaign has been caught by twice, and it caught this assertion a third time when a
+    // comment in the consumer store mentioned the function by name.
+    const callers = execSync(`grep -rln "processSourceEvent" src --include=*.ts || true`, { encoding: "utf8" })
+      .split("\n").map((x) => x.trim()).filter(Boolean)
+      .filter((f) => f !== "src/inngest/processing.ts") // the definition itself
+      .filter((f) => codeLines(f).some((l) => /\bprocessSourceEvent\b/.test(l)));
+    // TWO, not three. `finance-capture-processor.ts` names the pipeline in its header comment and
+    // receives it as an injected `process` port — it does not import or call it, and listing it here
+    // was counting a comment as a caller.
+    expect(callers.sort()).toEqual([
+      "src/app/api/cron/inbound-sweeper/route.ts",
+      "src/inngest/functions.ts",
+    ]);
+    // …and the processor really does take it as a dependency rather than reaching for it.
+    expect(readFileSync("src/events/finance-capture-processor.ts", "utf8"))
+      .not.toMatch(/^import .*processSourceEvent/m);
+  });
+
+  it("no production path RETURNS `no_processor` any more", () => {
+    // Comments explaining what it used to do are history, not behaviour — the false-positive class
+    // this suite has been caught by before. What must be gone is the CODE that returns it.
+    const returning = execSync(`grep -rn "no_processor" src --include=*.ts || true`, { encoding: "utf8" })
+      .split("\n").map((x) => x.trim()).filter(Boolean)
+      .filter((line) => {
+        const code = line.replace(/^[^:]+:\d+:/, "").trim();
+        return !(code.startsWith("//") || code.startsWith("*") || code.startsWith("/*"));
+      });
+    expect(returning).toEqual([]);
   });
 });

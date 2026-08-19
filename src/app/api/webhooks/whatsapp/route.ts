@@ -25,6 +25,8 @@ import { type InboundMessage } from "@/lib/inbound/dispatch";
 import { makeInboundDeps } from "@/lib/inbound/production-deps";
 import { recordInboundReceipt, type InboundReceipt } from "@/lib/inbound/receipt";
 import { dispatchReceipt } from "@/lib/inbound/dispatch-receipt";
+import { whatsappAdapter } from "@/lib/inbound/adapters/whatsapp";
+import type { CanonicalInboundMessage } from "@/schemas/inbound-adapter";
 
 /** §WP4: async, persist-first webhook. When on, the webhook only persists + enqueues +
  *  returns 200; a durable Inngest worker does the AI/order/reply. Requires INNGEST_*
@@ -61,7 +63,8 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const db = supabaseAdmin();
-  const messages = extractTextMessages(payload);
+  // R1 §6 — ONE canonical contract. Nothing below this line reads Meta's payload shape.
+  const messages = whatsappAdapter.parse(payload, newCorrelationId);
   // Statuses / non-text events: nothing to persist — acknowledge so Meta stops retrying.
   if (messages.length === 0) return NextResponse.json({ ok: true, processed: [] });
 
@@ -69,19 +72,19 @@ export async function POST(req: Request): Promise<Response> {
   // is one row, identified by channel + receiving account + provider message id. If ANY persist
   // fails we return a RETRYABLE 503 and do NOT acknowledge — Meta redelivers, and the canonical
   // identity makes the re-persist a no-op, so nothing is ever lost or duplicated.
-  const received: { msg: InboundText; receipt: InboundReceipt }[] = [];
+  const received: { msg: CanonicalInboundMessage; receipt: InboundReceipt }[] = [];
   for (const msg of messages) {
     try {
       const receipt = await recordInboundReceipt(db, {
         source: "whatsapp",
-        providerAccountId: msg.receivedBy,
-        providerMessageId: msg.id,
+        providerAccountId: msg.providerAccountId,
+        providerMessageId: msg.providerMessageId,
         // The SINGLE message, never the batched delivery. One Meta delivery can carry messages for
         // several of our numbers, and storing the whole batch under one company's row would put
         // another company's message text inside a row that company's members can read.
-        rawPayload: msg as unknown as Record<string, unknown>,
+        rawPayload: msg.raw as Record<string, unknown>,
         contentHash: sha256(msg.text),
-        correlationId: newCorrelationId(),
+        correlationId: msg.correlationId,
       });
       received.push({ msg, receipt });
     } catch (e) {
@@ -103,8 +106,8 @@ export async function POST(req: Request): Promise<Response> {
           data: {
             from: msg.from,
             text: msg.text,
-            wa_message_id: msg.id,
-            received_by: msg.receivedBy,
+            wa_message_id: msg.providerMessageId,
+            received_by: msg.providerAccountId,
             source_event_id: receipt.event.id,
           },
         });
@@ -124,13 +127,13 @@ export async function POST(req: Request): Promise<Response> {
   for (const { msg, receipt } of received) {
     const inbound: Omit<InboundMessage, "companyId" | "receipt"> = {
       channel: "whatsapp",
-      from: msg.from,
+      from: msg.from ?? "",
       text: msg.text,
-      providerMessageId: msg.id,
+      providerMessageId: msg.providerMessageId ?? "",
       // The single message, not the batch — see the receipt loop above.
-      rawPayload: msg,
+      rawPayload: msg.raw,
     };
-    results.push(await dispatchReceipt(db, receipt, inbound, msg.receivedBy, makeInboundDeps));
+    results.push(await dispatchReceipt(db, receipt, inbound, msg.providerAccountId, makeInboundDeps));
   }
 
   // A message we could not decide — including one whose review row could not be queued, and one
@@ -146,40 +149,4 @@ export async function POST(req: Request): Promise<Response> {
     return new Response("dispatch failed — retry", { status: 503 });
   }
   return NextResponse.json({ ok: true, processed: results });
-}
-
-interface InboundText {
-  id: string;
-  from: string;
-  text: string;
-  /** OUR account that received it — Meta's value.metadata.phone_number_id. Decides the company. */
-  receivedBy: string | null;
-}
-
-/** Pull inbound text messages (id, sender, body) from Meta's batched payload. */
-function extractTextMessages(payload: unknown): InboundText[] {
-  const out: InboundText[] = [];
-  const p = payload as {
-    entry?: {
-      changes?: {
-        value?: {
-          metadata?: { phone_number_id?: string };
-          messages?: { id?: string; from?: string; type?: string; text?: { body?: string } }[];
-        };
-      }[];
-    }[];
-  };
-  for (const entry of p.entry ?? []) {
-    for (const change of entry.changes ?? []) {
-      // Per CHANGE, not per payload: one webhook delivery can carry messages for several of our
-      // numbers, and each message must keep the account that actually received it.
-      const receivedBy = change.value?.metadata?.phone_number_id ?? null;
-      for (const message of change.value?.messages ?? []) {
-        if (message.id && message.from && message.type === "text" && message.text?.body) {
-          out.push({ id: message.id, from: message.from, text: message.text.body, receivedBy });
-        }
-      }
-    }
-  }
-  return out;
 }

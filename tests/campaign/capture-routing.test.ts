@@ -33,7 +33,7 @@ describe("AIM-003 — captured work is never described as assigned", () => {
   it("every captured task gets a durable routing call", async () => {
     const routeTask = vi.fn(async (i: any) => ({ state: i.state, reasonCode: i.reasonCode }));
     const s = await routeCapturedTasks(deps({ routeTask }), {
-      companyId: "co-1", managementCaseId: "case-1", needsApproval: false, actorId: "actor-1",
+      companyId: "co-1", managementCaseId: "case-1", needsApproval: false,
     });
     expect(routeTask).toHaveBeenCalledTimes(2);
     expect(s.routed).toBe(2);
@@ -46,7 +46,7 @@ describe("AIM-003 — captured work is never described as assigned", () => {
     // committed, so the summary is built from the RPC's answer.
     const s = await routeCapturedTasks(
       deps({ routeTask: async () => ({ state: "no_eligible_assignee", reasonCode: "lacks_required_capability" }) }),
-      { companyId: "co-1", managementCaseId: "case-1", needsApproval: false, actorId: null },
+      { companyId: "co-1", managementCaseId: "case-1", needsApproval: false},
     );
     expect(s.byState).toEqual({ no_eligible_assignee: 2 });
   });
@@ -59,7 +59,7 @@ describe("AIM-003 — captured work is never described as assigned", () => {
           return { state: i.state, reasonCode: i.reasonCode };
         },
       }),
-      { companyId: "co-1", managementCaseId: "case-1", needsApproval: false, actorId: null },
+      { companyId: "co-1", managementCaseId: "case-1", needsApproval: false},
     );
     expect(s.routed).toBe(1);
     expect(s.failed).toBe(1);
@@ -68,7 +68,7 @@ describe("AIM-003 — captured work is never described as assigned", () => {
   it("if the task list cannot be read, nothing is claimed as routed", async () => {
     const s = await routeCapturedTasks(
       deps({ listCaseTasks: async () => { throw new Error("unavailable"); } }),
-      { companyId: "co-1", managementCaseId: "case-1", needsApproval: true, actorId: null },
+      { companyId: "co-1", managementCaseId: "case-1", needsApproval: true},
     );
     expect(s.routed).toBe(0);
     expect(s.byState).toEqual({});
@@ -76,7 +76,7 @@ describe("AIM-003 — captured work is never described as assigned", () => {
 
   it("no captured tasks means an empty summary, not a claim", async () => {
     const s = await routeCapturedTasks(deps({ listCaseTasks: async () => [] }), {
-      companyId: "co-1", managementCaseId: "case-1", needsApproval: false, actorId: null,
+      companyId: "co-1", managementCaseId: "case-1", needsApproval: false,
     });
     expect(s).toEqual({ routed: 0, byState: {}, failed: 0 });
   });

@@ -78,3 +78,43 @@ describe("FOUND-003 — inbound that belongs to NO company is visible in health"
     expect(route).toContain("unattributedInboundLevel(");
   });
 });
+
+describe("R1 §5 — owner configuration has a surface, and it says what is missing", () => {
+  const SETUP = "src/app/app/admin/inbound-setup/page.tsx";
+  const ACTIONS = "src/app/app/admin/inbound-setup/actions.ts";
+
+  it("the setup screen is in the navigation", () => {
+    expect(readFileSync("src/lib/departments.ts", "utf8")).toContain("/app/admin/inbound-setup");
+  });
+
+  it("it says CONFIGURATION REQUIRED until a number is mapped", () => {
+    const page = readFileSync(SETUP, "utf8");
+    expect(page).toContain("Configuration required");
+    expect(page).toMatch(/activeWhatsapp === 0/);
+  });
+
+  it("it discloses when the single-tenant bridge is what is attributing messages", () => {
+    expect(readFileSync(SETUP, "utf8")).toMatch(/single_tenant_bridge_in_use|single-tenant bridge/);
+  });
+
+  it("it surfaces an ambiguous mapping rather than resolving it silently", () => {
+    const page = readFileSync(SETUP, "utf8");
+    expect(page).toContain("conflicting_accounts");
+    expect(page).toMatch(/will not take it over/);
+  });
+
+  it("every change goes through the audited RPCs, never a bare table write", () => {
+    const actions = readFileSync(ACTIONS, "utf8");
+    for (const rpc of ["admin_upsert_channel_account", "admin_set_channel_account_active", "admin_set_membership_role"]) {
+      expect(actions).toContain(rpc);
+    }
+    expect(actions).not.toMatch(/\.from\("channel_accounts"\)\s*\.(insert|update|delete)/);
+    expect(actions).not.toMatch(/\.from\("membership_roles"\)\s*\.(insert|delete)/);
+  });
+
+  it("both capabilities are required in the app as well as at the database", () => {
+    const actions = readFileSync(ACTIONS, "utf8");
+    expect(actions).toContain('requireCapability("admin.organisation.manage")');
+    expect(actions).toContain('requireCapability("admin.identity.manage")');
+  });
+});

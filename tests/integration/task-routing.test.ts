@@ -21,12 +21,18 @@ let db: any, cA: any, cB: any, authed: any;
 let coA: string, coB: string;
 let alice: string, bob: string, outsider: string, inactive: string;
 
-const ROUTE = `select * from route_task($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12)`;
+/**
+ * Since migration 0078 there is no `route_task`: provenance comes from WHICH function is called, so
+ * a machine decision goes through route_task_as_ai / route_task_as_system and cannot describe
+ * itself as a person. These scenarios are all machine decisions.
+ */
+const AI = `select * from route_task_as_ai($1,$2,$3,$4,$5,null,null,$6,$7::jsonb,$8,$9,$10,$11)`;
+const SYSTEM = `select * from route_task_as_system($1,$2,$3,$4,$5,null,$6,$7::jsonb,$8,$9,$10,$11)`;
 const route = (c: any, o: Record<string, any>) =>
-  c.query(ROUTE, [
-    o.company, o.task, o.state, o.reason ?? "test", o.capability ?? null,
-    JSON.stringify(o.proposed ?? []), o.assignee ?? null, o.queue ?? null,
-    o.approval ?? null, o.actor ?? null, o.actorSource ?? "system", o.submitter ?? null,
+  c.query(o.actorSource === "ai" ? AI : SYSTEM, [
+    o.company, o.task, o.state, o.reason ?? "test", o.component ?? "task-routing-test",
+    o.capability ?? null, JSON.stringify(o.proposed ?? []), o.assignee ?? null, o.queue ?? null,
+    o.approval ?? null, o.submitter ?? null,
   ]);
 
 async function person(company: string, name: string, active = true): Promise<string> {

@@ -38,7 +38,8 @@ export function computeApprovalProgress(actions: ApprovalAction[], approvalsRequ
 }
 
 export interface ActEligibility {
-  submitterUserId: string;
+  /** Null when the system submitted the request — then no approver is the submitter. */
+  submitterUserId: string | null;
   actorUserId: string;
   actorIsApprover: boolean; // admin or finance in the interim model
   alreadyActedUserIds: string[];
@@ -49,7 +50,12 @@ export interface ActEligibility {
 export function canActOnApproval(e: ActEligibility): { allowed: boolean; reason: string } {
   if (e.status !== "pending") return { allowed: false, reason: `request is already ${e.status}` };
   if (!e.actorIsApprover) return { allowed: false, reason: "actor is not an approver" };
-  if (e.actorUserId === e.submitterUserId) return { allowed: false, reason: "submitter cannot approve their own request" };
+  // A system-submitted request has no human submitter, so it excludes nobody. It also cannot be
+  // created by a person: migration 0081 refuses `submitted_by_source = 'system'` to any non-service
+  // caller, so this branch can never be reached by someone approving their own request.
+  if (e.submitterUserId !== null && e.actorUserId === e.submitterUserId) {
+    return { allowed: false, reason: "submitter cannot approve their own request" };
+  }
   if (e.alreadyActedUserIds.includes(e.actorUserId)) return { allowed: false, reason: "actor has already acted" };
   return { allowed: true, reason: "eligible" };
 }

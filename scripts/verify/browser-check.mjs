@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Browser check for the inbound review queue and the Analyze screen.
+ * Browser check for the inbound review queue, the owner setup screen and the Analyze screen.
  *
  * WHAT THIS CAN AND CANNOT DO, stated plainly. The application reaches its database through
  * Supabase's HTTP API, and there is no Supabase instance in this container — so no browser check
@@ -12,7 +12,8 @@
  *   * the pages render without a client-side crash.
  *
  * What each screen SAYS with data in it is asserted by rendering the components directly —
- * tests/campaign/ui-rendered-truthfulness.test.ts. Neither check is sufficient alone.
+ * tests/campaign/ui-rendered-truthfulness.test.ts, and that those words match the rows the pipeline
+ * actually wrote by tests/integration/rendered-matches-persisted.test.tsx. No check is sufficient alone.
  *
  * Uses the pre-installed Chromium via --dump-dom, so it adds no dependency.
  *
@@ -50,6 +51,9 @@ const env = {
   SUPABASE_SERVICE_ROLE_KEY: "bc-none",
   WHATSAPP_VERIFY_TOKEN: "bc-none",
   WHATSAPP_APP_SECRET: "bc-none",
+  // Present so the scheduled routes are exercised on the UNAUTHORIZED branch (401) rather than
+  // only on the fail-closed no-secret branch (500). Still obviously not a credential.
+  CRON_SECRET: "bc-none",
 };
 
 const server = spawn("npx", ["next", "start", "-p", String(PORT)], { env, stdio: ["ignore", "pipe", "pipe"] });
@@ -92,7 +96,7 @@ try {
   }
 
   // 1. Both screens exist and REDIRECT an unauthenticated visitor rather than rendering.
-  for (const path of ["/app/admin/inbound-review", "/app/command/analyze"]) {
+  for (const path of ["/app/admin/inbound-review", "/app/admin/inbound-setup", "/app/command/analyze"]) {
     const res = await fetch(`${BASE}${path}`, { redirect: "manual" });
     const location = res.headers.get("location") ?? "";
     check(
@@ -112,11 +116,21 @@ try {
   check("/ renders in Chromium", homeDom.length > 500 && !/Application error/i.test(homeDom),
     `${homeDom.length} bytes of DOM`);
 
+  // 4. The scheduled routes refuse an unauthenticated caller rather than running. A drain that
+  //    anyone could trigger is a denial-of-service surface and a way to burn the attempt budget.
+  for (const path of ["/api/cron/dispatch-drain", "/api/cron/inbound-sweeper"]) {
+    const res = await fetch(`${BASE}${path}`);
+    check(`${path} refuses an unauthenticated caller`, res.status === 401, `status ${res.status}`);
+    const wrong = await fetch(`${BASE}${path}`, { headers: { authorization: "Bearer bc-wrong" } });
+    check(`${path} refuses a WRONG secret`, wrong.status === 401, `status ${wrong.status}`);
+  }
+
   console.log(
     "\nNOTE: signed-in screens are NOT exercised here — there is no Supabase instance in this " +
     "container, so no browser check can load the queue or run an analysis. What those screens say " +
     "with data in them is asserted by rendering the components in " +
-    "tests/campaign/ui-rendered-truthfulness.test.ts.",
+    "tests/campaign/ui-rendered-truthfulness.test.ts — and that what they show MATCHES what the " +
+    "pipeline persisted is asserted in tests/integration/rendered-matches-persisted.test.tsx.",
   );
 } finally {
   stop();

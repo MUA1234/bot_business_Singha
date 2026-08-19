@@ -65,7 +65,8 @@ interface Harness {
   deps: ConsumerDeps;
   audits: { action: string }[];
   drafts: { extraction: unknown; missing_fields: string[] }[];
-  approvals: { approvals_required: number; submitted_by: string }[];
+  approvals: { approvals_required: number; submitted_by: string | null }[];
+  reviews: { matches: number; version: string }[];
   clarifications: { missing_fields: string[]; message: string }[];
   dupes: { matches: { matched_event_id: string }[] }[];
   policyEvals: { outcome: string }[];
@@ -82,7 +83,8 @@ function makeHarness(opts: {
 }): Harness {
   const audits: { action: string }[] = [];
   const drafts: { extraction: unknown; missing_fields: string[] }[] = [];
-  const approvals: { approvals_required: number; submitted_by: string }[] = [];
+  const approvals: { approvals_required: number; submitted_by: string | null }[] = [];
+  const reviews: { matches: number; version: string }[] = [];
   const clarifications: { missing_fields: string[]; message: string }[] = [];
   const dupes: { matches: { matched_event_id: string }[] }[] = [];
   const policyEvals: { outcome: string }[] = [];
@@ -134,6 +136,9 @@ function makeHarness(opts: {
     async createClarification(i) {
       clarifications.push({ missing_fields: i.missing_fields, message: i.message });
     },
+    async openDuplicateReview(i) {
+      reviews.push({ matches: i.matches.length, version: i.algorithm_version });
+    },
     async createDuplicateCandidates(i) {
       dupes.push({ matches: i.matches });
     },
@@ -141,7 +146,7 @@ function makeHarness(opts: {
       audits.push({ action: a.action });
     },
   };
-  return { deps, audits, drafts, approvals, clarifications, dupes, policyEvals, ledger, states };
+  return { deps, audits, drafts, approvals, reviews, clarifications, dupes, policyEvals, ledger, states };
 }
 
 function policyWith(ruleOverrides: Record<string, unknown>): ApprovalPolicy {
@@ -216,7 +221,7 @@ describe("Consumer pipeline (guide: extract → detect → dedup → draft → p
     expect([...h.states.values()][0]).toBe("awaiting_evidence");
   });
 
-  it("flags a possible duplicate (never auto-merges) and does not create an approval", async () => {
+  it("SUSPECTS a duplicate — pauses reversibly for a person, never auto-merges and never terminally discards", async () => {
     const recent = [
       {
         id: "fe_prior",
@@ -232,10 +237,17 @@ describe("Consumer pipeline (guide: extract → detect → dedup → draft → p
     const h = makeHarness({ transport: fakeTransport(extractionJson()), policy: policyWith({ auto_approve: true }), recent });
     const r = await processSourceEvent(RUN, h.deps);
 
-    expect(r.outcome).toBe("duplicate");
+    // A SCORE may ask a person to look; it may not discard a payment. `duplicate` is terminal with
+    // no transition out, so writing it from a heuristic silently lost a second genuine payment.
+    expect(r.outcome).toBe("awaiting_information");
+    expect([...h.states.values()][0]).toBe("awaiting_information");
     expect(h.dupes[0]!.matches[0]!.matched_event_id).toBe("fe_prior");
-    expect(h.approvals).toHaveLength(0);
-    expect([...h.states.values()][0]).toBe("duplicate");
+    expect(h.approvals).toHaveLength(0);                 // no approval while it is unresolved
+    // …and a reviewable record exists, stamped with the rule version that produced it.
+    expect(h.reviews).toHaveLength(1);
+    expect(h.reviews[0]!.matches).toBe(1);
+    expect(h.reviews[0]!.version).toBe("dup/v2-evidence-required");
+    expect(h.audits.map((a) => a.action)).toContain("duplicate_suspected");
   });
 
   it("routes a prompt-injection-flagged event to human review", async () => {
