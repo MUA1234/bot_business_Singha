@@ -6,7 +6,8 @@
  */
 import { requireDepartment } from "@/lib/auth";
 
-import { supabaseReadClient } from "@/lib/supabase/read";
+import Link from "next/link";
+import { supabaseReadClient, supabaseRpcClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
 import { computeApprovalProgress, canActOnApproval, type ApprovalAction } from "@/policy/approval-progress";
 import { actOnApproval } from "./actions";
@@ -24,6 +25,14 @@ async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 export default async function ApprovalsPage() {
   const p = await requireDepartment("finance");
   const db = supabaseReadClient();
+
+  // Counted through the capability-gated queue: someone without `finance.duplicate.resolve`
+  // sees 0 rather than a number they cannot act on.
+  let pausedDuplicates = 0;
+  try {
+    const { data } = await supabaseRpcClient().rpc("duplicate_review_queue", { p_company: p.companyId });
+    pausedDuplicates = ((data ?? []) as { state: string }[]).filter((r) => r.state === "open").length;
+  } catch { /* the banner is additive — its absence never blocks the approvals list */ }
 
   const requests = await safe<any>(() =>
     db.from("approval_requests")
@@ -69,6 +78,19 @@ export default async function ApprovalsPage() {
         <h1>Approvals &amp; decisions</h1>
         <p className="muted mt-1">Approve or reject pending requests. Approval is not payment.</p>
       </div>
+
+      {/* OF-016: a payment paused as a suspected duplicate has NO approval request, so it can
+          never appear in the list below. Without this line an approver would see an empty queue
+          and reasonably conclude there was nothing waiting on them. */}
+      {pausedDuplicates > 0 && (
+        <div className="notice warn" data-testid="approvals-paused-duplicates">
+          <strong>{pausedDuplicates}</strong> payment{pausedDuplicates === 1 ? " is" : "s are"} paused
+          as {pausedDuplicates === 1 ? "a " : ""}suspected duplicate{pausedDuplicates === 1 ? "" : "s"} and
+          {pausedDuplicates === 1 ? " does" : " do"} not appear below — a suspected duplicate has no
+          approval request until a person decides.{" "}
+          <Link href="/app/finance/duplicate-reviews">Review {pausedDuplicates === 1 ? "it" : "them"}</Link>.
+        </div>
+      )}
 
       <div className="card">
         <div className="card-title">Pending approvals</div>

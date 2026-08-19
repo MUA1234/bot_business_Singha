@@ -2,7 +2,7 @@
   "name": "ai-business-manager",
   "version": "0.1.0",
   "private": true,
-  "description": "Singha Central \u2014 business management system (multi-company, event-driven): finance, operations, people, procurement, compliance, fleet and sales.",
+  "description": "Singha Central — business management system (multi-company, event-driven): finance, operations, people, procurement, compliance, fleet and sales.",
   "type": "module",
   "scripts": {
     "dev": "next dev",
@@ -45,6 +45,7 @@
     "eslint": "^8.57.1",
     "eslint-config-next": "^14.2.35",
     "pg": "^8.22.0",
+    "playwright-core": "^1.49.0",
     "typescript": "^5.5.4",
     "vitest": "^2.0.5"
   },

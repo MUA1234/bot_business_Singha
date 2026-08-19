@@ -146,6 +146,13 @@ const AUTHENTICATED_OK = new Set([
   // 0084 (FOUND-006) — the HUMAN half of the quotation-status split. Granted to `authenticated`
   // only, and it authorizes on the CAPABILITY rather than on anything the caller can assert.
   "quotation_status_for_capable(uuid,uuid)",
+  // 0087 (OF-016) — the duplicate-review workflow. Both are HUMAN-ONLY on purpose: a suspected
+  // duplicate is released or confirmed by a named person, never by a worker, so `service_role` is
+  // excluded from the EXECUTE grant rather than merely unused. Each derives the acting human from
+  // `auth.uid()` and re-checks `finance.duplicate.resolve` against live membership — the queue
+  // read inside its own predicate, the resolver under the row locks.
+  "resolve_duplicate_review(uuid,text,text)",
+  "duplicate_review_queue(uuid)",
   "authority_ceiling(uuid,text)",
   "has_capability(uuid,text)",
   "has_company_access(uuid)",

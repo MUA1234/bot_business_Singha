@@ -63,7 +63,17 @@ export default async function HealthPage() {
     migrationMismatch: false,
   });
 
+  // OF-016 — a payment paused as a suspected duplicate is WORK WAITING ON A PERSON, and it is
+  // invisible to every other signal on this page: it is not a failure, not a dead letter, not
+  // unprocessed, and it has no approval request. Read straight from the evidence table so the
+  // operations view stays truthful even for an admin who cannot resolve them.
+  const pausedDupRows = await rows<any>(() =>
+    db.from("duplicate_reviews").select("id").eq("company_id", cid).eq("state", "open") as any,
+  );
+  const pausedDuplicates = pausedDupRows.length;
+
   const tiles = [
+    { k: "Paused — suspected duplicates", v: String(pausedDuplicates), danger: pausedDuplicates > 0 },
     { k: "Failed events", v: metricLabel(failedEvents), danger: metricState(failedEvents) === "nonzero" },
     { k: "Dead letters", v: metricLabel(deadLetters), danger: metricState(deadLetters) === "nonzero" },
     { k: "Outbox failed", v: metricLabel(outboxFailed), danger: metricState(outboxFailed) === "nonzero" },

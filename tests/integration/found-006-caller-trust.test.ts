@@ -416,6 +416,11 @@ describe.skipIf(!enabled)("FOUND-006 — privilege decides, request text does no
       "authority_ceiling(uuid,text)",
       "decide_approval(uuid,uuid,text,text)",
       "decide_supplier_bank_change(uuid,uuid,text,uuid,text)",
+      // OF-016 (migration 0087). Both reach claim text only to learn WHO the caller is —
+      // `auth.uid()` for the acting human, then `actor_has_capability` for what that human may do.
+      // Neither branches on the claimed ROLE, and `resolve_duplicate_review` is granted to
+      // `authenticated` alone, so a forged `service_role` claim cannot reach either one.
+      "duplicate_review_queue(uuid)",
       "has_capability(uuid,text)",
       "has_company_access(uuid)",
       "has_membership(uuid)",
@@ -429,6 +434,7 @@ describe.skipIf(!enabled)("FOUND-006 — privilege decides, request text does no
       "quotation_status_for_capable(uuid,uuid)",
       "reimburse_expense_claim(uuid,uuid,text,text,uuid,date,text)",
       "request_supplier_bank_change(uuid,uuid,text,text,uuid)",
+      "resolve_duplicate_review(uuid,text,text)",
       "reverse_journal(uuid,uuid,uuid,date,text)",
       "route_task_as_human(uuid,uuid,text,text,text,jsonb,uuid,text,uuid,uuid)",
       "settle_customer_invoice(uuid,uuid,numeric,text,text,uuid,date,text)",

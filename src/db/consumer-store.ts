@@ -93,7 +93,35 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
       };
     },
 
-    async recentEventsForDedup(companyId, within) {
+    async recentEventsForDedup(companyId, within, sourceEventId) {
+      // OF-016: counterparts a person has already ruled DISTINCT for this event. Without this the
+      // dismissal would not survive one pass of the pipeline — the same pair would score the same
+      // way, raise the same suspicion, and re-pause the payment the reviewer just released. The
+      // exclusion is deliberately narrow: it is keyed to THIS event, so the same counterpart is
+      // still scored against every other event, and it is derived from the authoritative
+      // `duplicate_reviews` record rather than from a second store of decisions.
+      const dismissed = new Set<string>();
+      if (sourceEventId) {
+        const { data: fe, error: feErr } = await db
+          .from("financial_events")
+          .select("id")
+          .eq("source_event_id", sourceEventId)
+          .maybeSingle();
+        if (feErr) throw new Error(`duplicate-dismissal lookup failed: ${feErr.message}`);
+        if (fe?.id) {
+          const { data: rows, error: revErr } = await db
+            .from("duplicate_reviews")
+            .select("matched_event_id")
+            .eq("financial_event_id", fe.id)
+            .eq("state", "resolved")
+            .eq("resolution", "dismissed_distinct");
+          // Same rule as the candidate lookup below: a FAILED read is not "nothing was dismissed".
+          // Swallowing it would silently re-pause an event a human already released.
+          if (revErr) throw new Error(`duplicate-dismissal lookup failed: ${revErr.message}`);
+          for (const r of rows ?? []) if (r.matched_event_id) dismissed.add(String(r.matched_event_id));
+        }
+      }
+
       const { data, error } = await db
         .from("financial_events")
         .select("id, amount, currency, transaction_date, counterparty_name")
@@ -106,7 +134,7 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
       // silent, and it makes every payment look like the first time it was seen.
       if (error) throw new Error(`duplicate-candidate lookup failed: ${error.message}`);
       return (data ?? [])
-        .filter((r) => r.id) // scored against the incoming candidate in the pipeline
+        .filter((r) => r.id && !dismissed.has(String(r.id))) // scored against the incoming candidate
         .map((r) => ({
           id: r.id as string,
           candidate: {

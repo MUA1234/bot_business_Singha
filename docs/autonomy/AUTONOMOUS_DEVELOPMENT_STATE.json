@@ -2,42 +2,41 @@
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage1-core-reliability",
   "activeRequirementIds": [
-    "FOUND-006"
+    "OF-016"
   ],
-  "currentBranch": "feature/found-006-caller-trust-boundary",
-  "currentPr": 26,
-  "baseSha": "3608c8a",
-  "lastGreenSha": "3608c8a",
-  "latestMigration": "0086_actor_privilege_not_claim.sql",
-  "lastCompletedAction": "FOUND-006 correction loop 2 of 2 (final). Security review 2 returned CHANGES REQUESTED with seven findings, one a P0 I reproduced independently before fixing: `_resolve_actor` (migration 0049) read request.jwt.claims directly and turned `role=service_role` into actor_type='system', and nine SECURITY DEFINER finance RPCs -- every one EXECUTE-able by `authenticated` -- gated their capability check on that value, so a forged claim skipped it entirely. From a login role that is a member of `authenticated` and NOTHING else (pg_has_role false for both current_user and session_user, so no SET ROLE, not OF-017), one set_config posted a 999,999 journal: status 'posted', posted_by NULL. The same forgery defeated the supplier bank-change maker-checker, because the system path set v_actor := null and `v_requested_by = v_actor` is never true against NULL. Pre-existing (reproduces at 0083), but this is the package chartered to close the class. Migration 0086 deletes the branch: no role test remains, the actor is the authenticated subject, v_type is always 'user', and all nine capability checks become unconditional without editing one line of their bodies. The nine-way human/service split was considered and rejected on evidence -- supabaseRpcClient() is documented as ALWAYS the authenticated client and never routes a financial RPC through the service role, no worker/accounting-core/database function calls any of the nine, and posting a material journal with no human and no permission check is what CLAUDE.md forbids -- so the dead branch is removed rather than re-granted. G-02: the 0085 invariant could not see the defect at all, because the claim reader was SECURITY INVOKER (outside the prosecdef population) and the nine callers named neither the helper nor current_setting; replaced with a call-graph invariant over a reviewed 22-function allowlist, mirrored in the permanent gate. G-03: the topology detector created the merged role itself in beforeAll and measured its own fixture, titled as the security property while asserting it was violated; split into a real detector (reads deployed login roles, excludes suite probes) and a demonstration titled as one. G-04/G-05: inventory membership and a sentence recorded FIXED last loop but never actually edited. G-06/G-07: 0085's search_path-fragile assertion, the body-blind allowlist, and a stale allowlist entry for a dropped function.",
-  "nextAction": "Owner acceptance of FOUND-006 (both correction loops used). Then OF-016 (duplicate-review resolution RPC, screen and paused-payment visibility -- design audit already done: `resolve_inbound_review` from migration 0075 is the exact template), then MOD-003 (provider-neutral Model Gateway, registered as `specified`). Package 0083 stays permanently frozen and unaccepted at content SHA 3608c8a.",
+  "currentBranch": "feature/of-016-duplicate-review-resolution",
+  "currentPr": null,
+  "baseSha": "be2f13e",
+  "lastGreenSha": "be2f13e",
+  "latestMigration": "0087_duplicate_review_resolution.sql",
+  "lastCompletedAction": "FOUND-006 ACCEPTED by the owner as locally verified at be2f13e (local technical acceptance only -- not merged, not deployed, no hosted migration, no flag). OF-018 recorded as a separate P2 fail-closed defect and SCHEDULED, deliberately not folded into OF-016 because OF-016's RPCs do not call the affected inbound path. Then built OF-016: the authorized resolution workflow around 0083's existing evidence, with no destructive data migration -- historic pending rows are visible and resolvable as they stand. Migration 0087 adds the `finance.duplicate.resolve` capability, `resolve_duplicate_review` (human-only BY GRANT: authenticated yes, anon and service_role no; actor from auth.uid(); company read from the review row, never from caller input; active membership and capability re-checked under the row locks; state change and audit in one transaction; idempotent on replay, with the standing decision winning a conflicting one), `duplicate_review_queue` (capability checked inside its own predicate), `financial_events.duplicate_of_event_id`, and an immutability trigger that is SECURITY INVOKER on purpose -- a DEFINER version would see its own owner as current_user and wave every writer through, which is the trap FOUND-006 measured and which my first draft fell into until a test that actually exercised the path caught it. The lock order source_events -> financial_events -> duplicate_reviews is documented once and shared with the worker; the source event goes first because claim_source_events takes `for update skip locked` on it, so a reviewer holding it makes the worker SKIP rather than queue behind human review. The subtle part is the resume loop: a dismissal returns the event to draft and re-arms its source event, so without a durable record of the decision the next pass would re-score the same pair and re-pause the payment -- `recentEventsForDedup` now excludes counterparts already ruled distinct FOR THAT EVENT, narrowly, so every other pairing is still scored. UI: /app/finance/duplicate-reviews plus a finance-hub count, an approvals banner (a paused payment has NO approval request, so it can never appear in that list), and a health signal.",
+  "nextAction": "Independent high-reasoning review of OF-016 (max two correction loops). Then, if it passes, MOD-003 -- the provider-neutral Model Gateway. Package 0083 stays permanently frozen and unaccepted at content SHA 3608c8a; OF-018 is a scheduled bounded cleanup before any module needs service-role access to the 0075 inbound RPCs.",
   "lastTargetedTests": [
-    "tests/integration/found-006-caller-trust.test.ts (21 cases incl. the G-01 exploit from a genuine unprivileged login role)",
-    "tests/integration/wp17-system-actor.test.ts (rewritten: 14 cases asserting the NEW actor boundary)",
-    "tests/integration/secure-definer-grants.test.ts (G-07 stale allowlist entry)",
-    "tests/integration/r1-review-corrections.test.ts (OF-014 test renamed -- it only ever covered the disclosure half)",
-    "15 finance integration files migrated from a service_role claim to a genuine capable human",
-    "scripts/verify/legacy-upgrade-fixture.sql (hosted-style legacy upgrade)"
+    "tests/integration/of016-duplicate-resolution.test.ts (17: authorization, both decisions, replay, immutability, fail-closed)",
+    "tests/integration/of016-duplicate-concurrency.test.ts (7: two reviewers, worker races, AB-BA stress, stale worker, crash-after-commit)",
+    "tests/integration/of016-duplicate-scenarios.test.ts (10: same-day, recurring rent, salary, exact replay, rejected predecessor, historic 0083 row, existing payment, retry, backlog count)",
+    "tests/integration/of016-rendered-matches-persisted.test.tsx (3: the screen's words vs the rows the RPC wrote)",
+    "tests/of016-resume-after-dismissal.test.ts (4: the release survives a pipeline pass)",
+    "scripts/verify/browser-check-duplicate-reviews.mjs (22 checks across 390/768/1440)"
   ],
   "lastFullGateResults": {
     "sha": "pending -- stamped by the commit that carries this file",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "752 passed / 2 skipped / 104 files",
-    "integrationFresh": "611 passed / 66 files (fresh 0001-0086)",
-    "integrationLegacyUpgrade": "611 passed / 66 files (hosted-style baseline 0001-0041 + realistic data, then 0042-0086)",
-    "integrationNarrowUpgrade": "611 passed / 66 files (0085 then 0086)",
+    "unit": "756 passed / 2 skipped",
+    "integrationFresh": "648 passed / 70 files (fresh 0001-0087)",
     "build": "compiled",
     "verify": "npm run verify exits 0",
     "secretScan": "clean",
-    "migrationLint": "86 sequential, 0001-0086, no gaps or duplicates",
-    "discriminationProof": "MEASURED, not asserted: 10 of the new/changed tests FAIL on a database at 0085 and PASS at 0086 -- the two G-01 end-to-end cases from a genuine unprivileged login role, and eight actor-boundary cases. The G-01 exploit itself was reproduced end to end before the fix (a persisted 999,999 journal on the pre-0086 database) and the identical call refused after it. G-06a was reproduced as an actual spurious migration abort under `search_path = pg_catalog`, then verified passing. The call-graph invariant (G-02) deliberately does NOT discriminate: it is a standing no-silent-growth gate, not a fix, and is described as such.",
+    "migrationLint": "87 sequential, 0001-0087, no gaps or duplicates",
+    "browserCheck": "22 checks passed across 390/768/1440 -- routes served and gated, no horizontal overflow measured IN the browser, no console errors. Three consecutive green runs.",
+    "discriminationProof": "ALL 24 database tests for OF-016 FAIL on a database at 0086 and PASS at 0087. Not a sample -- the whole suite, because before 0087 there was no resolution path of any kind.",
     "note": "All database verification ran on a DISPOSABLE LOCAL PostgreSQL 16 in this container. No hosted database was migrated, no flag enabled, no live model provider called, no real message sent. GitHub Actions CI could not run (no runner assigned) and is reported unavailable, not green."
   },
   "openFindings": [
+    "OF-016: RESOLVED by migration 0087 (pending independent review). The paused payment now has an authorized, audited, idempotent resolution path and a screen; historic 0083 rows work as they stand.",
     "OF-018 (P2, NOT exploitable, recorded not fixed): `resolve_inbound_review` and `record_inbound_review` (0075) guard with `caller_jwt_role() is distinct from 'service_role'` IN ADDITION to their EXECUTE grant. Fail-closed, so not a hole -- but it contradicts the second half of the rule this package enforces: a genuine service_role caller whose claim text differs (a direct connection sets no GUC) is refused. Cheap to correct; belongs in a bounded follow-up.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
-    "OF-016 (P0, MATERIAL BLOCKER): a suspected duplicate has no authorized resolution path — no RPC, no screen, no write grant — and the paused payment is on no screen. Reversible, so nothing is stranded permanently, but not a usable workflow.",
     "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
     "OF-015 (P2): sections 3 and 6 have no re-runnable schema-level end-to-end discrimination, because they are application code.",
     "OF-003: finance classification has no model provider, so a staff finance message reaches the review queue rather than capture",
@@ -70,7 +69,8 @@
       "v3.3-part1": 0,
       "v3.3-part2": 2,
       "v3.3-remediation-R1": 2,
-      "found-006": 2
+      "found-006": 2,
+      "of-016": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },

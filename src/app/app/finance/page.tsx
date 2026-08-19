@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
-import { supabaseReadClient } from "@/lib/supabase/read";
+import { supabaseReadClient, supabaseRpcClient } from "@/lib/supabase/read";
 import { Icon } from "@/components/Icon";
 import { decSub, decSum, fmtMoney } from "@/lib/money";
 import { ageItems, type AgingItem } from "@/modules/finance/aging";
@@ -41,6 +41,22 @@ export default async function FinanceHome() {
     ),
   ]);
 
+  // OF-016: paused payments are backlog. A suspected duplicate has no approval request, so
+  // without this tile it is invisible everywhere a person actually looks. Counted through the
+  // capability-gated queue, so a member without `finance.duplicate.resolve` simply sees 0 rather
+  // than a number they cannot act on.
+  let pausedDuplicates = 0;
+  let duplicatesUnavailable = false;
+  try {
+    const { data, error } = await supabaseRpcClient().rpc("duplicate_review_queue", {
+      p_company: p.companyId,
+    });
+    if (error) duplicatesUnavailable = true;
+    else pausedDuplicates = ((data ?? []) as { state: string }[]).filter((r) => r.state === "open").length;
+  } catch {
+    duplicatesUnavailable = true;
+  }
+
   const currency = sent?.[0]?.currency ?? invoices[0]?.currency ?? "LKR";
   const quotedValue = decSum((sent ?? []).map((q: any) => q.total));
 
@@ -59,6 +75,11 @@ export default async function FinanceHome() {
     { k: "Quoted value (sent)", v: fmtMoney(quotedValue, currency), href: "/app/finance/invoices" },
     { k: "Sent quotations", v: sent?.length ?? 0, href: "/app/finance/invoices" },
     { k: "Open price confirmations", v: openPrice ?? 0, href: "/app/finance/price-requests" },
+    {
+      k: "Paused — suspected duplicates",
+      v: duplicatesUnavailable ? "unknown" : pausedDuplicates,
+      href: "/app/finance/duplicate-reviews",
+    },
   ];
 
   return (

@@ -253,3 +253,70 @@ rule this package enforces: a genuine `service_role` database caller whose claim
 direct connection sets no GUC at all) is refused. Cheap to correct — delete the claim branch, the
 grant already gates it — and it belongs in a bounded follow-up, not in this loop and not in frozen
 0083.
+
+
+---
+
+## FOUND-006 — ACCEPTED (owner, 2026-08-19)
+
+Accepted as **locally verified** at exact SHA `be2f13e`. This is local technical acceptance, **not
+production approval**: no merge, no hosted or staging migration, no flag activation, no deployment.
+
+Acceptance basis, as recorded by the owner:
+
+* Request/JWT role text can no longer convert an authenticated caller into a system actor for the
+  nine human finance RPCs.
+* Their capability checks are now unconditional for authenticated human callers.
+* Exact database grants remain the service-only authority boundary.
+* The supplier bank-change maker-checker can no longer be bypassed through a forged system actor.
+* Fresh, narrow and realistic legacy database paths passed.
+* Ten discriminating tests fail at 0085 and pass at 0086.
+* Both independent-review correction loops were used.
+* The misleading topology test and the false F-06 documentation claim were corrected.
+
+**OF-017 remains open** and unchanged: it is a deployment topology property, not a repository defect.
+
+### OF-018 (P2) — scheduled, not folded into OF-016
+
+`resolve_inbound_review` and `record_inbound_review` (migration 0075) gate on
+`caller_jwt_role() is distinct from 'service_role'` **in addition to** their EXECUTE grants.
+
+* Fail-**closed**: a genuine `service_role` caller whose request claim text differs — a direct
+  connection sets no GUC at all — is unnecessarily refused.
+* It grants **nothing** to `anon` or `authenticated`, so it is not a privilege-escalation defect and
+  was **not** part of FOUND-006's acceptance.
+* Deliberately **not** folded into OF-016: that package's own RPCs do not call the affected inbound
+  path, so there is no dependency that would justify widening its scope.
+* **Scheduled** as a bounded cleanup, to be done before any module genuinely requires service-role
+  access to those RPCs. Migration 0087 does not copy the pattern — see its header.
+
+---
+
+## OF-016 — RESOLVED by migration 0087 (pending independent review)
+
+The material blocker recorded during the 0083 evidence-closure pass: a suspected duplicate had no
+resolution RPC, no screen and no write grant, so a real payment paused reversibly with nothing in
+the product able to move it again.
+
+| Piece | What it is |
+|---|---|
+| `finance.duplicate.resolve` | A narrow capability, seeded to `finance_reviewer`, `owner_management`, `system_administrator` |
+| `resolve_duplicate_review(review, resolution, reason)` | **Human-only by GRANT** — `authenticated` only, never `anon`, never `service_role`. Actor from `auth.uid()`; company read from the review row, never from the caller; active membership and capability re-checked under the row locks; one transaction for the state change and the audit; idempotent on replay |
+| `duplicate_review_queue(company)` | The reviewer's read — both transactions, amounts, currencies, dates, counterparties, score, per-feature contributions, evidence present/missing, rule version. Capability checked inside its own predicate |
+| `financial_events.duplicate_of_event_id` | The link a confirmation writes. The original event is never rewritten |
+| Immutability trigger | SECURITY **INVOKER** — the one context where `current_user` is the caller. A resolved decision cannot be altered or deleted, including by `service_role`, which is the only api-adjacent role holding table DML |
+| `/app/finance/duplicate-reviews` | The queue, plus counts on the finance hub, a banner on approvals (a paused payment has **no** approval request, so it can never appear in that list), and a health signal |
+
+**The resume loop, which is the part that is easy to get wrong.** A dismissal returns the event to
+`draft` and makes its source event claimable again — so without a durable record of the human
+decision, the very next pass would score the same pair, raise the same suspicion, and re-pause the
+payment the reviewer just released. `recentEventsForDedup` therefore excludes counterparts already
+ruled distinct **for that event**. It is narrow on purpose: every other pairing is still scored.
+
+**Lock order**, documented once and shared with the finance worker:
+`source_events → financial_events → duplicate_reviews → approval_requests / payments`. The source
+event goes first because it is the processing linearization object — `claim_source_events` takes
+`for update skip locked` on it, so a reviewer holding that lock makes the worker **skip** rather than
+queue behind human review.
+
+**Discrimination: all 24 database tests fail at 0086 and pass at 0087.**
