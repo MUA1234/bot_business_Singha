@@ -19,7 +19,7 @@ Two sources of findings, both acted on:
    unprocessed sweeper work, and the health signal counted receipts that were never meant to be
    processed.
 2. **An independent adversarial review** of the boundary, which returned 15 findings. Each was
-   reproduced on live PostgreSQL before being accepted; none was accepted on assertion alone.
+   reproduced on a disposable local PostgreSQL before being accepted; none was accepted on assertion alone.
 
 ## The migrations, 0069 → 0076 — no unexplained number
 
@@ -112,7 +112,7 @@ alone, and neither is described as more than it is.
 
 A second independent adversarial review of the loop-1 result found that **two of the fixes had
 traded one defect for another**, and that one gate was left red. Every finding was reproduced on
-live PostgreSQL before being accepted.
+a disposable local PostgreSQL before being accepted.
 
 ## What loop 1 got wrong
 

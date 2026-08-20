@@ -1,6 +1,6 @@
 /**
  * FOUND-003 correction loop 1 — one provider message, one canonical event, at most one dispatch
- * (migration 0076). Deterministic integration scenarios against live PostgreSQL, several of them
+ * (migration 0076). Deterministic integration scenarios against a disposable local PostgreSQL, several of them
  * across TWO connections so the concurrency and crash windows are real rather than simulated.
  *
  * THE DEFECT THESE EXIST TO PIN: one inbound message produced two `source_events` rows (the

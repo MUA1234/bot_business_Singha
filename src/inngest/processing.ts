@@ -80,10 +80,20 @@ export interface ConsumerDeps {
   gateway: AiGateway;
   loadSourceEvent(sourceEventId: string): Promise<LoadedSourceEvent>;
   loadCompanyContext(companyId: string | null): Promise<CompanyContext>;
-  /** Recent events in the same company for soft-duplicate scoring. */
+  /**
+   * Recent events in the same company for soft-duplicate scoring.
+   *
+   * `sourceEventId` is what makes a human decision STICK (OF-016). When a reviewer dismisses a
+   * pair as distinct, the paused event returns to `draft` and its source event becomes claimable
+   * again — and without this, the very next pass would score the same pair, raise the same
+   * suspicion and re-pause it forever. The store therefore excludes any counterpart a person has
+   * already ruled distinct FOR THIS EVENT. The decision is durable input to the deterministic
+   * rule, not a second ledger and not a bypass: every other pairing is still scored normally.
+   */
   recentEventsForDedup(
     companyId: string,
     within: DuplicateCandidateInput,
+    sourceEventId?: string,
   ): Promise<{ id: string; candidate: DuplicateCandidateInput }[]>;
   /**
    * Draft the event, or return the one this source event already has.
@@ -230,7 +240,7 @@ export async function processSourceEvent(
   const missing = detectMissingFields(x, ctx.known);
 
   // ── Step 4: soft duplicate detection (raises a candidate; never auto-merges) ──
-  const dupMatches = await findDuplicates(src.company_id, x, deps);
+  const dupMatches = await findDuplicates(src.company_id, x, deps, src.id);
   const possibleDuplicate = dupMatches.length > 0;
 
   // ── Step 6: the deterministic action (backend's decision, not the AI's) ──
@@ -400,6 +410,7 @@ async function findDuplicates(
   companyId: string | null,
   x: AiExtraction,
   deps: ConsumerDeps,
+  sourceEventId?: string,
 ): Promise<DuplicateMatch[]> {
   if (!companyId) return [];
   const candidate: DuplicateCandidateInput = {
@@ -409,7 +420,7 @@ async function findDuplicates(
     transaction_date: x.transaction_date,
     counterparty_name: x.counterparty_name,
   };
-  const recent = await deps.recentEventsForDedup(companyId, candidate);
+  const recent = await deps.recentEventsForDedup(companyId, candidate, sourceEventId);
   const matches: DuplicateMatch[] = [];
   for (const r of recent) {
     const s = scoreDuplicate(candidate, r.candidate);

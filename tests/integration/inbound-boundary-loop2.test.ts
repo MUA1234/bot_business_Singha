@@ -1,6 +1,6 @@
 /**
  * Correction loop 2 — the regressions a second independent adversarial review found in loop 1,
- * each reproduced on live PostgreSQL before being accepted, and each pinned here.
+ * each reproduced on a disposable local PostgreSQL before being accepted, and each pinned here.
  *
  * The two that matter most were fixes that traded one defect for another:
  *   * removing the duplicate `source_events` row lost the COMPANY SCOPE on every finance capture,

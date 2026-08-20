@@ -1,5 +1,5 @@
 /**
- * AIM-002 — durable task identity and deduplication, against live PostgreSQL.
+ * AIM-002 — durable task identity and deduplication, against a disposable local PostgreSQL.
  *
  * The defect: the management-case idempotency key hashes the whole transcript, so every new inbound
  * message produced a new case, the model re-detected the same follow-up, and the same task was

@@ -1,6 +1,6 @@
 /**
  * Correction loop 1 — the 0072 and 0074 defects an independent adversarial review confirmed, each
- * reproduced on live PostgreSQL before being accepted, and each pinned here so it cannot return.
+ * reproduced on a disposable local PostgreSQL before being accepted, and each pinned here so it cannot return.
  *
  *   * the assignee capability re-check was a CONSTANT FALSE (a user id was passed where a company id
  *     was expected), so a routing that named a required capability could never reach `assigned`;

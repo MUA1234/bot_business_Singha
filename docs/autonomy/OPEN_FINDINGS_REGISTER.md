@@ -253,3 +253,190 @@ rule this package enforces: a genuine `service_role` database caller whose claim
 direct connection sets no GUC at all) is refused. Cheap to correct — delete the claim branch, the
 grant already gates it — and it belongs in a bounded follow-up, not in this loop and not in frozen
 0083.
+
+
+---
+
+## FOUND-006 — ACCEPTED (owner, 2026-08-19)
+
+Accepted as **locally verified** at exact SHA `be2f13e`. This is local technical acceptance, **not
+production approval**: no merge, no hosted or staging migration, no flag activation, no deployment.
+
+Acceptance basis, as recorded by the owner:
+
+* Request/JWT role text can no longer convert an authenticated caller into a system actor for the
+  nine human finance RPCs.
+* Their capability checks are now unconditional for authenticated human callers.
+* Exact database grants remain the service-only authority boundary.
+* The supplier bank-change maker-checker can no longer be bypassed through a forged system actor.
+* Fresh, narrow and realistic legacy database paths passed.
+* Ten discriminating tests fail at 0085 and pass at 0086.
+* Both independent-review correction loops were used.
+* The misleading topology test and the false F-06 documentation claim were corrected.
+
+**OF-017 remains open** and unchanged: it is a deployment topology property, not a repository defect.
+
+### OF-018 (P2) — scheduled, not folded into OF-016
+
+`resolve_inbound_review` and `record_inbound_review` (migration 0075) gate on
+`caller_jwt_role() is distinct from 'service_role'` **in addition to** their EXECUTE grants.
+
+* Fail-**closed**: a genuine `service_role` caller whose request claim text differs — a direct
+  connection sets no GUC at all — is unnecessarily refused.
+* It grants **nothing** to `anon` or `authenticated`, so it is not a privilege-escalation defect and
+  was **not** part of FOUND-006's acceptance.
+* Deliberately **not** folded into OF-016: that package's own RPCs do not call the affected inbound
+  path, so there is no dependency that would justify widening its scope.
+* **Scheduled** as a bounded cleanup, to be done before any module genuinely requires service-role
+  access to those RPCs. Migration 0087 does not copy the pattern — see its header.
+
+---
+
+## OF-016 — RESOLVED by migration 0087 (pending independent review)
+
+The material blocker recorded during the 0083 evidence-closure pass: a suspected duplicate had no
+resolution RPC, no screen and no write grant, so a real payment paused reversibly with nothing in
+the product able to move it again.
+
+| Piece | What it is |
+|---|---|
+| `finance.duplicate.resolve` | A narrow capability, seeded to `finance_reviewer`, `owner_management`, `system_administrator` |
+| `resolve_duplicate_review(review, resolution, reason)` | **Human-only by GRANT** — `authenticated` only, never `anon`, never `service_role`. Actor from `auth.uid()`; company read from the review row, never from the caller; active membership and capability re-checked under the row locks; one transaction for the state change and the audit; idempotent on replay |
+| `duplicate_review_queue(company)` | The reviewer's read — both transactions, amounts, currencies, dates, counterparties, score, per-feature contributions, evidence present/missing, rule version. Capability checked inside its own predicate |
+| `financial_events.duplicate_of_event_id` | The link a confirmation writes. The original event is never rewritten |
+| Immutability trigger | SECURITY **INVOKER** — the one context where `current_user` is the caller. A resolved decision cannot be altered or deleted, including by `service_role`, which is the only api-adjacent role holding table DML |
+| `/app/finance/duplicate-reviews` | The queue, plus counts on the finance hub, a banner on approvals (a paused payment has **no** approval request, so it can never appear in that list), and a health signal |
+
+**The resume loop, which is the part that is easy to get wrong.** A dismissal returns the event to
+`draft` and makes its source event claimable again — so without a durable record of the human
+decision, the very next pass would score the same pair, raise the same suspicion, and re-pause the
+payment the reviewer just released. `recentEventsForDedup` therefore excludes counterparts already
+ruled distinct **for that event**. It is narrow on purpose: every other pairing is still scored.
+
+**Lock order**, documented once and shared with the finance worker:
+`source_events → financial_events → duplicate_reviews → approval_requests / payments`. The source
+event goes first because it is the processing linearization object — `claim_source_events` takes
+`for update skip locked` on it, so a reviewer holding that lock makes the worker **skip** rather than
+queue behind human review.
+
+**Discrimination:** measured at the final SHA — see the correction-loop sections below. (An earlier version of this line claimed "all 24 database tests"; that was two files, not the package, and leaving a corrected figure beside an uncorrected one is the G-05 mistake this register already has a name for.)
+
+
+### OF-016 — what the browser evidence does and does not cover
+
+Stated plainly, because the gap is permanent in this container and a reader should not have to infer it.
+
+**Tested, in real Chromium at 390 / 768 / 1440** (`scripts/verify/browser-check-duplicate-reviews.mjs`,
+22 checks, three consecutive green runs): every OF-016 route is served and redirects a signed-out
+visitor to sign-in rather than rendering a paused payment; the pages that do render lay out with **no
+horizontal overflow, measured in the browser** (`documentElement.scrollWidth <= innerWidth + 1`, not
+inferred from CSS); no console errors and no failed requests at any width.
+
+**Tested, against a disposable local PostgreSQL 16** — the component rendered against rows the real
+`resolve_duplicate_review` RPC actually wrote, asserting the displayed money, dates, counterparties,
+score, contributions, missing evidence, rule version, decision, actor name and reason against the
+stored values (`of016-rendered-matches-persisted.test.tsx`).
+
+**NOT tested: authenticated Supabase browser end-to-end.** There is no Supabase instance in this
+container, and the application reaches its database over Supabase's HTTP API — so no local browser
+check can sign in, load the queue with rows in it, or click a button that resolves one. Session
+behaviour across refresh and restart, and RLS as enforced by the real PostgREST request pipeline, are
+likewise unproven locally. This is an environmental limit, not an oversight, and it is **not** closed
+by any amount of further local work.
+
+Those gaps are exactly what `docs/autonomy/OF016_STAGING_TEST_CHECKLIST.md` is for. It is prepared
+for a human tester and **has not been run** — no hosted or staging migration has been applied, no
+flag activated, nothing deployed.
+
+
+---
+
+## OF-016 — independent review 1, and correction loop 1 of 2
+
+Reviewed at `14f5fd6`. Verdict **CHANGES REQUESTED**: one P0, three P1s, five P2s and one process
+finding. Every one reproduced independently before being accepted. Migration **0088** carries the
+database corrections.
+
+| | Finding | Severity | Disposition |
+|---|---|---|---|
+| **H-01** | **"Dismissed as distinct" did not release the payment — it dead-lettered it.** The exclusion removed the dismissed *counterpart* but not **the event itself**, which is in `draft` after a release and so is not filtered out of its own candidate set. On the next pass it scored against itself at 1.0, `openDuplicateReview` tried to insert `financial_event_id = matched_event_id`, 0083's `duplicate_reviews_distinct_ck` rejected it, the pipeline threw on every sweep, and the sweeper dead-lettered the payment | **P0** | **FIXED.** The store now excludes the event under consideration; the pipeline repeats the check as defence in depth |
+| **H-02** | `service_role` could **fabricate** a resolved review by INSERT — 0087's trigger was `before update or delete` only. It rendered on the reviewer's screen as a real decision by a real named person, with no audit row, and a forged `dismissed_distinct` also silently suppressed detection for that pair | **P1** | **FIXED (0088).** A `before insert` boundary: a non-trusted writer may create a review only in the initial open state. The pipeline's own open insert still works |
+| **H-03** | A resolved decision was destroyable two ways: `TRUNCATE` (row triggers do not fire) and cascade through the parent `financial_events` delete | **P1** | **FIXED (0088).** A statement-level truncate guard, and a parent-delete guard that refuses when a **resolved** review references either side. An **open** suspicion still cascades, so authorised pre-decision cleanup keeps working |
+| **H-04** | The immutability test could not fail: a `rollback to savepoint sp` for a savepoint never created threw inside a bare `catch {}`, which swallowed the AssertionError with it. Proven inert by reverting the control and watching 17/17 pass | **P1** | **FIXED.** The `catch` is gone. Verified the test now FAILS against a clone with the control reverted |
+| **H-05** | The AB-BA test did not discriminate — six reviewers each on their **own** review, and the only other actor used `skip locked`, which never waits. It passed with the RPC's lock order inverted | **P2** | **FIXED.** Split into a **positive control** (a deliberate inverting actor, asserted to deadlock) and a real same-row stress (six reviewers on ONE review plus three workers, zero deadlocks, one decision, one audit row) |
+| **H-06** | `duplicate_review_queue` joined both events with no company predicate, and the RPC checked only the candidate's company — a malformed row leaked another company's amount and counterparty, and a confirmation persisted a cross-tenant link | **P2** | **FIXED (0088).** Composite `(id, company_id)` FKs make such a row unwritable; the queue joins on company; the RPC checks the matched event too |
+| **H-07** | Three screens gave three answers to the same failed read: health rendered **0** (`rows()` swallows errors), approvals **silently dropped the banner** (supabase-js returns errors rather than throwing, so the `catch` was never reached), the finance hub was right | **P2** | **FIXED.** Health uses `probeCount`/`metricLabel` per §WP6.3; approvals reads `error` and shows an explicit "could not check" notice |
+| **H-08** | Releasing an event whose source had been **dead-lettered** produced `status='pending'` still carrying `dead_lettered_at` — a claimable row wearing a terminal stamp | **P2** | **FIXED (0088).** The stamp is cleared, and the audit payload records `cleared_dead_letter` and the prior reason rather than letting the revival vanish |
+| **H-09** | Documentation claims the database did not support | **P2** | **CORRECTED** — see below |
+| **H-10** | The verification numbers were produced from a tree that was not the reviewed commit: I continued committing evidence work while the review ran, so files appeared under it mid-review | **P2 (process)** | **ACCEPTED.** The claim happened to describe `14f5fd6`, but a reviewer given those numbers and the working tree could not reproduce them. Corrected practice: the tree stays frozen at the reviewed SHA until the review returns |
+
+### The claims that were wrong, corrected
+
+* *"a service worker cannot forge a human decision"* — **was false** (H-02: by INSERT, not by calling
+  the function). True as of 0088.
+* *"a resolved decision cannot be altered or deleted, including by `service_role`"* — **was false**
+  (H-03: TRUNCATE and parent cascade). True as of 0088.
+* *"the table takes no direct DML from an api role" / "the RPC is the only writer"* — true for `anon`
+  and `authenticated`; **was false for `service_role` INSERT**. True as of 0088.
+* *"six reviewers and three workers contending on the same rows … tested rather than asserted"* —
+  **was false**: different rows, and the test passed with the lock order inverted. True now, with a
+  positive control proving the arrangement can detect an inversion.
+* *"recurring rent / salary → released, source event re-armed"* — **half-true and misleading**:
+  released and re-armed, then dead-lettered (H-01). True as of the H-01 fix.
+* *"all **24** database tests fail at 0086 and pass at 0087. Not a sample — the whole suite"* —
+  **wrong as stated.** 24 was two files, not the package. Measured correctly now: **54 of 58**
+  OF-016 database tests fail at 0086 and pass at the head; the 4 that pass are negative assertions
+  that hold vacuously before the feature exists (e.g. "a non-carrying role does not hold the
+  capability", trivially true when the capability does not exist). That is the honest figure, and
+  the direction of the original claim held even though its number did not.
+
+### What the review tried and could not break
+
+Authorization from genuine login roles (anon, no-capability member, ended membership, cross-company
+reviewer, `service_role`, missing `sub`, another company's review id); replay after a worker had
+already processed the event; the state machine; the confirm-races-approval window; confirmed-duplicate
+having no business effect and the original staying untouched; the stale-worker path; the
+pre-resolved-row migration guard; the legacy upgrade; and a genuine AB-BA deadlock from anything in
+the repository. `sub` forgery works, as it does everywhere in this repository — the documented
+inherent residual recorded in 0086's own header, not a finding here.
+
+
+---
+
+## OF-016 — independent review 2, and correction loop 2 of 2 (FINAL)
+
+Reviewed at `23b9b3b`, tree frozen throughout. Verdict **CHANGES REQUESTED**: one P1 and three P2s.
+Review 2 confirmed all eight round-1 findings (H-01 … H-08) genuinely closed, having reproduced each
+on a pre-fix database and failed to get around any of the fixes — including a bespoke role, `COPY`,
+`TRUNCATE … CASCADE`, `session_replication_role='replica'` and `ALTER TABLE … DISABLE TRIGGER`
+against the evidence boundary. Migration **0089** carries the loop-2 corrections.
+
+| | Finding | Severity | Disposition |
+|---|---|---|---|
+| **J-02** | **The package re-created its own blocker one layer up.** The detector writes ONE review per match, so a payment resembling TWO earlier ones raises two open reviews. Confirming one moved the event to `duplicate` — terminal — and the sibling was then resolvable in NEITHER direction, by nobody: the state guard refused both, `service_role` was refused by 0087's triggers, and no api role holds DML. The queue showed it forever, the health tile stayed red, and pressing either button told the reviewer to "Reload to see where it is now" — advice that could never help. Untested because every earlier test seeded exactly one review per event | **P1** | **FIXED (0089).** A decision that TERMINALISES the event now closes the event's other open reviews in the same transaction as `superseded_by_decision` — a third outcome that is explicitly **not** a human verdict on that pair, names the deciding review, and gets its own audit row saying so. **Dismissal deliberately leaves siblings open**: releasing one pair says nothing about another, the pipeline re-pauses on the survivor, and the reviewer decides it on its merits. Closing them would be the silent merge this work exists to prevent |
+| **J-01** | "The pipeline repeats the check as defence in depth" was **false** — the guard took a parameter no call site passed, and could not: `findDuplicates` runs BEFORE `createDraft`, so the financial event id does not exist yet. Dead code described as live protection | P2 | **FIXED.** The dead parameter is gone and the real second layer moved to `openDuplicateReview`, where the id exists: a self-match is dropped and logged rather than written. Covered by a test that hands the port a self-match directly |
+| **J-03** | H-08 cleared the dead-letter stamp but preserved the spent `attempts`, and `fail_source_event` dead-letters at `attempts >= max_attempts`. A released payment therefore survived **exactly one** transient provider error before dying again — with no second release, because a replay returns the standing decision before re-arming anything. A half-revival | P2 | **FIXED (0089).** A deliberate human release restores the retry budget; the prior count goes into the audit payload, so the history is kept where it can be read rather than in a counter that silently kills the release |
+| **J-04** | The corrected "24 tests" figure was added while the false one was left standing in the same file — the **G-05** mistake this register already has a name for | P2 | **FIXED.** The stale line is replaced, and says why |
+
+### Counts, corrected again
+
+The three operator surfaces counted **review rows**, so one paused payment resembling two earlier
+ones rendered as "**2** payments are paused". All three now count DISTINCT paused payments, because
+that is what their labels say.
+
+### Discrimination at the final SHA
+
+**60 of 65** OF-016 database tests fail at 0086 and pass at head. The 5 that pass at 0086 are
+negative or limitation assertions that hold vacuously against that schema — though one of them
+(an event is never offered to the scorer as a candidate against itself) does discriminate against a
+CODE revert, which is how the J-01 dead guard was caught. Loop-2 specifically: 3 of the 6 new tests
+fail at 0088.
+
+### A harness defect worth recording
+
+The browser check printed its summary and then never exited: `stop()` sends SIGTERM but the spawned
+`next start` keeps node's event loop alive, so piped into `tail` or wrapped in `timeout` a fully
+green run read as a hang and then as a failure. Fixed with an explicit `process.exit(0)`. Two
+earlier browser "failures" in this package were also the harness, not the page — a stale server from
+a previous run holding the port and serving an old chunk hash, and an aborted mobile background
+video whose asset returns 200 with its full 200,234 bytes when requested directly.

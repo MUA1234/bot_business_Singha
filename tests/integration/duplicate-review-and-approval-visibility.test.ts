@@ -267,36 +267,52 @@ describe.skipIf(!enabled)("0083 evidence closure — duplicate review & approval
    * and the directive is explicit that this must be recorded as a material blocker rather than
    * repaired in a third correction loop.
    */
-  it("ITEM 2 — BLOCKER: there is NO authorized way to resolve a duplicate review", async () => {
+  it("ITEM 2 — the blocker is CLOSED by migration 0087: there is now an authorized resolution path", async () => {
+    // This test recorded OF-016 as a MATERIAL BLOCKER during the 0083 evidence-closure pass: a
+    // suspected duplicate had no resolution RPC, no screen and no write grant, so a real payment
+    // paused reversibly with nothing able to move it again. It is inverted here rather than
+    // deleted, so the history of the finding stays in the suite and a regression would show up as
+    // this test failing, not as a test quietly disappearing.
     const rev = await row(`select id from duplicate_reviews where company_id=$1 limit 1`, [co]);
     expect(rev).toBeTruthy();
 
-    // (a) No resolution function exists.
+    // (a) The resolution function now exists — human-only by GRANT.
     const fns = await rows(
       `select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-        where n.nspname='public' and p.proname ilike '%duplicate%' and p.proname ilike '%resolve%'`);
-    expect(fns).toHaveLength(0);
+        where n.nspname='public' and p.proname = 'resolve_duplicate_review'`);
+    expect(fns).toHaveLength(1);
+    const grants = await row(
+      `select has_function_privilege('authenticated','public.resolve_duplicate_review(uuid,text,text)','EXECUTE') as auth,
+              has_function_privilege('service_role','public.resolve_duplicate_review(uuid,text,text)','EXECUTE') as svc,
+              has_function_privilege('anon','public.resolve_duplicate_review(uuid,text,text)','EXECUTE') as anon`);
+    expect([grants.auth, grants.svc, grants.anon], "a person may decide; a worker and a stranger may not")
+      .toEqual([true, false, false]);
 
-    // (b) An authorized member cannot write the row directly — the table is service-only.
+    // (b) Direct writes are STILL refused — the workflow did not open the table up.
     await db.query("begin");
     try {
       await db.query("set local role authenticated");
       await db.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ role: "authenticated", sub: approver })]);
       await expect(db.query(
-        `update duplicate_reviews set state='resolved', resolution='distinct_event', resolved_by=$2, resolved_at=now() where id=$1`,
+        `update duplicate_reviews set state='resolved', resolution='confirmed_duplicate', resolved_by=$2, resolved_at=now() where id=$1`,
         [rev.id, approver])).rejects.toMatchObject({ code: "42501" });
     } finally { await db.query("rollback"); await db.query(`select set_config('request.jwt.claims','{"role":"service_role"}',false)`); }
 
-    // (c) The paused payment is on NO screen: the only page rendering financial events reads
-    //     exclusively from `approval_requests`, and an unresolved duplicate has none.
+    // (c) The paused payment is now REACHABLE: the queue read returns it with both transactions,
+    //     even though it still has no approval request. That was the whole point — it used to be
+    //     on no screen at all.
     const paused = await row(
       `select fe.id from financial_events fe
         where fe.company_id=$1 and fe.state='awaiting_information'
           and not exists (select 1 from approval_requests ar where ar.financial_event_id = fe.id)
         limit 1`, [co]);
     expect(paused).toBeTruthy();
+    const queueFn = await rows(
+      `select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+        where n.nspname='public' and p.proname='duplicate_review_queue'`);
+    expect(queueFn).toHaveLength(1);
 
-    // (d) It is NOT silently counted as finished — the review is open and the event is not terminal.
+    // (d) And it is still not silently counted as finished.
     const open = await row(`select count(*)::int as n from duplicate_reviews where company_id=$1 and state='open'`, [co]);
     expect(open.n).toBeGreaterThan(0);
   });

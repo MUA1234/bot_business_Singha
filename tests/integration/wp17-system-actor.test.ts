@@ -1,5 +1,5 @@
 /**
- * The actor boundary — live Postgres, ZERO-PERSISTENCE.
+ * The actor boundary — a disposable local PostgreSQL, ZERO-PERSISTENCE.
  *
  * WP17 (migration 0049) made the system-actor path "explicit and trust-bounded": an explicit
  * `service_role` JWT got actor_type='system' with no human actor. Security review 2 of FOUND-006

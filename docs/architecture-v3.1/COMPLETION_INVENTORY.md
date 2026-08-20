@@ -126,7 +126,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | src/app/app/admin/outbox/page.tsx:16 | `[]` |
 | src/app/app/command/cases/page.tsx:21 | `error-discarding destructure` |
 | src/app/app/finance/accounts/page.tsx:17 | `[]` |
-| src/app/app/finance/approvals/page.tsx:19 | `[]` |
+| src/app/app/finance/approvals/page.tsx:20 | `[]` |
 | src/app/app/finance/cash-counts/page.tsx:17 | `[]` |
 | src/app/app/finance/chart-of-accounts/page.tsx:19 | `error-discarding destructure` |
 | src/app/app/finance/commitments/page.tsx:18 | `[]` |

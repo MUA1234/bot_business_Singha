@@ -93,7 +93,47 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
       };
     },
 
-    async recentEventsForDedup(companyId, within) {
+    async recentEventsForDedup(companyId, within, sourceEventId) {
+      // TWO exclusions, and BOTH are required. Either one alone leaves the resume path broken.
+      //
+      //  1. THE EVENT ITSELF. On the first pass the event does not exist yet — `findDuplicates`
+      //     runs before `createDraft` — so it cannot appear in its own candidate set. On a RESUME
+      //     it does exist, in `draft`, which is not a terminal state and so is not filtered out
+      //     below. It would then be scored against itself at 1.0 and `openDuplicateReview` would
+      //     try to insert `financial_event_id = matched_event_id`, which 0083's
+      //     `duplicate_reviews_distinct_ck` rejects — the pipeline throws on every sweep and the
+      //     sweeper DEAD-LETTERS the payment a reviewer just released. Reproduced end to end
+      //     before this line existed; see of016-resume-through-real-store.test.ts.
+      //
+      //  2. COUNTERPARTS A PERSON RULED DISTINCT for this event. Without this the dismissal would
+      //     not survive one pass — the same pair would score the same way, raise the same
+      //     suspicion, and re-pause the payment. Deliberately narrow: keyed to THIS event, so the
+      //     same counterpart is still scored against every other event, and derived from the
+      //     authoritative `duplicate_reviews` record rather than a second store of decisions.
+      const dismissed = new Set<string>();
+      let selfId: string | null = null;
+      if (sourceEventId) {
+        const { data: fe, error: feErr } = await db
+          .from("financial_events")
+          .select("id")
+          .eq("source_event_id", sourceEventId)
+          .maybeSingle();
+        if (feErr) throw new Error(`duplicate-dismissal lookup failed: ${feErr.message}`);
+        if (fe?.id) {
+          selfId = String(fe.id);
+          const { data: rows, error: revErr } = await db
+            .from("duplicate_reviews")
+            .select("matched_event_id")
+            .eq("financial_event_id", fe.id)
+            .eq("state", "resolved")
+            .eq("resolution", "dismissed_distinct");
+          // Same rule as the candidate lookup below: a FAILED read is not "nothing was dismissed".
+          // Swallowing it would silently re-pause an event a human already released.
+          if (revErr) throw new Error(`duplicate-dismissal lookup failed: ${revErr.message}`);
+          for (const r of rows ?? []) if (r.matched_event_id) dismissed.add(String(r.matched_event_id));
+        }
+      }
+
       const { data, error } = await db
         .from("financial_events")
         .select("id, amount, currency, transaction_date, counterparty_name")
@@ -106,7 +146,7 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
       // silent, and it makes every payment look like the first time it was seen.
       if (error) throw new Error(`duplicate-candidate lookup failed: ${error.message}`);
       return (data ?? [])
-        .filter((r) => r.id) // scored against the incoming candidate in the pipeline
+        .filter((r) => r.id && String(r.id) !== selfId && !dismissed.has(String(r.id)))
         .map((r) => ({
           id: r.id as string,
           candidate: {
@@ -275,6 +315,24 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
     },
 
     async openDuplicateReview(input) {
+      // THE SECOND LAYER, and it lives here because here is where the financial event id exists.
+      // `findDuplicates` runs BEFORE `createDraft`, so the pipeline cannot know the id yet — a
+      // guard placed there took an argument nothing could supply and was dead code described as
+      // live protection. An event scored against ITSELF produces a review whose
+      // financial_event_id equals its matched_event_id, which 0083's CHECK rejects outright: the
+      // pipeline throws on every sweep and the sweeper dead-letters a payment a reviewer just
+      // released. Dropping it here costs nothing and cannot be bypassed by a caller that forgets.
+      const selfMatches = input.matches.filter((m) => m.matched_event_id === input.financial_event_id);
+      if (selfMatches.length) {
+        log("warn", "duplicate review: an event matched ITSELF — dropping the self-reference", {
+          event: "duplicate.self_match_dropped",
+          financialEventId: input.financial_event_id,
+          dropped: selfMatches.length,
+        });
+      }
+      const matches = input.matches.filter((m) => m.matched_event_id !== input.financial_event_id);
+      if (!matches.length) return;
+      input = { ...input, matches };
       // Idempotent per (event, matched event) — migration 0083's unique constraint — so a resumed
       // pipeline run finds the existing review instead of stacking a second one in front of a person.
       for (const m of input.matches) {

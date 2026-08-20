@@ -63,7 +63,33 @@ export default async function HealthPage() {
     migrationMismatch: false,
   });
 
+  // OF-016 — a payment paused as a suspected duplicate is WORK WAITING ON A PERSON, and it is
+  // invisible to every other signal on this page: it is not a failure, not a dead letter, not
+  // unprocessed, and it has no approval request. Read straight from the evidence table so the
+  // operations view stays truthful even for an admin who cannot resolve them.
+  // probeCount, NOT rows() — this is the §WP6.3 rule and the first version broke it. `rows()`
+  // catches and returns [], so a database error rendered the tile as a calm "0" while payments sat
+  // paused: exactly the outage-hiding pattern `Metric` exists to prevent. Reproduced against a
+  // database without the table, which is the realistic "app deployed, hosted DB not yet migrated"
+  // window this repository is in right now.
+  // Distinct paused PAYMENTS, for the same reason the finance tiles count them that way: one
+  // payment resembling two earlier ones raises two rows, and this tile is labelled in payments.
+  // A head-count cannot express DISTINCT, so read the ids and reduce — still through probeCount's
+  // contract, so a failed read is `unavailable`, never a reassuring 0 (§WP6.3).
+  const pausedDuplicates = await probeCount(async () => {
+    const r = await (db.from("duplicate_reviews").select("financial_event_id")
+      .eq("company_id", cid).eq("state", "open") as any);
+    if (r.error) return { count: null, error: r.error };
+    const ids = ((r.data ?? []) as { financial_event_id: string }[]).map((x) => x.financial_event_id);
+    return { count: new Set(ids).size };
+  });
+
   const tiles = [
+    {
+      k: "Paused — suspected duplicates",
+      v: metricLabel(pausedDuplicates),
+      danger: metricState(pausedDuplicates) === "nonzero",
+    },
     { k: "Failed events", v: metricLabel(failedEvents), danger: metricState(failedEvents) === "nonzero" },
     { k: "Dead letters", v: metricLabel(deadLetters), danger: metricState(deadLetters) === "nonzero" },
     { k: "Outbox failed", v: metricLabel(outboxFailed), danger: metricState(outboxFailed) === "nonzero" },
