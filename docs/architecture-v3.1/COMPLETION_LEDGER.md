@@ -144,6 +144,80 @@ audience correction PR #20 → `728eab1`)
 - **No behaviour, permission, schema or migration change** (copy, one anchor id, one session-role
   branch on the signed-in strip, one CSS utility).
 
+## Blocked-preflight checkpoints (durable)
+
+> A blocked preflight is a run that STOPPED BEFORE implementing anything because a mandatory input
+> was absent. It is recorded here so the block is durable rather than re-discovered, and so the
+> next run resumes from a stated action instead of re-deriving one. A checkpoint in this section
+> changes NO requirement status: nothing here marks any item done, blocked-forever, waived or
+> descoped, and nothing here is evidence for or against any gate above.
+
+### BP-001 — v5 preflight, 2026-08-20 — BLOCKED (no v5 work attempted)
+
+**Observed checkout (exact, as read in the working clone this session):**
+
+| Fact | Observed value |
+|---|---|
+| Branch | `main` |
+| Head commit | `48bef9c1552e9595d0a924fcdc4d37d22bf40a7a` (`48bef9c`) |
+| Head subject | `Merge PR #21 — ledger records UI slices, merge authorization, hosted-migration truth` |
+| Head commit date | 2026-08-18 01:26:47 +1000 |
+| Working tree | clean (`git status --porcelain` empty) |
+| Migrations | `src/db/migrations/0001…0068`, sequential, **68** files; highest = `0068_ai_atomic_case_persistence.sql` |
+| PR #27 head present locally | no — no local or remote-tracking ref in this clone corresponds to a PR #27 head |
+
+This is the ordinary `main` line already recorded in the slices above; it is NOT a v5 branch and
+NOT the configured PR #27 head.
+
+**Mandatory v5 documents — ALL THREE ABSENT.** The v5 preflight requires an authoritative v5 pack of
+three mandatory documents. None of the three was present in the checkout, and no v5 document under
+any name was present:
+
+| Required input | State at this checkout |
+|---|---|
+| v5 mandatory document 1 (name as given in the authoritative v5 pack) | **NOT PRESENT** |
+| v5 mandatory document 2 (name as given in the authoritative v5 pack) | **NOT PRESENT** |
+| v5 mandatory document 3 (name as given in the authoritative v5 pack) | **NOT PRESENT** |
+
+The three document names are deliberately NOT guessed here: the pack that names them was not
+supplied to this run, so writing invented filenames would fabricate the requirement. They are to be
+filled in from the authoritative pack on the resuming run.
+
+Absence evidence (searches actually run, not assumed): no `docs/architecture-v5/` directory exists
+(`docs/` holds `architecture-v2` and `architecture-v3.1` only); no tracked file name contains `v5`;
+a case-insensitive repo-wide search of tracked `*.md` / `*.json` / `*.yml` for `V5`,
+`architecture-v5` and `#27` returned no document hits (only unrelated base64 substrings inside
+`package-lock.json` integrity hashes).
+
+**PR #27 was NOT technically accepted.** The run did not accept PR #27 as its working target: the
+clone was on `main` at the head above rather than at the configured PR #27 head, and the v5 pack
+that the PR #27 work depends on was absent. Nothing in PR #27 was reviewed, approved, rejected,
+merged, closed, or otherwise dispositioned by this run; "not technically accepted" is a statement
+about this run's intake only and carries no judgement about the PR's content or merit.
+
+**No v5 implementation was attempted.** No runtime code, migration, schema, contract, feature flag,
+test, or requirement status was created, edited or deleted. No migration number beyond 0068 was
+reserved or written. No hosted database action, deployment, flag flip or branch/PR operation was
+performed. The single change made under this checkpoint is this ledger entry (plus its pointer in
+`IMPLEMENTATION_LEDGER.md`).
+
+**Not claimed (explicitly).** This checkpoint does NOT claim that repository permission is missing.
+No GitHub permission or write-access check was performed this run, so no conclusion about access —
+present or absent — is recorded. Any future statement about repository access must cite an actual
+observed check.
+
+**EXACT NEXT RESUMABLE ACTION.** Rerun the v5 preflight against the **configured PR #27 head**
+(not `main`, not `48bef9c`), supplied together with:
+
+1. the **authoritative v5 pack**, containing all three mandatory v5 documents in full; and
+2. **GitHub write-access evidence** — the actual observed result of an access check for
+   `MUA1234/bot_business_Singha`, produced during that run and quoted in its report.
+
+The rerun preflight passes only when the checkout resolves to the configured PR #27 head, all three
+mandatory v5 documents are present and readable, and the write-access evidence has been produced.
+If any of the three inputs is still missing, stop again and append the next BP-nnn checkpoint here
+rather than proceeding on a substitute input.
+
 ## Deferred (deliberate, owner-visible)
 
 | Item | Why deferred | Where reported |

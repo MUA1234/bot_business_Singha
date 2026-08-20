@@ -107,6 +107,33 @@ the automated `verify` + `db-tests` jobs cannot go green regardless of PR conten
 The re-run API is not available to this integration (`403 Resource not accessible by integration`);
 run #17 was a follow-up push confirming the failure reproduces identically on a fresh run.
 
+## Blocked-preflight checkpoint BP-001 — v5 preflight, 2026-08-20 (no v5 work attempted)
+
+Recorded in full in `COMPLETION_LEDGER.md` §"Blocked-preflight checkpoints (durable)" → **BP-001**.
+Summary, so this ledger stands alone:
+
+- **Observed checkout:** branch `main`, head `48bef9c1552e9595d0a924fcdc4d37d22bf40a7a` (`48bef9c`,
+  "Merge PR #21 …", 2026-08-18), working tree clean, migrations `0001…0068` sequential (68 files,
+  highest `0068_ai_atomic_case_persistence.sql`). Not a v5 branch; not the configured PR #27 head.
+- **All three mandatory v5 documents were absent** — no v5 document under any name is present in the
+  checkout (no `docs/architecture-v5/`, no tracked filename containing `v5`, no `V5` document hit in
+  a repo-wide search). Their exact names are not guessed here because the authoritative v5 pack that
+  names them was not supplied to that run.
+- **PR #27 was not technically accepted** by that run (the clone was on `main`, not the configured
+  PR #27 head, and the dependent v5 pack was absent). Nothing in PR #27 was reviewed, merged, closed
+  or otherwise dispositioned.
+- **No v5 implementation was attempted.** No runtime code, migration, schema, flag, test or
+  requirement status changed; no migration number beyond 0068 reserved; no hosted, deployment or
+  branch/PR action taken. The only change is the checkpoint text itself.
+- **Not claimed:** no GitHub permission or write-access check was run, so no missing-permission
+  claim is made in either direction.
+- **Exact next resumable action:** rerun against the **configured PR #27 head** supplied with (1) the
+  **authoritative v5 pack** containing all three mandatory v5 documents in full, and (2) **GitHub
+  write-access evidence** actually observed during that run. If any input is still missing, stop and
+  append the next `BP-nnn` checkpoint instead of substituting an input.
+
+This checkpoint changes no V3.1 slice status, no deferral, and no owner gate below.
+
 ## Deferred (dependency-ordered) — see `01_V3_1_EXECUTION_SPEC.md` §5
 
 1. **`0048+` correction prerequisite (WP10–WP18)** — blocking for all finance/RLS/outbox-dependent
