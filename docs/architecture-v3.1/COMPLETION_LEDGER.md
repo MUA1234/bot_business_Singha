@@ -173,15 +173,14 @@ NOT the configured PR #27 head.
 three mandatory documents. None of the three was present in the checkout, and no v5 document under
 any name was present:
 
-| Required input | State at this checkout |
+| Required input (exact filename) | State at this checkout |
 |---|---|
-| v5 mandatory document 1 (name as given in the authoritative v5 pack) | **NOT PRESENT** |
-| v5 mandatory document 2 (name as given in the authoritative v5 pack) | **NOT PRESENT** |
-| v5 mandatory document 3 (name as given in the authoritative v5 pack) | **NOT PRESENT** |
+| `SINGHA_AI_BUSINESS_MANAGER_MASTER_AUTONOMOUS_DEV_GUIDE_v5.md` | **NOT PRESENT** |
+| `SINGHA_AI_BUSINESS_MANAGER_CURRENT_HANDOFF_v5.md` | **NOT PRESENT** |
+| `SINGHA_AI_BUSINESS_MANAGER_USAGE_OPTIMISATION_POLICY_v5.md` | **NOT PRESENT** |
 
-The three document names are deliberately NOT guessed here: the pack that names them was not
-supplied to this run, so writing invented filenames would fabricate the requirement. They are to be
-filled in from the authoritative pack on the resuming run.
+Each of the three was searched for by its exact filename anywhere in the checkout; all three
+returned no match.
 
 Absence evidence (searches actually run, not assumed): no `docs/architecture-v5/` directory exists
 (`docs/` holds `architecture-v2` and `architecture-v3.1` only); no tracked file name contains `v5`;

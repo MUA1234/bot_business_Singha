@@ -115,10 +115,12 @@ Summary, so this ledger stands alone:
 - **Observed checkout:** branch `main`, head `48bef9c1552e9595d0a924fcdc4d37d22bf40a7a` (`48bef9c`,
   "Merge PR #21 …", 2026-08-18), working tree clean, migrations `0001…0068` sequential (68 files,
   highest `0068_ai_atomic_case_persistence.sql`). Not a v5 branch; not the configured PR #27 head.
-- **All three mandatory v5 documents were absent** — no v5 document under any name is present in the
+- **All three mandatory v5 documents were absent** — `SINGHA_AI_BUSINESS_MANAGER_MASTER_AUTONOMOUS_DEV_GUIDE_v5.md`,
+  `SINGHA_AI_BUSINESS_MANAGER_CURRENT_HANDOFF_v5.md` and
+  `SINGHA_AI_BUSINESS_MANAGER_USAGE_OPTIMISATION_POLICY_v5.md`, each searched for by exact filename
+  and each returning no match; more broadly, no v5 document under any name is present in the
   checkout (no `docs/architecture-v5/`, no tracked filename containing `v5`, no `V5` document hit in
-  a repo-wide search). Their exact names are not guessed here because the authoritative v5 pack that
-  names them was not supplied to that run.
+  a repo-wide search).
 - **PR #27 was not technically accepted** by that run (the clone was on `main`, not the configured
   PR #27 head, and the dependent v5 pack was absent). Nothing in PR #27 was reviewed, merged, closed
   or otherwise dispositioned.
