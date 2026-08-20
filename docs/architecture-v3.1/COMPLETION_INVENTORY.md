@@ -48,10 +48,11 @@
 
 Allowlist: none yet — Phase 2 introduces it; until then --check does not fail on this category
 
-## 2. money-as-Number suspects — 12 line(s) (Phase-1A triage list)
+## 2. money-as-Number suspects — 13 line(s) (Phase-1A triage list)
 
 | file:line | code |
 |---|---|
+| src/ai/anthropic-transport.ts:62 | `const maxTokens = Math.min(req.maxTokens, EVAL_LIMITS.maxOutputTokens);` |
 | src/app/api/health/route.ts:94 | `imbalancedJournals: Number(row.imbalanced_journals ?? 0),` |
 | src/app/app/finance/customer-invoices/[id]/page.tsx:55 | `<tr key={i}><td>{l.description}</td><td className="num">{Number(l.quantity)}</td><td className="num"` |
 | src/app/app/finance/supplier-bills/[id]/page.tsx:56 | `<tr key={i}><td>{l.description}</td><td className="num">{Number(l.quantity)}</td><td className="num"` |
@@ -102,9 +103,9 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 
 | file:line | returns |
 |---|---|
-| src/ai/gateway.ts:157 | `null` |
-| src/ai/manager-observation.ts:125 | `null` |
-| src/ai/quotation.ts:104 | `null` |
+| src/ai/gateway.ts:161 | `null` |
+| src/ai/manager-observation.ts:129 | `null` |
+| src/ai/quotation.ts:109 | `null` |
 | src/app/api/cron/daily-digest/route.ts:22 | `0` |
 | src/app/api/exports/[kind]/route.ts:28 | `error-discarding destructure` |
 | src/app/api/exports/[kind]/route.ts:40 | `error-discarding destructure` |
