@@ -109,30 +109,48 @@ run #17 was a follow-up push confirming the failure reproduces identically on a 
 
 ## Blocked-preflight checkpoint BP-001 — v5 preflight, 2026-08-20 (no v5 work attempted)
 
-Recorded in full in `COMPLETION_LEDGER.md` §"Blocked-preflight checkpoints (durable)" → **BP-001**.
-Summary, so this ledger stands alone:
+Recorded in full in `COMPLETION_LEDGER.md` §"Blocked-preflight checkpoints (durable)" → **BP-001**,
+including the 2026-08-20 correction described below. Summary, so this ledger stands alone:
 
+- **Mandatory v5 documents — PRESENT as attached run input, all three read in full.**
+  `SINGHA_AI_BUSINESS_MANAGER_MASTER_AUTONOMOUS_DEV_GUIDE_v5.md` (52,883 bytes, all 1,288 lines),
+  `SINGHA_AI_BUSINESS_MANAGER_CURRENT_HANDOFF_v5.md` (5,359 bytes) and
+  `SINGHA_AI_BUSINESS_MANAGER_USAGE_OPTIMISATION_POLICY_v5.md` (6,671 bytes) were all readable and
+  were read end to end from the attached pack
+  `.conductor/brief/SINGHA_AI_BUSINESS_MANAGER_CONDUCTOR_DEV_PACK_v5.zip`. The pack is an attached
+  run input, **not** repository content — it is untracked and git-excluded (`/.conductor/`), which is
+  why the repository-only searches did not see it, and it must not be committed.
+  **Correction:** this checkpoint originally recorded all three as absent. That was true of the
+  tracked tree but false as a missing-input claim; the claim is withdrawn. The three files remain
+  absent from the tracked repository tree (no `docs/architecture-v5/`, no tracked filename containing
+  `v5`) — a fact about repository content, not a blocker.
 - **Observed checkout:** branch `main`, head `48bef9c1552e9595d0a924fcdc4d37d22bf40a7a` (`48bef9c`,
   "Merge PR #21 …", 2026-08-18), working tree clean, migrations `0001…0068` sequential (68 files,
-  highest `0068_ai_atomic_case_persistence.sql`). Not a v5 branch; not the configured PR #27 head.
-- **All three mandatory v5 documents were absent** — `SINGHA_AI_BUSINESS_MANAGER_MASTER_AUTONOMOUS_DEV_GUIDE_v5.md`,
-  `SINGHA_AI_BUSINESS_MANAGER_CURRENT_HANDOFF_v5.md` and
-  `SINGHA_AI_BUSINESS_MANAGER_USAGE_OPTIMISATION_POLICY_v5.md`, each searched for by exact filename
-  and each returning no match; more broadly, no v5 document under any name is present in the
-  checkout (no `docs/architecture-v5/`, no tracked filename containing `v5`, no `V5` document hit in
-  a repo-wide search).
-- **PR #27 was not technically accepted** by that run (the clone was on `main`, not the configured
-  PR #27 head, and the dependent v5 pack was absent). Nothing in PR #27 was reviewed, merged, closed
-  or otherwise dispositioned.
+  highest `0068_ai_atomic_case_persistence.sql`).
+- **STANDING BLOCKER — wrong checkout target.** The run is on `main` through migration 0068, not
+  PR #27's configured stacked head `feature/of-016-duplicate-review-resolution` @
+  `1b679e20990e6b58d048e036645e3f5647b4f3d2` (base `feature/found-006-caller-trust-boundary` @
+  `be2f13ee9ede90b58a69a86069bbd10f9d9c5106`), which carries migrations through **0089**. Both remote
+  SHAs were resolved in this clone via remote-tracking refs and `git ls-tree`, without checkout — the
+  original entry's claim that no ref corresponded to a PR #27 head came from a bad check and is also
+  withdrawn. Having the objects fetched is not being at the head; migrations `0069`–`0089` and the
+  FOUND-006/OF-016 stack are outside this working tree, and the v5 master guide §2 forbids starting
+  from `main`. Branch/checkout operations for this clone are Conductor's, not this run's.
+- **PR #27 was not technically accepted** by that run: it never resolved to the PR #27 head, and the
+  independent diff inspection plus exact-head gate reproduction required before local technical
+  acceptance were not performed. Nothing in PR #27 was reviewed, merged, closed or otherwise
+  dispositioned; the OF-016 2/2 correction-loop budget is untouched.
 - **No v5 implementation was attempted.** No runtime code, migration, schema, flag, test or
   requirement status changed; no migration number beyond 0068 reserved; no hosted, deployment or
-  branch/PR action taken. The only change is the checkpoint text itself.
-- **Not claimed:** no GitHub permission or write-access check was run, so no missing-permission
-  claim is made in either direction.
-- **Exact next resumable action:** rerun against the **configured PR #27 head** supplied with (1) the
-  **authoritative v5 pack** containing all three mandatory v5 documents in full, and (2) **GitHub
-  write-access evidence** actually observed during that run. If any input is still missing, stop and
-  append the next `BP-nnn` checkpoint instead of substituting an input.
+  branch/PR action taken. The only changes are the checkpoint texts themselves.
+- **Not claimed:** the non-mutating GitHub write-access check required by the pack was not run, so no
+  claim about repository permission is made in either direction.
+- **Exact next resumable action:** rerun against the **configured PR #27 head**
+  (`feature/of-016-duplicate-review-resolution`, expected `1b679e2…`, or a newer verified head if the
+  remote advanced), carrying (1) the **authoritative v5 pack** — already supplied and read, to be
+  re-attached — and (2) **GitHub write-access evidence** actually observed during that run. If the
+  checkout target is still unmet, stop and append the next `BP-nnn` checkpoint rather than proceeding
+  from `main`.
 
 This checkpoint changes no V3.1 slice status, no deferral, and no owner gate below.
 
