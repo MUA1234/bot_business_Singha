@@ -10,6 +10,7 @@
  * Model IDs stay confined to the gateway routing table (D-006) — this module reads
  * `MODEL_ROUTES.quotation` and calls the injected transport.
  */
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { MODEL_ROUTES, type CompletionTransport } from "./gateway";
 import { wrapUntrusted } from "./prompts";
@@ -79,10 +80,14 @@ export async function runQuotationTurn(
     collected_so_far: input.state,
     known_product_names: input.catalogNames ?? [],
   };
+  // This is the most exposed AI surface in the product: `input.message` is written by any member
+  // of the public who messages the WhatsApp number. Randomise the fence per run (as the gateway
+  // does) so the customer cannot know the closing tag to emit and escape the untrusted block.
+  const fenceId = randomUUID().slice(0, 8);
   const user =
     `Trusted context (safe JSON): ${JSON.stringify(context)}\n\n` +
     `Reply to the customer's latest WhatsApp message. Return JSON only.\n\n` +
-    wrapUntrusted(input.message, "cust");
+    wrapUntrusted(input.message, fenceId);
 
   let text: string;
   try {

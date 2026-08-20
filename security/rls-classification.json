@@ -28,6 +28,8 @@
     "journal_entries": "service_only", "journal_lines": "service_only", "payments": "service_only",
     "payment_allocations": "service_only", "audit_events": "service_only", "message_outbox": "service_only",
     "idempotency_keys": "service_only", "source_events": "service_only", "dead_letter_events": "service_only",
+    "channel_identities": "service_only", "task_duplicate_suggestions": "service_only", "task_routing": "service_only", "task_routing_events": "service_only",
+    "channel_accounts": "service_only", "inbound_reviews": "service_only",
     "ai_runs": "service_only", "ai_recommendations": "service_only", "clarification_requests": "service_only",
     "duplicate_candidates": "service_only", "policy_evaluations": "service_only", "financial_events": "service_only",
     "financial_event_versions": "service_only", "financial_event_allocations": "service_only",

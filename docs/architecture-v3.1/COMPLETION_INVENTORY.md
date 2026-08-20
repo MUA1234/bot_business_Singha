@@ -3,13 +3,14 @@
 > Regenerate with `node scripts/completion-inventory.mjs`. Deterministic: changes only when code changes.
 > Suspect lists are HEURISTIC work lists (each entry needs triage), not verdicts.
 
-## 1. supabaseAdmin() usage — 38 file(s)
+## 1. supabaseAdmin() usage — 41 file(s)
 
 | file | refs |
 |---|---|
 | src/app/api/cron/ai-monitor/route.ts | 2 |
 | src/app/api/cron/daily-digest/route.ts | 2 |
 | src/app/api/cron/follow-ups/route.ts | 2 |
+| src/app/api/cron/inbound-sweeper/route.ts | 2 |
 | src/app/api/cron/outbox/route.ts | 2 |
 | src/app/api/exports/[kind]/route.ts | 2 |
 | src/app/api/health/route.ts | 2 |
@@ -21,6 +22,7 @@
 | src/app/app/admin/employees/actions.ts | 6 |
 | src/app/app/admin/employees/page.tsx | 2 |
 | src/app/app/admin/health/page.tsx | 2 |
+| src/app/app/admin/inbound-review/actions.ts | 2 |
 | src/app/app/admin/objectives/page.tsx | 2 |
 | src/app/app/admin/outbox/actions.ts | 2 |
 | src/app/app/admin/outbox/page.tsx | 2 |
@@ -35,10 +37,11 @@
 | src/app/app/operations/tasks/actions.ts | 15 |
 | src/app/login/actions.ts | 2 |
 | src/components/PriceRequests.tsx | 3 |
-| src/inngest/functions.ts | 2 |
+| src/inngest/functions.ts | 3 |
 | src/lib/audit.ts | 2 |
 | src/lib/auth.ts | 3 |
 | src/lib/documents.ts | 3 |
+| src/lib/inbound/production-deps.ts | 4 |
 | src/lib/ledger-report.ts | 2 |
 | src/lib/notify.ts | 2 |
 | src/lib/order-intake.ts | 2 |
@@ -48,11 +51,12 @@
 
 Allowlist: none yet — Phase 2 introduces it; until then --check does not fail on this category
 
-## 2. money-as-Number suspects — 12 line(s) (Phase-1A triage list)
+## 2. money-as-Number suspects — 13 line(s) (Phase-1A triage list)
 
 | file:line | code |
 |---|---|
-| src/app/api/health/route.ts:94 | `imbalancedJournals: Number(row.imbalanced_journals ?? 0),` |
+| src/ai/anthropic-transport.ts:62 | `const maxTokens = Math.min(req.maxTokens, EVAL_LIMITS.maxOutputTokens);` |
+| src/app/api/health/route.ts:119 | `imbalancedJournals: Number(row.imbalanced_journals ?? 0),` |
 | src/app/app/finance/customer-invoices/[id]/page.tsx:55 | `<tr key={i}><td>{l.description}</td><td className="num">{Number(l.quantity)}</td><td className="num"` |
 | src/app/app/finance/supplier-bills/[id]/page.tsx:56 | `<tr key={i}><td>{l.description}</td><td className="num">{Number(l.quantity)}</td><td className="num"` |
 | src/app/app/finance/tax-codes/page.tsx:50 | `<td className="num dim">{fmtMoney(taxAmount("1000", Number(r.rate), "LKR"))}</td>` |
@@ -84,7 +88,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 |---|---|
 | RLS_READS | src/lib/supabase/read.ts |
 | RLS_WRITES | src/app/app/finance/customer-invoices/actions.ts<br>src/app/app/finance/supplier-bills/actions.ts<br>src/lib/auth.ts<br>src/lib/supabase/read.ts |
-| WHATSAPP_ASYNC | src/app/api/webhooks/whatsapp/route.ts |
+| WHATSAPP_ASYNC | src/app/api/webhooks/whatsapp/route.ts<br>src/inngest/functions.ts<br>src/lib/inbound/production-deps.ts |
 
 ## 5. TODO/FIXME markers — 3
 
@@ -94,17 +98,18 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | src/app/legal-config.ts:10 | TODO | `// TODO: replace with your registered legal company name.` |
 | src/app/legal-config.ts:12 | TODO | `// TODO: replace with a monitored business contact address.` |
 
-## 6. Stub routes (501 / not-implemented) — 1
+## 6. Stub routes (501 / not-implemented) — 2
 
+- src/app/api/cron/inbound-sweeper/route.ts
 - src/app/api/webhooks/email/route.ts
 
-## 7. Error-masking suspects (catch → empty return) — 70 (Phase-1C triage list)
+## 7. Error-masking suspects (catch → empty return) — 71 (Phase-1C triage list)
 
 | file:line | returns |
 |---|---|
-| src/ai/gateway.ts:157 | `null` |
-| src/ai/manager-observation.ts:125 | `null` |
-| src/ai/quotation.ts:104 | `null` |
+| src/ai/gateway.ts:161 | `null` |
+| src/ai/manager-observation.ts:129 | `null` |
+| src/ai/quotation.ts:109 | `null` |
 | src/app/api/cron/daily-digest/route.ts:22 | `0` |
 | src/app/api/exports/[kind]/route.ts:28 | `error-discarding destructure` |
 | src/app/api/exports/[kind]/route.ts:40 | `error-discarding destructure` |
@@ -167,6 +172,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | src/lib/access.ts:112 | `error-discarding destructure` |
 | src/lib/documents.ts:52 | `error-discarding destructure` |
 | src/lib/documents.ts:54 | `null` |
+| src/lib/finance/intent-gate.ts:85 | `null` |
 | src/lib/ledger-report.ts:13 | `[]` |
 | src/lib/money.ts:139 | `null` |
 | src/lib/task-access.ts:27 | `error-discarding destructure` |

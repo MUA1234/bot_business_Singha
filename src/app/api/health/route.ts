@@ -14,7 +14,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { probeCount, metricLabel, metricNumber, type Metric } from "@/lib/metric";
 import { classifyHealth } from "@/management/ai-manager/health";
 import { buildAlerts, stampSeen } from "@/management/ai-manager/alerts";
-import { missingConfig, outboxAgeLevel, ledgerIntegrityLevel, worstLevel, type SignalLevel } from "@/lib/health-signals";
+import { missingConfig, outboxAgeLevel, ledgerIntegrityLevel, unattributedInboundLevel, worstLevel, type SignalLevel } from "@/lib/health-signals";
 import { log } from "@/lib/log";
 
 export const runtime = "nodejs";
@@ -43,15 +43,40 @@ export async function GET(req: Request): Promise<Response> {
     });
 
   // Simple status counts (each classified value vs unavailable).
-  const [outboxPending, outboxFailed, outboxDead, sourceFailed, sourceUnprocessed, deadLetters, unanalysed] = await Promise.all([
-    probe(db.from("message_outbox").select("*", { count: "exact", head: true }).eq("status", "pending")),
-    probe(db.from("message_outbox").select("*", { count: "exact", head: true }).eq("status", "failed")),
-    probe(db.from("message_outbox").select("*", { count: "exact", head: true }).eq("status", "dead")),
-    probe(db.from("source_events").select("*", { count: "exact", head: true }).eq("status", "failed")),
-    probe(db.from("source_events").select("*", { count: "exact", head: true }).in("status", ["received", "processing"])),
-    probe(db.from("dead_letter_events").select("*", { count: "exact", head: true })),
-    probe(db.from("wa_conversations").select("*", { count: "exact", head: true }).is("ai_analyzed_at", null)),
-  ]);
+  const [outboxPending, outboxFailed, outboxDead, sourceFailed, sourceUnprocessed, deadLetters, unanalysed, openReviews] =
+    await Promise.all([
+      probe(db.from("message_outbox").select("*", { count: "exact", head: true }).eq("status", "pending")),
+      probe(db.from("message_outbox").select("*", { count: "exact", head: true }).eq("status", "failed")),
+      probe(db.from("message_outbox").select("*", { count: "exact", head: true }).eq("status", "dead")),
+      probe(db.from("source_events").select("*", { count: "exact", head: true }).eq("status", "failed")),
+      probe(db.from("source_events").select("*", { count: "exact", head: true }).in("status", ["received", "processing"])),
+      probe(db.from("dead_letter_events").select("*", { count: "exact", head: true })),
+      probe(db.from("wa_conversations").select("*", { count: "exact", head: true }).is("ai_analyzed_at", null)),
+      // FOUND-003 — work waiting for a person. Inbound that belongs to NO company comes from
+      // inbound_dispatch_health() below, NOT from a raw `company_id is null` count: since migration
+      // 0076 a receipt is unattributed only while it is still undecided, and counting every row
+      // with a null company would report settled work as a problem forever.
+      probe(db.from("inbound_reviews").select("*", { count: "exact", head: true }).eq("state", "open")),
+    ]);
+
+  // FOUND-003 — the inbound DISPATCH signals, from the function that knows what each state means.
+  // A raw status count cannot distinguish "nobody has decided this yet" from "decided, and not
+  // consumer work", which is why the unprocessed-events signal used to stay inflated forever.
+  let dispatchHealth: { awaiting: number; failed: number; review: number; unattributed: number } | null = null;
+  try {
+    const { data, error } = await db.rpc("inbound_dispatch_health");
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!error && row) {
+      dispatchHealth = {
+        awaiting: Number(row.awaiting_dispatch ?? 0) + Number(row.dispatching ?? 0),
+        failed: Number(row.dispatch_failed ?? 0),
+        review: Number(row.dispatch_manual_review ?? 0),
+        unattributed: Number(row.unattributed ?? 0),
+      };
+    }
+  } catch {
+    dispatchHealth = null; // unavailable is never reported as "all clear" (see the level below)
+  }
 
   // Oldest pending outbox age (minutes) — value vs unavailable.
   let oldestPendingMin: number | null = null;
@@ -126,6 +151,7 @@ export async function GET(req: Request): Promise<Response> {
     ledger.level,
     missing.length ? (process.env.APP_ENV === "production" ? "crit" : "warn") : "ok",
     unavailableTables.length ? "warn" : "ok", // a dashboard-critical table failing is never "all clear"
+    unattributedInboundLevel(dispatchHealth ? dispatchHealth.unattributed : null),
   ]);
 
   if (overall === "crit") log("error", "health critical", { event: "health.critical", alerts: alerts.map((a) => a.key) });
@@ -136,6 +162,11 @@ export async function GET(req: Request): Promise<Response> {
     level: overall,
     generatedAt: new Date().toISOString(),
     metrics: {
+      openInboundReviews: label(openReviews),
+      unattributedInbound: dispatchHealth ? String(dispatchHealth.unattributed) : "unavailable",
+      inboundAwaitingDispatch: dispatchHealth ? String(dispatchHealth.awaiting) : "unavailable",
+      inboundDispatchFailed: dispatchHealth ? String(dispatchHealth.failed) : "unavailable",
+      inboundDispatchManualReview: dispatchHealth ? String(dispatchHealth.review) : "unavailable",
       outboxPending: label(outboxPending),
       outboxFailed: label(outboxFailed),
       outboxDead: label(outboxDead),

@@ -17,10 +17,13 @@ import { makeOpenAiTransport } from "@/ai/openai-transport";
 import { serviceClient } from "@/db/client";
 import { makeSupabaseConsumerStore, makeSupabaseCostLedger } from "@/db/consumer-store";
 import { processSourceEvent, type ConsumerDeps } from "./processing";
-import { handleCustomerMessage } from "@/lib/order-intake";
+import { makeInboundDeps } from "@/lib/inbound/production-deps";
+import { recordInboundReceipt } from "@/lib/inbound/receipt";
+import { dispatchReceipt } from "@/lib/inbound/dispatch-receipt";
+import { sha256 } from "@/lib/ids";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { drainOutbox } from "@/events/outbox-drain";
-import { log } from "@/lib/log";
+import { newCorrelationId, log } from "@/lib/log";
 
 /** Build the live deps once per invocation (lazy — no client is created at import). */
 function liveDeps(): ConsumerDeps {
@@ -68,15 +71,42 @@ export const onCustomerWhatsAppMessage = inngest.createFunction(
   },
   { event: WHATSAPP_INBOUND_EVENT },
   async ({ event, step }) => {
-    const { from, text, wa_message_id, company_id } = event.data as {
+    const { from, text, wa_message_id, received_by } = event.data as {
       from: string;
       text: string;
       wa_message_id: string;
-      company_id?: string;
+      received_by?: string | null;
     };
-    return await step.run("handle-customer-message", () =>
-      handleCustomerMessage({ from, text, waMessageId: wa_message_id, companyId: company_id }),
-    );
+
+    // FOUND-003 / migration 0076 — the SAME orchestration the synchronous route runs, on the SAME
+    // canonical receipt. This worker used to call the customer order handler directly, so with
+    // WHATSAPP_ASYNC on every message was a customer order and identity routing did not apply.
+    // Re-recording the receipt is idempotent on the canonical identity: it returns the row the
+    // webhook already created, and creates it only if the webhook's transaction never landed.
+    return await step.run("dispatch-inbound-message", async () => {
+      const db = supabaseAdmin();
+      const receipt = await recordInboundReceipt(db, {
+        source: "whatsapp",
+        providerAccountId: received_by ?? null,
+        providerMessageId: wa_message_id,
+        rawPayload: event.data as Record<string, unknown>,
+        contentHash: sha256(text),
+        correlationId: newCorrelationId(),
+      });
+      const outcome = await dispatchReceipt(
+        db,
+        receipt,
+        { channel: "whatsapp", from, text, providerMessageId: wa_message_id, rawPayload: event.data },
+        received_by ?? null,
+        makeInboundDeps,
+      );
+      // A dispatch that could not be decided must FAIL the step so Inngest retries it — reporting
+      // success would be the false-acknowledgement defect one layer up.
+      if (outcome === "error" || outcome === "retry_pending") {
+        throw new Error(`inbound dispatch is not finished for ${wa_message_id} (${outcome})`);
+      }
+      return { status: outcome };
+    });
   },
 );
 

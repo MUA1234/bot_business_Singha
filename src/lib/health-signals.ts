@@ -43,6 +43,21 @@ export function backlogLevel(x: { overdueTasks: number; followUpBacklog: number;
   return "ok";
 }
 
+/**
+ * Inbound messages that could not be attributed to ANY company (FOUND-003).
+ *
+ * These are the one class of inbound failure with no company-scoped queue to land in: with no
+ * company, there is nothing to scope a review row to. They are persisted and counted, and this is
+ * where they become visible. ANY of them means real traffic is arriving at a number nobody has
+ * mapped — a configuration gap, not a message defect.
+ */
+export function unattributedInboundLevel(count: number | null): SignalLevel {
+  if (count === null) return "warn"; // unavailable is never "all clear"
+  if (count > 20) return "crit";
+  if (count > 0) return "warn";
+  return "ok";
+}
+
 /** Combine several signal levels into the single worst level. */
 export function worstLevel(levels: SignalLevel[]): SignalLevel {
   if (levels.includes("crit")) return "crit";

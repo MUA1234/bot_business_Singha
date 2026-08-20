@@ -5,6 +5,7 @@
  * and provider send live in the worker; this module never performs I/O.
  */
 import { classifyAfterFailure, nextRetryAt, isDue, type OutboxStatus } from "@/events/outbox";
+import { consumesRetryBudget, type FailureClass } from "@/lib/provider/failure";
 
 export interface OutboxRow {
   id: string;
@@ -26,6 +27,13 @@ export function selectDueForDelivery(rows: OutboxRow[], now: Date = new Date()):
     .sort((a, b) => a.created_at.localeCompare(b.created_at)); // oldest first (FIFO)
 }
 
+/**
+ * How long to wait before re-offering a message that failed for a CREDENTIAL reason. Long enough
+ * not to hammer the provider while an owner fixes configuration; short enough that the queue drains
+ * promptly once they do.
+ */
+export const CREDENTIAL_RETRY_MS = 15 * 60_000;
+
 export interface AttemptPatch {
   status: OutboxStatus;
   attempts: number;
@@ -33,22 +41,56 @@ export interface AttemptPatch {
   last_error: string | null;
 }
 
-/** Compute the row patch after a delivery attempt. */
+/**
+ * Compute the row patch after a delivery attempt.
+ *
+ * `failure` classifies WHY it failed, and the three classes are handled differently on purpose:
+ *
+ *   * `not_configured` — no call was made, so no attempt is counted. The row stays retryable with a
+ *     fresh backoff. Counting these burned the retry budget while an owner was still setting
+ *     credentials, so queued messages were already dead by the time sending became possible.
+ *   * `permanent` — an invalid recipient, an unapproved template, a closed 24-hour window, a
+ *     rejected token. It is dead-lettered IMMEDIATELY: seven more identical rejections tell nobody
+ *     anything and delay the moment a person sees it.
+ *   * `transient` (the default) — normal budgeted backoff.
+ */
 export function planAfterAttempt(
   row: Pick<OutboxRow, "attempts">,
-  result: { ok: true } | { ok: false; error: string },
+  result: { ok: true } | { ok: false; error: string; failure?: FailureClass },
   now: Date = new Date(),
 ): AttemptPatch {
-  const attempts = row.attempts + 1;
   if (result.ok) {
-    return { status: "sent", attempts, next_retry_at: null, last_error: null };
+    return { status: "sent", attempts: row.attempts + 1, next_retry_at: null, last_error: null };
   }
+
+  const failure: FailureClass = result.failure ?? "transient";
+  const error = result.error.slice(0, 500);
+
+  if (!consumesRetryBudget(failure)) {
+    // Deliberately NOT `row.attempts + 1`: the message was never offered to the provider, or the
+    // provider rejected the CREDENTIAL rather than the message. But freezing `attempts` also froze
+    // the backoff — which is a function of attempts — so such a message retried every 60 seconds
+    // forever and never reached a person. It keeps its budget AND backs off on a fixed, longer
+    // interval, so a credential problem is a slow, visible queue rather than a hot loop against the
+    // provider.
+    return {
+      status: "failed",
+      attempts: row.attempts,
+      next_retry_at: new Date(now.getTime() + CREDENTIAL_RETRY_MS).toISOString(),
+      last_error: error,
+    };
+  }
+
+  if (failure === "permanent") {
+    return { status: "dead", attempts: row.attempts + 1, next_retry_at: null, last_error: error };
+  }
+
   const status = classifyAfterFailure(row.attempts); // "failed" or "dead"
   return {
     status,
-    attempts,
+    attempts: row.attempts + 1,
     next_retry_at: status === "dead" ? null : nextRetryAt(row.attempts, now),
-    last_error: result.error.slice(0, 500),
+    last_error: error,
   };
 }
 

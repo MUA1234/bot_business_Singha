@@ -17,7 +17,7 @@ import { withPendingFooter } from "@/lib/whatsapp";
 import { enqueueOutbox } from "@/lib/outbox-enqueue";
 import { drainOutbox } from "@/events/outbox-drain";
 import { createQuotationFromItems, tryFinalizeAndSend } from "@/lib/quotations";
-import { DEFAULT_COMPANY_ID } from "@/lib/constants";
+import { log } from "@/lib/log";
 
 interface ConvState {
   name?: string | null;
@@ -31,10 +31,15 @@ export async function handleCustomerMessage(input: {
   from: string; // customer WA id (digits, no '+')
   text: string;
   waMessageId: string;
-  companyId?: string;
+  /**
+   * FOUND-003 — REQUIRED. This used to default to a hardcoded pilot company, which meant every
+   * conversation, quotation and reply belonged to that company whoever the message was actually
+   * for. The caller resolves the company from the receiving account; there is no fallback.
+   */
+  companyId: string;
 }): Promise<{ status: string }> {
   const db = supabaseAdmin();
-  const companyId = input.companyId ?? DEFAULT_COMPANY_ID;
+  const companyId = input.companyId;
   const from = input.from.replace(/^\+/, "");
 
   // Idempotency + resume-safety (§WP-C): treat as a duplicate ONLY if a prior run fully
@@ -184,7 +189,27 @@ export async function handleCustomerMessage(input: {
   // than sending directly — a transport/provider failure can never lose or double-send it.
   // A best-effort inline drain delivers it promptly; the outbox sweep is the recovery path.
   // Delivery is at-least-once (the outbox idempotency key makes a redelivery a no-op).
-  await enqueueOutbox({ channel: "whatsapp", companyId, recipient: from, body: reply, dedupeKey: `wa_reply:${input.waMessageId}` });
+  const enqueued = await enqueueOutbox({ channel: "whatsapp", companyId, recipient: from, body: reply, dedupeKey: `wa_reply:${input.waMessageId}` });
+
+  // Migration 0058 exists because writing the outbound history row before the message is durably
+  // queued makes the thread claim a delivery that never happened. That rule was applied to the
+  // quotation path and not to this one: the enqueue result used to be discarded, so an
+  // "unavailable" outbox (RPC missing or erroring) still rendered a sent-looking message to staff.
+  // Record the reply ONLY when it is durably queued. Being precise about what this does and does
+  // NOT achieve: the customer does not get a reply either way, and there is currently NO automatic
+  // retry — the webhook acknowledges 200 regardless of this outcome, and nothing sweeps inbound
+  // rows with a null `handled_at`. What changes is that the failure is now truthful and visible
+  // (an error log, and no outbound row) instead of staff seeing a message the system never queued.
+  // A sweeper for unhandled inbound messages is a recorded follow-up, not something claimed here.
+  if (enqueued === "unavailable") {
+    log("error", "reply not queued — outbox unavailable; inbound left unhandled", {
+      event: "order_intake.reply_not_queued",
+      conversationId,
+      companyId,
+    });
+    return { status };
+  }
+
   await db.from("wa_messages").insert({
     conversation_id: conversationId, company_id: companyId, direction: "outbound", body: reply, wa_message_id: null,
   });

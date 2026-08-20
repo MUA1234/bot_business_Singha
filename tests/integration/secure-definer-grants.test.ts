@@ -32,12 +32,60 @@ const SERVICE_ONLY = new Set([
   "_journal_post_internal(uuid,date,text,text,uuid,text,jsonb,text,text,text,uuid)",
   "_journal_post_internal(uuid,date,text,text,uuid,jsonb,text)", // legacy 7-arg (upgrade only)
   "claim_outbox_batch(integer,text,integer)",
+  // 0069 durable inbound processing — leases, bounded retry, dead-letter, company-scoped backlog.
+  // Each gates on caller_jwt_role() = 'service_role' internally AND is granted to service_role only;
+  // migration 0069 carries its own fail-closed assertion that anon/authenticated cannot execute them.
+  "claim_source_events(integer,text,integer)",
+  "complete_source_event(uuid,text)",
+  "fail_source_event(uuid,text,text,text,integer)",
+  "source_event_backlog(uuid)",
   "complete_outbox_and_advance(uuid,text,text)",
   "create_management_case_atomic(uuid,text,jsonb,jsonb,uuid,text)", // 0068 atomic AI-case boundary
   "enqueue_outbox_row(uuid,text,text,text,text,text,text,jsonb,text,uuid,text)",
   "enqueue_quotation_outbox(uuid,uuid,text,text,text,numeric,text,text,text)",
   "ledger_integrity_report(uuid)",
   "reconcile_quotation_from_outbox(uuid)",
+  // 0070 trusted channel identity resolution — service-only, in-function caller_jwt_role gate,
+  // company-scoped, fails closed on unknown/ambiguous. Migration 0070 asserts anon/authenticated
+  // cannot execute it.
+  "resolve_channel_identity(uuid,text,text)",
+  // 0071 AIM-002 task identity + deduplication. Service-only with an in-function caller_jwt_role
+  // gate; the identity hash is recomputed by a trigger so a caller can never forge it.
+  "create_task_deduplicated(uuid,text,text,text,text,text,text,uuid,boolean,uuid)",
+  // 0071 trigger function. SECURITY DEFINER because it computes the identity hash with
+  // extensions.digest, which `authenticated` cannot reach; it reads and writes no table. Fired by
+  // the trigger, never called directly.
+  "tasks_set_identity_hash()",
+  // 0072 AIM-003 durable routing. route_task is the atomic transition boundary (service-only,
+  // in-function role gate); task_assignee_ineligible_reason revalidates a proposed assignee at
+  // commit time; the append-only trigger refuses any rewrite of routing history.
+  "route_task(uuid,uuid,text,text,text,jsonb,uuid,text,uuid,uuid,text,uuid)",
+  "task_assignee_ineligible_reason(uuid,uuid,text,uuid)",
+  // 0074 FOUND-003 — the RECEIVING company is resolved from trusted channel configuration rather
+  // than a hardcoded constant. Service-only: the mapping decides which company owns a message.
+  "resolve_channel_company(text,text)",
+  // 0075 FOUND-003 — the manual-review queue. record is idempotent per message; resolve
+  // INDEPENDENTLY re-checks the named actor's capability rather than trusting the application.
+  "record_inbound_review(uuid,text,text,text,text,uuid,text,text,text,text)",
+  // 0076 — the canonical inbound receipt and its dispatch lifecycle. Service-only: these decide
+  // which company owns a message and whether it becomes consumer work.
+  // (canonical_event_identity, channel_accounts_normalize and task_routing_events_no_truncate are
+  //  NOT SECURITY DEFINER — a plain immutable function and two trigger functions — so they are
+  //  deliberately absent from a list that governs SECURITY DEFINER signatures.)
+  "record_inbound_receipt(text,text,text,jsonb,text,text,text)",
+  "claim_inbound_dispatch(uuid,text,integer)",
+  "claim_inbound_dispatch_batch(integer,text,integer)",
+  "record_inbound_dispatch(uuid,text,text,uuid,text,uuid)",
+  "fail_inbound_dispatch(uuid,text,text,text,integer)",
+  "inbound_dispatch_health()",
+  // 0077 — hand a claimed row back, unharmed, when nothing can process it yet.
+  "release_source_event(uuid,text)",
+  "resolve_inbound_review(uuid,uuid,uuid,text,text)",
+  // 0075 — the single capability implementation, for an EXPLICIT actor. Service-only because it
+  // takes an arbitrary user id; has_capability (same owner) wraps it for RLS in the caller's role.
+  "actor_has_capability(uuid,uuid,text)",
+  // (task_routing_events_append_only is a plain trigger function, not SECURITY DEFINER — it only
+  //  raises. This allowlist governs SECURITY DEFINER signatures, so it is deliberately absent.)
 ]);
 // Must exist AND be locked on any DB reaching this migration (the legacy 7-arg is intentionally excluded).
 const SERVICE_ONLY_REQUIRED = [...SERVICE_ONLY].filter((s) => s !== "_journal_post_internal(uuid,date,text,text,uuid,jsonb,text)");

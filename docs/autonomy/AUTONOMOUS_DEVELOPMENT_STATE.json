@@ -1,0 +1,74 @@
+{
+  "program": "Singha Central Original Vision Completion",
+  "activePhase": "stage1-core-reliability",
+  "activeRequirementIds": [
+    "FOUND-006"
+  ],
+  "currentBranch": "feature/v3-3-part2-durable-processing",
+  "currentPr": 24,
+  "baseSha": "079fbb8",
+  "lastGreenSha": "1fd50b2",
+  "latestMigration": "0077_inbound_boundary_correction_2.sql",
+  "lastCompletedAction": "Correction loop 2. A second independent review found that two loop-1 fixes traded one defect for another: removing the duplicate source_events row lost the COMPANY SCOPE on every finance capture (the capture marker was recorded before the company was threaded through, and the later company-bearing call took the idempotent-replay branch), and narrowing the sweeper to exactly the finance captures meant the only wired processor dead-lettered every capture within one cron interval. It also found npm run verify RED at HEAD — the browser-check placeholder tripped the repository's own secret scanner, so the loop-1 claim that the secret scan passed was wrong and is withdrawn. Migration 0077 makes a company-less capture impossible at the table, settles a decided non-capture so the health signal stops counting it, releases rather than destroys work no processor can handle yet, requires a human routing decision to name an active member, escapes the identity delimiter, and re-asserts the capability-owner check search_path-independently. 0076 gained a fail-closed pre-check for the account-case collision it previously died on, and now stamps the canonical identity on the survivor rather than the tombstone.",
+  "nextAction": "Owner review of the corrected boundary. Both correction loops are used, so no further loop is authorised: if the owner's next review finds a material issue, AIM-003 stays unaccepted and the blocker stands. If the boundary is accepted, continue to FOUND-006 (the RLS/service-role cutover with its architectural test), then a scheduled dispatch drain over claim_inbound_dispatch_batch and a real processor for captured finance events — both recorded as open findings.",
+  "lastTargetedTests": [
+    "tests/integration/inbound-boundary-loop2.test.ts",
+    "tests/integration/inbound-event-identity.test.ts",
+    "tests/integration/routing-and-mapping-corrections.test.ts",
+    "tests/integration/inbound-upgrade-reconciliation.test.ts",
+    "tests/campaign/dispatch-receipt.test.ts"
+  ],
+  "lastFullGateResults": {
+    "sha": "1fd50b2",
+    "typecheck": "clean",
+    "lint": "0 errors (3 pre-existing next/image warnings)",
+    "unit": "685 passed / 2 skipped / 99 files",
+    "integrationFresh": "491 passed / 56 files (0001-0077)",
+    "integrationUpgrade": "491 passed / 56 files (0001-0076 then 0077 applied on top)",
+    "build": "compiled",
+    "verify": "npm run verify exits 0 (it was RED at the previous head — see the correction report)",
+    "secretScan": "clean",
+    "migrationLint": "77 sequential, 0001-0077, no gaps or duplicates",
+    "browserCheck": "both screens served and gated (307 to /login); / and /login render in Chromium",
+    "discriminationProof": "37 new boundary scenarios against 0001-0075: 33 fail, 4 pass. The 8 loop-2 scenarios against 0001-0076: 7 fail, 1 pass. (The previous head's '25 of 29' was wrong on the denominator.)",
+    "note": "All database verification ran on a disposable PostgreSQL 16 in this container. No hosted database was migrated, no flag was enabled, no live model provider was called, and no real message was sent. These are deterministic integration scenarios, not live tests."
+  },
+  "openFindings": [
+    "FOUND-003: no scheduled drain calls claim_inbound_dispatch_batch — a failed dispatch is recovered by provider redelivery, which is bounded by how long the provider keeps redelivering",
+    "FOUND-003: no processor exists for a captured finance event; the sweeper releases it rather than processing it, so captures accumulate as visible backlog",
+    "FOUND-003: finance classification has no model provider, so a staff finance message reaches the review queue rather than capture",
+    "FOUND-003: until a receiving number is mapped in channel_accounts, the single-tenant bridge is what attributes messages",
+    "FOUND-003: nobody can work the review queue until someone is granted operations.inbound.review",
+    "FOUND-003: non-WhatsApp ingestion paths (email, upload, bank file) have no dispatch path, so such a row would be claimable by neither lifecycle",
+    "AIM-003: a service-role caller can still assert actor_source='human' by naming a real member; the production caller hard-codes 'ai'",
+    "AIM-003: nothing proposes an assignee (WRK-002/WRK-005 unbuilt), and there is no queue UI for needs_routing work",
+    "AIM-002: the occurrence window is a UTC date and the monitor re-analyses on every inbound message, so an unresolved follow-up on an active thread is recreated once per day",
+    "AIM-002: task_duplicate_suggestions has no producer, so semantic near-duplicates are not surfaced at all",
+    "MOD-002: runQuotationTurn takes no CostLedger, so the highest-volume model call produces no ai_runs row",
+    "FOUND-006: RLS_READS/RLS_WRITES are OFF, so the app reads through the RLS-bypassing service-role client"
+  ],
+  "ownerGates": [
+    "PR merges (#22, #23, #24) — none merged",
+    "Hosted migration application (0042-0077) — hosted DB is at 0038-0041",
+    "Map each receiving WhatsApp number to its company in channel_accounts (FOUND-003)",
+    "Grant operations.inbound.review to whoever should work the inbound queue (FOUND-003)",
+    "Feature flag activation — all 8 V3.1 flags OFF",
+    "ANTHROPIC_API_KEY for live-model evaluation (MOD-001) and a provider for finance classification (FOUND-003)",
+    "Company authority amounts, ceilings and regulated-action mappings (FOUND-004 configuration)",
+    "GitHub authorization before creating the private repository/package (IP-001)",
+    "Staging environment + credentials (OPS-004, OPS-003)",
+    "Production pilot approval (OPS-008)",
+    "Email/transcription/calendar provider selection (COM-002, COM-004, COM-005)",
+    "GitHub Actions runner provisioning"
+  ],
+  "usageState": {
+    "opusReviewsThisProgram": 5,
+    "correctionLoopsUsed": {
+      "campaign": 2,
+      "v3.3-part1": 0,
+      "v3.3-part2": 2
+    },
+    "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
+  },
+  "updatedAt": "2026-08-18"
+}

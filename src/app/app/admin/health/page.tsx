@@ -30,7 +30,12 @@ export default async function HealthPage() {
   const [failedEvents, unprocessedEvents, deadLetters, outboxFailed, outboxPending, aiRuns, audits] = await Promise.all([
     probeCount(() => db.from("source_events").select("id", { count: "exact", head: true }).eq("company_id", cid).eq("status", "failed") as any),
     probeCount(() => db.from("source_events").select("id", { count: "exact", head: true }).eq("company_id", cid).in("status", ["received", "processing"]) as any),
-    probeCount(() => db.from("dead_letter_events").select("id", { count: "exact", head: true }).is("resolved_at", null) as any),
+    // Company scope is not optional here: `db` is the service-role client, which bypasses row
+    // security today, so an unscoped count returns every tenant's dead letters — and it feeds
+    // classifyHealth/buildAlerts below, so another company's incident drove this dashboard to
+    // CRITICAL. `company_id` on this table is nullable with no backfill, so an unattributed row is
+    // included rather than dropped: scoping must not turn a loud wrong number into a silent zero.
+    probeCount(() => db.from("dead_letter_events").select("id", { count: "exact", head: true }).or(`company_id.eq.${cid},company_id.is.null`).is("resolved_at", null) as any),
     probeCount(() => db.from("message_outbox").select("id", { count: "exact", head: true }).eq("company_id", cid).in("status", ["failed", "dead"]) as any),
     probeCount(() => db.from("message_outbox").select("id", { count: "exact", head: true }).eq("company_id", cid).eq("status", "pending") as any),
     rows<any>(() => db.from("ai_runs").select("cost_usd, validation_ok").eq("company_id", cid).limit(2000) as any),
