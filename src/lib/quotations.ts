@@ -81,6 +81,75 @@ function normalizeCurrency(c: string | null | undefined): string {
 }
 
 /**
+ * Match a requested line description to a catalogue entry for AUTO-pricing.
+ *
+ * Both the description and the quantity on a customer-originated line come from the model's
+ * reading of a WhatsApp message, so both are effectively chosen by the sender. The previous
+ * predicate also matched `name.includes(desc)` — the reverse direction — which meant a one- or
+ * two-character description matched almost every catalogue row, and `.find()` then returned
+ * whichever row the (unordered) query happened to put first. The sender could therefore steer
+ * which unit price was applied to a line they described in words.
+ *
+ * Only the safe direction is kept: an exact name, or a description that CONTAINS the catalogue
+ * name ("5x Premium Steel Beam" → "Premium Steel Beam"). Anything else is not auto-priced — it
+ * goes to a human price confirmation, which is the designed fallback, not a failure.
+ *
+ * That alone is NOT sufficient, because a catalogue holding both "Beam" and "Premium Steel Beam"
+ * leaves "5x Premium Steel Beam" containing BOTH names, and the query has no ORDER BY — so which
+ * price applied was still decided by row order, and a sender could retry phrasings until the cheap
+ * short name won. Two further rules close that:
+ *   - the LONGEST (most specific) matching name wins, never row order;
+ *   - if two matching entries of the same specificity disagree on price, the line is AMBIGUOUS and
+ *     is refused, so a human prices it rather than the system picking one.
+ */
+export function matchCatalogueEntry<T extends { name?: string | null; unit_price?: unknown }>(
+  description: string | null | undefined,
+  catalog: T[],
+): T | undefined {
+  const desc = String(description ?? "").trim().toLowerCase();
+  if (!desc) return undefined;
+
+  const named = (c: T) => String(c.name ?? "").trim().toLowerCase();
+  const matches = catalog.filter((c) => {
+    const name = named(c);
+    return name !== "" && (desc === name || desc.includes(name));
+  });
+  if (matches.length === 0) return undefined;
+
+  // Most specific first — deterministic, independent of the order the rows came back in.
+  const ranked = [...matches].sort((a, b) => named(b).length - named(a).length);
+  const best = ranked[0]!;
+  const tied = ranked.filter((c) => named(c).length === named(best).length);
+  const prices = new Set(tied.map((c) => String(c.unit_price ?? "")));
+  if (prices.size > 1) return undefined; // genuinely ambiguous → a human decides
+
+  return best;
+}
+
+/**
+ * May this quantity be used to auto-price a line without a human?
+ *
+ * `QuotationTurn.items[].quantity` is `z.number().positive()`, so 0.001 and 1e6 both validate,
+ * and the value was previously multiplied straight into the line total — letting the sender pick
+ * an arbitrary fraction of a catalogue price and still reach a `ready`, auto-sent quotation. The
+ * money helper `lineTotal()` has always truncated quantities to a non-negative integer for exactly
+ * this reason; the customer-facing path simply did not use it.
+ *
+ * A quantity that is not a finite positive whole number within a sane bound is not auto-priceable.
+ * Such a line is routed to a human instead of being silently reinterpreted.
+ */
+export function isAutoPriceableQuantity(q: unknown): boolean {
+  const n = typeof q === "number" ? q : Number(q);
+  return Number.isFinite(n) && Number.isInteger(n) && n > 0 && n <= 1_000_000;
+}
+
+/** The integer quantity used for an auto-priced line (only valid when isAutoPriceableQuantity). */
+export function autoPriceQuantity(q: unknown): number {
+  const n = typeof q === "number" ? q : Number(q);
+  return Math.max(0, Math.trunc(n));
+}
+
+/**
  * Create an order + quotation + items from a captured request, then price it.
  * Returns the quotation id and whether it is fully priced (ready) or awaiting a
  * human price confirmation.
@@ -190,17 +259,13 @@ export async function priceQuotation(
     )
       continue;
 
-    const desc = (it.description ?? "").toLowerCase();
-    const match = (catalog ?? []).find((c: any) => {
-      const name = (c.name ?? "").toLowerCase();
-      return name && (desc === name || desc.includes(name) || name.includes(desc));
-    });
+    const match = matchCatalogueEntry(it.description, catalog ?? []);
 
     // Auto-price ONLY from a catalogue entry in the QUOTATION's currency. A price in any other
     // currency is NOT copied (no implicit conversion — that would silently misprice the document);
     // it is routed to a human price confirmation in the quotation's currency instead.
-    if (match && normalizeCurrency(match.currency) === qCurrency && qCurrency !== "") {
-      const line = new Decimal(match.unit_price).times(it.quantity || 1).toFixed(2);
+    if (match && normalizeCurrency(match.currency) === qCurrency && qCurrency !== "" && isAutoPriceableQuantity(it.quantity)) {
+      const line = new Decimal(match.unit_price).times(autoPriceQuantity(it.quantity)).toFixed(2);
       await db
         .from("quotation_items")
         .update({

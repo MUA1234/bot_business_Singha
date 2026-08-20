@@ -103,8 +103,8 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | file:line | returns |
 |---|---|
 | src/ai/gateway.ts:157 | `null` |
-| src/ai/manager-observation.ts:125 | `null` |
-| src/ai/quotation.ts:104 | `null` |
+| src/ai/manager-observation.ts:129 | `null` |
+| src/ai/quotation.ts:109 | `null` |
 | src/app/api/cron/daily-digest/route.ts:22 | `0` |
 | src/app/api/exports/[kind]/route.ts:28 | `error-discarding destructure` |
 | src/app/api/exports/[kind]/route.ts:40 | `error-discarding destructure` |
