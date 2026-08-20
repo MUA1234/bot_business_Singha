@@ -106,6 +106,18 @@
 > conflicts with the document precedence below. Where a document is marked superseded
 > (e.g. the QuickBooks integration docs), ignore it.
 
+> **V5 autonomous continuation (added 2026-08-20).** Autonomous continuation of this repository is
+> governed by the **V5 master guide** at `docs/autonomy/v5/MASTER_AUTONOMOUS_DEV_GUIDE.md` together
+> with the **repository requirement register** (`docs/autonomy/ORIGINAL_VISION_REQUIREMENTS.yaml`),
+> the findings register (`docs/autonomy/OPEN_FINDINGS_REGISTER.md`) and the state controller
+> (`docs/autonomy/AUTONOMOUS_DEVELOPMENT_STATE.json`). Those three remain the ONLY requirement
+> register, state controller and evidence store — no second one may be created.
+>
+> **The V5 pack has not been delivered yet.** Read `docs/autonomy/v5/PACK_NOT_RECEIVED.md` before
+> relying on it: the five V5 documents were referenced by the bootstrap instruction but did not
+> arrive, and were deliberately NOT reconstructed from memory. Until they are present, the
+> precedence order below governs unchanged.
+
 ## Authoritative documents & document precedence
 
 Before making changes, read (in this order):
