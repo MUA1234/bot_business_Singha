@@ -315,6 +315,24 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
     },
 
     async openDuplicateReview(input) {
+      // THE SECOND LAYER, and it lives here because here is where the financial event id exists.
+      // `findDuplicates` runs BEFORE `createDraft`, so the pipeline cannot know the id yet — a
+      // guard placed there took an argument nothing could supply and was dead code described as
+      // live protection. An event scored against ITSELF produces a review whose
+      // financial_event_id equals its matched_event_id, which 0083's CHECK rejects outright: the
+      // pipeline throws on every sweep and the sweeper dead-letters a payment a reviewer just
+      // released. Dropping it here costs nothing and cannot be bypassed by a caller that forgets.
+      const selfMatches = input.matches.filter((m) => m.matched_event_id === input.financial_event_id);
+      if (selfMatches.length) {
+        log("warn", "duplicate review: an event matched ITSELF — dropping the self-reference", {
+          event: "duplicate.self_match_dropped",
+          financialEventId: input.financial_event_id,
+          dropped: selfMatches.length,
+        });
+      }
+      const matches = input.matches.filter((m) => m.matched_event_id !== input.financial_event_id);
+      if (!matches.length) return;
+      input = { ...input, matches };
       // Idempotent per (event, matched event) — migration 0083's unique constraint — so a resumed
       // pipeline run finds the existing review instead of stacking a second one in front of a person.
       for (const m of input.matches) {

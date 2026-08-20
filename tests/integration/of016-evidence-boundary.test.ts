@@ -232,12 +232,15 @@ describe.skipIf(!enabled)("OF-016 — the evidence boundary (0088)", () => {
     expect(src.status).toBe("pending");
     expect(src.dead_lettered_at, "the terminal stamp is cleared, not left contradicting the status").toBeNull();
     expect(src.dead_letter_reason).toBeNull();
-    expect(src.attempts, "history is still not reset").toBe(5);
+    // 0089/J-03: the budget is restored too. Clearing the terminal stamp while leaving the spent
+    // attempts was a HALF revival — one ordinary provider error dead-lettered it straight back.
+    expect(src.attempts, "a deliberate release gets a real chance, not one attempt").toBe(0);
 
     const au = await one(
       `select payload from audit_events where entity_id=$1 and action='finance.duplicate_review_resolved'`, [rev]);
     expect(au.payload.cleared_dead_letter, "and the trail says a dead letter was revived").toBe(true);
     expect(au.payload.prior_dead_letter_reason).toBe("exhausted");
+    expect(au.payload.prior_attempts, "with the spent budget recorded, not erased").toBe(5);
   });
 
   it("H-08: a release that did NOT revive a dead letter says so honestly", async () => {

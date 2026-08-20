@@ -411,7 +411,6 @@ async function findDuplicates(
   x: AiExtraction,
   deps: ConsumerDeps,
   sourceEventId?: string,
-  selfEventId?: string,
 ): Promise<DuplicateMatch[]> {
   if (!companyId) return [];
   const candidate: DuplicateCandidateInput = {
@@ -424,11 +423,6 @@ async function findDuplicates(
   const recent = await deps.recentEventsForDedup(companyId, candidate, sourceEventId);
   const matches: DuplicateMatch[] = [];
   for (const r of recent) {
-    // Defence in depth for the resume path: an event must never be scored against ITSELF. The
-    // store already excludes it, but a port that forgets to would otherwise produce a self-
-    // referential duplicate review, which the database rejects outright — turning a released
-    // payment into a dead letter. Cheap, and the failure it prevents is severe.
-    if (selfEventId && r.id === selfEventId) continue;
     const s = scoreDuplicate(candidate, r.candidate);
     if (s.isLikelyDuplicate) {
       // Carry the EVIDENCE, not just the number — a reviewer needs to see why, and a past decision

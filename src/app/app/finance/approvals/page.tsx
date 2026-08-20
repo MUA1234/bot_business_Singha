@@ -37,7 +37,14 @@ export default async function ApprovalsPage() {
     // approver with an empty queue and no warning, which is the precise situation the banner
     // exists to prevent.
     if (error) pausedUnknown = true;
-    else pausedDuplicates = ((data ?? []) as { state: string }[]).filter((r) => r.state === "open").length;
+    else {
+      // Count DISTINCT paused PAYMENTS, not review rows. One payment that resembles two earlier
+      // ones raises two reviews, and counting rows made the banner say "2 payments are paused"
+      // when one was. The label says payments, so the number must mean payments.
+      const open = ((data ?? []) as { state: string; candidate_event_id: string }[])
+        .filter((r) => r.state === "open");
+      pausedDuplicates = new Set(open.map((r) => r.candidate_event_id)).size;
+    }
   } catch { pausedUnknown = true; }
 
   const requests = await safe<any>(() =>

@@ -66,14 +66,20 @@ describe("OF-016 — the UI reaches the duplicate-review RPCs as the USER, never
     // so the ops picture stays truthful even for an admin who cannot resolve them. It exposes no
     // amount, counterparty or evidence — those come only from the capability-gated queue RPC.
     const src = read("src/app/app/admin/health/page.tsx");
-    expect(src).toMatch(/from\("duplicate_reviews"\)/);
-    expect(src, "a count, not evidence").toMatch(/count:\s*"exact",\s*head:\s*true/);
     expect(src, "the health page must not read the capability-gated queue")
       .not.toMatch(/duplicate_review_queue/);
+
+    // The block that produces the tile, isolated — so these assertions are about THAT read and not
+    // about some other `duplicate_reviews` mention elsewhere in the file.
+    const block = src.slice(src.indexOf("const pausedDuplicates"), src.indexOf("const tiles"));
+    expect(block).toMatch(/from\("duplicate_reviews"\)/);
+    // Ids only, reduced to a distinct count. No amount, counterparty or evidence is read here.
+    expect(block, "a count of payments, not evidence").toMatch(/select\("financial_event_id"\)/);
+    expect(block, "DISTINCT payments — one payment can raise several reviews").toMatch(/new Set\(/);
     // §WP6.3: a failed read must render as "unavailable", never as a reassuring 0. The first
     // version used `rows()`, which catches and returns [] — the outage-hiding pattern `Metric`
     // exists to prevent, and the review reproduced it against a database without the table.
-    expect(src, "the duplicate count must go through probeCount").toMatch(
-      /probeCount\(\(\) =>\s*\n?\s*db\.from\("duplicate_reviews"\)/);
+    expect(block, "the duplicate count must go through probeCount").toMatch(/probeCount\(/);
+    expect(block, "and it must surface a read error rather than swallowing it").toMatch(/r\.error/);
   });
 });

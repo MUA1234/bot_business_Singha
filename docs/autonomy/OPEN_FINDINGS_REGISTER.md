@@ -319,7 +319,7 @@ event goes first because it is the processing linearization object — `claim_so
 `for update skip locked` on it, so a reviewer holding that lock makes the worker **skip** rather than
 queue behind human review.
 
-**Discrimination: all 24 database tests fail at 0086 and pass at 0087.**
+**Discrimination:** measured at the final SHA — see the correction-loop sections below. (An earlier version of this line claimed "all 24 database tests"; that was two files, not the package, and leaving a corrected figure beside an uncorrected one is the G-05 mistake this register already has a name for.)
 
 
 ### OF-016 — what the browser evidence does and does not cover
@@ -399,3 +399,44 @@ having no business effect and the original staying untouched; the stale-worker p
 pre-resolved-row migration guard; the legacy upgrade; and a genuine AB-BA deadlock from anything in
 the repository. `sub` forgery works, as it does everywhere in this repository — the documented
 inherent residual recorded in 0086's own header, not a finding here.
+
+
+---
+
+## OF-016 — independent review 2, and correction loop 2 of 2 (FINAL)
+
+Reviewed at `23b9b3b`, tree frozen throughout. Verdict **CHANGES REQUESTED**: one P1 and three P2s.
+Review 2 confirmed all eight round-1 findings (H-01 … H-08) genuinely closed, having reproduced each
+on a pre-fix database and failed to get around any of the fixes — including a bespoke role, `COPY`,
+`TRUNCATE … CASCADE`, `session_replication_role='replica'` and `ALTER TABLE … DISABLE TRIGGER`
+against the evidence boundary. Migration **0089** carries the loop-2 corrections.
+
+| | Finding | Severity | Disposition |
+|---|---|---|---|
+| **J-02** | **The package re-created its own blocker one layer up.** The detector writes ONE review per match, so a payment resembling TWO earlier ones raises two open reviews. Confirming one moved the event to `duplicate` — terminal — and the sibling was then resolvable in NEITHER direction, by nobody: the state guard refused both, `service_role` was refused by 0087's triggers, and no api role holds DML. The queue showed it forever, the health tile stayed red, and pressing either button told the reviewer to "Reload to see where it is now" — advice that could never help. Untested because every earlier test seeded exactly one review per event | **P1** | **FIXED (0089).** A decision that TERMINALISES the event now closes the event's other open reviews in the same transaction as `superseded_by_decision` — a third outcome that is explicitly **not** a human verdict on that pair, names the deciding review, and gets its own audit row saying so. **Dismissal deliberately leaves siblings open**: releasing one pair says nothing about another, the pipeline re-pauses on the survivor, and the reviewer decides it on its merits. Closing them would be the silent merge this work exists to prevent |
+| **J-01** | "The pipeline repeats the check as defence in depth" was **false** — the guard took a parameter no call site passed, and could not: `findDuplicates` runs BEFORE `createDraft`, so the financial event id does not exist yet. Dead code described as live protection | P2 | **FIXED.** The dead parameter is gone and the real second layer moved to `openDuplicateReview`, where the id exists: a self-match is dropped and logged rather than written. Covered by a test that hands the port a self-match directly |
+| **J-03** | H-08 cleared the dead-letter stamp but preserved the spent `attempts`, and `fail_source_event` dead-letters at `attempts >= max_attempts`. A released payment therefore survived **exactly one** transient provider error before dying again — with no second release, because a replay returns the standing decision before re-arming anything. A half-revival | P2 | **FIXED (0089).** A deliberate human release restores the retry budget; the prior count goes into the audit payload, so the history is kept where it can be read rather than in a counter that silently kills the release |
+| **J-04** | The corrected "24 tests" figure was added while the false one was left standing in the same file — the **G-05** mistake this register already has a name for | P2 | **FIXED.** The stale line is replaced, and says why |
+
+### Counts, corrected again
+
+The three operator surfaces counted **review rows**, so one paused payment resembling two earlier
+ones rendered as "**2** payments are paused". All three now count DISTINCT paused payments, because
+that is what their labels say.
+
+### Discrimination at the final SHA
+
+**60 of 65** OF-016 database tests fail at 0086 and pass at head. The 5 that pass at 0086 are
+negative or limitation assertions that hold vacuously against that schema — though one of them
+(an event is never offered to the scorer as a candidate against itself) does discriminate against a
+CODE revert, which is how the J-01 dead guard was caught. Loop-2 specifically: 3 of the 6 new tests
+fail at 0088.
+
+### A harness defect worth recording
+
+The browser check printed its summary and then never exited: `stop()` sends SIGTERM but the spawned
+`next start` keeps node's event loop alive, so piped into `tail` or wrapped in `timeout` a fully
+green run read as a hang and then as a failure. Fixed with an explicit `process.exit(0)`. Two
+earlier browser "failures" in this package were also the harness, not the page — a stale server from
+a previous run holding the port and serving an old chunk hash, and an aborted mobile background
+video whose asset returns 200 with its full 200,234 bytes when requested directly.

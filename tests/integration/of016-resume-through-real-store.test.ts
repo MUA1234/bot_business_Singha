@@ -226,6 +226,37 @@ describe.skipIf(!enabled)("OF-016 — the dismissal survives the real store and 
     expect(reviews.n, "and it is a NEW review, not the dismissed one reopened").toBe(2);
   });
 
+  it("J-01: the SECOND layer is live — openDuplicateReview drops a self-match", async () => {
+    // The first attempt at defence in depth put this guard in `findDuplicates`, which runs BEFORE
+    // `createDraft` and so cannot know the financial event id. Its parameter was never passed, the
+    // condition never fired, and the register described protection that did not exist. The review
+    // proved it by reverting only the store filter and watching the self-referential insert happen
+    // anyway.
+    //
+    // Here the guard is exercised DIRECTLY, by handing the port a match that points at the event
+    // itself — which is what a port that forgot to filter would do. It must be dropped, not
+    // written, because the database rejects a self-referential review outright and the pipeline
+    // would then throw on every sweep until the sweeper dead-lettered the payment.
+    co = await freshCompany();
+    const src = await seedSourceAndEarlier();
+    const r = await processSourceEvent({ source_event_id: src, correlation_id: `c-${rnd()}` }, deps());
+    const feId = r.financial_event_id;
+    const before = await one(`select count(*)::int n from duplicate_reviews where financial_event_id=$1`, [feId]);
+
+    await store.openDuplicateReview({
+      financial_event_id: feId,
+      company_id: co,
+      matches: [{ matched_event_id: feId, score: 1, reasons: ["self"] }],
+      algorithm_version: "dup/v2-evidence-required",
+    });
+
+    const after = await one(`select count(*)::int n from duplicate_reviews where financial_event_id=$1`, [feId]);
+    expect(after.n, "a self-match must be dropped, never written").toBe(before.n);
+    const selfRows = await one(
+      `select count(*)::int n from duplicate_reviews where financial_event_id = matched_event_id`);
+    expect(selfRows.n).toBe(0);
+  });
+
   it("a THIRD pass is still stable — the release does not decay", async () => {
     co = await freshCompany();
     const src = await seedSourceAndEarlier();

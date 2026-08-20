@@ -72,10 +72,17 @@ export default async function HealthPage() {
   // paused: exactly the outage-hiding pattern `Metric` exists to prevent. Reproduced against a
   // database without the table, which is the realistic "app deployed, hosted DB not yet migrated"
   // window this repository is in right now.
-  const pausedDuplicates = await probeCount(() =>
-    db.from("duplicate_reviews").select("id", { count: "exact", head: true })
-      .eq("company_id", cid).eq("state", "open") as any,
-  );
+  // Distinct paused PAYMENTS, for the same reason the finance tiles count them that way: one
+  // payment resembling two earlier ones raises two rows, and this tile is labelled in payments.
+  // A head-count cannot express DISTINCT, so read the ids and reduce — still through probeCount's
+  // contract, so a failed read is `unavailable`, never a reassuring 0 (§WP6.3).
+  const pausedDuplicates = await probeCount(async () => {
+    const r = await (db.from("duplicate_reviews").select("financial_event_id")
+      .eq("company_id", cid).eq("state", "open") as any);
+    if (r.error) return { count: null, error: r.error };
+    const ids = ((r.data ?? []) as { financial_event_id: string }[]).map((x) => x.financial_event_id);
+    return { count: new Set(ids).size };
+  });
 
   const tiles = [
     {

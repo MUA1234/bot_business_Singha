@@ -203,3 +203,9 @@ if (failed.length) {
   process.exit(1);
 }
 console.log(`\n✅ browser-check: ${results.length} checks passed across ${VIEWPORTS.length} viewports`);
+// EXIT EXPLICITLY. `stop()` sends SIGTERM but the spawned `next start` keeps node's event loop
+// alive for a while afterwards, so on the success path the process printed its summary and then
+// sat there. Piped into anything (`| tail`), or wrapped in `timeout`, that reads as a HANG and
+// then as a failure — a green run reported as a broken one. The failure path already exited; this
+// makes the success path do the same.
+process.exit(0);

@@ -322,8 +322,17 @@ describe.skipIf(!enabled)("OF-016 — duplicate-review resolution", () => {
       expect(src.lease_owner).toBeNull();
       expect(src.processed_at).toBeNull();
       expect(src.due).toBe(true);
-      // History is preserved — zeroing attempts would make a much-retried event look fresh.
-      expect(src.attempts).toBe(before);
+      // The RETRY BUDGET is restored (0089/J-03). Preserving `attempts` read as "history is not
+      // reset deceptively", but `fail_source_event` dead-letters at attempts >= max_attempts, so a
+      // released event that had already spent its budget died on the first ordinary provider error
+      // — with no second release available, because a replay returns the standing decision before
+      // re-arming anything. The prior count is carried into the audit payload instead, where it can
+      // be read rather than silently killing the release.
+      expect(src.attempts).toBe(0);
+      const au = await c.query(
+        `select payload from audit_events where entity_id=$1 and action='finance.duplicate_review_resolved'`,
+        [s.review]);
+      expect(au.rows[0].payload.prior_attempts, "the history is kept where it can be read").toBe(before);
     } finally { await c.query("rollback"); }
   });
 
