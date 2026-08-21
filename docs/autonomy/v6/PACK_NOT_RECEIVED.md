@@ -8,12 +8,12 @@
 
 The following six documents are required before any V6 pointer update or substantive implementation may begin:
 
-1. `V6_BASELINE_ASSESSMENT.md` — current-state audit and gap analysis against the V5/V3.1 baseline.
-2. `V6_EXECUTION_SPEC.md` — approved work packages, acceptance criteria, sequencing, and rollback plan.
-3. `V6_ARCHITECTURE.md` — target architecture, boundaries, and interaction model.
-4. `V6_DATA_MODEL.md` — new or changed entities, state machines, and company-isolation rules.
-5. `V6_REQUIREMENTS_AND_FINDINGS.md` — functional requirements, security findings, and invariant catalogue.
-6. `V6_STATE_STORES_AND_EVENTS.md` — durable state stores, outbox contracts, event schemas, and idempotency keys.
+1. `SINGHA_AI_BUSINESS_MANAGER_MASTER_AUTONOMOUS_DEV_GUIDE_v6.md`
+2. `SINGHA_AI_BUSINESS_MANAGER_CURRENT_HANDOFF_v6.md`
+3. `SINGHA_AI_BUSINESS_MANAGER_KIMI_USAGE_OPTIMISATION_POLICY_v6.md`
+4. `SINGHA_AI_BUSINESS_MANAGER_REQUIREMENTS_SNAPSHOT_v6.md`
+5. `SINGHA_AI_BUSINESS_MANAGER_CONDUCTOR_DEV_PACK_v6_MANIFEST.md`
+6. The supplied V6 conductor boot brief destined for `CONDUCTOR_BOOT_BRIEF.md`
 
 ## Repository state
 
