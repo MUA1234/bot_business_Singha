@@ -3,17 +3,15 @@
 This repository is governed by `CLAUDE.md` and the documents under `docs/`.
 Any AI coding agent (Claude Code, Codex, or other) must follow the same rules.
 
-> **V5 autonomous continuation (added 2026-08-20).** Autonomous continuation of this repository is
-> governed by the **V5 master guide** at `docs/autonomy/v5/MASTER_AUTONOMOUS_DEV_GUIDE.md` together
+> **V6 autonomous continuation (added 2026-08-21).** Autonomous continuation of this repository is
+> governed by the **V6 master guide** at `docs/autonomy/v6/MASTER_AUTONOMOUS_DEV_GUIDE.md` together
 > with the **repository requirement register** (`docs/autonomy/ORIGINAL_VISION_REQUIREMENTS.yaml`),
 > the findings register (`docs/autonomy/OPEN_FINDINGS_REGISTER.md`) and the state controller
 > (`docs/autonomy/AUTONOMOUS_DEVELOPMENT_STATE.json`). Those three remain the ONLY requirement
 > register, state controller and evidence store — no second one may be created.
 >
-> **The V5 pack has not been delivered yet.** Read `docs/autonomy/v5/PACK_NOT_RECEIVED.md` before
-> relying on it: the five V5 documents were referenced by the bootstrap instruction but did not
-> arrive, and were deliberately NOT reconstructed from memory. Until they are present, the
-> precedence order below governs unchanged.
+> The V6 pack is installed under `docs/autonomy/v6/`. Read `docs/autonomy/v6/CONDUCTOR_BOOT_BRIEF.md`
+> before relying on it.
 
 > **V3.1 program (added 2026-08).** A V3.1 senior-management-intelligence evolution is scoped in
 > `docs/architecture-v3.1/`. Its compatibility foundation — a default-OFF feature-flag registry
