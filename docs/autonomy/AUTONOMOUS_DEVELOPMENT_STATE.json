@@ -10,8 +10,8 @@
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-22",
     "branch": "kimi/of016-local-acceptance-v61",
-    "testedSha": "707761ccfc56bf9b3583def6eba39e1691ec56cc",
-    "outcome": "NOT ACCEPTED: focused OF-016, full integration, typecheck, unit, lint, build, dependency audit, IP-boundary audit, and migration status passed locally; browser-check could not run because no Chromium binary exists at the configured /opt/pw-browsers path, and npm run verify failed its autonomy evidence audit because 13 historical last_verified_sha references are absent from all fetched repository refs. No staging or production claim is authorised.",
+    "testedSha": "2ead28b8d3c29f768ddff4c1eb40f5d1214898dc",
+    "outcome": "LOCALLY ACCEPTED: focused OF-016, full integration, typecheck, unit, lint, build, dependency audit, IP-boundary audit, migration status, locked dependency install, and browser-check all passed locally. This is local technical acceptance only; no staging, hosted, live-provider, or production claim is authorised.",
     "container": "singha-of016-pg16-v61 (postgres:16, disposable local only)",
     "corrections": [
       "ReviewCard now renders database date-only Date values from local calendar parts rather than UTC serialization.",
@@ -19,10 +19,10 @@
       "Windows-local call-graph tests now use Node filesystem scans instead of Unix grep shell commands."
     ]
   },
-  "lastGreenSha": "be2f13e",
+  "lastGreenSha": "2ead28b8d3c29f768ddff4c1eb40f5d1214898dc",
   "latestMigration": "0089_duplicate_review_sibling_and_budget.sql",
   "lastCompletedAction": "OF-016 correction loop 2 of 2 (FINAL). Review 2 confirmed all eight round-1 findings genuinely closed -- it reproduced each on a pre-fix database and could not get around any fix, including a bespoke role, COPY, TRUNCATE CASCADE, session_replication_role='replica' and ALTER TABLE DISABLE TRIGGER against the evidence boundary -- and found four more. J-02 (P1) is the material one and it is the package re-creating its own blocker one layer up: the detector writes ONE review per match, so a payment resembling TWO earlier ones raises two open reviews; confirming one moved the event to `duplicate`, which is terminal, and the sibling was then resolvable in NEITHER direction by anyone -- the state guard refused both, 0087's triggers refused service_role, and no api role holds DML. The queue showed it forever and the button told the reviewer to reload. Untested because every earlier test seeded exactly one review per event. Migration 0089 closes the event's other open reviews in the same transaction as `superseded_by_decision`, a third outcome that is explicitly NOT a human verdict on that pair, names the deciding review and audits itself as such. Dismissal deliberately leaves siblings open -- releasing one pair says nothing about another, and closing them would be the silent merge this work exists to prevent. J-01: my 'the pipeline repeats the check as defence in depth' was FALSE -- the guard took a parameter no call site passed and could not, because findDuplicates runs before createDraft; the real second layer now lives in openDuplicateReview where the id exists. J-03: clearing the dead-letter stamp while preserving spent attempts was a HALF revival -- one ordinary provider error killed the released payment again, with no second release available; the budget is restored and the prior count goes into the audit. J-04: I left the false '24 tests' claim standing beside its own correction, which is the G-05 mistake this register already names. Also corrected: the three operator surfaces counted review ROWS, so one paused payment rendered as '2 payments are paused'; they now count distinct payments, because that is what their labels say.",
-  "nextAction": "Do not begin OF-018 or MOD-003. Repair or make available the local Chromium dependency and reconcile the 13 historical last_verified_sha references that are absent from all fetched refs, then rerun the browser and autonomy-audit gates before any local technical acceptance decision. The staging checklist remains prepared and NOT run; no hosted or staging migration, flag activation, deployment, real data use, or real message sending is authorised.",
+  "nextAction": "OF-016 is locally technically accepted at 2ead28b8d3c29f768ddff4c1eb40f5d1214898dc. Begin OF-018 as the next bounded package; do not begin MOD-003 until OF-018 is accepted. The staging checklist remains prepared and NOT run; no hosted or staging migration, flag activation, deployment, real data use, or real message sending is authorised.",
   "lastTargetedTests": [
     "tests/integration/of016-sibling-and-budget.test.ts (6: J-02 sibling closure and audit, dismissal leaves siblings open, J-03 budget)",
     "tests/integration/of016-resume-through-real-store.test.ts (5: H-01 through the real store and pipeline, plus the J-01 liveness test)",
@@ -32,7 +32,7 @@
     "scripts/verify/browser-check-duplicate-reviews.mjs (22 checks across 390/768/1440)"
   ],
   "lastFullGateResults": {
-    "sha": "707761ccfc56bf9b3583def6eba39e1691ec56cc (local acceptance attempt; not accepted)",
+    "sha": "2ead28b8d3c29f768ddff4c1eb40f5d1214898dc (OF-016 local technical acceptance)",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
     "unit": "760 passed / 2 skipped / 106 files",
@@ -41,10 +41,10 @@
     "integrationLegacyUpgrade": "676 passed / 74 files (hosted-style baseline 0001-0041 + realistic data, then 0042-0089)",
     "migrationIdempotency": "0089 re-applied clean -- re-runnable",
     "build": "compiled (clean rebuild)",
-    "verify": "FAILED before typecheck/unit: autonomy:audit reported 13 historical last_verified_sha values absent from all fetched refs; typecheck and unit were run separately and passed",
+    "verify": "passed: secret scan, migration lint, inventory, autonomy audit, IP-boundary audit, typecheck, and 760 unit tests (2 skipped)",
     "secretScan": "clean",
     "migrationLint": "89 sequential, 0001-0089, no gaps or duplicates",
-    "browserCheck": "NOT RUN: playwright-core found no Chromium binary at /opt/pw-browsers",
+    "browserCheck": "passed locally on Windows with discovered Chrome: 9 route, authentication, cron-boundary, and rendering checks; authenticated Supabase browser end-to-end remains unavailable",
     "discriminationProof": "60 of 65 OF-016 database tests fail at 0086 and pass at head. The 5 that pass are negative or limitation assertions that hold vacuously against that schema -- though one of them discriminates against a CODE revert, which is how the J-01 dead guard was caught. Loop-2 specifically: 3 of the 6 new tests fail at 0088.",
     "note": "All database verification ran on a DISPOSABLE LOCAL PostgreSQL 16 container. No hosted database was migrated, no flag enabled, no live model provider called, no real data used, and no real message sent. Authenticated Supabase browser end-to-end was NOT available locally and is not claimed. GitHub Actions could not run (no runner assigned) and is reported unavailable, not green."
   },

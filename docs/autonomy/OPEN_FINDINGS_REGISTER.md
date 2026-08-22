@@ -482,3 +482,30 @@ Chromium binary exists at its configured `/opt/pw-browsers` path. `npm run verif
 autonomy evidence audit: 13 historical `last_verified_sha` references are not commits in this
 repository even after fetching all refs. These gate failures must be resolved and the affected
 checks rerun before OF-016 can be accepted. OF-018 and MOD-003 remain out of scope.
+
+### 2026-08-22 local technical acceptance — ACCEPTED
+
+The prior non-acceptance is superseded. Exact tested SHA:
+`2ead28b8d3c29f768ddff4c1eb40f5d1214898dc` on
+`kimi/of016-local-acceptance-v61`.
+
+The browser harness now supports a `BROWSER_EXECUTABLE` override and standard Windows, macOS, and
+Linux Chromium locations; it starts the installed Next CLI directly instead of assuming a Unix
+`npx` executable. The requirement audit now validates Git commit IDs through `execFileSync`, so
+Windows shell escaping cannot invalidate a real SHA. The lockfile now includes its declared
+`playwright-core` dependency and `npm ci --ignore-scripts` succeeds.
+
+Fresh disposable PostgreSQL 16 evidence: a local Supabase-compatible shim was installed before
+the migration run (auth schema/user identity function, API roles/default privileges, and pgcrypto
+in `extensions`). Migrations `0001–0089` applied with `89 applied / 0 pending`; migrations
+`0087–0089` were not edited. The focused OF-016 suite passed `65/65` across eight files. The full
+integration suite passed `676/676` across 74 files. `npm run verify` passed with `760` unit tests
+passed and `2` skipped; lint, build, dependency audit, IP-boundary audit, migration lint, and the
+9-check real-Chrome browser gate passed. The integration runner left no test-created Node process
+or database session.
+
+This is **local technical acceptance only**. The authenticated Supabase browser/RLS end-to-end
+path, staging checklist, hosted migration, live provider quality/cost evidence, GitHub Actions,
+and production evidence remain unavailable and unclaimed. No hosted/staging database was
+contacted, no flag was enabled, no real data was used, and no message was sent. OF-018 is the next
+bounded package; MOD-003 remains out of scope until OF-018 is accepted.
