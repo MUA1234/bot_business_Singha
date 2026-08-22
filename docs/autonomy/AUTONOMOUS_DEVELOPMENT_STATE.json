@@ -36,10 +36,10 @@
     "evidence": "Fresh disposable PostgreSQL 16 0001-0089 plus 0090; pre-change direct-service/no-claims regression failed at 0089; focused 46/46, full integration 678/678 across 75 files, and npm run verify 760 passed/2 skipped. Cold-context adversarial review found no material defect; anon-role coverage added and rerun.",
     "limitations": "No hosted/staging database, live provider, real data, real message, authenticated Supabase browser flow, CI runner, or production evidence."
   },
-  "lastGreenSha": "4c3eccc",
+  "lastGreenSha": "309e038",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "FOUND-006 slice 7 at 4c3eccc on kimi/found006-rls-cutover. Migrated src/app/app/operations/tasks/actions.ts to supabaseReadClient/supabaseWriteClient (all task reads/writes) and src/lib/documents.ts signedEvidenceUrl to supabaseReadClient. Removed operations/tasks/actions.ts from the system allowlist; admin-files count drops from 21 to 20. All gates pass with RLS_READS/RLS_WRITES=on on disposable local PostgreSQL 16.",
-  "nextAction": "Continue next bounded FOUND-006 batch: remaining library helpers (audit, documents upload path, order-intake, outbox-enqueue, quotations). audit.ts remains service-role-only because audit_events has no authenticated write policy; documents.ts uploadEvidenceFile still needs service-role storage so stays in allowlist; order-intake/outbox-enqueue/quotations are mixed service/user surfaces and need caller-supplied clients. Keep RLS flags default-off until the full cutover is accepted. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "FOUND-006 slice 8 at 309e038 on kimi/found006-rls-cutover. Made src/lib/quotations.ts resolvePriceConfirmation accept an optional caller-supplied client and updated src/app/app/_actions/price.ts to pass supabaseWriteClient() for dashboard price confirmations. The default remains service-role for the WhatsApp pipeline. Admin-files count stays at 20. All gates pass with RLS_READS/RLS_WRITES=on on disposable local PostgreSQL 16.",
+  "nextAction": "Continue next bounded FOUND-006 batch: extend caller-supplied client pattern to the remaining mixed-context helpers (order-intake, outbox-enqueue, and the rest of quotations) so user paths route through RLS clients while the WhatsApp pipeline keeps its service-role default. audit.ts remains service-role-only because audit_events has no authenticated write policy; documents.ts uploadEvidenceFile still needs service-role storage so stays in allowlist. Keep RLS flags default-off until the full cutover is accepted. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
     "tests/can-act-on-task.test.ts (8)",
     "tests/task-progress.test.ts (11)",
@@ -57,7 +57,7 @@
     "scripts/verify/browser-check.mjs (10 route/auth/render/cron checks)"
   ],
   "lastFullGateResults": {
-    "sha": "4c3eccc (FOUND-006 slice 7 on kimi/found006-rls-cutover; MOD-003 remains accepted at dfc994b)",
+    "sha": "309e038 (FOUND-006 slice 8 on kimi/found006-rls-cutover; MOD-003 remains accepted at dfc994b)",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
     "unit": "767 passed / 2 skipped / 108 files",
@@ -70,7 +70,7 @@
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
     "browserCheck": "browser-check.mjs passed (10 checks); authenticated Supabase browser end-to-end remains unavailable",
-    "discriminationProof": "found006-read-cutover-isolation test proves company isolation for the tables touched by the migrated surfaces; operations/tasks/actions.ts and documents.ts signed-url read now route through RLS clients.",
+    "discriminationProof": "found006-read-cutover-isolation test proves company isolation for the tables touched by the migrated surfaces; dashboard price confirmations now route through supabaseWriteClient.",
     "note": "All database verification ran on DISPOSABLE LOCAL PostgreSQL 16 containers. RLS flags were enabled only to prove the cutover path; default runtime remains OFF. No hosted database was migrated, no production flag enabled, no live model provider called, no real data used, and no real message sent. GitHub Actions could not run (no runner assigned) and is reported unavailable, not green."
   },
   "openFindings": [
