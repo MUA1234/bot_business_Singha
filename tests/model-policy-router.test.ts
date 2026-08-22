@@ -102,4 +102,14 @@ describe("MOD-003 policy execution", () => {
     })).resolves.toEqual({ ok: false, reason: "no_healthy_provider", attempts: 0 });
     expect(attempts).toEqual([expect.objectContaining({ provider: "policy", model: "unselected", errorCategory: "no_healthy_provider" })]);
   });
+
+  it("requires an independent reviewer to agree for high-risk analysis", async () => {
+    const response = (text: string): CompletionTransport => ({ complete: async () => ({ text, usage: { input_tokens: 1, output_tokens: 1 }, cost_usd: "0" }) });
+    const registry = new ModelProviderRegistry([
+      { candidate: { provider: "primary", model: "p", tasks: ["extraction"], estimatedCostUsd: "0.01", latencyMs: 1 }, transport: response("a") },
+      { candidate: { provider: "reviewer", model: "r", tasks: ["extraction"], estimatedCostUsd: "0.01", latencyMs: 1 }, transport: response("b") },
+    ]);
+    const executor = new ModelPolicyExecutor(registry, new ModelPolicyRouter(registry.candidates()), { recordAttempt: () => undefined });
+    await expect(executor.executeWithReview({ logicalRequestId: "review", selection: { companyId: "co", task: "extraction", budgetRemainingUsd: "1", highRisk: true }, completion: { system: "s", user: "u", maxTokens: 1 } }, (left, right) => left.text === right.text)).resolves.toMatchObject({ ok: false, reason: "review_disagreement" });
+  });
 });

@@ -75,6 +75,10 @@ export type ModelExecutionResult =
   | { ok: true; response: CompletionResponse; selection: Extract<ModelSelection, { ok: true }>; attempts: number }
   | { ok: false; reason: "budget_exceeded" | "no_healthy_provider" | "transport_error"; attempts: number };
 
+export type ModelReviewResult =
+  | { ok: true; response: CompletionResponse; attempts: number }
+  | { ok: false; reason: "review_unavailable" | "review_disagreement" | "transport_error"; attempts: number };
+
 /**
  * Pure, server-side route policy. It selects an approved transport target but never executes a
  * completion or authorizes a business side effect; callers still validate output and apply their
@@ -215,5 +219,37 @@ export class ModelPolicyExecutor {
     }
 
     return { ok: false, reason: "transport_error", attempts: maxAttempts };
+  }
+
+  /** Runs a second approved provider only when policy requests it; disagreement is fail-closed. */
+  async executeWithReview(
+    request: ModelExecutionRequest,
+    agree: (primary: CompletionResponse, reviewer: CompletionResponse) => boolean,
+  ): Promise<ModelReviewResult> {
+    const primary = await this.execute(request);
+    if (!primary.ok) return primary.reason === "transport_error"
+      ? { ok: false, reason: "transport_error", attempts: primary.attempts }
+      : { ok: false, reason: "review_unavailable", attempts: primary.attempts };
+    if (primary.selection.review === "none") return { ok: true, response: primary.response, attempts: primary.attempts };
+
+    const reviewer = this.registry.candidates().find((candidate) =>
+      candidate.provider !== primary.selection.provider
+      && candidate.tasks.includes(request.selection.task)
+      && Number(candidate.estimatedCostUsd) <= Number(request.selection.budgetRemainingUsd),
+    );
+    if (!reviewer) return { ok: false, reason: "review_unavailable", attempts: primary.attempts };
+    const provider = this.registry.get(reviewer.provider);
+    if (!provider) return { ok: false, reason: "review_unavailable", attempts: primary.attempts };
+    try {
+      const response = await provider.transport.complete({ ...request.completion, model: reviewer.model });
+      await this.telemetry.recordAttempt({ logicalRequestId: request.logicalRequestId, companyId: request.selection.companyId, task: request.selection.task, provider: reviewer.provider, model: reviewer.model, attempt: primary.attempts + 1, outcome: "succeeded", latencyMs: 0 });
+      return agree(primary.response, response)
+        ? { ok: true, response: primary.response, attempts: primary.attempts + 1 }
+        : { ok: false, reason: "review_disagreement", attempts: primary.attempts + 1 };
+    } catch {
+      this.router.recordFailure(reviewer.provider);
+      await this.telemetry.recordAttempt({ logicalRequestId: request.logicalRequestId, companyId: request.selection.companyId, task: request.selection.task, provider: reviewer.provider, model: reviewer.model, attempt: primary.attempts + 1, outcome: "failed", latencyMs: 0, errorCategory: "transport_error" });
+      return { ok: false, reason: "transport_error", attempts: primary.attempts + 1 };
+    }
   }
 }
