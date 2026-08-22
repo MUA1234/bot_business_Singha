@@ -17,7 +17,7 @@ const URL = process.env.DATABASE_URL ?? "";
 const enabled = !!URL;
 
 // Tables that intentionally have NO user read policy (worker/service-role only).
-const NO_READ_POLICY_OK = new Set<string>(["dead_letter_events"]);
+const NO_READ_POLICY_OK = new Set<string>(["dead_letter_events", "ai_model_attempts"]);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let client: any;
