@@ -210,6 +210,8 @@ export async function processSourceEvent(
     content: src.content,
     trustedContext: src.trustedContext,
     correlationId: src.correlation_id,
+    sourceEventId: src.id,
+    companyId: src.company_id ?? undefined,
   });
 
   await deps.appendAudit({

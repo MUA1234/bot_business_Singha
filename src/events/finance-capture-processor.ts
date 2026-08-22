@@ -28,23 +28,11 @@ import type { ProcessOutcome, SweepableEvent } from "@/events/inbound-sweeper";
 import { log } from "@/lib/log";
 
 export interface FinanceCaptureDeps {
-  /** True when a model provider is configured. Checked, never assumed. */
-  extractionConfigured(): boolean;
   /** The EXISTING pipeline. Not re-implemented here. */
   process(input: { source_event_id: string; correlation_id: string }): Promise<ProcessResult>;
   /** Company scope for a receipt, read from the row rather than from anything a model said. */
   companyOf(sourceEventId: string): Promise<string | null>;
-  /** Put an actionable item in front of a person. Idempotent per message. */
-  queueForReview(input: {
-    sourceEventId: string;
-    companyId: string;
-    reasonCode: string;
-    reasonDetail: string;
-  }): Promise<void>;
 }
-
-/** The reason code a person sees when a capture is waiting on configuration rather than on work. */
-export const AWAITING_CLASSIFIER = "finance_capture_awaiting_classifier";
 
 export function makeFinanceCaptureProcessor(deps: FinanceCaptureDeps) {
   return async function processFinanceCapture(event: SweepableEvent): Promise<ProcessOutcome> {
@@ -58,26 +46,6 @@ export function makeFinanceCaptureProcessor(deps: FinanceCaptureDeps) {
         code: "capture_without_company",
         message: `source event ${event.id} is a finance capture with no company scope`,
         retryable: false,
-      };
-    }
-
-    // ── provider ──────────────────────────────────────────────────────────────────────────────
-    if (!deps.extractionConfigured()) {
-      // Truthful and actionable: a person gets a queue item naming what is missing, and the receipt
-      // stays outstanding rather than being marked processed.
-      await deps.queueForReview({
-        sourceEventId: event.id,
-        companyId,
-        reasonCode: AWAITING_CLASSIFIER,
-        reasonDetail:
-          "A staff finance message was captured, but no model provider is configured to extract it. " +
-          "It is waiting for configuration, not for work.",
-      });
-      return {
-        ok: false,
-        code: "extraction_not_configured",
-        message: "no model provider is configured for finance extraction",
-        unprocessable: true, // released, uncharged — see inbound-sweeper
       };
     }
 

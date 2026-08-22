@@ -110,7 +110,7 @@ try {
   }
 
   // 1. Both screens exist and REDIRECT an unauthenticated visitor rather than rendering.
-  for (const path of ["/app/admin/inbound-review", "/app/admin/inbound-setup", "/app/command/analyze"]) {
+  for (const path of ["/app/admin/inbound-review", "/app/admin/inbound-setup", "/app/admin/model-budgets", "/app/command/analyze"]) {
     const res = await fetch(`${BASE}${path}`, { redirect: "manual" });
     const location = res.headers.get("location") ?? "";
     check(

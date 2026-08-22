@@ -117,6 +117,7 @@ describe.skipIf(!enabled)("R1 correction loop 1 (disposable local PostgreSQL)", 
     process.env.OPENAI_API_KEY = "rc-fixture";
 
     co = (await row(`insert into companies (name, base_currency) values ('r1corr','LKR') returning id`)).id;
+    await db.query(`insert into ai_model_budget_policies (company_id, task, max_cost_usd, is_active) values ($1,'extraction',100,true)`, [co]);
     await db.query(`insert into channel_accounts (company_id, channel, provider_account_id) values ($1,'whatsapp',$2)`, [co, ACCOUNT]);
     const u = randomUUID();
     await db.query(`insert into auth.users (id) values ($1) on conflict do nothing`, [u]);
@@ -129,6 +130,8 @@ describe.skipIf(!enabled)("R1 correction loop 1 (disposable local PostgreSQL)", 
 
   afterAll(async () => {
     for (const sql of [
+      `delete from ai_model_attempts where company_id=$1`,
+      `delete from ai_model_budget_policies where company_id=$1`,
       `delete from audit_events where company_id=$1`,
       `delete from approval_requests where company_id=$1`,
       `delete from policy_evaluations where company_id=$1`,

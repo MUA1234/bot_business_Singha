@@ -109,9 +109,9 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 
 | file:line | returns |
 |---|---|
-| src/ai/gateway.ts:161 | `null` |
+| src/ai/gateway.ts:189 | `null` |
 | src/ai/manager-observation.ts:129 | `null` |
-| src/ai/quotation.ts:109 | `null` |
+| src/ai/quotation.ts:153 | `null` |
 | src/app/api/cron/daily-digest/route.ts:22 | `0` |
 | src/app/api/exports/[kind]/route.ts:28 | `error-discarding destructure` |
 | src/app/api/exports/[kind]/route.ts:40 | `error-discarding destructure` |
@@ -168,7 +168,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | src/app/app/procurement/rfqs/actions.ts:16 | `error-discarding destructure` |
 | src/app/app/sales/accounts/page.tsx:18 | `[]` |
 | src/app/app/sales/leads/page.tsx:24 | `error-discarding destructure` |
-| src/db/consumer-store.ts:74 | `error-discarding destructure` |
+| src/db/consumer-store.ts:124 | `error-discarding destructure` |
 | src/lib/access.ts:81 | `error-discarding destructure` |
 | src/lib/access.ts:112 | `error-discarding destructure` |
 | src/lib/documents.ts:52 | `error-discarding destructure` |

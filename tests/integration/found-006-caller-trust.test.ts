@@ -437,6 +437,9 @@ describe.skipIf(!enabled)("FOUND-006 — privilege decides, request text does no
       "resolve_duplicate_review(uuid,text,text)",
       "reverse_journal(uuid,uuid,uuid,date,text)",
       "route_task_as_human(uuid,uuid,text,text,text,jsonb,uuid,text,uuid,uuid)",
+      // 0092 MOD-003 — model budget policy configuration. Reaches claim text only to learn WHO the
+      // caller is via auth.uid(), then re-checks ai.model_budget.manage. Granted to authenticated only.
+      "set_ai_model_budget_policy(uuid,text,numeric,boolean,integer)",
       "settle_customer_invoice(uuid,uuid,numeric,text,text,uuid,date,text)",
       "settle_supplier_bill(uuid,uuid,numeric,text,text,uuid,date,text)",
       "within_authority(uuid,text,numeric,text)",
@@ -445,7 +448,7 @@ describe.skipIf(!enabled)("FOUND-006 — privilege decides, request text does no
   });
 
   // ── G-06b: the allowlist is signature-exact but body-blind, so assert BEHAVIOUR ──────────────
-  it("the two allowlisted claim readers use the claim RESTRICTIVELY — proven by execution", async () => {
+  it("the allowlisted claim readers use the claim RESTRICTIVELY — proven by execution", async () => {
     const c = await connectAs(ROLES.auth);
     // route_task_as_human REFUSES a service context outright. Forging it makes the function refuse,
     // which is the safe direction — but nothing tested that until now, so a permissive rewrite of
@@ -458,6 +461,14 @@ describe.skipIf(!enabled)("FOUND-006 — privilege decides, request text does no
     // decide_approval requires a real authenticated subject; a forged role does not remove that.
     const decided = await failed(c, `select public.decide_approval($1,$2,'approved','x')`, [co, co]);
     expect(decided?.message, "decide_approval must require an authenticated user").toMatch(/authenticated user/i);
+
+    // 0092 MOD-003 — set_ai_model_budget_policy derives the actor from auth.uid() and re-checks
+    // ai.model_budget.manage. A forged service role with no subject is refused; with a subject it
+    // still fails the capability check for this unprivileged test user.
+    const budgetNoSub = await failed(c,
+      `select public.set_ai_model_budget_policy($1,'extraction',1.0,true,0)`, [co]);
+    expect(budgetNoSub?.message, "set_ai_model_budget_policy must require an authenticated subject")
+      .toMatch(/actor lacks|missing|subject|authenticated/i);
   });
 
   // ── G-01 (P0): the defect the systemic invariant above exists to catch ──────────────────────

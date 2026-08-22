@@ -10,7 +10,7 @@
  * produces, and that none of them is a fake success.
  */
 import { describe, it, expect, vi } from "vitest";
-import { makeFinanceCaptureProcessor, AWAITING_CLASSIFIER, type FinanceCaptureDeps } from "@/events/finance-capture-processor";
+import { makeFinanceCaptureProcessor, type FinanceCaptureDeps } from "@/events/finance-capture-processor";
 import { RetryableExtractionError } from "@/inngest/processing";
 import type { SweepableEvent } from "@/events/inbound-sweeper";
 
@@ -18,15 +18,12 @@ const CO = "11111111-1111-1111-1111-111111111111";
 const event: SweepableEvent = { id: "evt-1", company_id: CO, source: "whatsapp", attempts: 0 };
 
 const harness = (over: Partial<FinanceCaptureDeps> = {}) => {
-  const queued: unknown[] = [];
   const deps: FinanceCaptureDeps = {
-    extractionConfigured: () => true,
     companyOf: async () => CO,
-    queueForReview: async (i) => { queued.push(i); },
     process: async () => ({ source_event_id: "evt-1", financial_event_id: "fe-1", outcome: "awaiting_approval", ai_ok: true }),
     ...over,
   };
-  return { deps, queued, run: makeFinanceCaptureProcessor(deps) };
+  return { deps, run: makeFinanceCaptureProcessor(deps) };
 };
 
 describe("finance capture processor", () => {
@@ -37,28 +34,6 @@ describe("finance capture processor", () => {
     expect(out).toMatchObject({ code: "capture_without_company", retryable: false });
     // Duplicate scoring, policy and approval are ALL company-scoped: processing with a null company
     // would silently disable every one of them.
-  });
-
-  it("NO PROVIDER: a person gets an actionable queue item, and nothing is reported as processed", async () => {
-    const h = harness({ extractionConfigured: () => false });
-    const out = await h.run(event);
-    expect(out.ok).toBe(false);
-    expect(out).toMatchObject({ code: "extraction_not_configured", unprocessable: true });
-    expect(h.queued).toEqual([{
-      sourceEventId: "evt-1",
-      companyId: CO,
-      reasonCode: AWAITING_CLASSIFIER,
-      reasonDetail: expect.stringContaining("no model provider is configured"),
-    }]);
-  });
-
-  it("no provider → `unprocessable`, which the sweeper RELEASES rather than dead-letters", async () => {
-    // The distinction that matters: `retryable: false` would destroy the capture within one cron
-    // interval, which is exactly the defect this package exists to fix.
-    const h = harness({ extractionConfigured: () => false });
-    const out = await h.run(event);
-    expect((out as { retryable?: boolean }).retryable).toBeUndefined();
-    expect((out as { unprocessable?: boolean }).unprocessable).toBe(true);
   });
 
   it("the pipeline is REUSED, with the receipt's own id and no model-chosen scope", async () => {
@@ -87,15 +62,6 @@ describe("finance capture processor", () => {
     const out = await h.run(event);
     expect(out).toMatchObject({ ok: false, code: "processor_error", retryable: true });
     expect((out as { message: string }).message).toContain("kaboom");
-  });
-
-  it("a queue-write failure is NOT swallowed into a success", async () => {
-    const h = harness({
-      extractionConfigured: () => false,
-      queueForReview: async () => { throw new Error("queue down"); },
-    });
-    // It propagates: the sweeper turns a throwing processor into a failure rather than a silent pass.
-    await expect(h.run(event)).rejects.toThrow(/queue down/);
   });
 
   it("the company comes from the ROW, not from the event the sweeper handed over", async () => {

@@ -97,6 +97,7 @@ describe.skipIf(!enabled)("0083 evidence closure — duplicate review & approval
     co = (await row(`insert into companies (name, base_currency) values ('dupreview A','LKR') returning id`)).id;
     coB = (await row(`insert into companies (name, base_currency) values ('dupreview B','LKR') returning id`)).id;
     await db.query(`insert into channel_accounts (company_id, channel, provider_account_id) values ($1,'whatsapp',$2)`, [co, ACCOUNT]);
+    await db.query(`insert into ai_model_budget_policies (company_id, task, max_cost_usd, is_active) values ($1,'extraction',100,true)`, [co]);
     const u = randomUUID();
     await db.query(`insert into auth.users (id) values ($1) on conflict do nothing`, [u]);
     await db.query(`insert into users (id, full_name, is_active) values ($1,'dr staff',true) on conflict do nothing`, [u]);
@@ -129,6 +130,8 @@ describe.skipIf(!enabled)("0083 evidence closure — duplicate review & approval
         `delete from financial_event_versions where company_id=$1`,
         `delete from financial_events where company_id=$1`,
         `delete from ai_runs where company_id=$1`,
+        `delete from ai_model_attempts where company_id=$1`,
+        `delete from ai_model_budget_policies where company_id=$1`,
         `delete from source_events where company_id=$1`,
         `delete from channel_identities where company_id=$1`,
         `delete from channel_accounts where company_id=$1`,

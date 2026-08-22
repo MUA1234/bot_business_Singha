@@ -64,7 +64,6 @@ import { whatsappAdapter } from "@/lib/inbound/adapters/whatsapp";
 import { recordInboundReceipt } from "@/lib/inbound/receipt";
 import { dispatchReceipt } from "@/lib/inbound/dispatch-receipt";
 import { makeInboundDeps } from "@/lib/inbound/production-deps";
-import { AWAITING_CLASSIFIER } from "@/events/finance-capture-processor";
 import type { FinanceIntent } from "@/schemas/finance-intent";
 import { sha256 } from "@/lib/ids";
 import { newCorrelationId } from "@/lib/log";
@@ -212,6 +211,7 @@ describe.skipIf(!enabled)("R1 §7 — extreme end to end (disposable local Postg
 
     coA = (await row(`insert into companies (name, base_currency) values ('x2e A','LKR') returning id`)).id;
     coB = (await row(`insert into companies (name, base_currency) values ('x2e B','LKR') returning id`)).id;
+    await db.query(`insert into ai_model_budget_policies (company_id, task, max_cost_usd, is_active) values ($1,'extraction',100,true),($2,'extraction',100,true)`, [coA, coB]);
     await db.query(`insert into channel_accounts (company_id, channel, provider_account_id) values ($1,'whatsapp',$2)`, [coA, ACCT_A]);
     await db.query(`insert into channel_accounts (company_id, channel, provider_account_id) values ($1,'whatsapp',$2)`, [coB, ACCT_B]);
 
@@ -259,6 +259,8 @@ describe.skipIf(!enabled)("R1 §7 — extreme end to end (disposable local Postg
   afterAll(async () => {
     for (const co of [coA, coB]) {
       for (const sql of [
+        `delete from ai_model_attempts where company_id=$1`,
+        `delete from ai_model_budget_policies where company_id=$1`,
         `delete from audit_events where company_id=$1`,
         `delete from approval_requests where company_id=$1`,
         `delete from policy_evaluations where company_id=$1`,

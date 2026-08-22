@@ -178,6 +178,10 @@ const AUTHENTICATED_OK = new Set([
   // property of the boundary rather than of a check someone could forget. Identity comes from
   // auth.uid(); there is no actor parameter.
   "route_task_as_human(uuid,uuid,text,text,text,jsonb,uuid,text,uuid,uuid)",
+  // 0092 MOD-003 — model budget policy configuration. Authenticated-only: a human with
+  // ai.model_budget.manage sets the daily per-task ceiling; the function re-checks the
+  // acting person's capability inside the transaction and audits the change.
+  "set_ai_model_budget_policy(uuid,text,numeric,boolean,integer)",
 ]);
 
 async function callAs(role: "authenticated" | "service", sql: string): Promise<{ ok: boolean; code?: string }> {

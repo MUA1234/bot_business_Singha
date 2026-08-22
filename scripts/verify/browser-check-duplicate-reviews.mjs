@@ -25,6 +25,7 @@ import { spawn } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { chromium } from "playwright-core";
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 
 const CHROME = [
   "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
@@ -54,7 +55,8 @@ const env = {
   CRON_SECRET: "bc-none",
 };
 
-const server = spawn("npx", ["next", "start", "-p", String(PORT)], { env, stdio: ["ignore", "pipe", "pipe"] });
+const nextCli = resolve("node_modules", "next", "dist", "bin", "next");
+const server = spawn(process.execPath, [nextCli, "start", "-p", String(PORT)], { env, stdio: ["ignore", "pipe", "pipe"] });
 let serverLog = "";
 server.stdout.on("data", (d) => { serverLog += d.toString(); });
 server.stderr.on("data", (d) => { serverLog += d.toString(); });

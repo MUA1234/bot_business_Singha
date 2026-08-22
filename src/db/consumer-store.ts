@@ -6,6 +6,7 @@
  * the service role — guide §2, CLAUDE.md company-isolation rule). The pure pipeline
  * decides *what* to write; this module is the only place that talks to Postgres.
  */
+import Decimal from "decimal.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { approvalPolicy, type ApprovalPolicy } from "@/schemas/approval-policy";
 import { assertTransition, type FinancialEventState } from "@/domain/lifecycle";
@@ -94,8 +95,10 @@ export async function loadAiTaskBudget(db: SupabaseClient, companyId: string, ta
     .gte("created_at", startOfUtcDay.toISOString());
   if (runsError) throw new Error(`ai_runs budget lookup failed: ${runsError.message}`);
 
-  const spent = (runs ?? []).reduce((total, run) => total + Number(run.cost_usd ?? 0), 0);
-  return String(Math.max(0, Number(policy.max_cost_usd) - spent));
+  const limit = new Decimal(String(policy.max_cost_usd));
+  const spent = (runs ?? []).reduce((total, run) => total.plus(new Decimal(String(run.cost_usd ?? "0"))), new Decimal(0));
+  const remaining = limit.minus(spent);
+  return remaining.isNegative() ? "0" : remaining.toString();
 }
 
 export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {

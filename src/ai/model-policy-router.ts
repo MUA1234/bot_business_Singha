@@ -1,3 +1,4 @@
+import Decimal from "decimal.js";
 import type { CompletionRequest, CompletionResponse, CompletionTransport } from "./gateway";
 
 export type ModelTask = "extraction" | "quotation" | "management";
@@ -98,16 +99,16 @@ export class ModelPolicyRouter {
   }
 
   select(request: ModelSelectionRequest): ModelSelection {
-    const budget = Number(request.budgetRemainingUsd);
+    const budget = new Decimal(request.budgetRemainingUsd);
     const available = this.candidates
       .filter((candidate) => candidate.tasks.includes(request.task))
       .filter((candidate) => !this.unhealthyProviders.has(candidate.provider))
-      .filter((candidate) => Number(candidate.estimatedCostUsd) <= budget)
-      .sort((left, right) =>
-        Number(left.estimatedCostUsd) - Number(right.estimatedCostUsd)
-        || left.latencyMs - right.latencyMs
-        || left.provider.localeCompare(right.provider),
-      );
+      .filter((candidate) => new Decimal(candidate.estimatedCostUsd).lte(budget))
+      .sort((left, right) => {
+        const costCmp = new Decimal(left.estimatedCostUsd).cmp(new Decimal(right.estimatedCostUsd));
+        if (costCmp !== 0) return costCmp;
+        return left.latencyMs - right.latencyMs || left.provider.localeCompare(right.provider);
+      });
 
     if (available.length === 0) {
       const hasHealthyTaskProvider = this.candidates.some((candidate) =>
@@ -232,10 +233,11 @@ export class ModelPolicyExecutor {
       : { ok: false, reason: "review_unavailable", attempts: primary.attempts };
     if (primary.selection.review === "none") return { ok: true, response: primary.response, attempts: primary.attempts };
 
+    const budget = new Decimal(request.selection.budgetRemainingUsd);
     const reviewer = this.registry.candidates().find((candidate) =>
       candidate.provider !== primary.selection.provider
       && candidate.tasks.includes(request.selection.task)
-      && Number(candidate.estimatedCostUsd) <= Number(request.selection.budgetRemainingUsd),
+      && new Decimal(candidate.estimatedCostUsd).lte(budget),
     );
     if (!reviewer) return { ok: false, reason: "review_unavailable", attempts: primary.attempts };
     const provider = this.registry.get(reviewer.provider);

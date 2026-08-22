@@ -82,22 +82,10 @@ export async function GET(req: Request): Promise<Response> {
       // approval → audit. No parallel implementation, and no model output choosing a company, an
       // authority level, a ledger account or a permission to pay.
       process: makeFinanceCaptureProcessor({
-        extractionConfigured: () => Boolean(process.env.OPENAI_API_KEY),
         async companyOf(id) {
           const { data, error } = await db.from("source_events").select("company_id").eq("id", id).maybeSingle();
           if (error) throw new Error(error.message);
           return (data?.company_id as string | null) ?? null;
-        },
-        async queueForReview(input) {
-          const { error } = await db.rpc("record_inbound_review", {
-            p_company: input.companyId,
-            p_channel: "whatsapp",
-            p_provider_message_id: `source_event:${input.sourceEventId}`,
-            p_reason_code: input.reasonCode,
-            p_reason_detail: input.reasonDetail,
-            p_source_event: input.sourceEventId,
-          });
-          if (error) throw new Error(error.message);
         },
         process: (i) => {
           const svc = serviceClient();

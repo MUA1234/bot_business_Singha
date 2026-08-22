@@ -109,10 +109,12 @@ class Builder implements PromiseLike<{ data: any; error: { message: string } | n
   private columns = "*";
   private orderBy: string | null = null;
   private limitN: number | null = null;
-  private mode: "select" | "insert" | "update" = "select";
+  private mode: "select" | "insert" | "upsert" | "update" = "select";
   private payload: Row[] = [];
   private wantsRows = true;
   private one: "one" | "maybe" | null = null;
+  private upsertOnConflict?: string;
+  private upsertIgnoreDuplicates = false;
 
   constructor(private db: PgLike, private table: string) {}
 
@@ -133,6 +135,14 @@ class Builder implements PromiseLike<{ data: any; error: { message: string } | n
     this.mode = "insert";
     this.payload = Array.isArray(rows) ? rows : [rows];
     // PostgREST returns no body for a bare .insert(); only a chained .select() asks for rows.
+    this.wantsRows = false;
+    return this;
+  }
+  upsert(rows: Row | Row[], opts?: { onConflict?: string; ignoreDuplicates?: boolean }) {
+    this.mode = "upsert";
+    this.payload = Array.isArray(rows) ? rows : [rows];
+    this.upsertOnConflict = opts?.onConflict;
+    this.upsertIgnoreDuplicates = opts?.ignoreDuplicates ?? false;
     this.wantsRows = false;
     return this;
   }
@@ -202,13 +212,22 @@ class Builder implements PromiseLike<{ data: any; error: { message: string } | n
       return ` where ${parts.join(" and ")}`;
     };
 
-    if (this.mode === "insert") {
+    if (this.mode === "insert" || this.mode === "upsert") {
       const cols = Array.from(new Set(this.payload.flatMap((r) => Object.keys(r))));
       const values = this.payload
         .map((r) => `(${cols.map((c) => push(r[c] ?? null, c)).join(",")})`)
         .join(",");
+      let conflict = "";
+      if (this.mode === "upsert") {
+        if (this.upsertOnConflict) {
+          conflict = ` on conflict (${this.upsertOnConflict}) do ${this.upsertIgnoreDuplicates ? "nothing" : "update set " + cols.map((c) => `${q(c)} = excluded.${q(c)}`).join(", ")}`;
+        } else {
+          // No conflict columns specified — default to DO NOTHING behaviour (used by ignoreDuplicates).
+          conflict = " on conflict do nothing";
+        }
+      }
       return {
-        sql: `insert into public.${q(this.table)} (${cols.map(q).join(",")}) values ${values}` +
+        sql: `insert into public.${q(this.table)} (${cols.map(q).join(",")}) values ${values}${conflict}` +
           (this.wantsRows ? ` returning ${this.columns}` : ""),
         params,
       };
