@@ -36,10 +36,10 @@
     "evidence": "Fresh disposable PostgreSQL 16 0001-0089 plus 0090; pre-change direct-service/no-claims regression failed at 0089; focused 46/46, full integration 678/678 across 75 files, and npm run verify 760 passed/2 skipped. Cold-context adversarial review found no material defect; anon-role coverage added and rerun.",
     "limitations": "No hosted/staging database, live provider, real data, real message, authenticated Supabase browser flow, CI runner, or production evidence."
   },
-  "lastGreenSha": "45b0c4b",
+  "lastGreenSha": "8d61766",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "FOUND-006 slice 1 at 45b0c4b on kimi/found006-rls-cutover. Migrated admin/HR read pages and the price-dismiss server action from supabaseAdmin to supabaseReadClient/supabaseWriteClient; added found006-read-cutover-isolation integration test proving company isolation for every table touched by the migrated surfaces; fixed type narrowing in mod003-model-gateway test; regenerated completion inventory (admin-files 44 -> 32). All gates pass with RLS_READS/RLS_WRITES=on on disposable local PostgreSQL 16.",
-  "nextAction": "Continue next bounded FOUND-006 batch: remaining user-facing app pages/actions and library helpers from the completion-inventory triage; introduce an explicit service-role allowlist; keep RLS flags default-off until the full cutover is accepted. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "FOUND-006 slice 2 at 8d61766 on kimi/found006-rls-cutover. Migrated admin/employees (page + actions, splitting auth.admin calls from profile DML), admin/inbound-setup (page reads + capability-RPC calls), admin/outbox replay, and hr/capacity recompute from supabaseAdmin to supabaseReadClient/supabaseWriteClient/supabaseRpcClient. Regenerated completion inventory (admin-files 32 -> 27). All gates pass with RLS_READS/RLS_WRITES=on on disposable local PostgreSQL 16.",
+  "nextAction": "Continue next bounded FOUND-006 batch: remaining user-facing app pages/actions (admin/health if a dead_letter_events read policy is added, admin/inbound-review, messages, command/analyze, login, operations/tasks) and library helpers (audit, documents, ledger-report, notify, order-intake, outbox-enqueue, quotations, task-access, auth). Introduce an explicit service-role allowlist in completion-inventory. Keep RLS flags default-off until the full cutover is accepted. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
     "tests/integration/found006-read-cutover-isolation.test.ts (11: company isolation for audit_events, objectives, message_outbox, product_catalog, profiles, quotations, orders, tasks, capacity_snapshots, leave_requests, price_confirmations)",
     "tests/integration/rls-coverage.test.ts (3)",
@@ -50,7 +50,7 @@
     "scripts/verify/browser-check.mjs (10 route/auth/render/cron checks)"
   ],
   "lastFullGateResults": {
-    "sha": "45b0c4b (FOUND-006 slice 1 on kimi/found006-rls-cutover; MOD-003 remains accepted at dfc994b)",
+    "sha": "8d61766 (FOUND-006 slice 2 on kimi/found006-rls-cutover; MOD-003 remains accepted at dfc994b)",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
     "unit": "767 passed / 2 skipped / 108 files",
@@ -59,11 +59,11 @@
     "integrationLegacyUpgrade": "not rerun in this slice",
     "migrationIdempotency": "not rerun in this slice",
     "build": "compiled (clean rebuild)",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 32), autonomy audit, IP-boundary audit, typecheck, and 767 unit tests (2 skipped)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 27), autonomy audit, IP-boundary audit, typecheck, and 767 unit tests (2 skipped)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
     "browserCheck": "browser-check.mjs passed (10 checks); authenticated Supabase browser end-to-end remains unavailable",
-    "discriminationProof": "found006-read-cutover-isolation test fails before RLS policies are enforced (n/a for direct SQL) and passes with authenticated role; the migrated pages now route through supabaseReadClient/supabaseWriteClient.",
+    "discriminationProof": "found006-read-cutover-isolation test proves company isolation for the tables touched by the migrated surfaces; the migrated pages/actions now route through supabaseReadClient/supabaseWriteClient/supabaseRpcClient.",
     "note": "All database verification ran on DISPOSABLE LOCAL PostgreSQL 16 containers. RLS flags were enabled only to prove the cutover path; default runtime remains OFF. No hosted database was migrated, no production flag enabled, no live model provider called, no real data used, and no real message sent. GitHub Actions could not run (no runner assigned) and is reported unavailable, not green."
   },
   "openFindings": [
