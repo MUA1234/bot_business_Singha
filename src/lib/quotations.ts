@@ -13,6 +13,7 @@
 import Decimal from "decimal.js";
 import { randomBytes } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { outboundIdempotencyKey } from "@/events/outbox";
 import { drainOutbox, type DrainResult } from "@/events/outbox-drain";
 import { log } from "@/lib/log";
@@ -531,16 +532,19 @@ export async function tryFinalizeAndSend(
 }
 
 /** Resolve a price confirmation from a dashboard, then finalize if ready. */
-export async function resolvePriceConfirmation(input: {
-  companyId: string;
-  confirmationId: string;
-  /** Canonical non-negative decimal STRING (e.g. "1450.50") — money never rides a JS float. */
-  resolvedPrice: string;
-  userId: string;
-}): Promise<{ finalized: boolean }> {
+export async function resolvePriceConfirmation(
+  input: {
+    companyId: string;
+    confirmationId: string;
+    /** Canonical non-negative decimal STRING (e.g. "1450.50") — money never rides a JS float. */
+    resolvedPrice: string;
+    userId: string;
+  },
+  db?: SupabaseClient,
+): Promise<{ finalized: boolean }> {
   if (!/^\d+(\.\d+)?$/.test(input.resolvedPrice)) return { finalized: false }; // fail closed on malformed money
-  const db = supabaseAdmin();
-  const { data: conf } = await db
+  const client = db ?? supabaseAdmin();
+  const { data: conf } = await client
     .from("price_confirmations")
     .select("id, quotation_id, quotation_item_id, status")
     .eq("id", input.confirmationId)
@@ -548,7 +552,7 @@ export async function resolvePriceConfirmation(input: {
     .maybeSingle();
   if (!conf || conf.status !== "open") return { finalized: false };
 
-  const { data: item } = await db
+  const { data: item } = await client
     .from("quotation_items")
     .select("id, quantity, currency")
     .eq("id", conf.quotation_item_id)
@@ -558,7 +562,7 @@ export async function resolvePriceConfirmation(input: {
   // The human confirms the price in the QUOTATION's currency (that is how the confirmation was posed and
   // how the public quotation renders the line), so the resolution stamps the item to that currency — a
   // stale catalogue-copied currency would otherwise keep the quotation out of `ready` forever.
-  const { data: quoForCurrency } = await db
+  const { data: quoForCurrency } = await client
     .from("quotations")
     .select("currency")
     .eq("id", conf.quotation_id)
@@ -566,7 +570,7 @@ export async function resolvePriceConfirmation(input: {
     .single();
 
   const line = new Decimal(input.resolvedPrice).times(item?.quantity || 1).toFixed(2);
-  await db
+  await client
     .from("quotation_items")
     .update({
       unit_price: input.resolvedPrice,
@@ -577,7 +581,7 @@ export async function resolvePriceConfirmation(input: {
     .eq("id", conf.quotation_item_id)
     .eq("company_id", input.companyId);
 
-  await db
+  await client
     .from("price_confirmations")
     .update({
       status: "resolved",

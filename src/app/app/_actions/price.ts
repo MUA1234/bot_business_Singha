@@ -20,12 +20,15 @@ export async function resolvePrice(formData: FormData): Promise<void> {
   const raw = String(formData.get("price") ?? "").trim();
   if (!confirmationId || !/^\d+(\.\d+)?$/.test(raw)) return;
 
-  await resolvePriceConfirmation({
-    companyId: p.companyId,
-    confirmationId,
-    resolvedPrice: raw,
-    userId: p.userId,
-  });
+  await resolvePriceConfirmation(
+    {
+      companyId: p.companyId,
+      confirmationId,
+      resolvedPrice: raw,
+      userId: p.userId,
+    },
+    supabaseWriteClient(),
+  );
 
   revalidatePath("/app/sales/price-requests");
   revalidatePath("/app/finance/price-requests");
