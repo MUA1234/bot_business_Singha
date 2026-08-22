@@ -440,3 +440,45 @@ green run read as a hang and then as a failure. Fixed with an explicit `process.
 earlier browser "failures" in this package were also the harness, not the page — a stale server from
 a previous run holding the port and serving an old chunk hash, and an aborted mobile background
 video whose asset returns 200 with its full 200,234 bytes when requested directly.
+
+### 2026-08-22 local technical acceptance attempt — NOT ACCEPTED
+
+Branch `kimi/of016-local-acceptance-v61`; tested source SHA
+`707761ccfc56bf9b3583def6eba39e1691ec56cc`. The only database was the disposable local
+`singha-of016-pg16-v61` `postgres:16` container. No hosted/staging database was contacted, no
+migration was deployed, no flag was enabled, no real data was used, and no message was sent.
+
+Two acceptance-run corrections were confirmed and committed: `ReviewCard` preserves a PostgreSQL
+`date` as local calendar parts instead of shifting it through `toISOString()`, and the FOUND-006
+signature-list assertions compare sorted actual and expected lists rather than catalog order. Two
+pre-existing Windows test-harness defects were also corrected at their assertion boundaries by
+replacing Unix `grep` shell calls with equivalent Node filesystem scans.
+
+Commands run (the disposable connection string is redacted):
+
+```text
+$env:DATABASE_URL = '<disposable-local-url>'
+npm run test:integration -- --run tests/integration/found-006-caller-trust.test.ts --reporter=dot
+$files = Get-ChildItem tests/integration/of016-*.test.ts* | ForEach-Object { $_.FullName }
+npm run test:integration -- --run $files --reporter=dot
+npm run test:integration -- --reporter=dot
+npm run typecheck; npm test -- --reporter=dot
+npm run lint; npm run build
+npm run browser-check
+npm run audit-check; npm run autonomy:ip-check; npm run migrate:status
+npm run verify
+git fetch --all --tags --prune
+node scripts/autonomy/audit-requirements.mjs --quiet
+```
+
+Passed: FOUND-006 `21/21`; OF-016 `65/65` across eight files including concurrency,
+authorisation, resume, sibling/budget, and rendered-persisted state; full integration `676/676`
+across 74 files; unit `760 passed, 2 skipped` across 106 files; typecheck, lint, build,
+dependency audit, IP-boundary audit, and migration status (`89 applied`, `0 pending`). The full
+integration command terminated normally and left no test-created Node process or database session.
+
+This is **not local technical acceptance**. `npm run browser-check` could not start because no
+Chromium binary exists at its configured `/opt/pw-browsers` path. `npm run verify` stopped at the
+autonomy evidence audit: 13 historical `last_verified_sha` references are not commits in this
+repository even after fetching all refs. These gate failures must be resolved and the affected
+checks rerun before OF-016 can be accepted. OF-018 and MOD-003 remain out of scope.
