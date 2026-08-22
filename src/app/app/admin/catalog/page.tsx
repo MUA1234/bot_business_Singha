@@ -1,6 +1,6 @@
 import { requireProfile } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
 import { AddProductForm } from "./AddProductForm";
 import { setProductActive } from "./actions";
@@ -11,7 +11,7 @@ export default async function CatalogPage() {
   const p = await requireProfile();
   if (!p.isAdmin && p.department !== "finance") redirect(`/app/${p.department}`);
 
-  const { data } = await supabaseAdmin()
+  const { data } = await supabaseReadClient()
     .from("product_catalog")
     .select("id, name, sku, unit_price, currency, is_active")
     .eq("company_id", p.companyId)

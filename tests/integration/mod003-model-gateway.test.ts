@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { CompletionTransport } from "@/ai/gateway";
+import type { CompletionTransport, ExtractionResult } from "@/ai/gateway";
 import { AiGateway } from "@/ai/gateway";
 import { ModelPolicyExecutor, ModelPolicyRouter, ModelProviderRegistry } from "@/ai/model-policy-router";
 
@@ -207,8 +207,9 @@ describe.skipIf(!enabled)("MOD-003 — provider-neutral model gateway and policy
     const gateway = new AiGateway(transport, ledger, { executor, loadBudget: async () => null });
     const result = await gateway.runExtraction({ content: "x", correlationId: "c", sourceEventId: null, companyId });
     expect(result.ok).toBe(false);
-    expect(result.reason).toBe("transport_error");
-    expect(result.issues?.[0]).toMatch(/no active model budget policy/i);
+    const failure = result as Extract<ExtractionResult, { ok: false }>;
+    expect(failure.reason).toBe("transport_error");
+    expect(failure.issues?.[0]).toMatch(/no active model budget policy/i);
   });
 
   it("the gateway fails closed when the remaining budget is exhausted", async () => {
@@ -224,8 +225,9 @@ describe.skipIf(!enabled)("MOD-003 — provider-neutral model gateway and policy
     const gateway = new AiGateway(transport, ledger, { executor, loadBudget: async () => "0" });
     const result = await gateway.runExtraction({ content: "x", correlationId: "c", sourceEventId: null, companyId });
     expect(result.ok).toBe(false);
-    expect(result.reason).toBe("transport_error");
-    expect(result.issues?.[0]).toMatch(/model policy no_healthy_provider|no active model budget policy/i);
+    const failure = result as Extract<ExtractionResult, { ok: false }>;
+    expect(failure.reason).toBe("transport_error");
+    expect(failure.issues?.[0]).toMatch(/model policy no_healthy_provider|no active model budget policy/i);
   });
 
   it("ai_model_attempts is append-only: authenticated cannot mutate existing rows", async () => {

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { resolvePriceConfirmation } from "@/lib/quotations";
 
 async function requirePricer() {
@@ -37,7 +37,7 @@ export async function dismissPrice(formData: FormData): Promise<void> {
   const p = await requirePricer();
   const confirmationId = String(formData.get("confirmation_id") ?? "");
   if (!confirmationId) return;
-  await supabaseAdmin()
+  await supabaseWriteClient()
     .from("price_confirmations")
     .update({ status: "dismissed", resolved_by: p.userId, resolved_at: new Date().toISOString() })
     .eq("id", confirmationId)

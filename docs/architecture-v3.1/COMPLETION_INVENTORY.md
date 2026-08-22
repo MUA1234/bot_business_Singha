@@ -3,7 +3,7 @@
 > Regenerate with `node scripts/completion-inventory.mjs`. Deterministic: changes only when code changes.
 > Suspect lists are HEURISTIC work lists (each entry needs triage), not verdicts.
 
-## 1. supabaseAdmin() usage — 44 file(s)
+## 1. supabaseAdmin() usage — 32 file(s)
 
 | file | refs |
 |---|---|
@@ -16,30 +16,18 @@
 | src/app/api/exports/[kind]/route.ts | 2 |
 | src/app/api/health/route.ts | 2 |
 | src/app/api/webhooks/whatsapp/route.ts | 2 |
-| src/app/app/_actions/price.ts | 2 |
-| src/app/app/admin/audit/page.tsx | 2 |
-| src/app/app/admin/catalog/page.tsx | 2 |
-| src/app/app/admin/departments/page.tsx | 2 |
 | src/app/app/admin/employees/actions.ts | 6 |
 | src/app/app/admin/employees/page.tsx | 2 |
 | src/app/app/admin/health/page.tsx | 2 |
 | src/app/app/admin/inbound-review/actions.ts | 2 |
 | src/app/app/admin/inbound-setup/actions.ts | 4 |
 | src/app/app/admin/inbound-setup/page.tsx | 2 |
-| src/app/app/admin/objectives/page.tsx | 2 |
 | src/app/app/admin/outbox/actions.ts | 2 |
-| src/app/app/admin/outbox/page.tsx | 2 |
-| src/app/app/admin/page.tsx | 2 |
 | src/app/app/command/analyze/actions.ts | 3 |
 | src/app/app/hr/capacity/actions.ts | 2 |
-| src/app/app/hr/capacity/page.tsx | 2 |
-| src/app/app/hr/page.tsx | 2 |
-| src/app/app/hr/staff/[id]/page.tsx | 2 |
-| src/app/app/hr/staff/page.tsx | 2 |
 | src/app/app/messages/[id]/actions.ts | 2 |
 | src/app/app/operations/tasks/actions.ts | 15 |
 | src/app/login/actions.ts | 2 |
-| src/components/PriceRequests.tsx | 3 |
 | src/inngest/functions.ts | 4 |
 | src/lib/audit.ts | 2 |
 | src/lib/auth.ts | 3 |

@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { Icon } from "@/components/Icon";
 
 export const metadata = { title: "Admin — Singha Central" };
 
 async function count(table: string, companyId: string, extra?: (q: any) => any): Promise<number> {
-  let q = supabaseAdmin().from(table).select("id", { count: "exact", head: true }).eq("company_id", companyId);
+  let q = supabaseReadClient().from(table).select("id", { count: "exact", head: true }).eq("company_id", companyId);
   if (extra) q = extra(q);
   const { count } = await q;
   return count ?? 0;

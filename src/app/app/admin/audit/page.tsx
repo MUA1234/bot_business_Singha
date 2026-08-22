@@ -5,7 +5,7 @@
  */
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { describeAction } from "@/lib/audit-format";
 
 export const metadata = { title: "Audit Log — Singha Central" };
@@ -16,7 +16,7 @@ export default async function AuditPage({ searchParams }: { searchParams: { enti
 
   let rows: any[] = [];
   try {
-    let q = supabaseAdmin().from("audit_events")
+    let q = supabaseReadClient().from("audit_events")
       .select("id, actor_type, actor_id, action, entity_type, entity_id, created_at")
       .eq("company_id", admin.companyId)
       .order("created_at", { ascending: false })

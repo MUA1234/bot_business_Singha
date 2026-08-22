@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { resolvePrice, dismissPrice } from "@/app/app/_actions/price";
 
 /**
@@ -14,7 +14,7 @@ export async function PriceRequests({
   companyId: string;
   department: string | null;
 }) {
-  let q = supabaseAdmin()
+  let q = supabaseReadClient()
     .from("price_confirmations")
     .select("id, description, quantity, currency, department, ai_suggested_price, quotation_id, created_at")
     .eq("company_id", companyId)
@@ -27,7 +27,7 @@ export async function PriceRequests({
   const quoteIds = Array.from(new Set((rows ?? []).map((r: any) => r.quotation_id)));
   const numbers = new Map<string, string>();
   if (quoteIds.length) {
-    const { data: quotes } = await supabaseAdmin()
+    const { data: quotes } = await supabaseReadClient()
       .from("quotations")
       .select("id, quote_number")
       .in("id", quoteIds);

@@ -4,7 +4,7 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 
 export const metadata = { title: "Human Resources — Singha Central" };
 
@@ -17,7 +17,7 @@ async function rows<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 
 export default async function HrHome() {
   const p = await requireDepartment("hr");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const [staff, pendingLeave, caps] = await Promise.all([
     count(() => db.from("profiles").select("id", { count: "exact", head: true }).eq("company_id", p.companyId).eq("is_active", true) as any),

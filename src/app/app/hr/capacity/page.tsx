@@ -5,7 +5,7 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { computeCapacityDetail, type CapacityTask } from "@/modules/work/capacity-detail";
 import { HBarChart } from "@/components/charts";
 import { recomputeCapacity } from "./actions";
@@ -24,7 +24,7 @@ async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 
 export default async function CapacityPage() {
   const p = await requireDepartment("hr");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const [employees, tasks] = await Promise.all([
     safe<any>(() => db.from("profiles").select("id, username, full_name, department").eq("company_id", p.companyId).eq("is_active", true) as any),

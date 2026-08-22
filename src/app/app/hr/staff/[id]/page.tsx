@@ -6,7 +6,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { getDepartment } from "@/lib/departments";
 import { remainingLeave, type DateRange } from "@/modules/workforce/leave";
 import { updateEmployeeDetails, requestLeave, decideLeave } from "../actions";
@@ -15,7 +15,7 @@ export const metadata = { title: "Employee — Singha Central" };
 
 export default async function EmployeeRecord({ params }: { params: { id: string } }) {
   const p = await requireDepartment("hr");
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const { data: emp } = await db
     .from("profiles")

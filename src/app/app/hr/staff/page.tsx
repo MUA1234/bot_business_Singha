@@ -4,7 +4,7 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { getDepartment } from "@/lib/departments";
 
 export const metadata = { title: "Staff — Singha Central" };
@@ -14,7 +14,7 @@ export default async function StaffPage() {
 
   let rows: any[] = [];
   try {
-    const { data } = await supabaseAdmin()
+    const { data } = await supabaseReadClient()
       .from("profiles")
       .select("id, username, full_name, department, job_title, skills, is_active")
       .eq("company_id", p.companyId)

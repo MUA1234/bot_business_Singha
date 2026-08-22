@@ -1,5 +1,5 @@
 import { requireAdmin } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { DEPARTMENTS } from "@/lib/departments";
 import { Icon } from "@/components/Icon";
 
@@ -7,7 +7,7 @@ export const metadata = { title: "Departments — Singha Central" };
 
 export default async function DepartmentsPage() {
   const admin = await requireAdmin();
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const { data: cat } = await db.from("departments_catalog").select("key, label, description, is_active");
   const { data: profiles } = await db

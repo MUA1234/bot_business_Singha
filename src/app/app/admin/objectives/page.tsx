@@ -5,7 +5,7 @@
  */
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { assessObjective, type ObjectiveStatus } from "@/management/ai-manager/objective-status";
 import { createObjective, updateObjectiveProgress } from "./actions";
 
@@ -18,7 +18,7 @@ export default async function ObjectivesPage() {
 
   let rows: any[] = [];
   try {
-    rows = (await supabaseAdmin().from("objectives")
+    rows = (await supabaseReadClient().from("objectives")
       .select("id, title, metric, unit, target_value, current_value, period_start, period_end")
       .eq("company_id", admin.companyId).order("created_at", { ascending: false }).limit(200)).data ?? [];
   } catch {

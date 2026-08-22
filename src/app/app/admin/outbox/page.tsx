@@ -5,7 +5,7 @@
  */
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { replayMessage } from "./actions";
 
 export const metadata = { title: "Outbox — Singha Central" };
@@ -22,7 +22,7 @@ const badgeFor = (s: string) => (s === "dead" ? "danger" : s === "failed" ? "war
 
 export default async function OutboxPage() {
   const admin = await requireAdmin();
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
 
   const messages = await rows<any>(() =>
     db
