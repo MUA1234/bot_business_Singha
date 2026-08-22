@@ -4,7 +4,7 @@
   "activeRequirementIds": [
     "MOD-003"
   ],
-  "currentBranch": "kimi/of018-inbound-review-trust",
+  "currentBranch": "kimi/mod003-model-gateway",
   "currentPr": null,
   "baseSha": "be2f13e",
   "lastLocalAcceptanceAttempt": {
