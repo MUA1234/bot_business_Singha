@@ -36,10 +36,10 @@
     "evidence": "Fresh disposable PostgreSQL 16 0001-0089 plus 0090; pre-change direct-service/no-claims regression failed at 0089; focused 46/46, full integration 678/678 across 75 files, and npm run verify 760 passed/2 skipped. Cold-context adversarial review found no material defect; anon-role coverage added and rerun.",
     "limitations": "No hosted/staging database, live provider, real data, real message, authenticated Supabase browser flow, CI runner, or production evidence."
   },
-  "lastGreenSha": "a10ec86",
+  "lastGreenSha": "ab06276",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "FOUND-006 slice 3 at a10ec86 on kimi/found006-rls-cutover. Migrated login/signIn profile read and src/lib/task-access.ts authorization reads to supabaseReadClient. Regenerated completion inventory (admin-files 27 -> 25). All gates pass with RLS_READS/RLS_WRITES=on on disposable local PostgreSQL 16.",
-  "nextAction": "Continue next bounded FOUND-006 batch: remaining user-facing app pages/actions (admin/health if a dead_letter_events read policy is added, admin/inbound-review, messages, command/analyze, operations/tasks) and library helpers (audit, documents, ledger-report, notify, order-intake, outbox-enqueue, quotations, auth). Introduce an explicit service-role allowlist in completion-inventory. Keep RLS flags default-off until the full cutover is accepted. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "FOUND-006 slice 4 at ab06276 on kimi/found006-rls-cutover. Migrated core auth helpers (getProfile and resolveCapability) to supabaseReadClient so profile and capability lookups are RLS-enforced once RLS_READS is on. Regenerated completion inventory (admin-files 25 -> 24). All gates pass with RLS_READS/RLS_WRITES=on on disposable local PostgreSQL 16.",
+  "nextAction": "Continue next bounded FOUND-006 batch: remaining user-facing app pages/actions (admin/health if a dead_letter_events read policy is added, admin/inbound-review, messages, command/analyze, operations/tasks) and library helpers (audit, documents, ledger-report, notify, order-intake, outbox-enqueue, quotations). Introduce an explicit service-role allowlist in completion-inventory. Keep RLS flags default-off until the full cutover is accepted. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
     "tests/integration/found006-read-cutover-isolation.test.ts (11: company isolation for audit_events, objectives, message_outbox, product_catalog, profiles, quotations, orders, tasks, capacity_snapshots, leave_requests, price_confirmations)",
     "tests/integration/rls-coverage.test.ts (3)",
@@ -50,7 +50,7 @@
     "scripts/verify/browser-check.mjs (10 route/auth/render/cron checks)"
   ],
   "lastFullGateResults": {
-    "sha": "a10ec86 (FOUND-006 slice 3 on kimi/found006-rls-cutover; MOD-003 remains accepted at dfc994b)",
+    "sha": "ab06276 (FOUND-006 slice 4 on kimi/found006-rls-cutover; MOD-003 remains accepted at dfc994b)",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
     "unit": "767 passed / 2 skipped / 108 files",
@@ -59,7 +59,7 @@
     "integrationLegacyUpgrade": "not rerun in this slice",
     "migrationIdempotency": "not rerun in this slice",
     "build": "compiled (clean rebuild)",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 25), autonomy audit, IP-boundary audit, typecheck, and 767 unit tests (2 skipped)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 24), autonomy audit, IP-boundary audit, typecheck, and 767 unit tests (2 skipped)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
     "browserCheck": "browser-check.mjs passed (10 checks); authenticated Supabase browser end-to-end remains unavailable",
