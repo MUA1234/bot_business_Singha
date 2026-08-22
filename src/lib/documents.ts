@@ -6,6 +6,7 @@
  */
 import { createHash } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 
 export const EVIDENCE_BUCKET = "evidence";
 
@@ -49,7 +50,7 @@ export async function uploadEvidenceFile(companyId: string, file: File, createdB
 /** A short-lived signed URL for a stored object, or null. */
 export async function signedEvidenceUrl(storagePath: string, expiresSeconds = 300): Promise<string | null> {
   try {
-    const { data } = await supabaseAdmin().storage.from(EVIDENCE_BUCKET).createSignedUrl(storagePath, expiresSeconds);
+    const { data } = await supabaseReadClient().storage.from(EVIDENCE_BUCKET).createSignedUrl(storagePath, expiresSeconds);
     return data?.signedUrl ?? null;
   } catch {
     return null;

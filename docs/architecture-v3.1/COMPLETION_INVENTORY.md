@@ -3,7 +3,7 @@
 > Regenerate with `node scripts/completion-inventory.mjs`. Deterministic: changes only when code changes.
 > Suspect lists are HEURISTIC work lists (each entry needs triage), not verdicts.
 
-## 1. supabaseAdmin() usage — 21 file(s)
+## 1. supabaseAdmin() usage — 20 file(s)
 
 | file | refs |
 |---|---|
@@ -20,10 +20,9 @@
 | src/app/app/admin/inbound-review/actions.ts | 2 |
 | src/app/app/command/analyze/actions.ts | 3 |
 | src/app/app/messages/[id]/actions.ts | 2 |
-| src/app/app/operations/tasks/actions.ts | 15 |
 | src/inngest/functions.ts | 4 |
 | src/lib/audit.ts | 2 |
-| src/lib/documents.ts | 3 |
+| src/lib/documents.ts | 2 |
 | src/lib/inbound/production-deps.ts | 4 |
 | src/lib/order-intake.ts | 2 |
 | src/lib/outbox-enqueue.ts | 2 |
@@ -148,8 +147,8 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/db/consumer-store.ts:124 | `error-discarding destructure` |
 | src/lib/access.ts:81 | `error-discarding destructure` |
 | src/lib/access.ts:112 | `error-discarding destructure` |
-| src/lib/documents.ts:52 | `error-discarding destructure` |
-| src/lib/documents.ts:54 | `null` |
+| src/lib/documents.ts:53 | `error-discarding destructure` |
+| src/lib/documents.ts:55 | `null` |
 | src/lib/finance/intent-gate.ts:85 | `null` |
 | src/lib/ledger-report.ts:13 | `[]` |
 | src/lib/money.ts:139 | `null` |

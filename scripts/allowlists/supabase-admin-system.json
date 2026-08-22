@@ -12,7 +12,6 @@
   "src/app/app/admin/inbound-review/actions.ts",
   "src/app/app/command/analyze/actions.ts",
   "src/app/app/messages/[id]/actions.ts",
-  "src/app/app/operations/tasks/actions.ts",
   "src/inngest/functions.ts",
   "src/lib/audit.ts",
   "src/lib/documents.ts",
