@@ -8,7 +8,7 @@
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-22",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "1af8727",
+    "testedSha": "4d2ee97",
     "outcome": "LOCALLY ACCEPTED: IP-001 public-repository IP boundary. The classified manifest and automated check enforce the public-repository boundary: no server-only modules reach client components, no tracked private keys, no proprietary paths, and public system prompts are reviewed against the manifest. npm run verify passes; unit tests include the IP-boundary check.",
     "container": "n/a — no database required",
     "corrections": [
@@ -43,12 +43,12 @@
   "ip001LocalAcceptance": {
     "date": "2026-08-22",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "1af8727",
+    "testedSha": "4d2ee97",
     "outcome": "LOCALLY ACCEPTED: public-repository IP boundary. The boundary manifest classifies safe public vs proprietary content; the automated check fails on hard violations and reports soft findings for review.",
     "evidence": "tests/autonomy/ip-boundary.test.ts (2 passed); npm run verify (secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests 769 passed / 2 skipped / 109 files).",
     "limitations": "The owner gate on a private repository/package for proprietary prompts/evaluation data remains unactioned; system prompts are currently public and generic, which the manifest records as acceptable."
   },
-  "lastGreenSha": "1af8727",
+  "lastGreenSha": "4d2ee97",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
   "lastCompletedAction": "IP-001 local acceptance completed on kimi/found006-rls-cutover. Added tests/autonomy/ip-boundary.test.ts, updated the requirement entry to locally_verified, and ran npm run verify. Next: assess AIM-003 (truthful task routing) which is the sole remaining implementation_in_progress requirement in stage1.",
   "nextAction": "Inspect AIM-003 requirement, runtime entrypoint src/management/routing/route-captured-tasks.ts, existing tests (tests/integration/task-routing.test.ts, tests/integration/routing-and-mapping-corrections.test.ts, tests/campaign/capture-routing.test.ts, tests/campaign/analyze-ui-truthfulness.test.ts, tests/campaign/ui-rendered-truthfulness.test.ts), and determine what remains to move it from implementation_in_progress to locally_verified. Run focused tests, then update the requirement entry, run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
@@ -61,7 +61,7 @@
     "npm run build (to run)"
   ],
   "lastFullGateResults": {
-    "sha": "1af8727 on kimi/found006-rls-cutover",
+    "sha": "4d2ee97 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "to run",
     "unit": "769 passed / 2 skipped / 109 files",
