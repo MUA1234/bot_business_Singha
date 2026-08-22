@@ -471,20 +471,20 @@ requirements:
     phase: stage6
     priority: P1
     dependencies: [FOUND-003, MOD-001]
-    status: specified
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: ai_runs records route, model, prompt_version, tokens, cost, validation result, confidence, latency and correlation_id — but has NO provider, attempt, fallback or circuit-state column, so the monitoring this requirement needs is not expressible yet
-    service_evidence: "PARTIAL FOUNDATIONS ONLY, audited at 99e0935: src/ai/gateway.ts injects a provider-neutral CompletionTransport and owns a STATIC MODEL_ROUTES table (no provider dimension, no capability metadata); src/ai/openai-transport.ts and src/ai/anthropic-transport.ts implement it with per-transport timeouts; src/ai/model-routes.ts maps intent to route and cost tier but has NO PRODUCTION CALLER (only tests/model-routes.test.ts); src/ai/pricing.ts computes cost and CostLedger records it with no ceiling enforced. ABSENT: provider registry, task-to-model policy in production, automatic fallback (the only occurrence of the word is a comment), provider health, circuit breaker, provider-level retry classification, cost/token ceilings, privacy or data-residency policy, parallel/ensemble execution, second-model review, disagreement adjudication, prompt registry"
-    ui_evidence: none
-    test_evidence: none for this requirement. tests/model-routes.test.ts covers the unused intent table only, and tests/campaign/live-eval.test.ts is evaluation-only and blocked_owner
-    security_evidence: none yet. Required by this requirement — credentials in server-side secret storage only, never in logs, database payloads, browser code or commits; a reviewing model must not receive secrets or unnecessary personal data; routing rules, prompts and scoring stay server-side
-    audit_health_evidence: none yet. Required — provider/model, task type, failure category, latency, valid-schema rate, retry and fallback counts, token usage WHEN REPORTED, cost only when reliably available, human override, model disagreement and circuit state, none of it exposing message content
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/ai/model-policy-router.ts (ModelPolicyRouter/Executor/Registry); src/ai/gateway.ts AiGateway.runExtraction; src/db/consumer-store.ts loadAiTaskBudget; src/app/app/admin/model-budgets/actions.ts saveModelBudgetPolicy
+    database_evidence: migrations 0091 (ai_model_attempts telemetry) and 0092 (ai_model_budget_policies + set_ai_model_budget_policy RPC); ai_runs records route/model/prompt_version/tokens/cost/validation/confidence/latency/source_event/company
+    service_evidence: Provider registry + task policy router + daily budget loader wired into production extraction path; deterministic healthy-provider failover and second-model review; fail-closed on missing/exhausted budget; no provider credentials or routing rules exposed
+    ui_evidence: src/app/app/admin/model-budgets/page.tsx owner configuration surface for daily per-task USD ceilings
+    test_evidence: tests/model-policy-router.test.ts; tests/model-budget-policy-action.test.ts; tests/integration/mod003-model-gateway.test.ts; tests/integration/secure-definer-grants.test.ts; tests/integration/found-006-caller-trust.test.ts
+    security_evidence: Server-side provider registry and routing; credentials never in browser/DB/commits; ai_model_attempts worker-only DML; ai_model_budget_policies RLS + capability-gated set_ai_model_budget_policy RPC; function grants verified by signature-exact allowlist
+    audit_health_evidence: ai_model_attempts records provider/model/task/attempt/outcome/latency/error_category per company; ai_runs records cost/validation/confidence/latency/source_event/company; audit_events records ai.model_budget_policy_set changes
+    last_verified_sha: dfc994b
+    last_verified_at: 2026-08-22
     owner_gate: approved provider list and credentials supplied privately; no unapproved provider may be called
     blocker: none for the repository-controlled design; live provider quality stays blocked_owner until credentials exist
-    residual_risks: Registered on the owner's instruction BEFORE implementation, and deliberately marked `specified` rather than `foundation_only` — a provider-neutral transport interface, one static route table and an unused intent table are adjacent foundations, not this requirement. Nothing here is verified from an interface, a document or an unused adapter. Implementation is a separate stacked package that begins only after the R1 remediation package is frozen. The highest-volume model call in the system (src/ai/quotation.ts via src/lib/order-intake.ts) still bypasses the cost ledger entirely — see MOD-002 and OF-011 — so any usage or cost figure this requirement produces would be incomplete until that is fixed.
+    residual_risks: Live-provider quality/cost accuracy remains blocked_owner until credentials configured. MOD-002/OF-011 still means runQuotationTurn has no CostLedger, so the highest-volume model call is not yet budget-accounted and the extraction budget path does not cover it.
 
   # ── IP — anti-clone and IP protection ───────────────────────────────────────────────────────
   - id: IP-001

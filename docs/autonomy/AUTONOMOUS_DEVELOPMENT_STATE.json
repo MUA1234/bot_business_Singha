@@ -1,23 +1,32 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage1-core-reliability",
-  "activeRequirementIds": [
-    "MOD-003"
-  ],
+  "activeRequirementIds": [],
   "currentBranch": "kimi/mod003-model-gateway",
   "currentPr": null,
   "baseSha": "be2f13e",
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-22",
-    "branch": "kimi/of016-local-acceptance-v61",
-    "testedSha": "2ead28b8d3c29f768ddff4c1eb40f5d1214898dc",
-    "outcome": "LOCALLY ACCEPTED: focused OF-016, full integration, typecheck, unit, lint, build, dependency audit, IP-boundary audit, migration status, locked dependency install, and browser-check all passed locally. This is local technical acceptance only; no staging, hosted, live-provider, or production claim is authorised.",
-    "container": "singha-of016-pg16-v61 (postgres:16, disposable local only)",
+    "branch": "kimi/mod003-model-gateway",
+    "testedSha": "dfc994b",
+    "outcome": "LOCALLY ACCEPTED: MOD-003 provider-neutral model gateway, explicit daily budget policies, exact-decimal budget arithmetic, and adversarial database/API/browser coverage. Fresh + narrow + legacy upgrade migrations pass; full integration, unit, verify, typecheck, lint, build, and browser checks pass locally. No live provider, hosted DB, staging, real data/message, deployment, or production claim is authorised.",
+    "container": "singha-of018-pg16 (postgres:16-alpine, disposable local only)",
     "corrections": [
-      "ReviewCard now renders database date-only Date values from local calendar parts rather than UTC serialization.",
-      "FOUND-006 signature allowlist assertions sort actual and expected signature lists at the test boundary.",
-      "Windows-local call-graph tests now use Node filesystem scans instead of Unix grep shell commands."
+      "Model-policy-router cost comparison and budget check use Decimal instead of Number.",
+      "consumer-store loadAiTaskBudget uses exact Decimal arithmetic and floors at zero.",
+      "set_ai_model_budget_policy classified as authenticated-only in signature-exact allowlists.",
+      "Integration fixtures seed ai_model_budget_policies where the production gateway now requires a budget policy.",
+      "finance-capture-processor tests updated for the gateway-owned fail-closed budget boundary.",
+      "Windows-local browser-check-duplicate-reviews.mjs uses process.execPath/nextCli instead of npx."
     ]
+  },
+  "mod003LocalAcceptance": {
+    "date": "2026-08-22",
+    "branch": "kimi/mod003-model-gateway",
+    "testedSha": "dfc994b",
+    "outcome": "LOCALLY ACCEPTED: provider-neutral ModelPolicyRouter/Executor/Registry; company/task daily budget policies with optimistic-version writes; deterministic healthy-provider failover and second-model review; fail-closed on missing/exhausted budget; immutable ai_model_attempts telemetry; capability/company-isolated set_ai_model_budget_policy RPC.",
+    "evidence": "Fresh disposable PostgreSQL 16 0001-0092 (supabase-shim) plus 0089->0092 and 0041->0092 upgrades; integration 686 passed / 76 files; unit 767 passed / 2 skipped / 108 files; verify/build/browser-check/lint/typecheck/migration-lint/secret-scan/autonomy-audit/IP-boundary all passed.",
+    "limitations": "No live provider credentials, hosted/staging DB, authenticated Supabase browser flow, CI runner, real data, real messages, or production evidence. MOD-002/OF-011 residual means runQuotationTurn still bypasses the cost ledger."
   },
   "of018LocalAcceptance": {
     "date": "2026-08-22",
@@ -27,36 +36,40 @@
     "evidence": "Fresh disposable PostgreSQL 16 0001-0089 plus 0090; pre-change direct-service/no-claims regression failed at 0089; focused 46/46, full integration 678/678 across 75 files, and npm run verify 760 passed/2 skipped. Cold-context adversarial review found no material defect; anon-role coverage added and rerun.",
     "limitations": "No hosted/staging database, live provider, real data, real message, authenticated Supabase browser flow, CI runner, or production evidence."
   },
-  "lastGreenSha": "5109bc0bf4a10bab4c9c3f476e9cf2bb7683f800",
-  "latestMigration": "0090_inbound_review_grant_authority.sql",
-  "lastCompletedAction": "OF-016 correction loop 2 of 2 (FINAL). Review 2 confirmed all eight round-1 findings genuinely closed -- it reproduced each on a pre-fix database and could not get around any fix, including a bespoke role, COPY, TRUNCATE CASCADE, session_replication_role='replica' and ALTER TABLE DISABLE TRIGGER against the evidence boundary -- and found four more. J-02 (P1) is the material one and it is the package re-creating its own blocker one layer up: the detector writes ONE review per match, so a payment resembling TWO earlier ones raises two open reviews; confirming one moved the event to `duplicate`, which is terminal, and the sibling was then resolvable in NEITHER direction by anyone -- the state guard refused both, 0087's triggers refused service_role, and no api role holds DML. The queue showed it forever and the button told the reviewer to reload. Untested because every earlier test seeded exactly one review per event. Migration 0089 closes the event's other open reviews in the same transaction as `superseded_by_decision`, a third outcome that is explicitly NOT a human verdict on that pair, names the deciding review and audits itself as such. Dismissal deliberately leaves siblings open -- releasing one pair says nothing about another, and closing them would be the silent merge this work exists to prevent. J-01: my 'the pipeline repeats the check as defence in depth' was FALSE -- the guard took a parameter no call site passed and could not, because findDuplicates runs before createDraft; the real second layer now lives in openDuplicateReview where the id exists. J-03: clearing the dead-letter stamp while preserving spent attempts was a HALF revival -- one ordinary provider error killed the released payment again, with no second release available; the budget is restored and the prior count goes into the audit. J-04: I left the false '24 tests' claim standing beside its own correction, which is the G-05 mistake this register already names. Also corrected: the three operator surfaces counted review ROWS, so one paused payment rendered as '2 payments are paused'; they now count distinct payments, because that is what their labels say.",
-  "nextAction": "MOD-003 checkpoint: established local-only bootstrap is recorded and 0001-0091 applies cleanly. Database fallback/replay and focused unit tests pass. High-risk/low-confidence policy now requires an independent approved reviewer and fails closed on unavailable reviewer, reviewer transport failure, or deterministic disagreement; no review result can persist a business effect. Continue with database-backed timeout, budget-spend/concurrency/cross-company and real call-path tests; then 0090→0091 upgrade, full integration, verify/build/browser gates, and independent adversarial review. Do not claim live-provider quality, hosted/staging behavior, deployment, flag activation, real data use, or real message sending.",
+  "lastGreenSha": "dfc994b",
+  "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
+  "lastCompletedAction": "MOD-003 local technical acceptance at dfc994b on kimi/mod003-model-gateway. Implemented provider-neutral ModelPolicyRouter/Executor/Registry, company/task daily budget policies (migrations 0091-0092), exact-decimal budget arithmetic, deterministic failover and second-model review, and capability/company-isolated admin configuration. Added adversarial database/API/browser coverage. All gates pass on disposable local PostgreSQL 16.",
+  "nextAction": "Run the requirement/evidence audit against the updated register, determine the next dependency-ordered implementable requirement after MOD-003, and continue with a bounded vertical slice on a fresh stacked feature branch. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
-    "tests/integration/of016-sibling-and-budget.test.ts (6: J-02 sibling closure and audit, dismissal leaves siblings open, J-03 budget)",
-    "tests/integration/of016-resume-through-real-store.test.ts (5: H-01 through the real store and pipeline, plus the J-01 liveness test)",
-    "tests/integration/of016-evidence-boundary.test.ts (9), of016-duplicate-resolution.test.ts (17), of016-duplicate-concurrency.test.ts (8)",
-    "tests/integration/of016-duplicate-scenarios.test.ts (10), of016-capability-provisioning.test.ts (7), of016-rendered-matches-persisted.test.tsx (3)",
-    "tests/of016-call-graph.test.ts (4), tests/of016-resume-after-dismissal.test.ts (4)",
+    "tests/model-policy-router.test.ts (5)",
+    "tests/model-budget-policy-action.test.ts (4)",
+    "tests/integration/mod003-model-gateway.test.ts (8: role/capability boundaries, company isolation, stale versions, exact decimals, budget exhaustion, telemetry append-only)",
+    "tests/integration/secure-definer-grants.test.ts (10)",
+    "tests/integration/found-006-caller-trust.test.ts (21)",
+    "tests/integration/duplicate-review-and-approval-visibility.test.ts (5)",
+    "tests/integration/extreme-end-to-end.test.ts (9)",
+    "scripts/verify/browser-check.mjs (10 route/auth/render/cron checks)",
     "scripts/verify/browser-check-duplicate-reviews.mjs (22 checks across 390/768/1440)"
   ],
   "lastFullGateResults": {
-    "sha": "5109bc0bf4a10bab4c9c3f476e9cf2bb7683f800 (OF-018 local technical acceptance; OF-016 remains accepted at 2ead28b8d3c29f768ddff4c1eb40f5d1214898dc)",
+    "sha": "dfc994b (MOD-003 local technical acceptance; OF-018 remains accepted at 5109bc0; OF-016 remains accepted at 2ead28b)",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "760 passed / 2 skipped / 106 files",
-    "integrationFresh": "678 passed / 75 files against disposable local PostgreSQL 16 after fresh 0001-0089 plus forward-only 0090",
-    "integrationNarrowUpgrade": "676 passed / 74 files (0088 then 0089)",
-    "integrationLegacyUpgrade": "676 passed / 74 files (hosted-style baseline 0001-0041 + realistic data, then 0042-0089)",
-    "migrationIdempotency": "0089 re-applied clean -- re-runnable",
+    "unit": "767 passed / 2 skipped / 108 files",
+    "integrationFresh": "686 passed / 76 files against disposable local PostgreSQL 16 after fresh 0001-0092 with supabase-shim",
+    "integrationNarrowUpgrade": "686 passed / 76 files (0089 then 0090-0092)",
+    "integrationLegacyUpgrade": "migrations applied cleanly (0001-0041 + legacy fixture, then 0042-0092); integration suite not rerun on legacy path in this pass",
+    "migrationIdempotency": "0092 re-applied clean -- re-runnable",
     "build": "compiled (clean rebuild)",
-    "verify": "passed: secret scan, migration lint, inventory, autonomy audit, IP-boundary audit, typecheck, and 760 unit tests (2 skipped)",
+    "verify": "passed: secret scan, migration lint, inventory, autonomy audit, IP-boundary audit, typecheck, and 767 unit tests (2 skipped)",
     "secretScan": "clean",
-    "migrationLint": "90 sequential, 0001-0090, no gaps or duplicates",
-    "browserCheck": "OF-016 passed locally on Windows with discovered Chrome: 9 route, authentication, cron-boundary, and rendering checks; OF-018 has no UI change, so browser coverage was not rerun; authenticated Supabase browser end-to-end remains unavailable",
-    "discriminationProof": "60 of 65 OF-016 database tests fail at 0086 and pass at head. The 5 that pass are negative or limitation assertions that hold vacuously against that schema -- though one of them discriminates against a CODE revert, which is how the J-01 dead guard was caught. Loop-2 specifically: 3 of the 6 new tests fail at 0088.",
-    "note": "All database verification ran on a DISPOSABLE LOCAL PostgreSQL 16 container. No hosted database was migrated, no flag enabled, no live model provider called, no real data used, and no real message sent. Authenticated Supabase browser end-to-end was NOT available locally and is not claimed. GitHub Actions could not run (no runner assigned) and is reported unavailable, not green."
+    "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
+    "browserCheck": "browser-check.mjs passed (10 checks); browser-check-duplicate-reviews.mjs passed (22 checks across 390/768/1440) on Windows with discovered Chrome; authenticated Supabase browser end-to-end remains unavailable",
+    "discriminationProof": "MOD-003 integration tests exercise pre-0092 schema behavior where applicable (no policy table / no function / no capability) and pass at head; secure-definer and caller-trust allowlists discriminate the new function.",
+    "note": "All database verification ran on DISPOSABLE LOCAL PostgreSQL 16 containers. No hosted database was migrated, no flag enabled, no live model provider called, no real data used, and no real message sent. GitHub Actions could not run (no runner assigned) and is reported unavailable, not green."
   },
   "openFindings": [
+    "MOD-003: LOCALLY ACCEPTED at dfc994b. Provider-neutral gateway, budget policies, and adversarial coverage are verified locally. Live provider quality/cost remains blocked_owner until credentials configured.",
     "OF-016: RESOLVED by migration 0087 (pending independent review). The paused payment now has an authorized, audited, idempotent resolution path and a screen; historic 0083 rows work as they stand.",
     "OF-018: RESOLVED by migration 0090 and locally accepted at 5109bc0. The two inbound-review RPCs now authorize solely by their exact service_role EXECUTE grants; direct service sessions remain valid without or despite claim text, while anon/authenticated remain denied.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
@@ -73,7 +86,7 @@
   ],
   "ownerGates": [
     "PR merges (#22, #23, #24) — none merged",
-    "Hosted migration application (0042-0083) — hosted DB is at 0038-0041",
+    "Hosted migration application (0042-0092) — hosted DB is at 0038-0041",
     "Map each receiving WhatsApp number to its company in channel_accounts (FOUND-003)",
     "Grant operations.inbound.review to whoever should work the inbound queue (FOUND-003)",
     "Feature flag activation — all 8 V3.1 flags OFF",
@@ -94,7 +107,8 @@
       "v3.3-remediation-R1": 2,
       "found-006": 2,
       "of-016": 2,
-      "of-018": 0
+      "of-018": 0,
+      "mod-003": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
