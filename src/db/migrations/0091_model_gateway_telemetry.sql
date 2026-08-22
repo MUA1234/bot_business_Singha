@@ -26,6 +26,7 @@ create index if not exists ai_model_attempts_company_task_idx
 create table if not exists ai_model_budget_policies (
   company_id uuid not null references companies(id),
   task text not null check (task in ('extraction', 'quotation', 'management')),
+  -- UTC daily ceiling. The server subtracts today's durable ai_runs cost before each route.
   max_cost_usd numeric(20,6) not null check (max_cost_usd > 0),
   is_active boolean not null default true,
   updated_at timestamptz not null default now(),

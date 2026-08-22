@@ -86,4 +86,20 @@ describe("MOD-003 policy execution", () => {
       message: "I need boxes", state: {},
     }, { record: () => undefined })).resolves.toMatchObject({ ok: true, turn: { reply: "What is the delivery address?" } });
   });
+
+  it("records a fail-closed policy rejection without calling a transport", async () => {
+    const attempts: unknown[] = [];
+    const registry = new ModelProviderRegistry([]);
+    const executor = new ModelPolicyExecutor(
+      registry,
+      new ModelPolicyRouter(registry.candidates()),
+      { recordAttempt: (attempt) => { attempts.push(attempt); } },
+    );
+
+    await expect(executor.execute({
+      logicalRequestId: "logical-budget", selection: { companyId: "co", task: "quotation", budgetRemainingUsd: "0" },
+      completion: { system: "system", user: "user", maxTokens: 1 },
+    })).resolves.toEqual({ ok: false, reason: "no_healthy_provider", attempts: 0 });
+    expect(attempts).toEqual([expect.objectContaining({ provider: "policy", model: "unselected", errorCategory: "no_healthy_provider" })]);
+  });
 });

@@ -129,7 +129,15 @@ export class AiGateway {
       if (this.policy) {
         if (!req.companyId) throw new Error("model policy requires a company-scoped request");
         const budgetRemainingUsd = await this.policy.loadBudget(req.companyId, "extraction");
-        if (!budgetRemainingUsd) throw new Error("no active model budget policy");
+        if (!budgetRemainingUsd) {
+          await this.policy.executor.recordRejection({
+            logicalRequestId: baseRun.ai_run_id,
+            companyId: req.companyId,
+            task: "extraction",
+            reason: "budget_exceeded",
+          });
+          throw new Error("no active model budget policy");
+        }
         const execution = await this.policy.executor.execute({
           logicalRequestId: baseRun.ai_run_id,
           selection: { companyId: req.companyId, task: "extraction", budgetRemainingUsd, highRisk: req.hard },

@@ -74,15 +74,28 @@ export function makeSupabaseModelAttemptTelemetry(db: SupabaseClient): ModelAtte
 
 /** Returns the explicit company/task ceiling; absent configuration fails closed at the caller. */
 export async function loadAiTaskBudget(db: SupabaseClient, companyId: string, task: string): Promise<string | null> {
-  const { data, error } = await db
+  const { data: policy, error: policyError } = await db
     .from("ai_model_budget_policies")
     .select("max_cost_usd")
     .eq("company_id", companyId)
     .eq("task", task)
     .eq("is_active", true)
     .maybeSingle();
-  if (error) throw new Error(`ai_model_budget_policies read failed: ${error.message}`);
-  return data?.max_cost_usd == null ? null : String(data.max_cost_usd);
+  if (policyError) throw new Error(`ai_model_budget_policies read failed: ${policyError.message}`);
+  if (policy?.max_cost_usd == null) return null;
+
+  const startOfUtcDay = new Date();
+  startOfUtcDay.setUTCHours(0, 0, 0, 0);
+  const { data: runs, error: runsError } = await db
+    .from("ai_runs")
+    .select("cost_usd")
+    .eq("company_id", companyId)
+    .eq("route", task)
+    .gte("created_at", startOfUtcDay.toISOString());
+  if (runsError) throw new Error(`ai_runs budget lookup failed: ${runsError.message}`);
+
+  const spent = (runs ?? []).reduce((total, run) => total + Number(run.cost_usd ?? 0), 0);
+  return String(Math.max(0, Number(policy.max_cost_usd) - spent));
 }
 
 export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {

@@ -132,7 +132,15 @@ export async function handleCustomerMessage(input: {
     makeSupabaseModelAttemptTelemetry(db),
   );
   const turn = budgetRemainingUsd == null
-    ? { ok: false as const, reason: "budget_exceeded" }
+    ? await (async () => {
+      await executor.recordRejection({
+        logicalRequestId: `quotation:${inboundId}`,
+        companyId,
+        task: "quotation",
+        reason: "budget_exceeded",
+      });
+      return { ok: false as const, reason: "budget_exceeded" };
+    })()
     : await runPolicyRoutedQuotationTurn(executor, {
     message: input.text,
     state: { name: state.name, address: state.address, email: state.email, items: state.items },

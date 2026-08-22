@@ -38,7 +38,7 @@ export interface ModelAttemptTelemetry {
     attempt: number;
     outcome: "succeeded" | "failed";
     latencyMs: number;
-    errorCategory?: "transport_error";
+    errorCategory?: "transport_error" | "budget_exceeded" | "no_healthy_provider" | "provider_not_registered";
   }): Promise<void> | void;
 }
 
@@ -133,15 +133,53 @@ export class ModelPolicyExecutor {
     private readonly telemetry: ModelAttemptTelemetry,
   ) {}
 
+  async recordRejection(input: {
+    logicalRequestId: string;
+    companyId: string;
+    task: ModelTask;
+    reason: "budget_exceeded" | "no_healthy_provider";
+  }): Promise<void> {
+    await this.telemetry.recordAttempt({
+      logicalRequestId: input.logicalRequestId,
+      companyId: input.companyId,
+      task: input.task,
+      provider: "policy",
+      model: "unselected",
+      attempt: 1,
+      outcome: "failed",
+      latencyMs: 0,
+      errorCategory: input.reason,
+    });
+  }
+
   async execute(request: ModelExecutionRequest): Promise<ModelExecutionResult> {
     const maxAttempts = request.maxAttempts ?? 2;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const selection = this.router.select(request.selection);
-      if (!selection.ok) return { ok: false, reason: selection.reason, attempts: attempt - 1 };
+      if (!selection.ok) {
+        await this.recordRejection({
+          logicalRequestId: request.logicalRequestId,
+          companyId: request.selection.companyId,
+          task: request.selection.task,
+          reason: selection.reason,
+        });
+        return { ok: false, reason: selection.reason, attempts: attempt - 1 };
+      }
 
       const provider = this.registry.get(selection.provider);
       if (!provider) {
         this.router.recordFailure(selection.provider);
+        await this.telemetry.recordAttempt({
+          logicalRequestId: request.logicalRequestId,
+          companyId: request.selection.companyId,
+          task: request.selection.task,
+          provider: selection.provider,
+          model: selection.model,
+          attempt,
+          outcome: "failed",
+          latencyMs: 0,
+          errorCategory: "provider_not_registered",
+        });
         continue;
       }
 
