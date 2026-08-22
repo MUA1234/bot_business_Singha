@@ -110,12 +110,15 @@ export function makeInboundDeps(dispatchOwner: string, knownCurrencies: string[]
     },
 
     async handleCustomerOrder(msg) {
-      return handleCustomerMessage({
-        from: msg.from,
-        text: msg.text,
-        waMessageId: msg.providerMessageId,
-        companyId: msg.companyId,
-      });
+      return handleCustomerMessage(
+        {
+          from: msg.from,
+          text: msg.text,
+          waMessageId: msg.providerMessageId,
+          companyId: msg.companyId,
+        },
+        db,
+      );
     },
 
     async recordForReview(msg, reason, identity, reasonCode) {

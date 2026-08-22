@@ -10,7 +10,7 @@
  *
  * Idempotent on the provider message id (a redelivered webhook is a no-op).
  */
-import { supabaseAdmin } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { makeOpenAiTransport } from "@/ai/openai-transport";
 import { MODEL_ROUTES } from "@/ai/gateway";
 import { ModelPolicyExecutor, ModelPolicyRouter, ModelProviderRegistry } from "@/ai/model-policy-router";
@@ -30,18 +30,25 @@ interface ConvState {
   quotationId?: string | null;
 }
 
-export async function handleCustomerMessage(input: {
-  from: string; // customer WA id (digits, no '+')
-  text: string;
-  waMessageId: string;
-  /**
-   * FOUND-003 — REQUIRED. This used to default to a hardcoded pilot company, which meant every
-   * conversation, quotation and reply belonged to that company whoever the message was actually
-   * for. The caller resolves the company from the receiving account; there is no fallback.
-   */
-  companyId: string;
-}): Promise<{ status: string }> {
-  const db = supabaseAdmin();
+/**
+ * WhatsApp order-intake conversation engine. The caller supplies the Supabase client so this
+ * module stays client-agnostic: the production service path passes the service-role client;
+ * tests and future callers may inject an RLS-bound client without editing this file.
+ */
+export async function handleCustomerMessage(
+  input: {
+    from: string; // customer WA id (digits, no '+')
+    text: string;
+    waMessageId: string;
+    /**
+     * FOUND-003 — REQUIRED. This used to default to a hardcoded pilot company, which meant every
+     * conversation, quotation and reply belonged to that company whoever the message was actually
+     * for. The caller resolves the company from the receiving account; there is no fallback.
+     */
+    companyId: string;
+  },
+  db: SupabaseClient,
+): Promise<{ status: string }> {
   const companyId = input.companyId;
   const from = input.from.replace(/^\+/, "");
 
@@ -173,18 +180,21 @@ export async function handleCustomerMessage(input: {
 
     // Create the quotation once (only if we don't already have one in flight).
     if (haveEnough && !state.quotationId && !awaitingAlready && status !== "quoted") {
-      const { quotationId, awaitingPrice } = await createQuotationFromItems({
-        companyId,
-        conversationId,
-        customer: {
-          name: state.name,
-          phone: from,
-          address: state.address,
-          email: state.email,
-          requestText: input.text,
+      const { quotationId, awaitingPrice } = await createQuotationFromItems(
+        {
+          companyId,
+          conversationId,
+          customer: {
+            name: state.name,
+            phone: from,
+            address: state.address,
+            email: state.email,
+            requestText: input.text,
+          },
+          items: state.items!,
         },
-        items: state.items!,
-      });
+        db,
+      );
       state.quotationId = quotationId;
 
       if (awaitingPrice) {
@@ -197,7 +207,7 @@ export async function handleCustomerMessage(input: {
         // Fully priced — finalize + send the quotation link (its own message). The conversation
         // advances to `quoted` ONLY on durable provider success (via the fenced completion RPC);
         // while the send is merely queued/failed it stays `quoting` (truthful, not delivered).
-        const res = await tryFinalizeAndSend(companyId, quotationId);
+        const res = await tryFinalizeAndSend(companyId, quotationId, db);
         status = res.sent ? "quoted" : "quoting";
         reply = res.sent
           ? "Perfect — I've just sent your quotation. Please check the message above. 🦁"
@@ -221,7 +231,7 @@ export async function handleCustomerMessage(input: {
   // than sending directly — a transport/provider failure can never lose or double-send it.
   // A best-effort inline drain delivers it promptly; the outbox sweep is the recovery path.
   // Delivery is at-least-once (the outbox idempotency key makes a redelivery a no-op).
-  const enqueued = await enqueueOutbox({ channel: "whatsapp", companyId, recipient: from, body: reply, dedupeKey: `wa_reply:${input.waMessageId}` });
+  const enqueued = await enqueueOutbox({ channel: "whatsapp", companyId, recipient: from, body: reply, dedupeKey: `wa_reply:${input.waMessageId}` }, db);
 
   // Migration 0058 exists because writing the outbound history row before the message is durably
   // queued makes the thread claim a delivery that never happened. That rule was applied to the

@@ -6,18 +6,21 @@
  * worker path (a tightly-scoped privileged write, permitted by the Brief).
  */
 import { supabaseAdmin } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildOutboxRow, type OutboxEntry } from "@/events/outbox";
 import { log } from "@/lib/log";
 
 export type EnqueueResult = "enqueued" | "duplicate" | "unavailable";
 
-export async function enqueueOutbox(entry: OutboxEntry): Promise<EnqueueResult> {
+export async function enqueueOutbox(entry: OutboxEntry, db?: SupabaseClient): Promise<EnqueueResult> {
   try {
     const row = buildOutboxRow(entry);
+    const client = db ?? supabaseAdmin();
     // Atomic, service-only enqueue via `enqueue_outbox_row` (migration 0061): a single INSERT …
     // ON CONFLICT (idempotency_key) DO NOTHING inside the DB, so two concurrent finalisers can never
     // create two logical rows (the key is a globally-unique SHA). Returns 'enqueued' | 'duplicate'.
-    const { data, error } = await supabaseAdmin().rpc("enqueue_outbox_row", {
+    // The RPC is service-only; callers that need RLS for table work pass a separate client.
+    const { data, error } = await client.rpc("enqueue_outbox_row", {
       p_company: row.company_id,
       p_channel: row.channel,
       p_recipient: row.recipient,

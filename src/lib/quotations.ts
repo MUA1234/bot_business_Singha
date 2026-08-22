@@ -155,18 +155,21 @@ export function autoPriceQuantity(q: unknown): number {
  * Returns the quotation id and whether it is fully priced (ready) or awaiting a
  * human price confirmation.
  */
-export async function createQuotationFromItems(input: {
-  companyId: string;
-  conversationId?: string | null;
-  customer: CustomerDetails;
-  items: DraftItem[];
-  currency?: string;
-  routeDepartment?: string;
-}): Promise<{ quotationId: string; orderId: string; awaitingPrice: boolean }> {
-  const db = supabaseAdmin();
+export async function createQuotationFromItems(
+  input: {
+    companyId: string;
+    conversationId?: string | null;
+    customer: CustomerDetails;
+    items: DraftItem[];
+    currency?: string;
+    routeDepartment?: string;
+  },
+  db?: SupabaseClient,
+): Promise<{ quotationId: string; orderId: string; awaitingPrice: boolean }> {
+  const client = db ?? supabaseAdmin();
   const currency = (input.currency ?? "LKR").toUpperCase().slice(0, 3);
 
-  const { data: order, error: orderErr } = await db
+  const { data: order, error: orderErr } = await client
     .from("orders")
     .insert({
       company_id: input.companyId,
@@ -182,7 +185,7 @@ export async function createQuotationFromItems(input: {
     .single();
   if (orderErr || !order) throw new Error(`order insert failed: ${orderErr?.message}`);
 
-  const { data: quote, error: qErr } = await db
+  const { data: quote, error: qErr } = await client
     .from("quotations")
     .insert({
       company_id: input.companyId,
@@ -205,11 +208,11 @@ export async function createQuotationFromItems(input: {
     status: "needs_confirmation" as const,
   }));
   if (itemRows.length) {
-    const { error } = await db.from("quotation_items").insert(itemRows);
+    const { error } = await client.from("quotation_items").insert(itemRows);
     if (error) throw new Error(`items insert failed: ${error.message}`);
   }
 
-  const awaitingPrice = await priceQuotation(input.companyId, quote.id, input.routeDepartment ?? "sales");
+  const awaitingPrice = await priceQuotation(input.companyId, quote.id, input.routeDepartment ?? "sales", client);
   return { quotationId: quote.id, orderId: order.id, awaitingPrice };
 }
 
@@ -222,12 +225,13 @@ export async function priceQuotation(
   companyId: string,
   quotationId: string,
   routeDepartment = "sales",
+  db?: SupabaseClient,
 ): Promise<boolean> {
-  const db = supabaseAdmin();
+  const client = db ?? supabaseAdmin();
 
   // The quotation's currency governs the whole document: the public quotation renders every item in it,
   // and the enqueue guard (migration 0067) refuses any item whose currency disagrees with it.
-  const { data: quo } = await db
+  const { data: quo } = await client
     .from("quotations")
     .select("currency")
     .eq("id", quotationId)
@@ -235,14 +239,14 @@ export async function priceQuotation(
     .single();
   const qCurrency = normalizeCurrency(quo?.currency);
 
-  const { data: catalog } = await db
+  const { data: catalog } = await client
     .from("product_catalog")
     .select("id, name, unit_price, currency")
     .eq("company_id", companyId)
     .eq("is_active", true)
     .not("unit_price", "is", null);
 
-  const { data: items } = await db
+  const { data: items } = await client
     .from("quotation_items")
     .select("id, description, quantity, unit_price, line_total, status, currency")
     .eq("quotation_id", quotationId);
@@ -267,7 +271,7 @@ export async function priceQuotation(
     // it is routed to a human price confirmation in the quotation's currency instead.
     if (match && normalizeCurrency(match.currency) === qCurrency && qCurrency !== "" && isAutoPriceableQuantity(it.quantity)) {
       const line = new Decimal(match.unit_price).times(autoPriceQuantity(it.quantity)).toFixed(2);
-      await db
+      await client
         .from("quotation_items")
         .update({
           unit_price: match.unit_price,
@@ -281,14 +285,14 @@ export async function priceQuotation(
     } else {
       // Ensure a single open confirmation for this item — priced in the QUOTATION currency (that is
       // the currency the confirmed number will be used in; the item's own stale currency is not shown).
-      const { data: existing } = await db
+      const { data: existing } = await client
         .from("price_confirmations")
         .select("id")
         .eq("quotation_item_id", it.id)
         .eq("status", "open")
         .maybeSingle();
       if (!existing) {
-        await db.from("price_confirmations").insert({
+        await client.from("price_confirmations").insert({
           company_id: companyId,
           quotation_id: quotationId,
           quotation_item_id: it.id,
@@ -302,7 +306,7 @@ export async function priceQuotation(
     }
   }
 
-  return await refreshQuotationStatus(companyId, quotationId);
+  return await refreshQuotationStatus(companyId, quotationId, client);
 }
 
 /**
@@ -313,12 +317,16 @@ export async function priceQuotation(
  * refreshed. This holds regardless of the caller, so a mispriced refresh cannot resurrect or resend
  * a document that has already left the pricing stage.
  */
-export async function refreshQuotationStatus(companyId: string, quotationId: string): Promise<boolean> {
-  const db = supabaseAdmin();
+export async function refreshQuotationStatus(
+  companyId: string,
+  quotationId: string,
+  db?: SupabaseClient,
+): Promise<boolean> {
+  const client = db ?? supabaseAdmin();
   // The quotation currency is part of item completeness: an item priced in a different currency (e.g. a
   // catalogue currency copied before this rule existed) must NOT count as ready — the public quotation
   // renders every item in the quotation currency, and the enqueue guard (0067) refuses the mismatch.
-  const { data: quo } = await db
+  const { data: quo } = await client
     .from("quotations")
     .select("currency")
     .eq("id", quotationId)
@@ -327,7 +335,7 @@ export async function refreshQuotationStatus(companyId: string, quotationId: str
   if (!quo) return true; // quotation gone (concurrent delete) → nothing to mark ready; treat as awaiting
   const qCurrency = normalizeCurrency(quo.currency);
 
-  const { data: items } = await db
+  const { data: items } = await client
     .from("quotation_items")
     .select("unit_price, line_total, status, currency")
     .eq("quotation_id", quotationId)
@@ -350,7 +358,7 @@ export async function refreshQuotationStatus(companyId: string, quotationId: str
   // or terminal (`sent`/`accepted`/`rejected`) quotation receives ZERO mutations (status AND totals)
   // even if it transitions concurrently between our read and this write — the UPDATE simply matches
   // no row.
-  await db
+  await client
     .from("quotations")
     .update({ subtotal: subtotal.toFixed(2), total: subtotal.toFixed(2), status: awaiting ? "awaiting_price" : "ready" })
     .eq("id", quotationId)
@@ -373,12 +381,17 @@ export async function refreshQuotationStatus(companyId: string, quotationId: str
 export async function tryFinalizeAndSend(
   companyId: string,
   quotationId: string,
+  db?: SupabaseClient,
 ): Promise<{ sent: boolean; status?: string; reason?: string; drain?: DrainResult }> {
-  const db = supabaseAdmin();
+  const client = db ?? supabaseAdmin();
+  // The atomic enqueue/reconcile RPCs are service-only (migration 0063/0061). The caller's client
+  // is used for every table read/write so user paths route through RLS; the privileged RPCs always
+  // use the service role.
+  const rpcClient = supabaseAdmin();
 
   // Read the CURRENT status FIRST — before any price refresh — so the legal state machine is honoured
   // (draft → awaiting_price → ready → queued → sent; accepted/rejected terminal).
-  const { data: quote } = await db
+  const { data: quote } = await client
     .from("quotations")
     .select("status")
     .eq("id", quotationId)
@@ -393,7 +406,7 @@ export async function tryFinalizeAndSend(
 
   // Refresh pricing ONLY for pre-queue states; a `queued` quotation is never re-priced or reset.
   if (quote.status !== "queued") {
-    const awaiting = await refreshQuotationStatus(companyId, quotationId);
+    const awaiting = await refreshQuotationStatus(companyId, quotationId, client);
     if (awaiting) return { sent: false, status: "awaiting_price", reason: "awaiting_price" };
   }
 
@@ -401,7 +414,7 @@ export async function tryFinalizeAndSend(
   // refreshQuotationStatus returned awaiting=false. Its UPDATE is guarded (a no-op if the row moved
   // concurrently), so between the first read and here the quotation may have gone queued/sent/
   // accepted/rejected, and its total may have been recomputed. Both status AND total come from here.
-  const { data: fresh } = await db
+  const { data: fresh } = await client
     .from("quotations")
     .select("status, total, currency, quote_number, public_token, order_id")
     .eq("id", quotationId)
@@ -420,7 +433,7 @@ export async function tryFinalizeAndSend(
     return { sent: false, status: curStatus, reason: curStatus === "awaiting_price" ? "awaiting_price" : "not_ready" };
   }
 
-  const { data: order } = await db
+  const { data: order } = await client
     .from("orders")
     .select("customer_phone, customer_name, conversation_id")
     .eq("id", fresh.order_id)
@@ -450,7 +463,7 @@ export async function tryFinalizeAndSend(
   // window: a concurrent terminal transition can no longer leave a live pending row (there is no
   // application re-read between the check and the insert). The linearization point is the row lock.
   const key = outboundIdempotencyKey("whatsapp", dedupeKey);
-  const { data: enq, error: enqErr } = await db.rpc("enqueue_quotation_outbox", {
+  const { data: enq, error: enqErr } = await rpcClient.rpc("enqueue_quotation_outbox", {
     p_company: companyId,
     p_quotation: quotationId,
     p_recipient: to,
@@ -468,7 +481,7 @@ export async function tryFinalizeAndSend(
   }
   // Results that MUST NOT drain or send — the atomic operation created no sendable row for this caller.
   if (enq === "terminal") {
-    const { data: t } = await db.from("quotations").select("status").eq("id", quotationId).eq("company_id", companyId).single();
+    const { data: t } = await client.from("quotations").select("status").eq("id", quotationId).eq("company_id", companyId).single();
     const st = (t?.status as string) ?? "sent";
     return { sent: st === "sent", status: st, reason: "terminal" };
   }
@@ -480,7 +493,7 @@ export async function tryFinalizeAndSend(
   }
   // enq is 'enqueued' or 'duplicate' → a durable row for THIS (company, quotation, key) exists and the
   // quotation is now `queued`. Load that exact row and reconcile/drain it by its real state (below).
-  const { data: ob } = await db
+  const { data: ob } = await client
     .from("message_outbox")
     .select("id, status")
     .eq("company_id", companyId)
@@ -504,10 +517,10 @@ export async function tryFinalizeAndSend(
     // it is already `sent`. If it lags (outbox sent, quotation not sent), reconcile through the
     // idempotent service-only RPC; if that cannot make them consistent, FAIL CLOSED with
     // `outbox_source_inconsistent` + operator-visible logging. NEVER return already_sent with sent=false.
-    const { data: q0 } = await db.from("quotations").select("status").eq("id", quotationId).eq("company_id", companyId).single();
+    const { data: q0 } = await client.from("quotations").select("status").eq("id", quotationId).eq("company_id", companyId).single();
     if (q0?.status === "sent") return { sent: true, status: "sent", reason: "already_sent" };
-    const { data: ok } = await db.rpc("reconcile_quotation_from_outbox", { p_outbox_id: ob.id });
-    const { data: q1 } = await db.from("quotations").select("status").eq("id", quotationId).eq("company_id", companyId).single();
+    const { data: ok } = await rpcClient.rpc("reconcile_quotation_from_outbox", { p_outbox_id: ob.id });
+    const { data: q1 } = await client.from("quotations").select("status").eq("id", quotationId).eq("company_id", companyId).single();
     if (ok === true && q1?.status === "sent") return { sent: true, status: "sent", reason: "reconciled" };
     log("error", "outbox sent but quotation not reconciled", { event: "quotation.outbox_source_inconsistent", quotationId, outboxId: ob.id, quotationStatus: q1?.status ?? null });
     return { sent: false, status: q1?.status ?? curStatus, reason: "outbox_source_inconsistent" };
@@ -517,11 +530,11 @@ export async function tryFinalizeAndSend(
     reason = "processing";         // another worker holds the lease; let it complete. No drain.
   } else {
     // pending or failed(due) → attempt an inline drain to progress delivery.
-    try { drain = await drainOutbox(db); } catch { drainFailed = true; }
+    try { drain = await drainOutbox(rpcClient); } catch { drainFailed = true; }
   }
 
   // Truthful final state: `sent` iff the durable completion advanced the quotation to `sent`.
-  const { data: after } = await db
+  const { data: after } = await client
     .from("quotations")
     .select("status")
     .eq("id", quotationId)
@@ -592,6 +605,6 @@ export async function resolvePriceConfirmation(
     .eq("id", conf.id)
     .eq("company_id", input.companyId);
 
-  const result = await tryFinalizeAndSend(input.companyId, conf.quotation_id);
+  const result = await tryFinalizeAndSend(input.companyId, conf.quotation_id, client);
   return { finalized: result.sent };
 }
