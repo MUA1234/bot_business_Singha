@@ -11,8 +11,8 @@ Generated at: 2026-08-22
 | Status | Count |
 |---|---|
 | absent | 41 |
-| foundation_only | 22 |
-| locally_verified | 16 |
+| foundation_only | 21 |
+| locally_verified | 17 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **16** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **69** |
+| **Verified** (locally / preview / staging / production) | **17** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **68** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -54,7 +54,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | MEM | 1 | 0 | 1 |
 | MOB | 4 | 0 | 4 |
 | MOD | 3 | 1 | 2 |
-| OPS | 8 | 1 | 7 |
+| OPS | 8 | 2 | 6 |
 | PRJ | 5 | 0 | 5 |
 | RSK | 6 | 0 | 6 |
 | SCH | 6 | 1 | 5 |
@@ -128,7 +128,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | OPS-002 | Audit search | P1 | **foundation_only** | src/app/app/admin/audit/page.tsx | none | — |
 | OPS-003 | Backup, restore and rollback drills | P0 | **absent** | none | none | hosted environment access to rehearse against |
 | OPS-004 | Staging UAT and browser role testing | P0 | **blocked_owner** | none | none | staging environment plus credentials |
-| OPS-005 | Feature-flag rollout control | P1 | **foundation_only** | src/config/flags.ts | none | flag activation per slice |
+| OPS-005 | Feature-flag rollout control | P1 | **locally_verified** | src/config/flags.ts; src/app/api/health/route.ts | PENDING_SHA | flag activation per slice |
 | OPS-006 | Model and provider configuration with cost monitoring | P1 | **foundation_only** | src/ai/gateway.ts MODEL_ROUTES | none | provider selection and credentials |
 | OPS-007 | Incident response and business continuity | P1 | **absent** | none | none | — |
 | OPS-008 | Monitored production pilot | P0 | **blocked_owner** | none | none | owner approval of merge, hosted migration, flags and promotion |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **69**; blocked (owner): **4**;
+mode. Incomplete and implementable: **68**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

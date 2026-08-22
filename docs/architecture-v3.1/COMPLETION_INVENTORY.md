@@ -34,7 +34,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | file:line | code |
 |---|---|
 | src/ai/anthropic-transport.ts:62 | `const maxTokens = Math.min(req.maxTokens, EVAL_LIMITS.maxOutputTokens);` |
-| src/app/api/health/route.ts:119 | `imbalancedJournals: Number(row.imbalanced_journals ?? 0),` |
+| src/app/api/health/route.ts:120 | `imbalancedJournals: Number(row.imbalanced_journals ?? 0),` |
 | src/app/app/finance/customer-invoices/[id]/page.tsx:55 | `<tr key={i}><td>{l.description}</td><td className="num">{Number(l.quantity)}</td><td className="num"` |
 | src/app/app/finance/supplier-bills/[id]/page.tsx:56 | `<tr key={i}><td>{l.description}</td><td className="num">{Number(l.quantity)}</td><td className="num"` |
 | src/app/app/finance/tax-codes/page.tsx:50 | `<td className="num dim">{fmtMoney(taxAmount("1000", Number(r.rate), "LKR"))}</td>` |

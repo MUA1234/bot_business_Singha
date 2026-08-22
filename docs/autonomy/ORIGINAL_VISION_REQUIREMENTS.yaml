@@ -1884,20 +1884,20 @@ requirements:
     phase: stage6
     priority: P1
     dependencies: []
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: src/config/flags.ts
+    runtime_entrypoint: src/config/flags.ts; src/app/api/health/route.ts
     database_evidence: none
-    service_evidence: src/config/flags.ts registry
+    service_evidence: src/config/flags.ts registry; /api/health includes v31FlagSnapshot()
     ui_evidence: none
-    test_evidence: tests/flags.test.ts
-    security_evidence: default OFF; owner-gated activation
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    test_evidence: tests/flags.test.ts; tests/campaign/health-route.test.ts
+    security_evidence: default OFF; owner-gated activation; health endpoint is CRON_SECRET-gated
+    audit_health_evidence: flag snapshot visible on /api/health
+    last_verified_sha: PENDING_SHA
+    last_verified_at: 2026-08-22
     owner_gate: flag activation per slice
     blocker: none
-    residual_risks: 8 of 8 V3.1 flags have zero runtime consumers, and /api/health does not report the flag snapshot.
+    residual_risks: 8 of 8 V3.1 flags still have zero runtime consumers; enabling any flag remains an owner-gated decision.
   - id: OPS-006
     title: Model and provider configuration with cost monitoring
     description: Provider-neutral routing configuration with budgets, fallback and cost monitoring.

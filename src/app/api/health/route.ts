@@ -16,6 +16,7 @@ import { classifyHealth } from "@/management/ai-manager/health";
 import { buildAlerts, stampSeen } from "@/management/ai-manager/alerts";
 import { missingConfig, outboxAgeLevel, ledgerIntegrityLevel, unattributedInboundLevel, worstLevel, type SignalLevel } from "@/lib/health-signals";
 import { log } from "@/lib/log";
+import { v31FlagSnapshot } from "@/config/flags";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -179,6 +180,7 @@ export async function GET(req: Request): Promise<Response> {
     ledgerIntegrity: ledger,
     coreTables: Object.fromEntries(coreTableResults),
     config: { missing },
+    flags: v31FlagSnapshot(),
     alerts,
   });
 }
