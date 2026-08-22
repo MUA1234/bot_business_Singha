@@ -66,7 +66,7 @@ export function makeSupabaseModelAttemptTelemetry(db: SupabaseClient): ModelAtte
         outcome: attempt.outcome,
         latency_ms: attempt.latencyMs,
         error_category: attempt.errorCategory ?? null,
-      }, { onConflict: "company_id,logical_request_id,attempt" });
+      }, { onConflict: "company_id,logical_request_id,attempt", ignoreDuplicates: true });
       if (error) throw new Error(`ai_model_attempts upsert failed: ${error.message}`);
     },
   };
