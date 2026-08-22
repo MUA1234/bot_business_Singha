@@ -494,20 +494,20 @@ requirements:
     phase: stage1
     priority: P1
     dependencies: []
-    status: implementation_in_progress
+    status: locally_verified
     feature_flag: none
     runtime_entrypoint: scripts/autonomy/check-ip-boundary.mjs
     database_evidence: none
     service_evidence: docs/autonomy/IP_BOUNDARY_MANIFEST.md
     ui_evidence: none
-    test_evidence: none
-    security_evidence: secret-scan already in the verify gate
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    test_evidence: tests/autonomy/ip-boundary.test.ts
+    security_evidence: secret-scan already in the verify gate; check-ip-boundary fails on server-only imports in client components, tracked private-key material, and proprietary paths
+    audit_health_evidence: check-ip-boundary runs in npm run verify
+    last_verified_sha: c72b2fe
+    last_verified_at: 2026-08-22
     owner_gate: decision on a private repository or package for proprietary prompts and evaluation data
     blocker: none
-    residual_risks: The repository is public today and system prompts are committed in it.
+    residual_risks: The repository is public today and system prompts are committed in it; the manifest records this as an acceptable open risk until prompts encode proprietary decision logic.
 
 
   # ── GOV — Executive Governor and Governance Constitution ────────────────────────────────────

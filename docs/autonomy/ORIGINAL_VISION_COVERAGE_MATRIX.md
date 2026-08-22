@@ -12,10 +12,10 @@ Generated at: 2026-08-22
 |---|---|
 | absent | 41 |
 | foundation_only | 22 |
-| locally_verified | 15 |
+| locally_verified | 16 |
 | specified | 5 |
 | blocked_owner | 4 |
-| implementation_in_progress | 2 |
+| implementation_in_progress | 1 |
 | deliberately_deferred | 1 |
 
 ## Completion accounting
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **15** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **70** |
+| **Verified** (locally / preview / staging / production) | **16** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **69** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -49,7 +49,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | GOV | 6 | 0 | 6 |
 | IMP | 3 | 0 | 3 |
 | INT | 1 | 0 | 1 |
-| IP | 1 | 0 | 1 |
+| IP | 1 | 1 | 0 |
 | LNG | 1 | 0 | 1 |
 | MEM | 1 | 0 | 1 |
 | MOB | 4 | 0 | 4 |
@@ -114,7 +114,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | IMP-002 | Staff feedback and lessons learned | P2 | **absent** | none | none | — |
 | IMP-003 | Versioned playbooks and prompt/evaluation improvement with human approval | P1 | **absent** | none | none | private repository/package decision for proprietary playbooks |
 | INT-001 | Integration Gateway and connector registry | P1 | **absent** | none | none | — |
-| IP-001 | Public-repository IP boundary | P1 | **implementation_in_progress** | scripts/autonomy/check-ip-boundary.mjs | none | decision on a private repository or package for proprietary prompts and evaluation data |
+| IP-001 | Public-repository IP boundary | P1 | **locally_verified** | scripts/autonomy/check-ip-boundary.mjs | c72b2fe | decision on a private repository or package for proprietary prompts and evaluation data |
 | LNG-001 | Multilingual English / Sinhala / Tamil | P2 | **specified** | none | none | approval of the specification before implementation |
 | MEM-001 | Organizational memory and evidence provenance | P1 | **absent** | none | none | — |
 | MOB-001 | Responsive mobile experience | P1 | **foundation_only** | src/app/globals.css; src/app/layout.tsx | none | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **70**; blocked (owner): **4**;
+mode. Incomplete and implementable: **69**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.
