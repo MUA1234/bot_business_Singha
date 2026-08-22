@@ -10,11 +10,20 @@
  * ledger or permissions could run without the human who is accountable for it.
  */
 import { describe, it, expect } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
+import { join, relative } from "node:path";
 import { routeDecision, AUTHORITY_LEVELS } from "@/management/policy/route-decision";
 import { DecisionProposal } from "@/schemas/management";
 import { SCENARIOS, EVASION_PROBES, type Level } from "./scenarios";
 
 const rank = (l: string) => (AUTHORITY_LEVELS as readonly string[]).indexOf(l);
+
+const sourceFiles = (directory: string): string[] =>
+  readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const file = join(directory, entry.name);
+    if (entry.isDirectory()) return sourceFiles(file);
+    return entry.name.endsWith(".ts") || entry.name.endsWith(".tsx") ? [file] : [];
+  });
 
 describe("campaign — every scenario proposal is schema-valid before any routing", () => {
   // The pipeline is schema → policy → permission → audit. A proposal that does not parse must
@@ -137,15 +146,11 @@ describe("campaign — never-autonomous evasion probes", () => {
     // Match real IMPORT statements, not the text "routeDecision" — a prose mention in a comment is
     // not a consumer, and a grep that cannot tell the difference produces exactly the kind of
     // false signal this campaign found elsewhere.
-    const { execSync } = require("node:child_process") as typeof import("node:child_process");
-    const out = execSync(
-      `grep -rlnE "^\\s*import[^;]*from \\"@/management/policy/route-decision\\"" src --include=*.ts --include=*.tsx || true`,
-      { cwd: process.cwd(), encoding: "utf8" },
-    );
-    const importers = out
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean)
+    const importers = sourceFiles("src")
+      .filter((file) => readFileSync(file, "utf8")
+        .split("\n")
+        .some((line) => /^\s*import[^;]*from "@\/management\/policy\/route-decision"/.test(line)))
+      .map((file) => relative(process.cwd(), file).replaceAll("\\", "/"))
       .filter((f) => !f.startsWith("src/ai/evals/")) // static eval fixtures, not a runtime consumer
       .filter((f) => f !== "src/management/ai-manager/case.ts"); // type-only import — verified by reading
 

@@ -368,10 +368,10 @@ describe.skipIf(!enabled)("FOUND-006 — privilege decides, request text does no
           and (has_function_privilege('anon',p.oid,'EXECUTE') or has_function_privilege('authenticated',p.oid,'EXECUTE'))
           and p.prosrc like '%caller_jwt_role%'
         order by 1`)).rows;
-    expect(found.map((r: any) => r.sig)).toEqual([
+    expect(found.map((r: any) => r.sig).sort()).toEqual([
       "decide_approval(uuid,uuid,text,text)",
       "route_task_as_human(uuid,uuid,text,text,text,jsonb,uuid,text,uuid,uuid)",
-    ]);
+    ].sort());
   });
 
   // ── G-02: the gate above cannot see the class that mattered ─────────────────────────────────
@@ -411,7 +411,7 @@ describe.skipIf(!enabled)("FOUND-006 — privilege decides, request text does no
           and (has_function_privilege('anon',p.oid,'EXECUTE') or has_function_privilege('authenticated',p.oid,'EXECUTE'))
         order by 1`)).rows.map((r: any) => r.sig);
 
-    expect(found).toEqual([
+    expect(found.sort()).toEqual([
       // RLS/identity helpers — derive WHO the caller is from `sub`; they grant no authority.
       "authority_ceiling(uuid,text)",
       "decide_approval(uuid,uuid,text,text)",
@@ -441,7 +441,7 @@ describe.skipIf(!enabled)("FOUND-006 — privilege decides, request text does no
       "settle_supplier_bill(uuid,uuid,numeric,text,text,uuid,date,text)",
       "within_authority(uuid,text,numeric,text)",
       "within_authority_for_event(uuid,uuid)",
-    ]);
+    ].sort());
   });
 
   // ── G-06b: the allowlist is signature-exact but body-blind, so assert BEHAVIOUR ──────────────

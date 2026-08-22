@@ -8,8 +8,8 @@
  * exactly how `ingestSourceEvent` came to have no production caller in the first place (D-009).
  */
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { readFileSync, readdirSync } from "node:fs";
+import { join, relative } from "node:path";
 
 const ROUTE = "src/app/api/webhooks/whatsapp/route.ts";
 const DEPS = "src/lib/inbound/production-deps.ts";
@@ -25,6 +25,32 @@ const codeLines = (file: string) =>
       return !(t.startsWith("//") || t.startsWith("*") || t.startsWith("/*"));
     });
 
+const sourceFiles = (directory: string, extensions: string[]): string[] =>
+  readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const file = join(directory, entry.name);
+    if (entry.isDirectory()) return sourceFiles(file, extensions);
+    return extensions.some((extension) => entry.name.endsWith(extension)) ? [file] : [];
+  });
+
+const filesContaining = (terms: string[], extensions = [".ts"]): string[] =>
+  sourceFiles("src", extensions)
+    .filter((file) => terms.some((term) => readFileSync(file, "utf8").includes(term)))
+    .map((file) => relative(process.cwd(), file).replaceAll("\\", "/"));
+
+const filesMatching = (pattern: RegExp, extensions = [".ts"]): string[] =>
+  sourceFiles("src", extensions)
+    .filter((file) => pattern.test(readFileSync(file, "utf8")))
+    .map((file) => relative(process.cwd(), file).replaceAll("\\", "/"));
+
+const linesContaining = (term: string, extensions = [".ts"]): string[] =>
+  sourceFiles("src", extensions).flatMap((file) =>
+    readFileSync(file, "utf8")
+      .split("\n")
+      .flatMap((line, index) => line.includes(term)
+        ? [`${relative(process.cwd(), file).replaceAll("\\", "/")}:${index + 1}:${line}`]
+        : []),
+  );
+
 describe("FOUND-003 — the real webhook route reaches ingestSourceEvent", () => {
   it("BOTH inbound paths run the SAME orchestration, which is the only caller of the dispatcher", () => {
     // The claim "async ON and OFF produce identical business outcomes" is only credible if there is
@@ -36,8 +62,7 @@ describe("FOUND-003 — the real webhook route reaches ingestSourceEvent", () =>
     }
     // `dispatchInbound` as a VALUE (imported and used, not a type import or a comment) may appear
     // in exactly one module besides its own definition.
-    const users = execSync(`grep -rln "dispatchInbound" src --include=*.ts || true`, { encoding: "utf8" })
-      .split("\n").map((x) => x.trim()).filter(Boolean)
+    const users = filesContaining(["dispatchInbound"])
       .filter((f) => f !== "src/lib/inbound/dispatch.ts") // the definition itself
       .filter((f) => codeLines(f).some((l) => /\bdispatchInbound\b/.test(l) && !/^import type/.test(l.trim())));
     expect(users).toEqual([ORCHESTRATION]);
@@ -60,8 +85,8 @@ describe("FOUND-003 — the real webhook route reaches ingestSourceEvent", () =>
   it("ONE canonical receipt: nothing but the receipt RPC persists an inbound source event", () => {
     // A single provider message used to produce TWO source_events rows, under two different
     // idempotency keys, which made every inbound message look like unprocessed sweeper work.
-    const persisters = execSync(`grep -rln "from(\"source_events\")\\|makeSupabaseSourceEventStore(" src --include=*.ts || true`,
-      { encoding: "utf8" }).split("\n").map((x) => x.trim()).filter(Boolean)
+    const persisters = filesMatching(/from\("source_events"\)[\s\S]{0,300}\.(?:insert|upsert)\(/)
+      .concat(filesContaining(["makeSupabaseSourceEventStore("]))
       .filter((f) => f !== "src/db/source-event-store.ts"); // the store implementation itself
     expect(persisters).toEqual([]);
     for (const f of [ROUTE, WORKER]) {
@@ -73,10 +98,7 @@ describe("FOUND-003 — the real webhook route reaches ingestSourceEvent", () =>
     // Match an actual CALL on a NON-COMMENT line. The identifier alone is not a caller: the email
     // stub carries a commented-out example, and a grep that cannot tell the difference produces
     // exactly the false signal this campaign has already been caught by twice.
-    const out = execSync(`grep -rl "ingestSourceEvent" src --include=*.ts --include=*.tsx || true`, {
-      encoding: "utf8",
-    });
-    const candidates = out.split("\n").map((s) => s.trim()).filter(Boolean)
+    const candidates = filesContaining(["ingestSourceEvent"], [".ts", ".tsx"])
       .filter((f) => f !== "src/events/source-event.ts"); // the definition itself
 
     const callers = candidates.filter((f) =>
@@ -109,12 +131,7 @@ describe("FOUND-003 — the real webhook route reaches ingestSourceEvent", () =>
 
 describe("FOUND-003 — no production path can reach a hardcoded company", () => {
   it("DEFAULT_COMPANY_ID no longer exists anywhere in src/", () => {
-    const out = execSync(`grep -rn "DEFAULT_COMPANY_ID" src --include=*.ts --include=*.tsx || true`, {
-      encoding: "utf8",
-    })
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean)
+    const out = linesContaining("DEFAULT_COMPANY_ID", [".ts", ".tsx"])
       // The removal note in constants.ts explains WHY the constant is gone; it is not a use of it.
       // Two removal notes explain WHY the constant is gone. Neither is a use of it, and a grep that
       // cannot tell a comment from a call is the false-positive class this repo has been caught by.
@@ -143,8 +160,7 @@ describe("FOUND-003 — no production path can reach a hardcoded company", () =>
 
 describe("R1 §3 — the scheduled dispatch drain is REACHABLE, not just written", () => {
   it("the batch claim built in 0076 now has a production caller", () => {
-    const callers = execSync(`grep -rln "claim_inbound_dispatch_batch" src --include=*.ts || true`, { encoding: "utf8" })
-      .split("\n").map((s) => s.trim()).filter(Boolean);
+    const callers = filesContaining(["claim_inbound_dispatch_batch"]);
     expect(callers).toContain("src/app/api/cron/dispatch-drain/route.ts");
   });
 
@@ -181,8 +197,7 @@ describe("R1 §4 — the finance capture consumer is wired, and `no_processor` i
     // `processSourceEvent` is documentation, not a caller. Counting one is the false-positive class
     // this campaign has been caught by twice, and it caught this assertion a third time when a
     // comment in the consumer store mentioned the function by name.
-    const callers = execSync(`grep -rln "processSourceEvent" src --include=*.ts || true`, { encoding: "utf8" })
-      .split("\n").map((x) => x.trim()).filter(Boolean)
+    const callers = filesContaining(["processSourceEvent"])
       .filter((f) => f !== "src/inngest/processing.ts") // the definition itself
       .filter((f) => codeLines(f).some((l) => /\bprocessSourceEvent\b/.test(l)));
     // TWO, not three. `finance-capture-processor.ts` names the pipeline in its header comment and
@@ -200,8 +215,7 @@ describe("R1 §4 — the finance capture consumer is wired, and `no_processor` i
   it("no production path RETURNS `no_processor` any more", () => {
     // Comments explaining what it used to do are history, not behaviour — the false-positive class
     // this suite has been caught by before. What must be gone is the CODE that returns it.
-    const returning = execSync(`grep -rn "no_processor" src --include=*.ts || true`, { encoding: "utf8" })
-      .split("\n").map((x) => x.trim()).filter(Boolean)
+    const returning = linesContaining("no_processor")
       .filter((line) => {
         const code = line.replace(/^[^:]+:\d+:/, "").trim();
         return !(code.startsWith("//") || code.startsWith("*") || code.startsWith("/*"));

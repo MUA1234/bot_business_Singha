@@ -47,7 +47,12 @@ const pct = (n: unknown) => `${Math.round(Number(n ?? 0) * 100)}%`;
  */
 const day = (d: string | Date | null | undefined): string => {
   if (!d) return "—";
-  if (d instanceof Date) return d.toISOString().slice(0, 10);
+  if (d instanceof Date) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const date = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${date}`;
+  }
   return String(d).slice(0, 10);
 };
 
