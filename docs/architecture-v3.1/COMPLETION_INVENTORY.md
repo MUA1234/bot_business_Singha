@@ -3,7 +3,7 @@
 > Regenerate with `node scripts/completion-inventory.mjs`. Deterministic: changes only when code changes.
 > Suspect lists are HEURISTIC work lists (each entry needs triage), not verdicts.
 
-## 1. supabaseAdmin() usage — 24 file(s)
+## 1. supabaseAdmin() usage — 23 file(s)
 
 | file | refs |
 |---|---|
@@ -13,7 +13,6 @@
 | src/app/api/cron/follow-ups/route.ts | 2 |
 | src/app/api/cron/inbound-sweeper/route.ts | 2 |
 | src/app/api/cron/outbox/route.ts | 2 |
-| src/app/api/exports/[kind]/route.ts | 2 |
 | src/app/api/health/route.ts | 2 |
 | src/app/api/webhooks/whatsapp/route.ts | 2 |
 | src/app/app/admin/employees/actions.ts | 4 |
@@ -32,7 +31,7 @@
 | src/lib/outbox-enqueue.ts | 2 |
 | src/lib/quotations.ts | 6 |
 
-Allowlist: none yet — Phase 2 introduces it; until then --check does not fail on this category
+Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 
 ## 2. money-as-Number suspects — 13 line(s) (Phase-1A triage list)
 
