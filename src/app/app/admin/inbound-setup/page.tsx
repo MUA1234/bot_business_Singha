@@ -10,7 +10,7 @@
  * by someone who already holds `admin.identity.manage`.
  */
 import { requireMembership, membershipHasCapability } from "@/lib/access";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient, supabaseRpcClient } from "@/lib/supabase/read";
 import { AddAccountForm, ActivateForm, ReviewerForm } from "./SetupForms";
 
 export const metadata = { title: "Inbound setup — Singha Central" };
@@ -34,7 +34,7 @@ export default async function InboundSetupPage() {
     );
   }
 
-  const db = supabaseAdmin();
+  const dbRead = supabaseReadClient();
   let accounts: AccountRow[] = [];
   let people: PersonRow[] = [];
   let reviewers = new Set<string>();
@@ -45,7 +45,7 @@ export default async function InboundSetupPage() {
   let loadError: string | null = null;
 
   try {
-    const { data: acc, error: accErr } = await db
+    const { data: acc, error: accErr } = await dbRead
       .from("channel_accounts")
       .select("id, channel, provider_account_id, display_label, is_active")
       .eq("company_id", membership.companyId)
@@ -53,11 +53,11 @@ export default async function InboundSetupPage() {
     if (accErr) throw new Error(accErr.message);
     accounts = (acc ?? []) as AccountRow[];
 
-    const { data: st, error: stErr } = await db.rpc("inbound_setup_status", { p_company: membership.companyId });
+    const { data: st, error: stErr } = await supabaseRpcClient().rpc("inbound_setup_status", { p_company: membership.companyId });
     if (stErr) throw new Error(stErr.message);
     status = (Array.isArray(st) ? st[0] : st) as Record<string, unknown> | null;
 
-    const { data: profiles, error: pErr } = await db
+    const { data: profiles, error: pErr } = await dbRead
       .from("profiles")
       .select("id, full_name, username")
       .eq("company_id", membership.companyId)
@@ -70,7 +70,7 @@ export default async function InboundSetupPage() {
     // `inbound_setup_status` counts by — an active membership holding the capability, DELEGATIONS
     // INCLUDED. A role-key filter beside a capability count is two different questions on one
     // screen, and it showed "2 people who can review" next to a list of one.
-    const { data: revs, error: rErr } = await db.rpc("inbound_reviewer_user_ids", {
+    const { data: revs, error: rErr } = await supabaseRpcClient().rpc("inbound_reviewer_user_ids", {
       p_company: membership.companyId,
     });
     if (rErr) throw new Error(rErr.message);

@@ -3,7 +3,7 @@
 > Regenerate with `node scripts/completion-inventory.mjs`. Deterministic: changes only when code changes.
 > Suspect lists are HEURISTIC work lists (each entry needs triage), not verdicts.
 
-## 1. supabaseAdmin() usage — 32 file(s)
+## 1. supabaseAdmin() usage — 27 file(s)
 
 | file | refs |
 |---|---|
@@ -16,15 +16,10 @@
 | src/app/api/exports/[kind]/route.ts | 2 |
 | src/app/api/health/route.ts | 2 |
 | src/app/api/webhooks/whatsapp/route.ts | 2 |
-| src/app/app/admin/employees/actions.ts | 6 |
-| src/app/app/admin/employees/page.tsx | 2 |
+| src/app/app/admin/employees/actions.ts | 4 |
 | src/app/app/admin/health/page.tsx | 2 |
 | src/app/app/admin/inbound-review/actions.ts | 2 |
-| src/app/app/admin/inbound-setup/actions.ts | 4 |
-| src/app/app/admin/inbound-setup/page.tsx | 2 |
-| src/app/app/admin/outbox/actions.ts | 2 |
 | src/app/app/command/analyze/actions.ts | 3 |
-| src/app/app/hr/capacity/actions.ts | 2 |
 | src/app/app/messages/[id]/actions.ts | 2 |
 | src/app/app/operations/tasks/actions.ts | 15 |
 | src/app/login/actions.ts | 2 |
@@ -108,7 +103,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | src/app/api/exports/[kind]/route.ts:76 | `error-discarding destructure` |
 | src/app/api/exports/[kind]/route.ts:86 | `error-discarding destructure` |
 | src/app/app/admin/catalog/page.tsx:14 | `error-discarding destructure` |
-| src/app/app/admin/employees/actions.ts:26 | `error-discarding destructure` |
+| src/app/app/admin/employees/actions.ts:27 | `error-discarding destructure` |
 | src/app/app/admin/employees/page.tsx:22 | `error-discarding destructure` |
 | src/app/app/admin/health/page.tsx:20 | `[]` |
 | src/app/app/admin/outbox/page.tsx:16 | `[]` |

@@ -1,5 +1,5 @@
 import { requireAdmin } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { getDepartment } from "@/lib/departments";
 import { Icon } from "@/components/Icon";
 import { CreateEmployeeForm } from "./CreateEmployeeForm";
@@ -19,7 +19,7 @@ interface Row {
 
 export default async function EmployeesPage() {
   const admin = await requireAdmin();
-  const { data } = await supabaseAdmin()
+  const { data } = await supabaseReadClient()
     .from("profiles")
     .select("id, username, full_name, department, is_admin, is_active, created_at")
     .eq("company_id", admin.companyId)

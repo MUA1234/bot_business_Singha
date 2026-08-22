@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { usernameToEmail, USERNAME_RE } from "@/lib/constants";
 import { DEPARTMENT_KEYS } from "@/lib/departments";
@@ -23,7 +24,7 @@ async function targetInAdminCompany(
   companyId: string,
 ): Promise<{ id: string; username: string } | null> {
   if (!userId) return null;
-  const { data } = await supabaseAdmin()
+  const { data } = await supabaseWriteClient()
     .from("profiles")
     .select("id, username")
     .eq("id", userId)
@@ -50,13 +51,14 @@ export async function createEmployee(
   if (!DEPARTMENT_KEYS.includes(department)) return { error: "Choose a valid department." };
   if (password.length < 8) return { error: "Password must be at least 8 characters." };
 
-  const db = supabaseAdmin();
+  const dbAdmin = supabaseAdmin();
+  const dbWrite = supabaseWriteClient();
 
   // Reject duplicate username up front (also enforced by the unique constraint).
-  const { data: existing } = await db.from("profiles").select("id").eq("username", username).maybeSingle();
+  const { data: existing } = await dbWrite.from("profiles").select("id").eq("username", username).maybeSingle();
   if (existing) return { error: `Username “${username}” is already taken.` };
 
-  const { data: created, error: createErr } = await db.auth.admin.createUser({
+  const { data: created, error: createErr } = await dbAdmin.auth.admin.createUser({
     email: usernameToEmail(username),
     password,
     email_confirm: true,
@@ -64,7 +66,7 @@ export async function createEmployee(
   });
   if (createErr || !created.user) return { error: createErr?.message ?? "Could not create the account." };
 
-  const { error: profileErr } = await db.from("profiles").insert({
+  const { error: profileErr } = await dbWrite.from("profiles").insert({
     id: created.user.id,
     company_id: admin.companyId,
     username,
@@ -75,7 +77,7 @@ export async function createEmployee(
   });
   if (profileErr) {
     // Roll back the auth user so we never leave a login without a profile.
-    await db.auth.admin.deleteUser(created.user.id);
+    await dbAdmin.auth.admin.deleteUser(created.user.id);
     return { error: `Could not save the profile: ${profileErr.message}` };
   }
 
@@ -101,7 +103,7 @@ export async function setEmployeeActive(formData: FormData): Promise<void> {
   const target = await targetInAdminCompany(userId, admin.companyId);
   if (!target) return;
 
-  await supabaseAdmin()
+  await supabaseWriteClient()
     .from("profiles")
     .update({ is_active: active })
     .eq("id", userId)

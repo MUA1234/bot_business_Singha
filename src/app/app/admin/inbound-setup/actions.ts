@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/access";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseRpcClient } from "@/lib/supabase/read";
 import { REVIEWER_ROLE } from "@/app/app/admin/inbound-review/capability";
 
 export interface SetupState {
@@ -31,7 +31,7 @@ export async function addChannelAccount(_prev: SetupState, formData: FormData): 
     return { error: "You do not have permission to change channel configuration." };
   }
 
-  const { data, error } = await supabaseAdmin().rpc("admin_upsert_channel_account", {
+  const { data, error } = await supabaseRpcClient().rpc("admin_upsert_channel_account", {
     p_company: membership.companyId,
     p_channel: channel,
     p_provider_account_id: account,
@@ -66,7 +66,7 @@ export async function setChannelAccountActive(_prev: SetupState, formData: FormD
     return { error: "You do not have permission to change channel configuration." };
   }
 
-  const { data, error } = await supabaseAdmin().rpc("admin_set_channel_account_active", {
+  const { data, error } = await supabaseRpcClient().rpc("admin_set_channel_account_active", {
     p_company: membership.companyId,
     p_account: id,
     p_active: active,
@@ -105,7 +105,7 @@ export async function setReviewerRole(_prev: SetupState, formData: FormData): Pr
     return { error: "You do not have permission to change what someone can do." };
   }
 
-  const { error } = await supabaseAdmin().rpc("admin_set_membership_role", {
+  const { error } = await supabaseRpcClient().rpc("admin_set_membership_role", {
     p_company: membership.companyId,
     p_user: userId,
     p_role_key: roleKey,

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { replayReset } from "@/events/outbox-delivery";
 
@@ -15,7 +15,7 @@ export async function replayMessage(formData: FormData): Promise<void> {
   const admin = await requireAdmin();
   const id = String(formData.get("id") ?? "");
   if (!id) return;
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
 
   const { data: row } = await db
     .from("message_outbox")
