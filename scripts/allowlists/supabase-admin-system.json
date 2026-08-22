@@ -17,8 +17,6 @@
   "src/lib/audit.ts",
   "src/lib/documents.ts",
   "src/lib/inbound/production-deps.ts",
-  "src/lib/ledger-report.ts",
-  "src/lib/notify.ts",
   "src/lib/order-intake.ts",
   "src/lib/outbox-enqueue.ts",
   "src/lib/quotations.ts"

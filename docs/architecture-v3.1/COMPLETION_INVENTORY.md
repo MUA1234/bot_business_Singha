@@ -3,7 +3,7 @@
 > Regenerate with `node scripts/completion-inventory.mjs`. Deterministic: changes only when code changes.
 > Suspect lists are HEURISTIC work lists (each entry needs triage), not verdicts.
 
-## 1. supabaseAdmin() usage — 23 file(s)
+## 1. supabaseAdmin() usage — 21 file(s)
 
 | file | refs |
 |---|---|
@@ -25,8 +25,6 @@
 | src/lib/audit.ts | 2 |
 | src/lib/documents.ts | 3 |
 | src/lib/inbound/production-deps.ts | 4 |
-| src/lib/ledger-report.ts | 2 |
-| src/lib/notify.ts | 2 |
 | src/lib/order-intake.ts | 2 |
 | src/lib/outbox-enqueue.ts | 2 |
 | src/lib/quotations.ts | 6 |
