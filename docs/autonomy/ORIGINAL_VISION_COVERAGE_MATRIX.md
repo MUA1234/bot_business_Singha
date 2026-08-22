@@ -64,8 +64,8 @@ operating-mode claim that depends on it. Blocked is not done.
 
 | ID | Title | Pri | Status | Runtime entrypoint | Verified SHA | Owner gate |
 |---|---|---|---|---|---|---|
-| AIM-001 | Atomic AI case, task and audit persistence | P0 | **locally_verified** | src/management/ai-manager/analyze-conversation.ts; src/app/app/command/analyze/actions.ts | 7669ce1 | hosted migration application |
-| AIM-002 | Task-level deduplication | P0 | **locally_verified** | src/management/ai-manager/analyze-conversation.ts and src/app/app/command/analyze/actions.ts — both production analysis paths now create tasks through create_task_deduplicated (migration 0073); tasks_set_identity_hash trigger fires on every task write | 1fd50b2 | hosted migration application |
+| AIM-001 | Atomic AI case, task and audit persistence | P0 | **locally_verified** | src/management/ai-manager/analyze-conversation.ts; src/app/app/command/analyze/actions.ts | 707761c | hosted migration application |
+| AIM-002 | Task-level deduplication | P0 | **locally_verified** | src/management/ai-manager/analyze-conversation.ts and src/app/app/command/analyze/actions.ts — both production analysis paths now create tasks through create_task_deduplicated (migration 0073); tasks_set_identity_hash trigger fires on every task write | 707761c | hosted migration application |
 | AIM-003 | Truthful task routing | P0 | **implementation_in_progress** | src/management/routing/route-captured-tasks.ts with makeSupabaseRoutingDeps, called by BOTH production analysis paths — src/app/app/command/analyze/actions.ts and src/management/ai-manager/analyze-conversation.ts | 1fd50b2 | hosted migration application |
 | AIM-004 | Task Intelligence Profile | P1 | **specified** | none | none | flag activation |
 | AIM-005 | Decision-path ladder | P1 | **specified** | none | none | flag activation |
@@ -73,7 +73,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | AIM-007 | AI Guide next actions | P1 | **foundation_only** | src/app/app/command/analyze/actions.ts (computed once, rendered, never persisted) | none | flag activation |
 | AIM-008 | Outcome measurement and improvement loop | P2 | **absent** | none | none | — |
 | AST-001 | Asset Intelligence — registry, custody, reservations, utilization, optimization | P1 | **specified** | none | none | approval of the specification before implementation |
-| COM-001 | WhatsApp text inbound and outbound with truthful delivery | P0 | **locally_verified** | src/app/api/webhooks/whatsapp/route.ts; src/app/api/cron/outbox/route.ts | 1ebaa80 | — |
+| COM-001 | WhatsApp text inbound and outbound with truthful delivery | P0 | **locally_verified** | src/app/api/webhooks/whatsapp/route.ts; src/app/api/cron/outbox/route.ts | 707761c | — |
 | COM-002 | Voice-note intake | P2 | **absent** | none | none | transcription provider selection |
 | COM-003 | Image and document intake with evidence preservation | P1 | **absent** | none | none | — |
 | COM-004 | Email intake and send | P2 | **absent** | src/app/api/webhooks/email/route.ts returns 501 | none | email provider selection and credentials |
@@ -86,23 +86,23 @@ operating-mode claim that depends on it. Blocked is not done.
 | CRM-003 | Consultant and service-provider registry | P1 | **absent** | none | none | — |
 | CRM-004 | Counterparty performance, reliability and history | P2 | **absent** | none | none | — |
 | CRM-005 | Compliance and insurance status per counterparty | P1 | **absent** | none | none | — |
-| CTL-001 | Exception-led operational overview | P0 | **locally_verified** | src/app/app/command/page.tsx | 1ebaa80 | — |
+| CTL-001 | Exception-led operational overview | P0 | **locally_verified** | src/app/app/command/page.tsx | 707761c | — |
 | CTL-002 | Cross-company portfolio overview | P2 | **absent** | none | none | — |
 | CTL-003 | Integration and AI/model health on the control surface | P1 | **foundation_only** | src/app/app/admin/health/page.tsx | 1ebaa80 | — |
 | CTL-004 | Explainable business-health score | P2 | **absent** | none | none | — |
-| FIN-001 | Bank and cash position | P0 | **locally_verified** | src/app/app/command/page.tsx; src/app/app/finance/accounts/page.tsx | 1ebaa80 | — |
-| FIN-002 | Receivables and payables with ageing | P0 | **locally_verified** | src/app/app/finance/receivables/page.tsx; src/app/app/command/page.tsx | 1ebaa80 | — |
-| FIN-003 | Rolling cash-flow forecast | P0 | **locally_verified** | src/app/app/command/page.tsx | 1ebaa80 | — |
+| FIN-001 | Bank and cash position | P0 | **locally_verified** | src/app/app/command/page.tsx; src/app/app/finance/accounts/page.tsx | 707761c | — |
+| FIN-002 | Receivables and payables with ageing | P0 | **locally_verified** | src/app/app/finance/receivables/page.tsx; src/app/app/command/page.tsx | 707761c | — |
+| FIN-003 | Rolling cash-flow forecast | P0 | **locally_verified** | src/app/app/command/page.tsx | 707761c | — |
 | FIN-004 | Commitments and expected payments | P1 | **absent** | none | none | — |
 | FIN-005 | Taxes and professional-review opportunities | P1 | **foundation_only** | none | none | authorised finance reviewer identity |
 | FIN-006 | Budget versus actual and scenario analysis | P1 | **absent** | none | none | — |
 | FIN-007 | Funding requirements and investments | P2 | **absent** | none | none | — |
 | FIN-008 | Payment intelligence and evidence | P0 | **foundation_only** | src/app/app/finance/reconciliation/page.tsx | 1ebaa80 | — |
-| FOUND-001 | Durable inbound processing with leases, bounded retry and dead-letter | P0 | **locally_verified** | src/app/api/cron/inbound-sweeper/route.ts | 1ebaa80 | hosted migration application |
-| FOUND-002 | Worker fairness by eligibility rather than ordering | P0 | **locally_verified** | src/app/api/cron/inbound-sweeper/route.ts | 1ebaa80 | — |
+| FOUND-001 | Durable inbound processing with leases, bounded retry and dead-letter | P0 | **locally_verified** | src/app/api/cron/inbound-sweeper/route.ts | 707761c | hosted migration application |
+| FOUND-002 | Worker fairness by eligibility rather than ordering | P0 | **locally_verified** | src/app/api/cron/inbound-sweeper/route.ts | 707761c | — |
 | FOUND-003 | Production-reachable staff and finance intake | P0 | **blocked_owner** | src/app/api/webhooks/whatsapp/route.ts and src/inngest/functions.ts (both dispatch through src/lib/inbound/dispatch.ts via the shared src/lib/inbound/production-deps.ts) | 1fd50b2 | a model provider credential for finance classification; mapping each receiving WhatsApp number to its company in channel_accounts; granting operations.inbound.review to the people who should work the queue; hosted migration application |
-| FOUND-004 | Deterministic company-scoped authority engine | P0 | **locally_verified** | src/management/ai-manager/pipeline.ts (planFromObservation) | 079fbb8 | sign-off on the impact-to-level mapping, or replacement by authority_rules-driven mapping |
-| FOUND-005 | AI trust boundary — untrusted output cannot decide identity, scope or authority | P0 | **locally_verified** | src/ai/manager-observation.ts; src/ai/quotation.ts | 7669ce1 | — |
+| FOUND-004 | Deterministic company-scoped authority engine | P0 | **locally_verified** | src/management/ai-manager/pipeline.ts (planFromObservation) | 707761c | sign-off on the impact-to-level mapping, or replacement by authority_rules-driven mapping |
+| FOUND-005 | AI trust boundary — untrusted output cannot decide identity, scope or authority | P0 | **locally_verified** | src/ai/manager-observation.ts; src/ai/quotation.ts | 707761c | — |
 | FOUND-006 | Service-role and RLS read/write cutover | P0 | **implementation_in_progress** | src/lib/supabase/read.ts (shim returns the ADMIN client while flags are OFF) | none | flag activation |
 | GOV-001 | Management directives with response obligations | P1 | **absent** | none | none | — |
 | GOV-002 | Directive acknowledgement and escalation | P1 | **absent** | none | none | — |
@@ -124,7 +124,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | MOD-001 | Live-model evaluation path | P1 | **blocked_owner** | tests/campaign/live-eval.test.ts (evaluation-only; no production path) | 079fbb8 | ANTHROPIC_API_KEY supplied privately via local/staging secret configuration |
 | MOD-002 | Customer-facing model calls recorded in the cost ledger | P2 | **absent** | none | none | — |
 | MOD-003 | Provider-neutral Model Gateway and Policy Router | P1 | **specified** | none | none | approved provider list and credentials supplied privately; no unapproved provider may be called |
-| OPS-001 | Health, observability and error visibility | P0 | **locally_verified** | src/app/api/health/route.ts; src/app/app/admin/health/page.tsx | 1ebaa80 | — |
+| OPS-001 | Health, observability and error visibility | P0 | **locally_verified** | src/app/api/health/route.ts; src/app/app/admin/health/page.tsx | 707761c | — |
 | OPS-002 | Audit search | P1 | **foundation_only** | src/app/app/admin/audit/page.tsx | none | — |
 | OPS-003 | Backup, restore and rollback drills | P0 | **absent** | none | none | hosted environment access to rehearse against |
 | OPS-004 | Staging UAT and browser role testing | P0 | **blocked_owner** | none | none | staging environment plus credentials |
@@ -148,7 +148,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | SCH-003 | Leave and workload-aware scheduling | P2 | **absent** | none | none | — |
 | SCH-004 | Escalation and missed-response recovery | P1 | **foundation_only** | src/app/api/cron/follow-ups/route.ts | none | — |
 | SCH-005 | Handovers and meeting-action extraction | P2 | **absent** | none | none | — |
-| SCH-006 | Overdue evidence enforcement | P1 | **locally_verified** | src/app/app/operations/tasks/actions.ts | 1ebaa80 | — |
+| SCH-006 | Overdue evidence enforcement | P1 | **locally_verified** | src/app/app/operations/tasks/actions.ts | 707761c | — |
 | WRK-001 | Attendance, availability, leave, sickness and travel | P1 | **foundation_only** | src/app/app/hr/leave | none | — |
 | WRK-002 | Current and future workload with historical capacity | P1 | **foundation_only** | src/app/app/hr/capacity/page.tsx | none | — |
 | WRK-003 | Skills, certifications and expiry | P1 | **foundation_only** | src/app/app/hr/staff | none | — |

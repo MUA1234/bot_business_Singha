@@ -36,7 +36,7 @@ requirements:
     test_evidence: tests/integration/durable-inbound-processing.test.ts; tests/campaign/inbound-sweeper.test.ts
     security_evidence: service_role-only SECDEF + caller_jwt_role gate + fail-closed privilege assertion in 0069; allowlisted in tests/integration/secure-definer-grants.test.ts
     audit_health_evidence: source_event_backlog(company) company-scoped counts
-    last_verified_sha: 1ebaa80
+    last_verified_sha: 707761c
     last_verified_at: 2026-08-17
     owner_gate: hosted migration application
     blocker: none
@@ -58,7 +58,7 @@ requirements:
     test_evidence: tests/integration/durable-inbound-processing.test.ts (fairness beyond 200 rows; multi-company opportunity; lease expiry after restart)
     security_evidence: claim is service-only
     audit_health_evidence: sweeper reports partialFailure and counts
-    last_verified_sha: 1ebaa80
+    last_verified_sha: 707761c
     last_verified_at: 2026-08-17
     owner_gate: none
     blocker: none
@@ -102,7 +102,7 @@ requirements:
     test_evidence: tests/campaign/authority-engine.test.ts; tests/campaign/authority-floor.test.ts
     security_evidence: closed action classification with NFKC folding; fail-closed on missing policy/membership/rule/currency
     audit_health_evidence: plan.authorityReasons and authorityFailedClosed
-    last_verified_sha: 079fbb8
+    last_verified_sha: 707761c
     last_verified_at: 2026-08-17
     owner_gate: sign-off on the impact-to-level mapping, or replacement by authority_rules-driven mapping
     blocker: none
@@ -124,7 +124,7 @@ requirements:
     test_evidence: tests/campaign/ai-trust-boundary.test.ts
     security_evidence: per-run random fence id; scope injected after parse; service-only persistence RPC
     audit_health_evidence: ai_runs cost ledger records every run including failures
-    last_verified_sha: 7669ce1
+    last_verified_sha: 707761c
     last_verified_at: 2026-08-17
     owner_gate: none
     blocker: none
@@ -169,7 +169,7 @@ requirements:
     test_evidence: tests/integration/ai-case-atomic.test.ts; tests/integration/campaign-cross-layer.test.ts
     security_evidence: service-only SECDEF with caller_jwt_role gate
     audit_health_evidence: audit event written in the same transaction
-    last_verified_sha: 7669ce1
+    last_verified_sha: 707761c
     last_verified_at: 2026-08-17
     owner_gate: hosted migration application
     blocker: none
@@ -191,7 +191,7 @@ requirements:
     test_evidence: tests/integration/task-dedup.test.ts (18 deterministic integration scenarios on a disposable local PostgreSQL); tests/integration/case-task-dedup-wiring.test.ts (13 scenarios covering the production wiring, non-merging of distinct work, and unchanged atomicity); tests/campaign/task-identity.test.ts (9 unit scenarios)
     security_evidence: identity is SERVER-computed by a SECURITY DEFINER trigger and recomputed on insert AND update so a caller or model cannot forge it; RPC is service-only with an in-function role gate; identity components are length-bounded; company_id is inside both the hash and the unique index; the suggestions table is service-write-only under RLS
     audit_health_evidence: the RPC returns a created flag distinguishing a new task from a replay
-    last_verified_sha: 1fd50b2
+    last_verified_sha: 707761c
     last_verified_at: 2026-08-18
     owner_gate: hosted migration application
     blocker: none
@@ -869,7 +869,7 @@ requirements:
     test_evidence: tests/cash-position.test.ts
     security_evidence: company-scoped queries; admin/finance gates
     audit_health_evidence: Command Centre degraded-source banner on query failure
-    last_verified_sha: 1ebaa80
+    last_verified_sha: 707761c
     last_verified_at: 2026-08-17
     owner_gate: none
     blocker: none
@@ -890,7 +890,7 @@ requirements:
     test_evidence: tests/aging.test.ts; tests/money-adversarial.test.ts
     security_evidence: company-scoped; exact decimal outstanding via decSub
     audit_health_evidence: overdue drives Command Centre exceptions
-    last_verified_sha: 1ebaa80
+    last_verified_sha: 707761c
     last_verified_at: 2026-08-17
     owner_gate: none
     blocker: none
@@ -911,7 +911,7 @@ requirements:
     test_evidence: tests/forecast.test.ts
     security_evidence: company-scoped; exact decimal
     audit_health_evidence: goesNegative surfaces in the briefing
-    last_verified_sha: 1ebaa80
+    last_verified_sha: 707761c
     last_verified_at: 2026-08-17
     owner_gate: none
     blocker: none
@@ -1251,7 +1251,7 @@ requirements:
     test_evidence: tests/task-lifecycle.test.ts
     security_evidence: authorizeOnTask company-scoped access
     audit_health_evidence: audit on completion
-    last_verified_sha: 1ebaa80
+    last_verified_sha: 707761c
     last_verified_at: 2026-08-17
     owner_gate: none
     blocker: none
@@ -1274,7 +1274,7 @@ requirements:
     test_evidence: tests/integration/wp12-quotation-delivery.test.ts; outbox-claim; wp12-atomic-enqueue
     security_evidence: timing-safe signature verification; delivery transitions RPC-only via DB trigger
     audit_health_evidence: outbox status; admin outbox page with replay
-    last_verified_sha: 1ebaa80
+    last_verified_sha: 707761c
     last_verified_at: 2026-08-17
     owner_gate: none
     blocker: none
@@ -1444,7 +1444,7 @@ requirements:
     test_evidence: tests/exceptions.test.ts; tests/briefing.test.ts
     security_evidence: requireAdmin; company-scoped queries
     audit_health_evidence: command.query_failed logging and a degraded banner instead of a false all-clear
-    last_verified_sha: 1ebaa80
+    last_verified_sha: 707761c
     last_verified_at: 2026-08-17
     owner_gate: none
     blocker: none
@@ -1809,7 +1809,7 @@ requirements:
     test_evidence: tests/health.test.ts; tests/health-signals.test.ts; tests/observability.test.ts
     security_evidence: CRON_SECRET-gated; company-scoped counts
     audit_health_evidence: structured logs with event codes
-    last_verified_sha: 1ebaa80
+    last_verified_sha: 707761c
     last_verified_at: 2026-08-17
     owner_gate: none
     blocker: none

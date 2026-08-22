@@ -21,19 +21,31 @@
  */
 import { spawn, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
-const CHROME = [
+const CHROME_CANDIDATES = [
+  process.env.BROWSER_EXECUTABLE,
+  process.env.CHROME_PATH,
+  process.env.CHROME_BIN,
   "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
   "/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell",
-].find((p) => existsSync(p));
+  join(process.env.LOCALAPPDATA ?? "", "ms-playwright", "chromium-1194", "chrome-win", "chrome.exe"),
+  join(process.env.PROGRAMFILES ?? "", "Google", "Chrome", "Application", "chrome.exe"),
+  join(process.env["PROGRAMFILES(X86)"] ?? "", "Google", "Chrome", "Application", "chrome.exe"),
+  join(process.env.LOCALAPPDATA ?? "", "Google", "Chrome", "Application", "chrome.exe"),
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "/usr/bin/google-chrome",
+  "/usr/bin/chromium",
+].filter((path) => path && existsSync(path));
+const CHROME = CHROME_CANDIDATES[0];
 
 const portArg = process.argv.indexOf("--port");
 const PORT = portArg > -1 ? Number(process.argv[portArg + 1]) : 3999;
 const BASE = `http://127.0.0.1:${PORT}`;
 
 if (!CHROME) {
-  console.error("❌ browser-check: no Chromium binary found under /opt/pw-browsers");
+  console.error("❌ browser-check: no Chromium binary found; set BROWSER_EXECUTABLE to override discovery");
   process.exit(1);
 }
 
@@ -56,10 +68,12 @@ const env = {
   CRON_SECRET: "bc-none",
 };
 
-const server = spawn("npx", ["next", "start", "-p", String(PORT)], { env, stdio: ["ignore", "pipe", "pipe"] });
+const nextCli = resolve("node_modules", "next", "dist", "bin", "next");
+const server = spawn(process.execPath, [nextCli, "start", "-p", String(PORT)], { env, stdio: ["ignore", "pipe", "pipe"] });
 let serverLog = "";
 server.stdout.on("data", (d) => { serverLog += d.toString(); });
 server.stderr.on("data", (d) => { serverLog += d.toString(); });
+server.on("error", (error) => { serverLog += `\nFailed to start Next: ${error.message}`; });
 
 const stop = () => { try { server.kill("SIGTERM"); } catch { /* noop */ } };
 process.on("exit", stop);

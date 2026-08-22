@@ -14,7 +14,7 @@
  *
  * Usage: node scripts/autonomy/audit-requirements.mjs [--strict] [--quiet]
  */
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { writeFileSync, readFileSync, existsSync } from "node:fs";
 import { loadRegister, validateRequirement, COMPLETE_STATUSES, groupOf } from "./requirements-lib.mjs";
 
@@ -84,7 +84,7 @@ if (gitUsable) {
     const sha = String(r.last_verified_sha ?? "").trim();
     if (!/^[0-9a-f]{7,40}$/.test(sha)) continue; // already reported by validateRequirement
     try {
-      execSync(`git cat-file -e ${sha}^{commit}`, { stdio: "ignore" });
+      execFileSync("git", ["cat-file", "-e", `${sha}^{commit}`], { stdio: "ignore" });
     } catch {
       problems.push(`${r.id}: last_verified_sha ${sha} is not a commit in this repository`);
     }
