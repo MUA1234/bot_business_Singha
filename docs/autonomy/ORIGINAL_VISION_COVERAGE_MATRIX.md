@@ -12,8 +12,8 @@ Generated at: 2026-08-22
 |---|---|
 | absent | 41 |
 | foundation_only | 22 |
-| locally_verified | 13 |
-| specified | 6 |
+| locally_verified | 14 |
+| specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 3 |
 | deliberately_deferred | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **13** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **72** |
+| **Verified** (locally / preview / staging / production) | **14** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **71** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -53,7 +53,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | LNG | 1 | 0 | 1 |
 | MEM | 1 | 0 | 1 |
 | MOB | 4 | 0 | 4 |
-| MOD | 3 | 0 | 3 |
+| MOD | 3 | 1 | 2 |
 | OPS | 8 | 1 | 7 |
 | PRJ | 5 | 0 | 5 |
 | RSK | 6 | 0 | 6 |
@@ -123,7 +123,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | MOB-004 | Accessibility and Sinhala/Tamil rendering | P1 | **absent** | none | none | — |
 | MOD-001 | Live-model evaluation path | P1 | **blocked_owner** | tests/campaign/live-eval.test.ts (evaluation-only; no production path) | 079fbb8 | ANTHROPIC_API_KEY supplied privately via local/staging secret configuration |
 | MOD-002 | Customer-facing model calls recorded in the cost ledger | P2 | **absent** | none | none | — |
-| MOD-003 | Provider-neutral Model Gateway and Policy Router | P1 | **specified** | none | none | approved provider list and credentials supplied privately; no unapproved provider may be called |
+| MOD-003 | Provider-neutral Model Gateway and Policy Router | P1 | **locally_verified** | src/ai/model-policy-router.ts (ModelPolicyRouter/Executor/Registry); src/ai/gateway.ts AiGateway.runExtraction; src/db/consumer-store.ts loadAiTaskBudget; src/app/app/admin/model-budgets/actions.ts saveModelBudgetPolicy | dfc994b | approved provider list and credentials supplied privately; no unapproved provider may be called |
 | OPS-001 | Health, observability and error visibility | P0 | **locally_verified** | src/app/api/health/route.ts; src/app/app/admin/health/page.tsx | 707761c | — |
 | OPS-002 | Audit search | P1 | **foundation_only** | src/app/app/admin/audit/page.tsx | none | — |
 | OPS-003 | Backup, restore and rollback drills | P0 | **absent** | none | none | hosted environment access to rehearse against |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **72**; blocked (owner): **4**;
+mode. Incomplete and implementable: **71**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.
