@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
-  "activePhase": "stage3-ai-management",
-  "activeRequirementIds": ["AIM-004"],
+  "activePhase": "stage6-operations",
+  "activeRequirementIds": ["OPS-005"],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -56,10 +56,18 @@
     "evidence": "tests/integration/task-routing.test.ts (19 passed); tests/integration/routing-provenance.test.ts (15 passed); tests/integration/routing-and-mapping-corrections.test.ts (12 passed); tests/campaign/capture-routing.test.ts (7 passed); tests/campaign/analyze-ui-truthfulness.test.ts (7 passed); tests/campaign/ui-rendered-truthfulness.test.ts (10 passed).",
     "limitation": "Owner acceptance of R1 is required before AIM-003 can be restored to locally_verified per the requirement register."
   },
+  "aim004Assessment": {
+    "date": "2026-08-22",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "4d2ee97",
+    "outcome": "ASSESSED BUT NOT ADVANCED: AIM-004 is part of the V3.1 senior-management-intelligence evolution. The compatibility foundation (src/schemas/v3_1/task-intelligence-profile.ts and tests/v3_1-contracts.test.ts) is in place and is deliberately consumed by no runtime path (zero behaviour change). Building a runtime producer/consumer for TaskIntelligenceProfile would be building ahead of the approved V3.1 work package and is not performed in this session.",
+    "evidence": "src/schemas/v3_1/task-intelligence-profile.ts defines the contract; tests/v3_1-contracts.test.ts validates the schema.",
+    "limitation": "V3.1 feature flag V3_1_TASK_DETECTION remains default-OFF and AIM-004 remains specified until the V3.1 slice is approved and implemented."
+  },
   "lastGreenSha": "4d2ee97",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "AIM-003 assessment completed on kimi/found006-rls-cutover. Implementation is complete and focused tests pass, but the requirement register explicitly keeps AIM-003 in implementation_in_progress pending owner acceptance of R1. Transitioning to AIM-004 (Task Intelligence Profile), the next dependency-ordered implementable requirement (depends on locally_verified AIM-002).",
-  "nextAction": "Inspect AIM-004 requirement, runtime entrypoint (currently none — schema contract only at src/schemas/v3_1/task-intelligence-profile.ts), producer/consumer code, and tests. Determine what implementation is needed to move it from specified to locally_verified. Run focused tests, implement any missing pieces, update the requirement entry, run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "AIM-004 assessment completed on kimi/found006-rls-cutover. AIM-004 is a V3.1 future requirement whose schema contract exists but has no runtime consumer; building it now would be ahead of the approved work package. Transitioning to OPS-005 (Feature-flag rollout control), a dependency-free foundation_only requirement with a small, well-defined gap: /api/health does not yet report the V3.1 flag snapshot.",
+  "nextAction": "Implement OPS-005: surface the V3.1 flag snapshot on /api/health, add or extend tests to verify the snapshot is reported, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
     "DATABASE_URL=postgresql://postgres:postgres@localhost:55440/singha_test npm run test:integration -- tests/integration/task-routing.test.ts tests/integration/routing-provenance.test.ts tests/integration/routing-and-mapping-corrections.test.ts (46 passed / 3 files)",
     "npm test -- tests/campaign/capture-routing.test.ts tests/campaign/analyze-ui-truthfulness.test.ts tests/campaign/ui-rendered-truthfulness.test.ts (24 passed / 3 files)"
@@ -88,6 +96,7 @@
     "OF-016: RESOLVED by migration 0087 (pending independent review). The paused payment now has an authorized, audited, idempotent resolution path and a screen; historic 0083 rows work as they stand.",
     "OF-018: RESOLVED by migration 0090 and locally accepted at 5109bc0. The two inbound-review RPCs now authorize solely by their exact service_role EXECUTE grants; direct service sessions remain valid without or despite claim text, while anon/authenticated remain denied.",
     "AIM-003: IMPLEMENTATION COMPLETE but remains implementation_in_progress pending owner acceptance of R1 per the requirement register. Focused tests pass; OF-007 is fixed by migrations 0078/0082.",
+    "AIM-004: V3.1 FUTURE WORK. Schema contract exists at src/schemas/v3_1/task-intelligence-profile.ts; no runtime consumer is built per the zero-behaviour-change foundation constraint.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
     "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
     "OF-015 (P2): sections 3 and 6 have no re-runnable schema-level end-to-end discrimination, because they are application code.",
