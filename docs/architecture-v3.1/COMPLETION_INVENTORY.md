@@ -3,7 +3,7 @@
 > Regenerate with `node scripts/completion-inventory.mjs`. Deterministic: changes only when code changes.
 > Suspect lists are HEURISTIC work lists (each entry needs triage), not verdicts.
 
-## 1. supabaseAdmin() usage — 25 file(s)
+## 1. supabaseAdmin() usage — 24 file(s)
 
 | file | refs |
 |---|---|
@@ -24,7 +24,6 @@
 | src/app/app/operations/tasks/actions.ts | 15 |
 | src/inngest/functions.ts | 4 |
 | src/lib/audit.ts | 2 |
-| src/lib/auth.ts | 3 |
 | src/lib/documents.ts | 3 |
 | src/lib/inbound/production-deps.ts | 4 |
 | src/lib/ledger-report.ts | 2 |
@@ -70,7 +69,7 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 
 | env | consumers |
 |---|---|
-| RLS_READS | src/lib/supabase/read.ts |
+| RLS_READS | src/lib/auth.ts<br>src/lib/supabase/read.ts |
 | RLS_WRITES | src/app/app/finance/customer-invoices/actions.ts<br>src/app/app/finance/supplier-bills/actions.ts<br>src/lib/auth.ts<br>src/lib/supabase/read.ts |
 | WHATSAPP_ASYNC | src/app/api/webhooks/whatsapp/route.ts<br>src/inngest/functions.ts<br>src/lib/inbound/production-deps.ts |
 
