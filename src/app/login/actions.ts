@@ -1,7 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { supabaseServer, supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { usernameToEmail } from "@/lib/constants";
 import { homePathFor } from "@/lib/departments";
 
@@ -21,7 +22,7 @@ export async function signIn(_prev: LoginState, formData: FormData): Promise<Log
   });
   if (error || !data.user) return { error: "Incorrect username or password." };
 
-  const { data: profile } = await supabaseAdmin()
+  const { data: profile } = await supabaseReadClient()
     .from("profiles")
     .select("department, is_active")
     .eq("id", data.user.id)

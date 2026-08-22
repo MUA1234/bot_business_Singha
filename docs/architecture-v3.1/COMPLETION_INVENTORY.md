@@ -3,7 +3,7 @@
 > Regenerate with `node scripts/completion-inventory.mjs`. Deterministic: changes only when code changes.
 > Suspect lists are HEURISTIC work lists (each entry needs triage), not verdicts.
 
-## 1. supabaseAdmin() usage — 27 file(s)
+## 1. supabaseAdmin() usage — 25 file(s)
 
 | file | refs |
 |---|---|
@@ -22,7 +22,6 @@
 | src/app/app/command/analyze/actions.ts | 3 |
 | src/app/app/messages/[id]/actions.ts | 2 |
 | src/app/app/operations/tasks/actions.ts | 15 |
-| src/app/login/actions.ts | 2 |
 | src/inngest/functions.ts | 4 |
 | src/lib/audit.ts | 2 |
 | src/lib/auth.ts | 3 |
@@ -33,7 +32,6 @@
 | src/lib/order-intake.ts | 2 |
 | src/lib/outbox-enqueue.ts | 2 |
 | src/lib/quotations.ts | 6 |
-| src/lib/task-access.ts | 4 |
 
 Allowlist: none yet — Phase 2 introduces it; until then --check does not fail on this category
 
