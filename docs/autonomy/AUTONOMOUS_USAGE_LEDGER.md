@@ -25,8 +25,9 @@ only for calls the application makes — currently zero, because no provider key
 | Security / authority / prompt-injection review | Opus 5 | 1 blocker (reclassified latent on call-graph evidence), 5 material, 8 limitations |
 | Business-intelligence evaluation | **not run** | Subject is live-model quality — blocked with no provider; substituted with the deterministic scenario pack rather than simulated |
 | Final review of the campaign's own fixes | Opus 5 | Found 4 regressions + 3 false claims in the campaign's first correction loop; all upheld and corrected |
+| OF-018 inbound-review grant boundary | Independent cold-context review, same available model | No material defect; identified missing genuine-anon denial coverage, added and rerun before acceptance |
 
-Total Opus assignments: **3 run, 1 deliberately not run.** Cap is 2 routine + 1 Opus per slice.
+Total Opus assignments: **3 run, 1 deliberately not run.** OF-018 used one independent cold-context review; provider/model identity and token/cost data were unavailable. Cap is 2 routine + 1 independent review per slice.
 
 ## Correction loops
 
@@ -35,6 +36,7 @@ Total Opus assignments: **3 run, 1 deliberately not run.** Cap is 2 routine + 1 
 | Overnight verification campaign | 2 | 2 (exhausted — frozen) |
 | v3.3 Part 1 | 0 | 2 |
 | v3.3 Part 2 | 0 | 2 |
+| OF-018 | 0 material loops | 2 |
 
 ## Full-battery runs (expensive; run only at phase boundaries)
 

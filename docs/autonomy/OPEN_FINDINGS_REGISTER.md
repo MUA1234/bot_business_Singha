@@ -276,19 +276,29 @@ Acceptance basis, as recorded by the owner:
 
 **OF-017 remains open** and unchanged: it is a deployment topology property, not a repository defect.
 
-### OF-018 (P2) — scheduled, not folded into OF-016
+### OF-018 (P2) — locally accepted at `5109bc0`
 
-`resolve_inbound_review` and `record_inbound_review` (migration 0075) gate on
-`caller_jwt_role() is distinct from 'service_role'` **in addition to** their EXECUTE grants.
+Migration **0090** removes the redundant `caller_jwt_role()` checks from
+`record_inbound_review` and `resolve_inbound_review`; their exact `EXECUTE` grants remain the sole
+service authority boundary. All queue validation, company scope, idempotency, named-actor
+capability re-check, row lock, idempotent decision handling, and same-transaction audit remain.
 
-* Fail-**closed**: a genuine `service_role` caller whose request claim text differs — a direct
-  connection sets no GUC at all — is unnecessarily refused.
-* It grants **nothing** to `anon` or `authenticated`, so it is not a privilege-escalation defect and
-  was **not** part of FOUND-006's acceptance.
-* Deliberately **not** folded into OF-016: that package's own RPCs do not call the affected inbound
-  path, so there is no dependency that would justify widening its scope.
-* **Scheduled** as a bounded cleanup, to be done before any module genuinely requires service-role
-  access to those RPCs. Migration 0087 does not copy the pattern — see its header.
+* The discriminating pre-change test failed on a fresh disposable PostgreSQL 16 schema at 0089:
+  a genuine login holding only `service_role` and no request claims was refused by
+  `record_inbound_review`'s body.
+* After 0090, direct service access works with no claims and with contradictory `authenticated`
+  claim text. Genuine `anon` and `authenticated` logins remain denied (`42501`) even when they
+  forge `role: service_role`.
+* Migration 0090 fails closed unless each exact signature is executable by `service_role`, denied to
+  `anon` and `authenticated`, and contains no `caller_jwt_role` reference.
+* Focused inbound-review, SECURITY DEFINER grant, and FOUND-006 caller-trust coverage passed
+  `46/46`; full integration passed `678/678` across 75 files; `npm run verify` passed with 760 unit
+  tests and 2 skipped. A cold-context adversarial review found no material defect; its one anon-role
+  coverage gap was added and rerun.
+
+This is local technical acceptance only. It does not change the separate OF-017 shared-login
+topology risk or prove hosted/staging configuration, authenticated Supabase browser flows, CI, or
+production behavior.
 
 ---
 
