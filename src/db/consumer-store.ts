@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { approvalPolicy, type ApprovalPolicy } from "@/schemas/approval-policy";
 import { assertTransition, type FinancialEventState } from "@/domain/lifecycle";
 import type { AiRunRecord, CostLedger } from "@/ai/gateway";
+import type { ModelAttemptTelemetry } from "@/ai/model-policy-router";
 import type { ConsumerDeps, LoadedSourceEvent } from "@/inngest/processing";
 import { log } from "@/lib/log";
 
@@ -49,6 +50,39 @@ export function makeSupabaseCostLedger(db: SupabaseClient): CostLedger {
       if (error) log("error", "ai_runs insert failed", { event: "ai_runs.insert_failed", aiRunId: run.ai_run_id, error: error.message });
     },
   };
+}
+
+/** Durable MOD-003 attempt/health telemetry. The unique key makes a replay idempotent. */
+export function makeSupabaseModelAttemptTelemetry(db: SupabaseClient): ModelAttemptTelemetry {
+  return {
+    async recordAttempt(attempt): Promise<void> {
+      const { error } = await db.from("ai_model_attempts").upsert({
+        company_id: attempt.companyId,
+        logical_request_id: attempt.logicalRequestId,
+        task: attempt.task,
+        provider: attempt.provider,
+        model: attempt.model,
+        attempt: attempt.attempt,
+        outcome: attempt.outcome,
+        latency_ms: attempt.latencyMs,
+        error_category: attempt.errorCategory ?? null,
+      }, { onConflict: "company_id,logical_request_id,attempt" });
+      if (error) throw new Error(`ai_model_attempts upsert failed: ${error.message}`);
+    },
+  };
+}
+
+/** Returns the explicit company/task ceiling; absent configuration fails closed at the caller. */
+export async function loadAiTaskBudget(db: SupabaseClient, companyId: string, task: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("ai_model_budget_policies")
+    .select("max_cost_usd")
+    .eq("company_id", companyId)
+    .eq("task", task)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (error) throw new Error(`ai_model_budget_policies read failed: ${error.message}`);
+  return data?.max_cost_usd == null ? null : String(data.max_cost_usd);
 }
 
 export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {

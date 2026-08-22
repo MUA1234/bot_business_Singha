@@ -12,7 +12,10 @@
  */
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { makeOpenAiTransport } from "@/ai/openai-transport";
-import { runQuotationTurn } from "@/ai/quotation";
+import { MODEL_ROUTES } from "@/ai/gateway";
+import { ModelPolicyExecutor, ModelPolicyRouter, ModelProviderRegistry } from "@/ai/model-policy-router";
+import { runPolicyRoutedQuotationTurn } from "@/ai/quotation";
+import { loadAiTaskBudget, makeSupabaseCostLedger, makeSupabaseModelAttemptTelemetry } from "@/db/consumer-store";
 import { withPendingFooter } from "@/lib/whatsapp";
 import { enqueueOutbox } from "@/lib/outbox-enqueue";
 import { drainOutbox } from "@/events/outbox-drain";
@@ -112,11 +115,32 @@ export async function handleCustomerMessage(input: {
     .eq("is_active", true);
   const catalogNames = (catalog ?? []).map((c: any) => c.name);
 
-  const turn = await runQuotationTurn(makeOpenAiTransport(), {
+  const budgetRemainingUsd = await loadAiTaskBudget(db, companyId, "quotation");
+  const registry = new ModelProviderRegistry([{
+    candidate: {
+      provider: "openai",
+      model: MODEL_ROUTES.quotation.model,
+      tasks: ["quotation"],
+      estimatedCostUsd: "0.02",
+      latencyMs: 30_000,
+    },
+    transport: makeOpenAiTransport(),
+  }]);
+  const executor = new ModelPolicyExecutor(
+    registry,
+    new ModelPolicyRouter(registry.candidates()),
+    makeSupabaseModelAttemptTelemetry(db),
+  );
+  const turn = budgetRemainingUsd == null
+    ? { ok: false as const, reason: "budget_exceeded" }
+    : await runPolicyRoutedQuotationTurn(executor, {
     message: input.text,
     state: { name: state.name, address: state.address, email: state.email, items: state.items },
     catalogNames,
-  });
+    companyId,
+    logicalRequestId: `quotation:${inboundId}`,
+    budgetRemainingUsd,
+  }, makeSupabaseCostLedger(db));
 
   let reply: string;
   const awaitingAlready = status === "awaiting_price";

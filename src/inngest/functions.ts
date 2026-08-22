@@ -12,10 +12,11 @@
  * given external event is processed at most once even if the queue delivers twice.
  */
 import { inngest, WHATSAPP_INBOUND_EVENT } from "./client";
-import { AiGateway } from "@/ai/gateway";
+import { AiGateway, MODEL_ROUTES } from "@/ai/gateway";
 import { makeOpenAiTransport } from "@/ai/openai-transport";
+import { ModelPolicyExecutor, ModelPolicyRouter, ModelProviderRegistry } from "@/ai/model-policy-router";
 import { serviceClient } from "@/db/client";
-import { makeSupabaseConsumerStore, makeSupabaseCostLedger } from "@/db/consumer-store";
+import { loadAiTaskBudget, makeSupabaseConsumerStore, makeSupabaseCostLedger, makeSupabaseModelAttemptTelemetry } from "@/db/consumer-store";
 import { processSourceEvent, type ConsumerDeps } from "./processing";
 import { makeInboundDeps } from "@/lib/inbound/production-deps";
 import { recordInboundReceipt } from "@/lib/inbound/receipt";
@@ -28,7 +29,15 @@ import { newCorrelationId, log } from "@/lib/log";
 /** Build the live deps once per invocation (lazy — no client is created at import). */
 function liveDeps(): ConsumerDeps {
   const db = serviceClient();
-  const gateway = new AiGateway(makeOpenAiTransport(), makeSupabaseCostLedger(db));
+  const transport = makeOpenAiTransport();
+  const registry = new ModelProviderRegistry([{
+    candidate: { provider: "openai", model: MODEL_ROUTES.extraction.model, tasks: ["extraction"], estimatedCostUsd: "0.02", latencyMs: 30_000 },
+    transport,
+  }]);
+  const gateway = new AiGateway(transport, makeSupabaseCostLedger(db), {
+    executor: new ModelPolicyExecutor(registry, new ModelPolicyRouter(registry.candidates()), makeSupabaseModelAttemptTelemetry(db)),
+    loadBudget: (companyId) => loadAiTaskBudget(db, companyId, "extraction"),
+  });
   return { gateway, ...makeSupabaseConsumerStore(db) };
 }
 

@@ -15,10 +15,11 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { sweepInbound, type SweepableEvent } from "@/events/inbound-sweeper";
 import { makeFinanceCaptureProcessor } from "@/events/finance-capture-processor";
 import { processSourceEvent, type ConsumerDeps } from "@/inngest/processing";
-import { AiGateway } from "@/ai/gateway";
+import { AiGateway, MODEL_ROUTES } from "@/ai/gateway";
 import { makeOpenAiTransport } from "@/ai/openai-transport";
+import { ModelPolicyExecutor, ModelPolicyRouter, ModelProviderRegistry } from "@/ai/model-policy-router";
 import { serviceClient } from "@/db/client";
-import { makeSupabaseConsumerStore, makeSupabaseCostLedger } from "@/db/consumer-store";
+import { loadAiTaskBudget, makeSupabaseConsumerStore, makeSupabaseCostLedger, makeSupabaseModelAttemptTelemetry } from "@/db/consumer-store";
 import { log } from "@/lib/log";
 
 export const runtime = "nodejs";
@@ -101,7 +102,17 @@ export async function GET(req: Request): Promise<Response> {
         process: (i) => {
           const svc = serviceClient();
           const consumer: ConsumerDeps = {
-            gateway: new AiGateway(makeOpenAiTransport(), makeSupabaseCostLedger(svc)),
+            gateway: (() => {
+              const transport = makeOpenAiTransport();
+              const registry = new ModelProviderRegistry([{
+                candidate: { provider: "openai", model: MODEL_ROUTES.extraction.model, tasks: ["extraction"], estimatedCostUsd: "0.02", latencyMs: 30_000 },
+                transport,
+              }]);
+              return new AiGateway(transport, makeSupabaseCostLedger(svc), {
+                executor: new ModelPolicyExecutor(registry, new ModelPolicyRouter(registry.candidates()), makeSupabaseModelAttemptTelemetry(svc)),
+                loadBudget: (companyId) => loadAiTaskBudget(svc, companyId, "extraction"),
+              });
+            })(),
             ...makeSupabaseConsumerStore(svc),
           };
           return processSourceEvent(i, consumer);

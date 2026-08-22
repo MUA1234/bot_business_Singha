@@ -12,7 +12,8 @@
  */
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { MODEL_ROUTES, type CompletionTransport } from "./gateway";
+import { MODEL_ROUTES, type AiRunRecord, type CompletionTransport, type CostLedger } from "./gateway";
+import type { ModelPolicyExecutor } from "./model-policy-router";
 import { wrapUntrusted } from "./prompts";
 
 export const QuotationTurnSchema = z.object({
@@ -37,6 +38,8 @@ export const QuotationTurnSchema = z.object({
 });
 
 export type QuotationTurn = z.infer<typeof QuotationTurnSchema>;
+
+export const QUOTATION_PROMPT_VERSION = "quotation-1.0";
 
 const SYSTEM_PROMPT = `You are Singha's friendly WhatsApp sales assistant for a Sri Lankan business.
 Your job is to take a customer's order request and collect the details needed to prepare a quotation.
@@ -98,6 +101,47 @@ export async function runQuotationTurn(
   }
 
   const parsed = QuotationTurnSchema.safeParse(safeJson(text));
+  if (!parsed.success) return { ok: false, reason: `validation_failed: ${parsed.error.message}` };
+  return { ok: true, turn: parsed.data };
+}
+
+export async function runPolicyRoutedQuotationTurn(
+  executor: ModelPolicyExecutor,
+  input: QuotationTurnInput & { companyId: string; logicalRequestId: string; budgetRemainingUsd: string },
+  ledger: CostLedger,
+): Promise<{ ok: true; turn: QuotationTurn } | { ok: false; reason: string }> {
+  const context = {
+    collected_so_far: input.state,
+    known_product_names: input.catalogNames ?? [],
+  };
+  const fenceId = randomUUID().slice(0, 8);
+  const user =
+    `Trusted context (safe JSON): ${JSON.stringify(context)}\n\n` +
+    `Reply to the customer's latest WhatsApp message. Return JSON only.\n\n` +
+    wrapUntrusted(input.message, fenceId);
+  const execution = await executor.execute({
+    logicalRequestId: input.logicalRequestId,
+    selection: { companyId: input.companyId, task: "quotation", budgetRemainingUsd: input.budgetRemainingUsd },
+    completion: { system: SYSTEM_PROMPT, user, maxTokens: MODEL_ROUTES.quotation.maxTokens },
+  });
+  if (!execution.ok) return { ok: false, reason: execution.reason };
+
+  const parsed = QuotationTurnSchema.safeParse(safeJson(execution.response.text));
+  const run: AiRunRecord = {
+    ai_run_id: `ai_${randomUUID()}`,
+    route: "quotation",
+    model: execution.selection.model,
+    prompt_version: QUOTATION_PROMPT_VERSION,
+    input_tokens: execution.response.usage.input_tokens,
+    output_tokens: execution.response.usage.output_tokens,
+    cost_usd: execution.response.cost_usd,
+    validation_ok: parsed.success,
+    validation_issues: parsed.success ? undefined : parsed.error.issues.map((issue) => issue.message),
+    confidence_overall: null,
+    correlation_id: input.logicalRequestId,
+    company_id: input.companyId,
+  };
+  await ledger.record(run);
   if (!parsed.success) return { ok: false, reason: `validation_failed: ${parsed.error.message}` };
   return { ok: true, turn: parsed.data };
 }

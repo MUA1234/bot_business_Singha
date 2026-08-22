@@ -1,3 +1,5 @@
+import type { CompletionRequest, CompletionResponse, CompletionTransport } from "./gateway";
+
 export type ModelTask = "extraction" | "quotation" | "management";
 
 export interface ModelRouteCandidate {
@@ -20,6 +22,58 @@ export interface ModelSelectionRequest {
 export type ModelSelection =
   | { ok: true; provider: string; model: string; review: "none" | "second_model" }
   | { ok: false; reason: "budget_exceeded" | "no_healthy_provider" };
+
+export interface RegisteredModelProvider {
+  candidate: ModelRouteCandidate;
+  transport: CompletionTransport;
+}
+
+export interface ModelAttemptTelemetry {
+  recordAttempt(attempt: {
+    logicalRequestId: string;
+    companyId: string;
+    task: ModelTask;
+    provider: string;
+    model: string;
+    attempt: number;
+    outcome: "succeeded" | "failed";
+    latencyMs: number;
+    errorCategory?: "transport_error";
+  }): Promise<void> | void;
+}
+
+/** Server-side allowlist that binds policy candidates to their provider transports. */
+export class ModelProviderRegistry {
+  private readonly providers = new Map<string, RegisteredModelProvider>();
+
+  constructor(providers: readonly RegisteredModelProvider[]) {
+    for (const provider of providers) {
+      if (this.providers.has(provider.candidate.provider)) {
+        throw new Error(`duplicate model provider registration: ${provider.candidate.provider}`);
+      }
+      this.providers.set(provider.candidate.provider, provider);
+    }
+  }
+
+  candidates(): ModelRouteCandidate[] {
+    return [...this.providers.values()].map(({ candidate }) => candidate);
+  }
+
+  get(provider: string): RegisteredModelProvider | undefined {
+    return this.providers.get(provider);
+  }
+}
+
+export interface ModelExecutionRequest {
+  logicalRequestId: string;
+  selection: ModelSelectionRequest;
+  completion: Omit<CompletionRequest, "model">;
+  maxAttempts?: number;
+}
+
+export type ModelExecutionResult =
+  | { ok: true; response: CompletionResponse; selection: Extract<ModelSelection, { ok: true }>; attempts: number }
+  | { ok: false; reason: "budget_exceeded" | "no_healthy_provider" | "transport_error"; attempts: number };
 
 /**
  * Pure, server-side route policy. It selects an approved transport target but never executes a
@@ -65,5 +119,63 @@ export class ModelPolicyRouter {
       model: selected.model,
       review: request.highRisk || request.lowConfidence || selected.highRisk ? "second_model" : "none",
     };
+  }
+}
+
+/**
+ * Executes policy-selected, read-only model attempts. It has no access to business stores, so
+ * callers can persist one validated/adjudicated result at their own idempotent atomic boundary.
+ */
+export class ModelPolicyExecutor {
+  constructor(
+    private readonly registry: ModelProviderRegistry,
+    private readonly router: ModelPolicyRouter,
+    private readonly telemetry: ModelAttemptTelemetry,
+  ) {}
+
+  async execute(request: ModelExecutionRequest): Promise<ModelExecutionResult> {
+    const maxAttempts = request.maxAttempts ?? 2;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const selection = this.router.select(request.selection);
+      if (!selection.ok) return { ok: false, reason: selection.reason, attempts: attempt - 1 };
+
+      const provider = this.registry.get(selection.provider);
+      if (!provider) {
+        this.router.recordFailure(selection.provider);
+        continue;
+      }
+
+      const startedAt = Date.now();
+      try {
+        const response = await provider.transport.complete({ ...request.completion, model: selection.model });
+        this.router.recordSuccess(selection.provider);
+        await this.telemetry.recordAttempt({
+          logicalRequestId: request.logicalRequestId,
+          companyId: request.selection.companyId,
+          task: request.selection.task,
+          provider: selection.provider,
+          model: selection.model,
+          attempt,
+          outcome: "succeeded",
+          latencyMs: Date.now() - startedAt,
+        });
+        return { ok: true, response, selection, attempts: attempt };
+      } catch {
+        this.router.recordFailure(selection.provider);
+        await this.telemetry.recordAttempt({
+          logicalRequestId: request.logicalRequestId,
+          companyId: request.selection.companyId,
+          task: request.selection.task,
+          provider: selection.provider,
+          model: selection.model,
+          attempt,
+          outcome: "failed",
+          latencyMs: Date.now() - startedAt,
+          errorCategory: "transport_error",
+        });
+      }
+    }
+
+    return { ok: false, reason: "transport_error", attempts: maxAttempts };
   }
 }
