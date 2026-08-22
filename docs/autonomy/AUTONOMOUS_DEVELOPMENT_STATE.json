@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
-  "activePhase": "stage1-core-reliability",
-  "activeRequirementIds": ["AIM-003"],
+  "activePhase": "stage3-ai-management",
+  "activeRequirementIds": ["AIM-004"],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -48,34 +48,38 @@
     "evidence": "tests/autonomy/ip-boundary.test.ts (2 passed); npm run verify (secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests 769 passed / 2 skipped / 109 files).",
     "limitations": "The owner gate on a private repository/package for proprietary prompts/evaluation data remains unactioned; system prompts are currently public and generic, which the manifest records as acceptable."
   },
+  "aim003Assessment": {
+    "date": "2026-08-22",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "4d2ee97",
+    "outcome": "ASSESSED BUT NOT ADVANCED: AIM-003 implementation is complete and focused tests pass. The OF-007 trust-boundary split (migrations 0078/0082) is implemented and verified by routing-provenance, task-routing and routing-and-mapping-corrections integration tests. However, ORIGINAL_VISION_REQUIREMENTS.yaml residual_risks explicitly keeps AIM-003 in implementation_in_progress until owner acceptance of R1; that acceptance is an owner-gated decision this session cannot perform.",
+    "evidence": "tests/integration/task-routing.test.ts (19 passed); tests/integration/routing-provenance.test.ts (15 passed); tests/integration/routing-and-mapping-corrections.test.ts (12 passed); tests/campaign/capture-routing.test.ts (7 passed); tests/campaign/analyze-ui-truthfulness.test.ts (7 passed); tests/campaign/ui-rendered-truthfulness.test.ts (10 passed).",
+    "limitation": "Owner acceptance of R1 is required before AIM-003 can be restored to locally_verified per the requirement register."
+  },
   "lastGreenSha": "4d2ee97",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "IP-001 local acceptance completed on kimi/found006-rls-cutover. Added tests/autonomy/ip-boundary.test.ts, updated the requirement entry to locally_verified, and ran npm run verify. Next: assess AIM-003 (truthful task routing) which is the sole remaining implementation_in_progress requirement in stage1.",
-  "nextAction": "Inspect AIM-003 requirement, runtime entrypoint src/management/routing/route-captured-tasks.ts, existing tests (tests/integration/task-routing.test.ts, tests/integration/routing-and-mapping-corrections.test.ts, tests/campaign/capture-routing.test.ts, tests/campaign/analyze-ui-truthfulness.test.ts, tests/campaign/ui-rendered-truthfulness.test.ts), and determine what remains to move it from implementation_in_progress to locally_verified. Run focused tests, then update the requirement entry, run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "AIM-003 assessment completed on kimi/found006-rls-cutover. Implementation is complete and focused tests pass, but the requirement register explicitly keeps AIM-003 in implementation_in_progress pending owner acceptance of R1. Transitioning to AIM-004 (Task Intelligence Profile), the next dependency-ordered implementable requirement (depends on locally_verified AIM-002).",
+  "nextAction": "Inspect AIM-004 requirement, runtime entrypoint (currently none — schema contract only at src/schemas/v3_1/task-intelligence-profile.ts), producer/consumer code, and tests. Determine what implementation is needed to move it from specified to locally_verified. Run focused tests, implement any missing pieces, update the requirement entry, run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
-    "node scripts/autonomy/check-ip-boundary.mjs (hard=0, no violations)",
-    "node scripts/autonomy/check-ip-boundary.mjs --quiet (exit 0)",
-    "npm run autonomy:audit (registered=90, verified=16, implementation_in_progress=1)",
-    "npm run verify (secret-scan, migration-lint, completion-inventory admin-files=19, autonomy audit, IP-boundary audit, typecheck, 769 unit tests / 2 skipped / 109 files)",
-    "npm run lint (to run)",
-    "npm run build (to run)"
+    "DATABASE_URL=postgresql://postgres:postgres@localhost:55440/singha_test npm run test:integration -- tests/integration/task-routing.test.ts tests/integration/routing-provenance.test.ts tests/integration/routing-and-mapping-corrections.test.ts (46 passed / 3 files)",
+    "npm test -- tests/campaign/capture-routing.test.ts tests/campaign/analyze-ui-truthfulness.test.ts tests/campaign/ui-rendered-truthfulness.test.ts (24 passed / 3 files)"
   ],
   "lastFullGateResults": {
     "sha": "4d2ee97 on kimi/found006-rls-cutover",
     "typecheck": "clean",
-    "lint": "to run",
+    "lint": "0 errors (3 pre-existing next/image warnings)",
     "unit": "769 passed / 2 skipped / 109 files",
-    "integrationFresh": "not rerun for IP-001 (no database change)",
-    "integrationNarrowUpgrade": "not rerun for IP-001",
-    "integrationLegacyUpgrade": "not rerun for IP-001",
-    "migrationIdempotency": "not rerun for IP-001",
-    "build": "to run",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 769 unit tests (2 skipped)",
+    "integrationFresh": "46 passed / 3 files for AIM-003 focused tests on disposable PostgreSQL 16 after fresh 0001-0092 with supabase-shim",
+    "integrationNarrowUpgrade": "not rerun for AIM-003",
+    "integrationLegacyUpgrade": "not rerun for AIM-003",
+    "migrationIdempotency": "not rerun for AIM-003",
+    "build": "compiled cleanly",
+    "verify": "passed after IP-001: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 769 unit tests (2 skipped)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
-    "browserCheck": "not rerun for IP-001",
-    "discriminationProof": "IP-boundary test asserts the check script exits clean with hard=0 on the tracked tree.",
-    "note": "IP-001 verification requires no database or browser. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "browserCheck": "not rerun for AIM-003",
+    "discriminationProof": "routing-provenance.test.ts pins that provenance comes from WHICH function is called, not a caller assertion; task-routing.test.ts pins company-scoped assignee validation.",
+    "note": "AIM-003 verification ran on DISPOSABLE LOCAL PostgreSQL 16 containers. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -83,6 +87,7 @@
     "MOD-003: LOCALLY ACCEPTED at dfc994b. Provider-neutral gateway, budget policies, and adversarial coverage are verified locally. Live provider quality/cost remains blocked_owner until credentials configured.",
     "OF-016: RESOLVED by migration 0087 (pending independent review). The paused payment now has an authorized, audited, idempotent resolution path and a screen; historic 0083 rows work as they stand.",
     "OF-018: RESOLVED by migration 0090 and locally accepted at 5109bc0. The two inbound-review RPCs now authorize solely by their exact service_role EXECUTE grants; direct service sessions remain valid without or despite claim text, while anon/authenticated remain denied.",
+    "AIM-003: IMPLEMENTATION COMPLETE but remains implementation_in_progress pending owner acceptance of R1 per the requirement register. Focused tests pass; OF-007 is fixed by migrations 0078/0082.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
     "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
     "OF-015 (P2): sections 3 and 6 have no re-runnable schema-level end-to-end discrimination, because they are application code.",
@@ -107,7 +112,8 @@
     "Staging environment + credentials (OPS-004, OPS-003)",
     "Production pilot approval (OPS-008)",
     "Email/transcription/calendar provider selection (COM-002, COM-004, COM-005)",
-    "GitHub Actions runner provisioning"
+    "GitHub Actions runner provisioning",
+    "Owner acceptance of R1 before restoring AIM-003 to locally_verified"
   ],
   "usageState": {
     "opusReviewsThisProgram": 10,
@@ -120,7 +126,8 @@
       "of-016": 2,
       "of-018": 0,
       "mod-003": 0,
-      "ip-001": 0
+      "ip-001": 0,
+      "aim-003": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
