@@ -1,23 +1,21 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage1-core-reliability",
-  "activeRequirementIds": ["FOUND-006"],
+  "activeRequirementIds": ["IP-001"],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-22",
-    "branch": "kimi/mod003-model-gateway",
-    "testedSha": "dfc994b",
-    "outcome": "LOCALLY ACCEPTED: MOD-003 provider-neutral model gateway, explicit daily budget policies, exact-decimal budget arithmetic, and adversarial database/API/browser coverage. Fresh + narrow + legacy upgrade migrations pass; full integration, unit, verify, typecheck, lint, build, and browser checks pass locally. No live provider, hosted DB, staging, real data/message, deployment, or production claim is authorised.",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "0e6743a",
+    "outcome": "LOCALLY ACCEPTED: FOUND-006 service-role and RLS read/write cutover. Application-facing reads/writes route through the authenticated RLS client when flags are ON; service-only RPCs, storage, cron/webhook/health/inngest paths, and mixed-context helpers remain correctly scoped. Fresh, narrow (0089→0092) and legacy (0041→0092) upgrades pass; full integration, unit, verify, typecheck, lint, build, and browser checks pass locally with RLS_READS=on and RLS_WRITES=on. No live provider, hosted DB, staging, real data/message, deployment, or production claim is authorised.",
     "container": "singha-of018-pg16 (postgres:16-alpine, disposable local only)",
     "corrections": [
-      "Model-policy-router cost comparison and budget check use Decimal instead of Number.",
-      "consumer-store loadAiTaskBudget uses exact Decimal arithmetic and floors at zero.",
-      "set_ai_model_budget_policy classified as authenticated-only in signature-exact allowlists.",
-      "Integration fixtures seed ai_model_budget_policies where the production gateway now requires a budget policy.",
-      "finance-capture-processor tests updated for the gateway-owned fail-closed budget boundary.",
-      "Windows-local browser-check-duplicate-reviews.mjs uses process.execPath/nextCli instead of npx."
+      "Mixed-context helpers (quotations.ts, order-intake.ts, outbox-enqueue.ts) accept caller-supplied clients so user paths use authenticated RLS and service paths keep service-role.",
+      "order-intake.ts removed from supabase-admin allowlist (admin-files 20→19).",
+      "found006-read-cutover-isolation test proves company isolation for migrated surfaces.",
+      "Completion-inventory audit enforces the reduced admin-client allowlist."
     ]
   },
   "mod003LocalAcceptance": {
@@ -36,10 +34,18 @@
     "evidence": "Fresh disposable PostgreSQL 16 0001-0089 plus 0090; pre-change direct-service/no-claims regression failed at 0089; focused 46/46, full integration 678/678 across 75 files, and npm run verify 760 passed/2 skipped. Cold-context adversarial review found no material defect; anon-role coverage added and rerun.",
     "limitations": "No hosted/staging database, live provider, real data, real message, authenticated Supabase browser flow, CI runner, or production evidence."
   },
+  "found006LocalAcceptance": {
+    "date": "2026-08-22",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "0e6743a",
+    "outcome": "LOCALLY ACCEPTED: service-role and RLS read/write cutover. RLS policies are enforced for application reads/writes when flags are ON; service-only paths remain service-role; migration boundaries and allowlists are intact.",
+    "evidence": "Fresh disposable PostgreSQL 16 0001-0092 (supabase-shim); narrow upgrade 0089→0092; legacy upgrade 0041→0092; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; unit 767 passed / 2 skipped / 108 files; npm run verify (secret-scan, migration-lint, completion-inventory admin-files=19, autonomy audit, IP-boundary audit, typecheck, unit tests); npm run lint 0 errors; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database migration, authenticated Supabase browser flow, CI runner, production traffic, or production flag activation. RLS flags remain default-OFF pending owner/staging decision. OF-017 and OF-014 residuals remain as documented in FOUND_006_TRUST_MODEL.md §5."
+  },
   "lastGreenSha": "0e6743a",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "FOUND-006 slice 9 at 0e6743a on kimi/found006-rls-cutover. Made src/lib/quotations.ts createQuotationFromItems/priceQuotation/refreshQuotationStatus/tryFinalizeAndSend accept optional caller-supplied clients; resolvePriceConfirmation now propagates the RLS write client through the finalize/send orchestration. Made src/lib/order-intake.ts handleCustomerMessage require a caller-supplied client; src/lib/inbound/production-deps.ts passes the service-role client. Made src/lib/outbox-enqueue.ts accept an optional client. Removed src/lib/order-intake.ts from the supabase-admin allowlist (admin-files 20→19). Service-only RPCs (enqueue_quotation_outbox, reconcile_quotation_from_outbox, enqueue_outbox_row, drainOutbox/claim_outbox_batch) intentionally remain routed through the service role.",
-  "nextAction": "Run the full FOUND-006 acceptance gate campaign on the current head: fresh + narrow + legacy-upgrade migrations, complete integration with RLS_READS=on RLS_WRITES=on, npm run verify, typecheck, lint, build, and browser-check on disposable local PostgreSQL 16. If all pass, FOUND-006 is ready for local acceptance. Remaining allowlist files are either service-only by design (cron/webhook/health/inngest routes, audit.ts with no authenticated write policy, documents.ts storage, outbox-enqueue.ts and quotations.ts because they call service-only RPCs) or admin surfaces still to evaluate. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "FOUND-006 local acceptance completed at 0e6743a on kimi/found006-rls-cutover. All acceptance gates passed on disposable local PostgreSQL 16: fresh 0001-0092, narrow 0089→0092, legacy 0041→0092, full integration with RLS_READS=on/RLS_WRITES=on, verify, lint, build, and browser-check. ORIGINAL_VISION_REQUIREMENTS.yaml updated to locally_verified. Next: assess IP-001 (public-repository IP boundary) and move it to locally_verified if the existing manifest and check script are sufficient.",
+  "nextAction": "Inspect IP-001 requirement, IP_BOUNDARY_MANIFEST.md and scripts/autonomy/check-ip-boundary.mjs. If the check and manifest already satisfy the requirement, add focused test evidence and mark IP-001 locally_verified. Otherwise implement the missing IP-boundary control. Then run npm run verify and commit/push the IP-001 checkpoint. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
     "npm run typecheck (clean)",
     "npm run lint (0 errors; 3 pre-existing next/image warnings)",
@@ -52,23 +58,24 @@
     "node scripts/completion-inventory.mjs --check (admin-files=19, allowlist enforced)"
   ],
   "lastFullGateResults": {
-    "sha": "309e038 (FOUND-006 slice 8 on kimi/found006-rls-cutover; MOD-003 remains accepted at dfc994b)",
+    "sha": "0e6743a on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
     "unit": "767 passed / 2 skipped / 108 files",
     "integrationFresh": "697 passed / 77 files against disposable local PostgreSQL 16 after fresh 0001-0092 with supabase-shim, RLS_READS=on, RLS_WRITES=on",
-    "integrationNarrowUpgrade": "not rerun in this slice",
-    "integrationLegacyUpgrade": "not rerun in this slice",
+    "integrationNarrowUpgrade": "697 passed / 77 files after MIGRATE_UPTO=0089 then 0090-0092 with RLS_READS=on, RLS_WRITES=on",
+    "integrationLegacyUpgrade": "697 passed / 77 files after MIGRATE_UPTO=0041 then 0042-0092 with RLS_READS=on, RLS_WRITES=on",
     "migrationIdempotency": "not rerun in this slice",
-    "build": "compiled (clean rebuild; pre-existing useActionState warning in ReviewCard.tsx)",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 20, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 767 unit tests (2 skipped)",
+    "build": "compiled cleanly",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 767 unit tests (2 skipped)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
-    "browserCheck": "browser-check.mjs passed (10 checks); authenticated Supabase browser end-to-end remains unavailable",
-    "discriminationProof": "found006-read-cutover-isolation test proves company isolation for the tables touched by the migrated surfaces; dashboard price confirmations now route through supabaseWriteClient.",
+    "browserCheck": "browser-check.mjs 10/10 passed; authenticated Supabase browser end-to-end remains unavailable",
+    "discriminationProof": "found006-read-cutover-isolation test proves company isolation for the tables touched by the migrated surfaces; dashboard price confirmations route through supabaseWriteClient.",
     "note": "All database verification ran on DISPOSABLE LOCAL PostgreSQL 16 containers. RLS flags were enabled only to prove the cutover path; default runtime remains OFF. No hosted database was migrated, no production flag enabled, no live model provider called, no real data used, and no real message sent. GitHub Actions could not run (no runner assigned) and is reported unavailable, not green."
   },
   "openFindings": [
+    "FOUND-006: LOCALLY ACCEPTED at 0e6743a. RLS cutover verified locally. Flag activation and hosted migration remain owner-gated.",
     "MOD-003: LOCALLY ACCEPTED at dfc994b. Provider-neutral gateway, budget policies, and adversarial coverage are verified locally. Live provider quality/cost remains blocked_owner until credentials configured.",
     "OF-016: RESOLVED by migration 0087 (pending independent review). The paused payment now has an authorized, audited, idempotent resolution path and a screen; historic 0083 rows work as they stand.",
     "OF-018: RESOLVED by migration 0090 and locally accepted at 5109bc0. The two inbound-review RPCs now authorize solely by their exact service_role EXECUTE grants; direct service sessions remain valid without or despite claim text, while anon/authenticated remain denied.",

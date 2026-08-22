@@ -12,10 +12,10 @@ Generated at: 2026-08-22
 |---|---|
 | absent | 41 |
 | foundation_only | 22 |
-| locally_verified | 14 |
+| locally_verified | 15 |
 | specified | 5 |
 | blocked_owner | 4 |
-| implementation_in_progress | 3 |
+| implementation_in_progress | 2 |
 | deliberately_deferred | 1 |
 
 ## Completion accounting
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **14** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **71** |
+| **Verified** (locally / preview / staging / production) | **15** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **70** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -45,7 +45,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | CRM | 5 | 0 | 5 |
 | CTL | 4 | 1 | 3 |
 | FIN | 8 | 3 | 5 |
-| FOUND | 6 | 4 | 2 |
+| FOUND | 6 | 5 | 1 |
 | GOV | 6 | 0 | 6 |
 | IMP | 3 | 0 | 3 |
 | INT | 1 | 0 | 1 |
@@ -103,7 +103,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | FOUND-003 | Production-reachable staff and finance intake | P0 | **blocked_owner** | src/app/api/webhooks/whatsapp/route.ts and src/inngest/functions.ts (both dispatch through src/lib/inbound/dispatch.ts via the shared src/lib/inbound/production-deps.ts) | 1fd50b2 | a model provider credential for finance classification; mapping each receiving WhatsApp number to its company in channel_accounts; granting operations.inbound.review to the people who should work the queue; hosted migration application |
 | FOUND-004 | Deterministic company-scoped authority engine | P0 | **locally_verified** | src/management/ai-manager/pipeline.ts (planFromObservation) | 707761c | sign-off on the impact-to-level mapping, or replacement by authority_rules-driven mapping |
 | FOUND-005 | AI trust boundary — untrusted output cannot decide identity, scope or authority | P0 | **locally_verified** | src/ai/manager-observation.ts; src/ai/quotation.ts | 707761c | — |
-| FOUND-006 | Service-role and RLS read/write cutover | P0 | **implementation_in_progress** | src/lib/supabase/read.ts (shim returns the ADMIN client while flags are OFF) | none | flag activation |
+| FOUND-006 | Service-role and RLS read/write cutover | P0 | **locally_verified** | src/lib/supabase/read.ts (shim returns the authenticated RLS client when flags are ON, service-role when OFF) | 0e6743a | flag activation (RLS_READS/RLS_WRITES remain default-OFF pending staging UAT; the cutover is verified only when flags are explicitly enabled) |
 | GOV-001 | Management directives with response obligations | P1 | **absent** | none | none | — |
 | GOV-002 | Directive acknowledgement and escalation | P1 | **absent** | none | none | — |
 | GOV-003 | Conflicting-instruction detection and resolution | P1 | **absent** | none | none | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **71**; blocked (owner): **4**;
+mode. Incomplete and implementable: **70**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.
