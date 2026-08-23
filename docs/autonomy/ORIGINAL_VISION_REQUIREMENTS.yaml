@@ -965,20 +965,20 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: [FIN-003]
-    status: absent
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/app/finance/budgets/page.tsx and src/app/app/finance/budgets/[id]/page.tsx
+    database_evidence: Existing migration 0005_banking_and_planning.sql budgets/budget_lines/forecasts/forecast_scenarios/forecast_lines tables; journal_lines and journal_entries provide actuals by account_code/project_id/posting_date.
+    service_evidence: src/modules/finance/budget-vs-actual.ts (computeBudgetVsActual); src/modules/finance/scenario-analysis.ts (projectScenarios); src/app/app/finance/budgets/actions.ts (createBudget/createBudgetLine/createScenario)
+    ui_evidence: Finance home links to /app/finance/budgets; budget list with create form; budget detail shows budgeted/actual/variance/variance % per period/account/project and a best/expected/worst scenario selector.
+    test_evidence: tests/campaign/fin-006-budget-vs-actual.test.ts; tests/budget-vs-actual.test.ts
+    security_evidence: company-scoped reads via Supabase RLS; finance-department/admin gate on server actions; audit events budget.created, budget_line.created, forecast_scenario.created.
+    audit_health_evidence: budget.created, budget_line.created and forecast_scenario.created audit actions
+    last_verified_sha: d514bf1242cc4fba4fcd464c8aec1f47958a2b4d
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: none
+    residual_risks: Budget write RLS policies are not capability-gated in migration 0005; writes rely on app-layer department check + service-role client while RLS flags are OFF. Forecast scenarios require a companion forecast row because the schema links scenarios to forecasts rather than budgets.
   - id: FIN-007
     title: Funding requirements and investments
     description: Funding gap derived from the forecast, and an investment register.

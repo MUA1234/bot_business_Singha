@@ -1,19 +1,19 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [
-    "FIN-006"
-  ],
+  "activeRequirementIds": [],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "d938bb202b3458745be137b71cafbc1a7e6a64c7",
-    "outcome": "LOCALLY ACCEPTED: FIN-004 commitments and expected payments. Migration 0100 adds expected_payment_date to purchase_orders with a company/status/date index; src/modules/finance/commitment-outflows.ts turns open, dated, same-currency POs and commitments into deterministic expected outflows; the Command Centre cash forecast consumes them and surfaces an \"Expected commitments\" stat; the PO list/detail show the date and allow procurement to update it with an audit event.",
-    "container": "disposable local PostgreSQL 16 (port 55440) with supabase-shim",
+    "testedSha": "d514bf1242cc4fba4fcd464c8aec1f47958a2b4d",
+    "outcome": "LOCALLY ACCEPTED: FIN-006 budget versus actual and scenario analysis. Existing migration 0005 tables (budgets/budget_lines/forecasts/forecast_scenarios/forecast_lines) are used by deterministic pure modules computeBudgetVsActual and projectScenarios; the /app/finance/budgets list and detail pages surface budgeted/actual/variance and best/expected/worst scenarios; gated server actions create budgets, lines and scenarios with audit events.",
+    "container": "disposable local PostgreSQL 16 (port 55441) with supabase-shim",
     "corrections": [
-      "Added tests/campaign/fin-004-commitments-forecast.test.ts (11 passed) and refreshed tests/forecast.test.ts commitment-trough case (4 passed).",
-      "Fresh disposable PostgreSQL 16 0001-0100; narrow upgrade 0099→0100; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on.",
-      "npm run verify (928 unit tests / 2 skipped / 137 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (after one transient ECONNRESET retry)."
+      "Added src/modules/finance/budget-vs-actual.ts and src/modules/finance/scenario-analysis.ts with exact-decimal Money.",
+      "Added src/app/app/finance/budgets/page.tsx, [id]/page.tsx and actions.ts; linked from finance home.",
+      "Added tests/campaign/fin-006-budget-vs-actual.test.ts (11 passed) and tests/budget-vs-actual.test.ts (11 passed).",
+      "Fresh disposable PostgreSQL 16 0001-0100; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on.",
+      "npm run verify (950 unit tests / 2 skipped / 139 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed."
     ]
   },
   "currentBranch": "kimi/found006-rls-cutover",
@@ -275,29 +275,29 @@
     "evidence": "tests/campaign/gov-002-directive-escalation.test.ts (15 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression); tests/campaign/cron-auth.test.ts (9 passed regression); fresh disposable PostgreSQL 16 0001-0099 full migration; narrow upgrade 0098→0099; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (916 unit tests / 2 skipped / 136 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
   },
-  "lastGreenSha": "d938bb202b3458745be137b71cafbc1a7e6a64c7",
+  "lastGreenSha": "d514bf1242cc4fba4fcd464c8aec1f47958a2b4d",
   "latestMigration": "0100_commitment_expected_payments.sql",
-  "lastCompletedAction": "Selected FIN-006 budget versus actual and scenario analysis as next dependency-ordered implementable requirement.",
-  "nextAction": "Implement FIN-006 database/service/UI and tests, then run acceptance gates.",
+  "lastCompletedAction": "Accepted FIN-006 budget versus actual and scenario analysis as locally verified on kimi/found006-rls-cutover at d514bf1242cc4fba4fcd464c8aec1f47958a2b4d.",
+  "nextAction": "Select the next dependency-ordered implementable requirement and continue the autonomous pass.",
   "lastTargetedTests": [
-    "tests/campaign/fin-004-commitments-forecast.test.ts (11 passed)",
-    "tests/forecast.test.ts (4 passed, including commitment-trough case)"
+    "tests/campaign/fin-006-budget-vs-actual.test.ts (11 passed)",
+    "tests/budget-vs-actual.test.ts (11 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "d938bb202b3458745be137b71cafbc1a7e6a64c7 on kimi/found006-rls-cutover",
+    "sha": "d514bf1242cc4fba4fcd464c8aec1f47958a2b4d on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "928 passed / 2 skipped / 137 files",
+    "unit": "950 passed / 2 skipped / 139 files",
     "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0100 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
-    "integrationNarrowUpgrade": "passed: 0099→0100",
+    "integrationNarrowUpgrade": "not applicable — FIN-006 uses existing migration 0005 tables; no new migration added",
     "integrationLegacyUpgrade": "not run for this package (foundation branch; previous requirements covered legacy upgrades)",
     "migrationIdempotency": "migration-lint 0001-0100 sequential, no gaps or duplicates",
     "build": "clean",
     "verify": "passed: secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests",
     "secretScan": "no tracked secrets found",
     "migrationLint": "100 migrations, sequential 0001–0100, no gaps or duplicates",
-    "browserCheck": "10/10 passed (after one transient ECONNRESET retry)",
-    "discriminationProof": "fin-004-commitments-forecast.test.ts proves migration 0100 adds expected_payment_date to purchase_orders, commitment-outflows produces deterministic expected outflows from open dated same-currency POs and commitments, and the Command Centre forecast surfaces an \"Expected commitments\" stat. forecast.test.ts regression confirms existing forecast behaviour is preserved.",
+    "browserCheck": "10/10 passed",
+    "discriminationProof": "fin-006-budget-vs-actual.test.ts proves the budget-vs-actual and scenario-analysis modules compute deterministic period/account/project variances with exact decimals; the campaign test verifies the budgets pages and actions surface budgeted/actual/variance and best/expected/worst scenarios.",
     "note": "No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent during this acceptance pass."
   },
   "openFindings": [
@@ -391,11 +391,12 @@
       "rsk004": 0,
       "int001": 0,
       "gov001": 0,
-      "fin004": 0
+      "fin004": 0,
+      "fin006": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T06:56:00Z",
+  "updatedAt": "2026-08-23T07:25:00Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -403,5 +404,13 @@
     "outcome": "LOCALLY ACCEPTED: FIN-004 commitments and expected payments. Migration 0100 adds expected_payment_date to purchase_orders with a company/status/date index; src/modules/finance/commitment-outflows.ts turns open, dated, same-currency POs and commitments into deterministic expected outflows; the Command Centre cash forecast consumes them and surfaces an \"Expected commitments\" stat; the PO list/detail show the date and allow procurement to update it with an audit event.",
     "evidence": "Added tests/campaign/fin-004-commitments-forecast.test.ts (11 passed) and refreshed tests/forecast.test.ts commitment-trough case (4 passed). Fresh disposable PostgreSQL 16 0001-0100; narrow upgrade 0099→0100; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (928 unit tests / 2 skipped / 137 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (after one transient ECONNRESET retry).",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live procurement workflow tested. Recurring obligations and payroll remain outside the forecast."
+  },
+  "fin006LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "d514bf1242cc4fba4fcd464c8aec1f47958a2b4d",
+    "outcome": "LOCALLY ACCEPTED: FIN-006 budget versus actual and scenario analysis. Existing migration 0005 tables (budgets/budget_lines/forecasts/forecast_scenarios/forecast_lines) are used by deterministic pure modules computeBudgetVsActual and projectScenarios; the /app/finance/budgets list and detail pages surface budgeted/actual/variance and best/expected/worst scenarios; gated server actions create budgets, lines and scenarios with audit events.",
+    "evidence": "Added src/modules/finance/budget-vs-actual.ts and src/modules/finance/scenario-analysis.ts with exact-decimal Money. Added src/app/app/finance/budgets/page.tsx, [id]/page.tsx and actions.ts; linked from finance home. Added tests/campaign/fin-006-budget-vs-actual.test.ts (11 passed) and tests/budget-vs-actual.test.ts (11 passed). Fresh disposable PostgreSQL 16 0001-0100; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (950 unit tests / 2 skipped / 139 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live budget-creation workflow tested. Budget write RLS policies remain app-layer/service-role while flags are OFF."
   }
 }
