@@ -97,11 +97,11 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/admin/catalog/page.tsx:14 | `error-discarding destructure` |
 | src/app/app/admin/employees/actions.ts:27 | `error-discarding destructure` |
 | src/app/app/admin/employees/page.tsx:22 | `error-discarding destructure` |
-| src/app/app/admin/health/page.tsx:20 | `[]` |
+| src/app/app/admin/health/page.tsx:21 | `[]` |
 | src/app/app/admin/outbox/page.tsx:16 | `[]` |
 | src/app/app/command/cases/page.tsx:21 | `error-discarding destructure` |
 | src/app/app/finance/accounts/page.tsx:17 | `[]` |
-| src/app/app/finance/approvals/page.tsx:20 | `[]` |
+| src/app/app/finance/approvals/page.tsx:22 | `[]` |
 | src/app/app/finance/cash-counts/page.tsx:17 | `[]` |
 | src/app/app/finance/chart-of-accounts/page.tsx:19 | `error-discarding destructure` |
 | src/app/app/finance/commitments/page.tsx:18 | `[]` |
@@ -144,8 +144,8 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/sales/accounts/page.tsx:18 | `[]` |
 | src/app/app/sales/leads/page.tsx:24 | `error-discarding destructure` |
 | src/db/consumer-store.ts:124 | `error-discarding destructure` |
-| src/lib/access.ts:81 | `error-discarding destructure` |
-| src/lib/access.ts:112 | `error-discarding destructure` |
+| src/lib/access.ts:83 | `error-discarding destructure` |
+| src/lib/access.ts:141 | `error-discarding destructure` |
 | src/lib/documents.ts:56 | `error-discarding destructure` |
 | src/lib/documents.ts:58 | `null` |
 | src/lib/finance/intent-gate.ts:85 | `null` |

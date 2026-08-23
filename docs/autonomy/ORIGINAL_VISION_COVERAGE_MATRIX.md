@@ -11,8 +11,8 @@ Generated at: 2026-08-23
 | Status | Count |
 |---|---|
 | absent | 41 |
-| foundation_only | 21 |
-| locally_verified | 17 |
+| foundation_only | 20 |
+| locally_verified | 18 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **17** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **68** |
+| **Verified** (locally / preview / staging / production) | **18** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **67** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -43,7 +43,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | AST | 1 | 0 | 1 |
 | COM | 8 | 1 | 7 |
 | CRM | 5 | 0 | 5 |
-| CTL | 4 | 1 | 3 |
+| CTL | 4 | 2 | 2 |
 | FIN | 8 | 3 | 5 |
 | FOUND | 6 | 5 | 1 |
 | GOV | 6 | 0 | 6 |
@@ -88,7 +88,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | CRM-005 | Compliance and insurance status per counterparty | P1 | **absent** | none | none | — |
 | CTL-001 | Exception-led operational overview | P0 | **locally_verified** | src/app/app/command/page.tsx | 707761c | — |
 | CTL-002 | Cross-company portfolio overview | P2 | **absent** | none | none | — |
-| CTL-003 | Integration and AI/model health on the control surface | P1 | **foundation_only** | src/app/app/admin/health/page.tsx | 1ebaa80 | — |
+| CTL-003 | Integration and AI/model health on the control surface | P1 | **locally_verified** | src/app/app/admin/health/page.tsx | 8b90057 | — |
 | CTL-004 | Explainable business-health score | P2 | **absent** | none | none | — |
 | FIN-001 | Bank and cash position | P0 | **locally_verified** | src/app/app/command/page.tsx; src/app/app/finance/accounts/page.tsx | 707761c | — |
 | FIN-002 | Receivables and payables with ageing | P0 | **locally_verified** | src/app/app/finance/receivables/page.tsx; src/app/app/command/page.tsx | 707761c | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **68**; blocked (owner): **4**;
+mode. Incomplete and implementable: **67**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.
