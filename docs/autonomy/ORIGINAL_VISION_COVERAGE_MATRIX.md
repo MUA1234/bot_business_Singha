@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| absent | 40 |
-| locally_verified | 34 |
+| absent | 39 |
+| locally_verified | 35 |
 | specified | 5 |
 | foundation_only | 5 |
 | blocked_owner | 4 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **34** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **51** |
+| **Verified** (locally / preview / staging / production) | **35** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **50** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -56,7 +56,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | MOD | 3 | 1 | 2 |
 | OPS | 8 | 3 | 5 |
 | PRJ | 5 | 2 | 3 |
-| RSK | 6 | 3 | 3 |
+| RSK | 6 | 4 | 2 |
 | SCH | 6 | 2 | 4 |
 | WRK | 5 | 3 | 2 |
 
@@ -140,7 +140,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | RSK-001 | Risk register with owner, evidence and due dates | P1 | **locally_verified** | src/app/app/legal/risks/page.tsx | 299b296 | — |
 | RSK-002 | Contracts register with renewal dates | P1 | **locally_verified** | src/app/app/legal/contracts/page.tsx | 843cb05 | — |
 | RSK-003 | Licences and permits with expiry | P1 | **locally_verified** | src/app/app/legal/licences/page.tsx | e99cb94 | — |
-| RSK-004 | Insurance register and renewals | P1 | **absent** | none | none | — |
+| RSK-004 | Insurance register and renewals | P1 | **locally_verified** | src/app/app/legal/insurances/page.tsx | 4b535a8 | — |
 | RSK-005 | Incidents and statutory obligations | P1 | **absent** | none | none | — |
 | RSK-006 | Sri Lankan-context advisory sources and human legal review | P1 | **absent** | none | none | identification of authorised legal reviewer and approved sources |
 | SCH-001 | Continuous task discovery | P1 | **locally_verified** | src/app/api/cron/ai-monitor/route.ts | dbb208f | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **51**; blocked (owner): **4**;
+mode. Incomplete and implementable: **50**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

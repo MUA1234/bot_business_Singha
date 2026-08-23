@@ -211,29 +211,37 @@
     "evidence": "tests/campaign/rsk-001-risk-register.test.ts (5 passed); fresh disposable PostgreSQL 16 0001-0093 (supabase-shim); narrow upgrade 0092→0093; full integration 697 passed / 77 files; npm run verify (860 unit tests / 2 skipped / 128 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed (after one transient ECONNRESET retry).",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or automatic creation of owned dated mitigation tasks tested. Risk review dates feed the legal overview but do not yet create tasks."
   },
-  "lastGreenSha": "299b296",
-  "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "RSK-001 local acceptance completed and pushed. Added migration 0093, src/app/app/legal/risks/*, updated src/app/app/legal/page.tsx, added tests/campaign/rsk-001-risk-register.test.ts, updated ORIGINAL_VISION_REQUIREMENTS.yaml, security/rls-classification.json and AUTONOMOUS_DEVELOPMENT_STATE.json.",
+  "rsk004LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "75c1449",
+    "outcome": "LOCALLY ACCEPTED: RSK-004 insurance register. Migration 0094 adds a company-scoped insurances table with insurer, policy_number, cover_amount, currency, expiry_date, status and updated_at trigger; capability-gated RLS write policies (legal.insurance.manage). The legal insurances page lists policies with cover, expiry and renewal status badges, provides an audited create action, and the legal home links to insurances and surfaces active-policies count and renewal deadlines.",
+    "evidence": "tests/campaign/rsk-004-insurance-register.test.ts (5 passed); fresh disposable PostgreSQL 16 0001-0094 (supabase-shim); narrow upgrade 0093→0094; full integration 697 passed / 77 files; npm run verify (865 unit tests / 2 skipped / 129 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or automatic creation of owned dated renewal tasks tested. Renewal dates feed the legal overview but do not yet create tasks. Required by AST-001 (asset insurance) and CRM-005 (provider insurance)."
+  },
+  "lastGreenSha": "75c1449",
+  "latestMigration": "0094_insurance_register.sql",
+  "lastCompletedAction": "RSK-004 local acceptance completed. Added migration 0094, src/app/app/legal/insurances/page.tsx and actions.ts, updated src/app/app/legal/page.tsx, added tests/campaign/rsk-004-insurance-register.test.ts, updated ORIGINAL_VISION_REQUIREMENTS.yaml, security/rls-classification.json and AUTONOMOUS_DEVELOPMENT_STATE.json.",
   "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml and run node scripts/autonomy/check-status.mjs to confirm.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/rsk-001-risk-register.test.ts (5 passed)"
+    "npm test -- tests/campaign/rsk-004-insurance-register.test.ts (5 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "299b296 on kimi/found006-rls-cutover",
+    "sha": "75c1449 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "860 passed / 2 skipped / 128 files",
-    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0093 (supabase-shim)",
-    "integrationNarrowUpgrade": "passed: MIGRATE_UPTO=0092 then applied 0093_risk_register.sql cleanly",
-    "integrationLegacyUpgrade": "not rerun for RSK-001",
-    "migrationIdempotency": "migration-lint: 93 sequential, 0001-0093, no gaps or duplicates",
+    "unit": "865 passed / 2 skipped / 129 files",
+    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0094 (supabase-shim)",
+    "integrationNarrowUpgrade": "passed: MIGRATE_UPTO=0093 then applied 0094_insurance_register.sql cleanly",
+    "integrationLegacyUpgrade": "not rerun for RSK-004",
+    "migrationIdempotency": "migration-lint: 94 sequential, 0001-0094, no gaps or duplicates",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 860 unit tests (2 skipped / 128 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 865 unit tests (2 skipped / 129 files)",
     "secretScan": "clean",
-    "migrationLint": "93 sequential, 0001-0093, no gaps or duplicates",
-    "browserCheck": "10/10 passed (after one transient ECONNRESET retry)",
-    "discriminationProof": "rsk-001-risk-register.test.ts proves the risks table is created by migration 0093 with company_id FK and capability-gated RLS, and the /app/legal/risks page is a real runtime entrypoint that lists company-scoped risks with owner/mitigation/evidence/review dates and provides an audited create action.",
-    "note": "RSK-001 verification used a disposable local PostgreSQL 16 container (port 55440) with the supabase-shim. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "migrationLint": "94 sequential, 0001-0094, no gaps or duplicates",
+    "browserCheck": "10/10 passed",
+    "discriminationProof": "rsk-004-insurance-register.test.ts proves the insurances table is created by migration 0094 with company_id FK and capability-gated RLS, and the /app/legal/insurances page is a real runtime entrypoint that lists company-scoped insurance policies with cover/expiry/renewal status and provides an audited create action.",
+    "note": "RSK-004 verification used a disposable local PostgreSQL 16 container (port 55440) with the supabase-shim. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -263,6 +271,7 @@
     "FIN-008: LOCALLY ACCEPTED at 0a1737a. The finance reconciliation page reads company-scoped bank transactions, payments and receipts; uses a deterministic exact-decimal matcher; and provides server-validated import/confirm-match actions with audit events. The evidence-required-at-payment path remains owner-gated through FOUND-003.",
     "FIN-008 evidence-at-payment: BLOCKED_OWNER. The evidence-first payment path is owned by FOUND-003, which requires hosted migration, channel account mapping, and operations.inbound.review grants.",
     "RSK-001: LOCALLY ACCEPTED at 299b296. Migration 0093 adds a company-scoped risks table with owner, mitigation, evidence, review dates and capability-gated RLS. The legal risks page lists risks and provides an audited create action; the legal home surfaces open-risks count and review deadlines. Automatic creation of owned dated mitigation tasks remains future work.",
+    "RSK-004: LOCALLY ACCEPTED at 75c1449. Migration 0094 adds a company-scoped insurances table with insurer, policy_number, cover_amount, currency, expiry_date, status and capability-gated RLS. The legal insurances page lists policies with cover/expiry/renewal status and provides an audited create action; the legal home surfaces active-policies count and renewal deadlines. Automatic creation of owned dated renewal tasks remains future work.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
     "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
     "OF-015 (P2): sections 3 and 6 have no re-runnable schema-level end-to-end discrimination, because they are application code.",
@@ -313,9 +322,10 @@
       "fin005": 0,
       "sch001": 0,
       "fin008": 0,
-      "rsk001": 0
+      "rsk001": 0,
+      "rsk004": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T03:05:00Z"
+  "updatedAt": "2026-08-23T03:22:52Z"
 }

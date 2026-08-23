@@ -1649,20 +1649,20 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: []
-    status: absent
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: no insurance table exists
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/app/legal/insurances/page.tsx
+    database_evidence: insurances table (migration 0094) with company_id, insurer, policy_number, cover_amount, currency, expiry_date, status and updated_at trigger; capability-gated RLS
+    service_evidence: src/app/app/legal/insurances/actions.ts createInsurance
+    ui_evidence: src/app/app/legal/insurances/page.tsx lists company-scoped insurance policies with cover, expiry and renewal status badges; src/app/app/legal/page.tsx links to insurances and surfaces active-insurances count and renewal deadlines
+    test_evidence: tests/campaign/rsk-004-insurance-register.test.ts (5)
+    security_evidence: legal department gate; page and action queries scoped by company_id; RLS capability-isolation on reads and writes
+    audit_health_evidence: insurance.created audit events
+    last_verified_sha: 4b535a8
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: Required by AST-001 (asset insurance) and CRM-005 (provider insurance).
+    residual_risks: Renewal dates feed the legal overview but do not yet create owned, dated renewal tasks. Required by AST-001 (asset insurance) and CRM-005 (provider insurance).
   - id: RSK-005
     title: Incidents and statutory obligations
     description: Incident log and a register of statutory obligations with due dates and evidence.

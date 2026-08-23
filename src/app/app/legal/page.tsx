@@ -24,11 +24,12 @@ export default async function LegalHome() {
   const db = supabaseReadClient();
   const now = new Date();
 
-  const [licences, contracts, obligations, risks] = await Promise.all([
+  const [licences, contracts, obligations, risks, insurances] = await Promise.all([
     safe<any>(() => db.from("licences").select("id, name, expiry_date").eq("company_id", p.companyId) as any),
     safe<any>(() => db.from("contracts").select("id, title, renewal_date").eq("company_id", p.companyId) as any),
     safe<any>(() => db.from("obligations").select("id, description, due_date, status").eq("company_id", p.companyId).neq("status", "done") as any),
     safe<any>(() => db.from("risks").select("id, title, review_date, status").eq("company_id", p.companyId).neq("status", "closed") as any),
+    safe<any>(() => db.from("insurances").select("id, policy_name, expiry_date, status").eq("company_id", p.companyId).neq("status", "cancelled") as any),
   ]);
 
   const items: RenewalItem[] = [
@@ -36,6 +37,7 @@ export default async function LegalHome() {
     ...contracts.map((c) => ({ id: `con-${c.id}`, label: `Contract renewal: ${c.title}`, dueDate: c.renewal_date, kind: "contract" })),
     ...obligations.map((o) => ({ id: `obl-${o.id}`, label: `Obligation: ${o.description}`, dueDate: o.due_date, kind: "obligation" })),
     ...risks.map((r) => ({ id: `risk-${r.id}`, label: `Risk review: ${r.title}`, dueDate: r.review_date, kind: "risk" })),
+    ...insurances.map((i) => ({ id: `ins-${i.id}`, label: `Insurance renewal: ${i.policy_name}`, dueDate: i.expiry_date, kind: "insurance" })),
   ];
   const alerts = detectRenewals(items, now, 45);
   const badge = (s: string) => (s === "critical" ? "danger" : s === "warn" ? "warn" : "info");
@@ -50,17 +52,19 @@ export default async function LegalHome() {
         <Link className="btn ghost sm" href="/app/legal/contracts">Contracts →</Link>
       </div>
 
-      <div className="grid cols-4">
+      <div className="grid cols-5">
         <div className="card stat"><div className="k">Licences</div><div className="v" style={{ fontSize: "1.5rem" }}>{licences.length}</div></div>
         <div className="card stat"><div className="k">Contracts</div><div className="v" style={{ fontSize: "1.5rem" }}>{contracts.length}</div></div>
         <div className="card stat"><div className="k">Open obligations</div><div className="v" style={{ fontSize: "1.5rem" }}>{obligations.length}</div></div>
         <div className="card stat"><div className="k">Open risks</div><div className="v" style={{ fontSize: "1.5rem" }}>{risks.length}</div></div>
+        <div className="card stat"><div className="k">Active insurances</div><div className="v" style={{ fontSize: "1.5rem" }}>{insurances.length}</div></div>
       </div>
 
       <div className="row gap-2">
         <Link className="btn ghost sm" href="/app/legal/licences">Licences →</Link>
         <Link className="btn ghost sm" href="/app/legal/contracts">Contracts →</Link>
         <Link className="btn ghost sm" href="/app/legal/risks">Risks →</Link>
+        <Link className="btn ghost sm" href="/app/legal/insurances">Insurances →</Link>
       </div>
 
       <div className="card">
