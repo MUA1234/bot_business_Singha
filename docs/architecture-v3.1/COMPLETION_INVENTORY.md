@@ -81,7 +81,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 
 - src/app/api/webhooks/email/route.ts
 
-## 7. Error-masking suspects (catch → empty return) — 70 (Phase-1C triage list)
+## 7. Error-masking suspects (catch → empty return) — 71 (Phase-1C triage list)
 
 | file:line | returns |
 |---|---|
@@ -101,6 +101,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/admin/health/page.tsx:21 | `[]` |
 | src/app/app/admin/outbox/page.tsx:16 | `[]` |
 | src/app/app/command/cases/page.tsx:21 | `error-discarding destructure` |
+| src/app/app/command/memory/page.tsx:51 | `[]` |
 | src/app/app/finance/accounts/page.tsx:17 | `[]` |
 | src/app/app/finance/approvals/page.tsx:22 | `[]` |
 | src/app/app/finance/cash-counts/page.tsx:17 | `[]` |

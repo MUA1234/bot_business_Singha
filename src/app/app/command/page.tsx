@@ -189,6 +189,7 @@ export default async function CommandCentrePage() {
         <div className="row gap-1">
           <Link className="btn ghost sm" href="/app/command/analyze">Analyse</Link>
           <Link className="btn ghost sm" href="/app/command/cases">AI cases</Link>
+          <Link className="btn ghost sm" href="/app/command/memory">Memory</Link>
         </div>
       </div>
 
