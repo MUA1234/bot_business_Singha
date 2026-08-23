@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": ["AIM-007"],
+  "activeRequirementIds": [],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -235,29 +235,37 @@
     "evidence": "tests/campaign/gov-001-management-directives.test.ts (6 passed); fresh disposable PostgreSQL 16 0001-0096 (supabase-shim); narrow upgrade 0095→0096; full integration 697 passed / 77 files; npm run verify (877 unit tests / 2 skipped / 131 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, scheduled overdue escalation, or recipient notification tested. AIM-003 routing is not required for the registry surface."
   },
-  "lastGreenSha": "336d4ac",
-  "latestMigration": "0096_management_directives.sql",
-  "lastCompletedAction": "Selected AIM-007 as the active requirement. AIM-003 is implementation-complete and owner-gated on R1 acceptance; building the AI Guide registry surface behind the default-OFF V3_1_AI_GUIDE flag is safe.",
-  "nextAction": "Implement AIM-007: add migration 0097_ai_guide_messages.sql, extend the task detail page with an AI Guide panel, add createAiGuideMessage action, add campaign test, update requirement register and RLS classification, then run focused + full acceptance gates.",
+  "aim007LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "d5a3f70",
+    "outcome": "LOCALLY ACCEPTED: AIM-007 AI Guide next actions. Migration 0097 adds a company- and task-scoped ai_guide_messages table with kind, body, visibility, audience_refs, proposed_next_action, confidence and visibility-aware RLS. The task detail page at /app/operations/tasks/[id] lists guide messages and, when the default-OFF V3_1_AI_GUIDE flag is enabled, lets an ai.guide.manage capability holder add coaching/next-action guidance. The createAiGuideMessage action is gated by the flag and capability and writes an ai_guide_message.created audit event.",
+    "evidence": "tests/campaign/aim-007-ai-guide.test.ts (5 passed); fresh disposable PostgreSQL 16 0001-0097 (supabase-shim); narrow upgrade 0096→0097; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (882 unit tests / 2 skipped / 132 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live AI producer persisting pipeline suggestedActions automatically. Ask-AI interactive coaching UI and task-role-based senior visibility remain future work. The V3_1_AI_GUIDE flag remains default-OFF pending owner approval."
+  },
+  "lastGreenSha": "d5a3f70",
+  "latestMigration": "0097_ai_guide_messages.sql",
+  "lastCompletedAction": "AIM-007 local acceptance completed. Added migration 0097, extended src/app/app/operations/tasks/[id]/page.tsx and actions.ts, added tests/campaign/aim-007-ai-guide.test.ts, updated ORIGINAL_VISION_REQUIREMENTS.yaml, security/rls-classification.json and AUTONOMOUS_DEVELOPMENT_STATE.json.",
+  "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml and run node scripts/autonomy/check-status.mjs to confirm.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/gov-001-management-directives.test.ts (6 passed)"
+    "npm test -- tests/campaign/aim-007-ai-guide.test.ts (5 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "336d4ac on kimi/found006-rls-cutover",
+    "sha": "d5a3f70 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "877 passed / 2 skipped / 131 files",
-    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0096 (supabase-shim)",
-    "integrationNarrowUpgrade": "passed: MIGRATE_UPTO=0095 then applied 0096_management_directives.sql cleanly",
-    "integrationLegacyUpgrade": "not rerun for GOV-001",
-    "migrationIdempotency": "migration-lint: 96 sequential, 0001-0096, no gaps or duplicates",
+    "unit": "882 passed / 2 skipped / 132 files",
+    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0097 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
+    "integrationNarrowUpgrade": "passed: MIGRATE_UPTO=0096 then applied 0097_ai_guide_messages.sql cleanly",
+    "integrationLegacyUpgrade": "not rerun for AIM-007",
+    "migrationIdempotency": "migration-lint: 97 sequential, 0001-0097, no gaps or duplicates",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 877 unit tests (2 skipped / 131 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 882 unit tests (2 skipped / 132 files)",
     "secretScan": "clean",
-    "migrationLint": "96 sequential, 0001-0096, no gaps or duplicates",
+    "migrationLint": "97 sequential, 0001-0097, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "gov-001-management-directives.test.ts proves the management_directives table is created by migration 0096 with company_id FK, issued_to and response_required_by, and capability-gated RLS, and the /app/admin/directives page is a real runtime entrypoint that issues directives to named humans and tracks response obligations.",
-    "note": "GOV-001 verification used a disposable local PostgreSQL 16 container (port 55440) with the supabase-shim. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "discriminationProof": "aim-007-ai-guide.test.ts proves the ai_guide_messages table is created by migration 0097 with company_id and task_id FKs, visibility-aware RLS and the ai.guide.manage capability, and the /app/operations/tasks/[id] page is a real runtime entrypoint that lists guide messages and supports adding coaching/next-action guidance behind the default-OFF V3_1_AI_GUIDE flag.",
+    "note": "AIM-007 verification used a disposable local PostgreSQL 16 container (port 55440) with the supabase-shim. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -290,6 +298,7 @@
     "RSK-004: LOCALLY ACCEPTED at 75c1449. Migration 0094 adds a company-scoped insurances table with insurer, policy_number, cover_amount, currency, expiry_date, status and capability-gated RLS. The legal insurances page lists policies with cover/expiry/renewal status and provides an audited create action; the legal home surfaces active-policies count and renewal deadlines. Automatic creation of owned dated renewal tasks remains future work.",
     "INT-001: LOCALLY ACCEPTED at 4b5bbb3. Migration 0095 adds company-scoped integrations, connectors, integration_event_contracts and integration_command_contracts tables with signature_required and replay_protection flags and capability-gated RLS. The admin integrations page lists applications, connectors and contracts with signature/replay flags and provides audited create actions. Runtime adapter signature verification and nonce-store enforcement remain future work.",
     "GOV-001: LOCALLY ACCEPTED at 336d4ac. Migration 0096 adds a company-scoped management_directives table with issued_to, response_required_by, status, response, acknowledged_at and closed_at and capability-gated RLS. The admin directives page issues directives to named humans, tracks open/overdue/closed statuses, supports recipient acknowledgement and admin close, and links from the admin home. Scheduled escalation and recipient notification remain future work.",
+    "AIM-007: LOCALLY ACCEPTED at d5a3f70. Migration 0097 adds a company- and task-scoped ai_guide_messages table with kind, body, visibility, audience_refs, proposed_next_action, confidence and visibility-aware RLS. The task detail page lists guide messages and, behind the default-OFF V3_1_AI_GUIDE flag, lets an ai.guide.manage capability holder add coaching/next-action guidance. Automatic persistence of pipeline suggestedActions, Ask-AI interactive coaching and task-role-based senior visibility remain future work.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
     "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
     "OF-015 (P2): sections 3 and 6 have no re-runnable schema-level end-to-end discrimination, because they are application code.",
@@ -347,5 +356,5 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T04:05:36Z"
+  "updatedAt": "2026-08-23T04:19:10Z"
 }

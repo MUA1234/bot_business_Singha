@@ -292,20 +292,20 @@ requirements:
     phase: stage3
     priority: P1
     dependencies: [AIM-003]
-    status: foundation_only
+    status: locally_verified
     feature_flag: V3_1_AI_GUIDE
-    runtime_entrypoint: src/app/app/command/analyze/actions.ts (computed once, rendered, never persisted)
-    database_evidence: none
-    service_evidence: src/management/ai-manager/pipeline.ts suggestedActions
-    ui_evidence: src/app/app/command/analyze/AnalyzeForm.tsx
-    test_evidence: tests/pipeline.test.ts
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/app/operations/tasks/[id]/page.tsx
+    database_evidence: ai_guide_messages table (migration 0097) with company_id, task_id, kind, body, visibility, audience_refs, proposed_next_action, confidence and capability-gated RLS
+    service_evidence: src/app/app/operations/tasks/actions.ts createAiGuideMessage
+    ui_evidence: src/app/app/operations/tasks/[id]/page.tsx lists company- and task-scoped guide messages with kind, visibility, confidence and proposed next action; supports add-guide-message when V3_1_AI_GUIDE is enabled
+    test_evidence: tests/campaign/aim-007-ai-guide.test.ts (5)
+    security_evidence: ai.guide.manage capability gate on writes; visibility-aware RLS so private coaching is visible only to named recipients and seniors only to guide managers/named recipients; company isolation
+    audit_health_evidence: ai_guide_message.created audit event
+    last_verified_sha: d5a3f70
+    last_verified_at: 2026-08-23
     owner_gate: flag activation
     blocker: none
-    residual_risks: Dropped entirely on the conversation-thread path.
+    residual_risks: Automatic persistence of pipeline suggestedActions is not wired; Ask-AI interactive coaching UI is not built; senior-task-member seniority is enforced by capability rather than task role.
 
   - id: AIM-008
     title: Outcome measurement and improvement loop

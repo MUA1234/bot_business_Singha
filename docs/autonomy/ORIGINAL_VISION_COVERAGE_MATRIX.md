@@ -10,11 +10,11 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 37 |
+| locally_verified | 38 |
 | absent | 37 |
 | specified | 5 |
-| foundation_only | 5 |
 | blocked_owner | 4 |
+| foundation_only | 4 |
 | implementation_in_progress | 1 |
 | deliberately_deferred | 1 |
 
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **37** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **48** |
+| **Verified** (locally / preview / staging / production) | **38** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **47** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -39,7 +39,7 @@ operating-mode claim that depends on it. Blocked is not done.
 
 | Group | Registered | Complete | Remaining |
 |---|---|---|---|
-| AIM | 8 | 2 | 6 |
+| AIM | 8 | 3 | 5 |
 | AST | 1 | 0 | 1 |
 | COM | 8 | 1 | 7 |
 | CRM | 5 | 2 | 3 |
@@ -70,7 +70,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | AIM-004 | Task Intelligence Profile | P1 | **specified** | none | none | flag activation |
 | AIM-005 | Decision-path ladder | P1 | **specified** | none | none | flag activation |
 | AIM-006 | Team formation and resource recommendation | P1 | **specified** | none | none | flag activation |
-| AIM-007 | AI Guide next actions | P1 | **foundation_only** | src/app/app/command/analyze/actions.ts (computed once, rendered, never persisted) | none | flag activation |
+| AIM-007 | AI Guide next actions | P1 | **locally_verified** | src/app/app/operations/tasks/[id]/page.tsx | d5a3f70 | flag activation |
 | AIM-008 | Outcome measurement and improvement loop | P2 | **absent** | none | none | — |
 | AST-001 | Asset Intelligence — registry, custody, reservations, utilization, optimization | P1 | **specified** | none | none | approval of the specification before implementation |
 | COM-001 | WhatsApp text inbound and outbound with truthful delivery | P0 | **locally_verified** | src/app/api/webhooks/whatsapp/route.ts; src/app/api/cron/outbox/route.ts | 707761c | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **48**; blocked (owner): **4**;
+mode. Incomplete and implementable: **47**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

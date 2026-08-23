@@ -55,7 +55,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | V3_1_TASK_DETECTION | **none (scaffolding only)** |
 | V3_1_DECISION_PATHS | **none (scaffolding only)** |
 | V3_1_TEAM_FORMATION | **none (scaffolding only)** |
-| V3_1_AI_GUIDE | **none (scaffolding only)** |
+| V3_1_AI_GUIDE | src/app/app/operations/tasks/[id]/page.tsx<br>src/app/app/operations/tasks/actions.ts |
 | V3_1_IMPROVEMENT_LOOP | **none (scaffolding only)** |
 | V3_1_MANAGER_CONTROL_TOWER | **none (scaffolding only)** |
 | V3_1_MULTILINGUAL | **none (scaffolding only)** |
@@ -134,7 +134,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/marketing/audiences/page.tsx:15 | `0` |
 | src/app/app/marketing/page.tsx:13 | `0` |
 | src/app/app/me/page.tsx:19 | `[]` |
-| src/app/app/operations/tasks/actions.ts:163 | `error-discarding destructure` |
+| src/app/app/operations/tasks/actions.ts:164 | `error-discarding destructure` |
 | src/app/app/operations/tasks/page.tsx:31 | `error-discarding destructure` |
 | src/app/app/procurement/page.tsx:14 | `0` |
 | src/app/app/procurement/page.tsx:17 | `[]` |
