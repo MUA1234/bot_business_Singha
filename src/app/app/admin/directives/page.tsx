@@ -1,13 +1,16 @@
 /**
- * Admin → Management directives (GOV-001). Company-scoped registry of directives
- * issued to named humans with a required response window and acknowledgement tracking.
+ * Admin → Management directives (GOV-001 + GOV-003). Company-scoped registry of
+ * directives issued to named humans, with optional target/action pairs and
+ * automatic conflict detection/resolution.
  */
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
-import { createDirective, acknowledgeDirective, closeDirective } from "./actions";
+import { createDirective, acknowledgeDirective, closeDirective, resolveDirectiveConflict } from "./actions";
 
 export const metadata = { title: "Directives — Singha Central" };
+
+const DIRECTIVE_ACTIONS = ["approve", "reject", "hold", "proceed", "stop"];
 
 export default async function DirectivesPage() {
   const admin = await requireAdmin();
@@ -15,10 +18,11 @@ export default async function DirectivesPage() {
 
   let directives: any[] = [];
   let people: any[] = [];
+  let conflicts: any[] = [];
   try {
     directives = (await supabaseReadClient()
       .from("management_directives")
-      .select("id, title, body, issued_by, issued_to, response_required_by, status, response, acknowledged_at")
+      .select("id, title, body, issued_by, issued_to, response_required_by, status, response, acknowledged_at, target_type, target_id, action")
       .eq("company_id", admin.companyId)
       .order("response_required_by", { ascending: true })
       .limit(200)).data ?? [];
@@ -29,14 +33,25 @@ export default async function DirectivesPage() {
       .eq("company_id", admin.companyId)
       .order("full_name")
       .limit(200)).data ?? [];
+
+    conflicts = (await supabaseReadClient()
+      .from("management_directive_conflicts")
+      .select("id, directive_a_id, directive_b_id, target_type, target_id, status")
+      .eq("company_id", admin.companyId)
+      .eq("status", "open")
+      .order("created_at", { ascending: false })
+      .limit(100)).data ?? [];
   } catch {
     // leave lists empty
   }
 
   const personName = (id: string) => people.find((p) => p.id === id)?.full_name ?? people.find((p) => p.id === id)?.username ?? id.slice(0, 8);
+  const directiveTitle = (id: string) => directives.find((d) => d.id === id)?.title ?? id.slice(0, 8);
+  const directiveAction = (id: string) => directives.find((d) => d.id === id)?.action ?? "—";
 
   const openCount = directives.filter((d) => d.status === "issued" || d.status === "overdue").length;
   const overdueCount = directives.filter((d) => d.status === "issued" && d.response_required_by < now).length;
+  const openConflictCount = conflicts.length;
 
   return (
     <div className="stack gap-3">
@@ -45,7 +60,10 @@ export default async function DirectivesPage() {
           <h1>Management directives</h1>
           <p className="muted mt-1">Issue directives and track response obligations.</p>
         </div>
-        <Link className="btn ghost sm" href="/app/admin">← Admin</Link>
+        <div className="row gap-1">
+          <a href="#conflicts" className="btn ghost sm">Conflicts</a>
+          <Link className="btn ghost sm" href="/app/admin">← Admin</Link>
+        </div>
       </div>
 
       <div className="grid cols-3">
@@ -66,8 +84,56 @@ export default async function DirectivesPage() {
             </select>
             <label className="row gap-1 small">Response due <input name="response_required_by" type="datetime-local" className="input" required /></label>
           </div>
+          <div className="row gap-1 wrap">
+            <input name="target_type" className="input sm" placeholder="Target type (e.g. task)" />
+            <input name="target_id" className="input sm" placeholder="Target id" />
+            <select name="action" className="input sm" style={{ minWidth: 140 }}>
+              <option value="">Action…</option>
+              {DIRECTIVE_ACTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
           <button className="btn" type="submit">Issue directive</button>
         </form>
+      </div>
+
+      <div className="card" id="conflicts">
+        <div className="card-title">Conflicts ({openConflictCount} open)</div>
+        {conflicts.length === 0 ? (
+          <div className="empty">No open directive conflicts.</div>
+        ) : (
+          <div className="table-wrap mt-3">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Directive A</th>
+                  <th>Action A</th>
+                  <th>Directive B</th>
+                  <th>Action B</th>
+                  <th>Target</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {conflicts.map((c) => (
+                  <tr key={c.id}>
+                    <td style={{ fontWeight: 600 }}>{directiveTitle(c.directive_a_id)}</td>
+                    <td><span className="badge">{directiveAction(c.directive_a_id)}</span></td>
+                    <td style={{ fontWeight: 600 }}>{directiveTitle(c.directive_b_id)}</td>
+                    <td><span className="badge">{directiveAction(c.directive_b_id)}</span></td>
+                    <td className="dim small">{c.target_type ?? "—"}:{c.target_id ?? "—"}</td>
+                    <td>
+                      <form action={resolveDirectiveConflict} className="stack gap-1">
+                        <input type="hidden" name="id" value={c.id} />
+                        <input name="resolution" className="input sm" placeholder="Resolution reason" required />
+                        <button className="btn sm" type="submit">Resolve</button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="card">

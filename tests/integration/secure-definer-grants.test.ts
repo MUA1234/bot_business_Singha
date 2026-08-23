@@ -126,6 +126,9 @@ const OWNER_ONLY = new Set([
   // role including service_role. SECURITY DEFINER so its `search_path` is pinned and its refusal
   // cannot be bypassed by a caller's own search_path.
   "approval_requests_provenance_guard()",
+  // 0098 (GOV-003) — trigger function that detects conflicting management directives. SECURITY DEFINER
+  // so its search_path is pinned; it is fired by the table trigger, never called directly.
+  "detect_management_directive_conflicts()",
   // 0084 (FOUND-006) — the shared quotation-status implementation. It carries NO authorization of
   // its own, so it is reachable by no role at all: only its two wrappers, and the WP12 delivery
   // functions, run as the owner that can execute it.
