@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [],
+  "activeRequirementIds": ["GOV-003"],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -261,8 +261,8 @@
   },
   "lastGreenSha": "82b6ce9",
   "latestMigration": "0097_ai_guide_messages.sql",
-  "lastCompletedAction": "Implemented and locally accepted MEM-001 organizational memory surface. The /app/command/memory page reads company-scoped cases, tasks, customers and channel identities with provenance labels and is linked from the Command Centre.",
-  "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml and continue the autonomous completion pass.",
+  "lastCompletedAction": "Selected GOV-003 as the active requirement. MEM-001 is locally verified, so a conflicting-instruction detection and resolution surface built on management_directives is now implementable.",
+  "nextAction": "Implement GOV-003: extend management_directives with target_type/target_id/action, add a conflict-detection boundary that surfaces pairs of contradictory active directives, provide an admin resolution action with recorded reason, add campaign test, update requirement register and AUTONOMOUS_DEVELOPMENT_STATE.json, then run focused + full acceptance gates.",
   "lastTargetedTests": [
     "npm test -- tests/campaign/mem-001-organizational-memory.test.ts (4 passed)"
   ],
@@ -374,5 +374,5 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T05:37:30Z"
+  "updatedAt": "2026-08-23T05:41:42Z"
 }
