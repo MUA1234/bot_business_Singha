@@ -6,12 +6,17 @@ interface CardProps {
   padding?: "sm" | "md" | "lg";
   as?: "div" | "article" | "section";
   ariaLabel?: string;
+  style?: React.CSSProperties;
 }
 
-export function Card({ children, className = "", padding = "md", as: Tag = "div", ariaLabel }: CardProps) {
+export function Card({ children, className = "", padding = "md", as: Tag = "div", ariaLabel, style }: CardProps) {
   const padClass = padding === "sm" ? "pad-sm" : padding === "lg" ? "pad-lg" : "";
   return (
-    <Tag className={`card${padClass ? ` ${padClass}` : ""}${className ? ` ${className}` : ""}`} aria-label={ariaLabel}>
+    <Tag
+      className={`card${padClass ? ` ${padClass}` : ""}${className ? ` ${className}` : ""}`}
+      aria-label={ariaLabel}
+      style={style}
+    >
       {children}
     </Tag>
   );
@@ -40,10 +45,13 @@ export function CardHeader({ title, subtitle, action, className = "" }: CardHead
 interface CardBodyProps {
   children: ReactNode;
   className?: string;
+  padding?: "sm" | "md" | "lg" | "none";
 }
 
-export function CardBody({ children, className = "" }: CardBodyProps) {
-  return <div className={`card-body${className ? ` ${className}` : ""}`}>{children}</div>;
+export function CardBody({ children, className = "", padding = "md" }: CardBodyProps) {
+  const padClass =
+    padding === "sm" ? "pad-sm" : padding === "lg" ? "pad-lg" : padding === "none" ? "pad-none" : "";
+  return <div className={`card-body${padClass ? ` ${padClass}` : ""}${className ? ` ${className}` : ""}`}>{children}</div>;
 }
 
 interface CardFooterProps {

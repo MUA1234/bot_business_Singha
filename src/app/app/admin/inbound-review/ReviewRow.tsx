@@ -2,6 +2,8 @@
 
 import type { ComponentType, ReactNode } from "react";
 import { useFormState, useFormStatus } from "react-dom";
+import { Button } from "@/components/ui/Button";
+import { FormField } from "@/components/ui/FormField";
 import { resolveReview, type ReviewActionState } from "./actions";
 
 export interface ReviewItem {
@@ -40,9 +42,9 @@ export function PlainDecide({ state, label }: DecideProps) {
 function LiveDecide({ state, label }: DecideProps) {
   const { pending } = useFormStatus();
   return (
-    <button className="btn" type="submit" name="state" value={state} disabled={pending}>
+    <Button type="submit" name="state" value={state} disabled={pending}>
       {pending ? "Saving…" : label}
-    </button>
+    </Button>
   );
 }
 
@@ -67,7 +69,7 @@ export function ReviewRowView({
 }) {
   return (
     <div className="card">
-      <div className="row" style={{ justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <div className="row between wrap gap-2">
         <div>
           <div className="card-title">{REASON[item.reason_code] ?? item.reason_code}</div>
           <div className="muted small mt-1">
@@ -93,8 +95,12 @@ export function ReviewRowView({
 
       <form action={action} className="stack gap-2 mt-2">
         <input type="hidden" name="reviewId" value={item.id} />
-        <input name="note" className="input" placeholder="What did you do about it? (optional)" />
-        <div className="row gap-2">
+        <FormField
+          name="note"
+          label="Resolution note"
+          placeholder="What did you do about it? (optional)"
+        />
+        <div className="row gap-2 wrap">
           <Decide state="resolved" label="Mark handled" />
           <Decide state="dismissed" label="Dismiss" />
         </div>

@@ -1,4 +1,4 @@
-import { type InputHTMLAttributes, type ReactNode, forwardRef, useId } from "react";
+import { type InputHTMLAttributes, type ReactNode, forwardRef, useId, isValidElement, cloneElement } from "react";
 
 interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
@@ -9,7 +9,9 @@ interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
 
 /**
  * Standard labelled field. Supports a native <input> via `input` props, or any
- * custom control passed as `children` (use `label` + `errorId` manually in that case).
+ * custom control passed as `children`. When a single child element is provided,
+ * it is cloned with the field id and ARIA descriptors so the label stays linked
+ * to the real control.
  */
 export const FormField = forwardRef<HTMLInputElement, FormFieldProps>(
   ({ label, hint, error, id, children, className = "", ...inputProps }, ref) => {
@@ -25,9 +27,17 @@ export const FormField = forwardRef<HTMLInputElement, FormFieldProps>(
           {label}
         </label>
         {children ? (
-          <div id={fieldId} aria-describedby={describedBy} aria-invalid={!!error}>
-            {children}
-          </div>
+          isValidElement(children) ? (
+            cloneElement(children as React.ReactElement<{ id?: string; "aria-describedby"?: string; "aria-invalid"?: boolean }>, {
+              id: fieldId,
+              "aria-describedby": describedBy,
+              "aria-invalid": !!error,
+            })
+          ) : (
+            <div id={fieldId} aria-describedby={describedBy} aria-invalid={!!error}>
+              {children}
+            </div>
+          )
         ) : (
           <input
             ref={ref}

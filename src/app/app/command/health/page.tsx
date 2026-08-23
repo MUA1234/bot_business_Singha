@@ -12,6 +12,9 @@ import { requireAdmin } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { log } from "@/lib/log";
 import { dec, decGtZero, decSub, fmtMoney } from "@/lib/money";
+import { Card, CardHeader, CardBody } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import {
   computeHealthScore,
   healthScoreStatusTone,
@@ -49,6 +52,13 @@ function makeObservedSelect(failures: string[]) {
       return [];
     }
   };
+}
+
+interface ComponentRow {
+  name: string;
+  weight: number;
+  score: number;
+  contribution: number;
 }
 
 export default async function BusinessHealthPage() {
@@ -200,14 +210,22 @@ export default async function BusinessHealthPage() {
   });
   const fmt = (v: string) => fmtMoney(v, currency);
 
+  const scoreTone = healthScoreStatusTone(health.status);
+  const componentColumns: DataTableColumn<ComponentRow>[] = [
+    { key: "name", header: "Component", render: (c) => c.name },
+    { key: "weight", header: "Weight", align: "right", render: (c) => `${(c.weight * 100).toFixed(0)}%` },
+    { key: "score", header: "Score", align: "right", render: (c) => c.score },
+    { key: "contribution", header: "Contribution", align: "right", render: (c) => c.contribution.toFixed(1) },
+  ];
+
   return (
     <div className="stack gap-3">
-      <div className="row between">
+      <div className="row between wrap">
         <div>
           <h1>Business health</h1>
           <p className="muted mt-1">A single explainable score built from live operational signals.</p>
         </div>
-        <div className="row gap-1">
+        <div className="row gap-1 wrap">
           <Link className="btn ghost sm" href="/app/command">Command Centre</Link>
           <Link className="btn ghost sm" href="/app/command/analyze">Analyse</Link>
           <Link className="btn ghost sm" href="/app/command/cases">AI cases</Link>
@@ -216,62 +234,55 @@ export default async function BusinessHealthPage() {
       </div>
 
       {failedSources.length > 0 && (
-        <div className="card" style={{ color: "var(--danger)" }}>
+        <Card style={{ color: "var(--danger)" }}>
           Some data sources failed to load ({failedSources.join(", ")}). The score below may be incomplete —
           missing components are marked. This has been reported to monitoring.
-        </div>
+        </Card>
       )}
 
-      <div className="card stat" style={{ textAlign: "center" }}>
+      <Card className="stat" padding="lg" style={{ textAlign: "center" }}>
         <div className="k">Health score</div>
-        <div className="v" style={{ fontSize: "3rem", color: `var(--${healthScoreStatusTone(health.status)})` }}>{health.score}</div>
-        <div className="d dim" style={{ textTransform: "capitalize" }}>{health.status}</div>
-      </div>
-
-      <div className="card">
-        <div className="card-title">Score breakdown</div>
-        <div className="card-sub">
-          Status: <span className={`badge ${healthScoreStatusTone(health.status)}`}>{health.status}</span>
-          {health.issues.length > 0 && (
-            <span className="ml-2 dim">Issues: {health.issues.join(", ")}</span>
-          )}
+        <div className="v" style={{ color: `var(--${scoreTone})` }}>{health.score}</div>
+        <div className="d dim" style={{ textTransform: "capitalize" }}>
+          <Badge variant={scoreTone as any}>{health.status}</Badge>
         </div>
-        <table className="table mt-2">
-          <thead>
-            <tr>
-              <th>Component</th>
-              <th>Weight</th>
-              <th>Score</th>
-              <th>Contribution</th>
-            </tr>
-          </thead>
-          <tbody>
-            {health.components.map((c) => (
-              <tr key={c.name}>
-                <td>{c.name}</td>
-                <td>{(c.weight * 100).toFixed(0)}%</td>
-                <td>{c.score}</td>
-                <td>{c.contribution.toFixed(1)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Score breakdown"
+          subtitle={
+            <>
+              Status: <Badge variant={scoreTone as any}>{health.status}</Badge>
+              {health.issues.length > 0 && (
+                <span className="ml-2 dim">Issues: {health.issues.join(", ")}</span>
+              )}
+            </>
+          }
+        />
+        <CardBody>
+          <DataTable
+            columns={componentColumns}
+            rows={health.components as ComponentRow[]}
+            keyExtractor={(c) => c.name}
+          />
+        </CardBody>
+      </Card>
 
       <div className="grid cols-3">
-        <div className="card stat">
+        <Card className="stat">
           <div className="k">Cash on hand</div>
-          <div className="v" style={{ fontSize: "1.4rem", color: "var(--info)" }}>{fmt(cashTotal)}</div>
-        </div>
-        <div className="card stat">
+          <div className="v" style={{ color: "var(--info)" }}>{fmt(cashTotal)}</div>
+        </Card>
+        <Card className="stat">
           <div className="k">90-day forecast trough</div>
-          <div className="v" style={{ fontSize: "1.4rem", color: fc.goesNegative ? "var(--danger)" : "var(--ok)" }}>{fmt(fc.lowest.balance)}</div>
-        </div>
-        <div className="card stat">
+          <div className="v" style={{ color: fc.goesNegative ? "var(--danger)" : "var(--ok)" }}>{fmt(fc.lowest.balance)}</div>
+        </Card>
+        <Card className="stat">
           <div className="k">Outstanding receivables</div>
-          <div className="v" style={{ fontSize: "1.4rem", color: decGtZero(ar.overdue) ? "var(--warn)" : "var(--ok)" }}>{fmt(ar.total)}</div>
+          <div className="v" style={{ color: decGtZero(ar.overdue) ? "var(--warn)" : "var(--ok)" }}>{fmt(ar.total)}</div>
           <div className="d dim">Overdue {fmt(ar.overdue)}</div>
-        </div>
+        </Card>
       </div>
     </div>
   );

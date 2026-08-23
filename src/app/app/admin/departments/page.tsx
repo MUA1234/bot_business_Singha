@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { DEPARTMENTS } from "@/lib/departments";
 import { Icon } from "@/components/Icon";
+import { Badge } from "@/components/ui/Badge";
 
 export const metadata = { title: "Departments — Singha Central" };
 
@@ -21,28 +23,37 @@ export default async function DepartmentsPage() {
 
   return (
     <div className="stack gap-3">
-      <div>
-        <h1>Departments</h1>
-        <p className="muted mt-1">
-          Each department has its own login-gated dashboard. Assign employees from the Employees page.
-        </p>
+      <div className="row between wrap">
+        <div>
+          <h1>Departments</h1>
+          <p className="muted mt-1">
+            Each department has its own login-gated dashboard. Assign employees from the Employees page.
+          </p>
+        </div>
+        <Link className="btn ghost sm" href="/app/admin/employees">
+          Employees
+        </Link>
       </div>
-      <div className="grid cols-3">
+
+      <div className="dept-grid">
         {DEPARTMENTS.map((d) => (
-          <div key={d.key} className="card">
-            <div className="row between">
-              <div className="card-title row gap-1">
-                <Icon name={d.icon} size={18} /> {d.label}
-              </div>
-              {active.get(d.key) === false ? (
-                <span className="badge danger">Off</span>
-              ) : (
-                <span className="badge ok">On</span>
-              )}
+          <div key={d.key} className="dept-chip">
+            <div className="ic" aria-hidden="true">
+              <Icon name={d.icon} size={20} />
             </div>
-            <p className="card-sub mt-1">{d.description}</p>
-            <div className="mt-2">
-              <span className="badge">{counts.get(d.key) ?? 0} staff</span>
+            <div className="grow">
+              <div className="row between gap-1">
+                <span className="t">{d.label}</span>
+                {active.get(d.key) === false ? (
+                  <Badge variant="danger">Off</Badge>
+                ) : (
+                  <Badge variant="ok">On</Badge>
+                )}
+              </div>
+              <div className="s">{d.description}</div>
+              <div className="mt-1">
+                <Badge>{counts.get(d.key) ?? 0} staff</Badge>
+              </div>
             </div>
           </div>
         ))}

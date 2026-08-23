@@ -11,6 +11,10 @@
  */
 import { requireMembership, membershipHasCapability } from "@/lib/access";
 import { supabaseReadClient, supabaseRpcClient } from "@/lib/supabase/read";
+import { Card, CardHeader, CardBody } from "@/components/ui/Card";
+import { Badge, StatusBadge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { AddAccountForm, ActivateForm, ReviewerForm } from "./SetupForms";
 
 export const metadata = { title: "Inbound setup — Singha Central" };
@@ -39,9 +43,6 @@ export default async function InboundSetupPage() {
   let people: PersonRow[] = [];
   let reviewers = new Set<string>();
   let status: Record<string, unknown> | null = null;
-  // What actually went wrong, rather than one boolean standing in for every possible failure. The
-  // page used to `catch { unavailable = true }` and then tell the reader "the configuration tables
-  // are not present in this database yet" — a specific claim it had not established.
   let loadError: string | null = null;
 
   try {
@@ -66,10 +67,6 @@ export default async function InboundSetupPage() {
     if (pErr) throw new Error(pErr.message);
     people = (profiles ?? []) as PersonRow[];
 
-    // Reviewers come from `inbound_reviewer_user_ids`, which is the SAME predicate
-    // `inbound_setup_status` counts by — an active membership holding the capability, DELEGATIONS
-    // INCLUDED. A role-key filter beside a capability count is two different questions on one
-    // screen, and it showed "2 people who can review" next to a list of one.
     const { data: revs, error: rErr } = await supabaseRpcClient().rpc("inbound_reviewer_user_ids", {
       p_company: membership.companyId,
     });
@@ -84,6 +81,14 @@ export default async function InboundSetupPage() {
   const activeWhatsapp = accounts.filter((a) => a.channel === "whatsapp" && a.is_active).length;
   const bridgeInUse = status?.single_tenant_bridge_in_use === true;
   const unavailable = loadError !== null;
+
+  const accountColumns: DataTableColumn<AccountRow>[] = [
+    { key: "channel", header: "Channel", render: (a) => <Badge>{a.channel}</Badge> },
+    { key: "account", header: "Account", render: (a) => <code className="small">{a.provider_account_id}</code> },
+    { key: "label", header: "Label", render: (a) => <span className="muted small">{a.display_label ?? "—"}</span> },
+    { key: "state", header: "State", render: (a) => <StatusBadge status={a.is_active ? "active" : "inactive"} /> },
+    { key: "actions", header: "", render: (a) => <ActivateForm id={a.id} active={a.is_active} /> },
+  ];
 
   return (
     <div className="stack gap-3">
@@ -121,56 +126,69 @@ export default async function InboundSetupPage() {
 
       {!unavailable && (
         <div className="grid cols-3">
-          <div className="card stat"><div className="k">Active mappings</div><div className="v">{String(status?.active_accounts ?? 0)}</div></div>
-          <div className="card stat"><div className="k">People who can review</div><div className="v">{String(status?.reviewers ?? 0)}</div></div>
-          <div className="card stat"><div className="k">Open review items</div><div className="v">{String(status?.open_reviews ?? 0)}</div></div>
+          <Card className="stat" padding="sm">
+            <div className="k">Active mappings</div>
+            <div className="v">{String(status?.active_accounts ?? 0)}</div>
+          </Card>
+          <Card className="stat" padding="sm">
+            <div className="k">People who can review</div>
+            <div className="v">{String(status?.reviewers ?? 0)}</div>
+          </Card>
+          <Card className="stat" padding="sm">
+            <div className="k">Open review items</div>
+            <div className="v">{String(status?.open_reviews ?? 0)}</div>
+          </Card>
         </div>
       )}
 
       {canConfigure && (
-        <div className="card">
-          <div className="card-title">Receiving accounts</div>
-          {accounts.length === 0 && <p className="muted small mt-2">None mapped yet.</p>}
-          {accounts.length > 0 && (
-            <table className="table mt-2">
-              <thead><tr><th>Channel</th><th>Account</th><th>Label</th><th>State</th><th /></tr></thead>
-              <tbody>
-                {accounts.map((a) => (
-                  <tr key={a.id}>
-                    <td>{a.channel}</td>
-                    <td><code className="small">{a.provider_account_id}</code></td>
-                    <td className="muted small">{a.display_label ?? "—"}</td>
-                    <td>{a.is_active ? "active" : "inactive"}</td>
-                    <td><ActivateForm id={a.id} active={a.is_active} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          <AddAccountForm />
-        </div>
+        <Card>
+          <CardHeader title="Receiving accounts" />
+          <CardBody>
+            {accounts.length === 0 ? (
+              <EmptyState
+                title="No receiving accounts mapped yet"
+                description="Add the WhatsApp phone number ID or email/SMS account that receives inbound messages for this company."
+              />
+            ) : (
+              <DataTable
+                columns={accountColumns}
+                rows={accounts}
+                keyExtractor={(a) => a.id}
+              />
+            )}
+            <div className="mt-3">
+              <AddAccountForm />
+            </div>
+          </CardBody>
+        </Card>
       )}
 
       {canGrant && (
-        <div className="card">
-          <div className="card-title">Who can work the inbound review queue</div>
-          <p className="muted small mt-1">
-            The queue holds untrusted third-party message text, so it is capability-gated rather than
-            open to every member. Nobody is granted anything automatically, and you cannot grant it
-            to yourself here.
-          </p>
-          <div className="stack gap-2 mt-2">
-            {people.map((p) => (
-              <ReviewerForm
-                key={p.id}
-                userId={p.id}
-                name={p.full_name ?? p.username ?? p.id}
-                hasRole={reviewers.has(p.id)}
-              />
-            ))}
-            {people.length === 0 && <p className="muted small">No active people in this company yet.</p>}
-          </div>
-        </div>
+        <Card>
+          <CardHeader
+            title="Who can work the inbound review queue"
+            subtitle="The queue holds untrusted third-party message text, so it is capability-gated rather than open to every member. Nobody is granted anything automatically, and you cannot grant it to yourself here."
+          />
+          <CardBody>
+            <div className="stack gap-2">
+              {people.map((p) => (
+                <ReviewerForm
+                  key={p.id}
+                  userId={p.id}
+                  name={p.full_name ?? p.username ?? p.id}
+                  hasRole={reviewers.has(p.id)}
+                />
+              ))}
+              {people.length === 0 && (
+                <EmptyState
+                  title="No active people in this company"
+                  description="Create staff profiles first, then return here to grant inbound-review access."
+                />
+              )}
+            </div>
+          </CardBody>
+        </Card>
       )}
     </div>
   );

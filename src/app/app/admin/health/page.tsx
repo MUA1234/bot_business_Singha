@@ -11,6 +11,9 @@ import { decSum } from "@/lib/money";
 import { probeCount, metricLabel, metricState, metricNumber, value, unavailable, type Metric } from "@/lib/metric";
 import { buildAlerts } from "@/management/ai-manager/alerts";
 import { findUnbalancedJournals } from "@/modules/finance/ledger-integrity";
+import { Card, CardHeader, CardBody } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const metadata = { title: "System Health — Singha Central" };
@@ -68,6 +71,12 @@ function allUnavailable(): BacklogMetrics {
   return { pending: u, processing: u, retryWait: u, expiredLease: u, deadLetter: u, oldestPendingAt: null, unavailable: true };
 }
 
+interface AlertRow {
+  key: string;
+  severity: "critical" | "warning" | "info";
+  message: string;
+}
+
 export default async function HealthPage() {
   const admin = await requireAdmin();
   const db = supabaseAdmin();
@@ -92,7 +101,7 @@ export default async function HealthPage() {
   const aiCost = decSum(aiRuns.map((r: any) => r.cost_usd));
   // §WP6.3 — distinguishes healthy / zero / unavailable / error instead of masking as 0.
   const health = classifyHealth({ failedEvents, deadLetters, outboxFailed, unprocessedEvents });
-  const levelColor = health.level === "critical" ? "var(--danger)" : health.level === "warn" ? "var(--warn)" : "var(--ok)";
+  const healthVariant = health.level === "critical" ? "danger" : health.level === "warn" ? "warn" : "ok";
 
   // §WP6.5 — ranked, actionable alerts. Additional signals: repeated AI failures and
   // accounting-integrity (unbalanced posted journals — should never happen).
@@ -151,12 +160,24 @@ export default async function HealthPage() {
       ? new Date(backlog.oldestPendingAt).toLocaleString("en-GB", { timeZone: "UTC" })
       : "—";
 
+  const alertColumns: DataTableColumn<AlertRow>[] = [
+    {
+      key: "severity",
+      header: "Severity",
+      render: (a) => <Badge variant={a.severity === "critical" ? "danger" : a.severity === "warning" ? "warn" : "info"}>{a.severity}</Badge>,
+    },
+    { key: "message", header: "Message", render: (a) => a.message },
+  ];
+
   return (
     <div className="stack gap-3">
-      <div className="row between">
+      <div className="row between wrap">
         <div>
           <h1>System Health</h1>
-          <p className="muted mt-1">Queues, failures, and AI cost. <span style={{ color: levelColor, fontWeight: 700 }}>{health.level.toUpperCase()}</span></p>
+          <p className="muted mt-1">
+            Queues, failures, and AI cost.{" "}
+            <Badge variant={healthVariant}>{health.level.toUpperCase()}</Badge>
+          </p>
         </div>
         <Link className="btn ghost sm" href="/app/admin">← Admin</Link>
       </div>
@@ -168,45 +189,66 @@ export default async function HealthPage() {
       )}
 
       {alerts.length > 0 && (
-        <div className="card">
-          <div className="card-title">Alerts ({alerts.length})</div>
-          <div className="stack gap-1 mt-2">
-            {alerts.map((a) => (
-              <div key={a.key} className="row gap-1" style={{ alignItems: "center" }}>
-                <span className={`badge ${a.severity === "critical" ? "danger" : a.severity === "warning" ? "warn" : ""}`}>{a.severity}</span>
-                <span className="small">{a.message}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <Card>
+          <CardHeader title={`Alerts (${alerts.length})`} />
+          <CardBody>
+            <DataTable columns={alertColumns} rows={alerts as AlertRow[]} keyExtractor={(a) => a.key} />
+          </CardBody>
+        </Card>
       )}
 
       <div className="grid cols-3">
         {tiles.map((t) => (
-          <div key={t.k} className="card stat">
+          <Card key={t.k} className="stat">
             <div className="k">{t.k}</div>
-            <div className="v" style={{ fontSize: "1.6rem", color: t.danger ? "var(--danger)" : undefined }}>{t.v}</div>
-          </div>
+            <div className="v" style={{ color: t.danger ? "var(--danger)" : undefined }}>{t.v}</div>
+          </Card>
         ))}
       </div>
 
       <div className="grid cols-2">
-        <div className="card stat"><div className="k">AI cost (USD)</div><div className="v" style={{ fontSize: "1.4rem" }}>${aiCost.toFixed(4)}</div></div>
-        <div className="card stat"><div className="k">Audit events</div><div className="v" style={{ fontSize: "1.4rem" }}>{metricLabel(audits)}</div></div>
+        <Card className="stat">
+          <div className="k">AI cost (USD)</div>
+          <div className="v" style={{ color: "var(--info)" }}>${aiCost.toFixed(4)}</div>
+        </Card>
+        <Card className="stat">
+          <div className="k">Audit events</div>
+          <div className="v">{metricLabel(audits)}</div>
+        </Card>
       </div>
 
       {/* CTL-003 — surface the migration 0069 backlog RPC so the operator sees the durable inbound pipeline. */}
-      <div className="card">
-        <div className="card-title">Source-event backlog</div>
-        <div className="grid cols-3 mt-2">
-          <div className="card stat"><div className="k">Pending</div><div className="v" style={{ fontSize: "1.6rem" }}>{metricLabel(backlog.pending)}</div></div>
-          <div className="card stat"><div className="k">Processing</div><div className="v" style={{ fontSize: "1.6rem" }}>{metricLabel(backlog.processing)}</div></div>
-          <div className="card stat"><div className="k">Retry wait</div><div className="v" style={{ fontSize: "1.6rem" }}>{metricLabel(backlog.retryWait)}</div></div>
-          <div className="card stat"><div className="k">Expired lease</div><div className="v" style={{ fontSize: "1.6rem", color: metricState(backlog.expiredLease) === "nonzero" ? "var(--danger)" : undefined }}>{metricLabel(backlog.expiredLease)}</div></div>
-          <div className="card stat"><div className="k">Dead letter</div><div className="v" style={{ fontSize: "1.6rem", color: metricState(backlog.deadLetter) === "nonzero" ? "var(--danger)" : undefined }}>{metricLabel(backlog.deadLetter)}</div></div>
-          <div className="card stat"><div className="k">Oldest pending</div><div className="v" style={{ fontSize: "1.2rem" }}>{oldestPendingLabel}</div></div>
-        </div>
-      </div>
+      <Card>
+        <CardHeader title="Source-event backlog" />
+        <CardBody>
+          <div className="grid cols-3">
+            <Card className="stat">
+              <div className="k">Pending</div>
+              <div className="v">{metricLabel(backlog.pending)}</div>
+            </Card>
+            <Card className="stat">
+              <div className="k">Processing</div>
+              <div className="v">{metricLabel(backlog.processing)}</div>
+            </Card>
+            <Card className="stat">
+              <div className="k">Retry wait</div>
+              <div className="v">{metricLabel(backlog.retryWait)}</div>
+            </Card>
+            <Card className="stat">
+              <div className="k">Expired lease</div>
+              <div className="v" style={{ color: metricState(backlog.expiredLease) === "nonzero" ? "var(--danger)" : undefined }}>{metricLabel(backlog.expiredLease)}</div>
+            </Card>
+            <Card className="stat">
+              <div className="k">Dead letter</div>
+              <div className="v" style={{ color: metricState(backlog.deadLetter) === "nonzero" ? "var(--danger)" : undefined }}>{metricLabel(backlog.deadLetter)}</div>
+            </Card>
+            <Card className="stat">
+              <div className="k">Oldest pending</div>
+              <div className="v">{oldestPendingLabel}</div>
+            </Card>
+          </div>
+        </CardBody>
+      </Card>
     </div>
   );
 }

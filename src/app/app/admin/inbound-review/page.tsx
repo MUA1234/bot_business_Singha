@@ -11,6 +11,11 @@
  */
 import { requireMembership, membershipHasCapability } from "@/lib/access";
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { Card, CardHeader, CardBody } from "@/components/ui/Card";
+import { StatusBadge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
+import { fmtDateTime } from "@/lib/format";
 import { ReviewRow, type ReviewItem } from "./ReviewRow";
 import { INBOUND_REVIEW_CAPABILITY } from "./capability";
 
@@ -60,14 +65,23 @@ export default async function InboundReviewPage() {
     unavailable = true;
   }
 
+  const closedColumns: DataTableColumn<ResolvedRow>[] = [
+    { key: "when", header: "When", render: (r) => <span className="small dim">{fmtDateTime(r.resolved_at)}</span> },
+    { key: "reason", header: "Reason", render: (r) => <code className="small">{r.reason_code}</code> },
+    { key: "outcome", header: "Outcome", render: (r) => <StatusBadge status={r.state} /> },
+    { key: "note", header: "Note", render: (r) => <span className="muted small">{r.resolution_note ?? "—"}</span> },
+  ];
+
   return (
     <div className="stack gap-3">
-      <div>
-        <h1>Inbound review</h1>
-        <p className="muted mt-1">
-          Messages the system did not act on by itself. Each one is still here, unanswered — nothing
-          was sent back to the sender claiming it was handled.
-        </p>
+      <div className="row between wrap gap-2">
+        <div>
+          <h1>Inbound review</h1>
+          <p className="muted mt-1">
+            Messages the system did not act on by itself. Each one is still here, unanswered — nothing
+            was sent back to the sender claiming it was handled.
+          </p>
+        </div>
       </div>
 
       {unavailable && (
@@ -78,7 +92,11 @@ export default async function InboundReviewPage() {
       )}
 
       {!unavailable && open.length === 0 && (
-        <div className="notice ok">Nothing is waiting for a person right now.</div>
+        <EmptyState
+          title="Nothing is waiting for a person right now"
+          icon="check-circle"
+          description="When a message needs a human decision, it will appear here."
+        />
       )}
 
       {open.map((item) => (
@@ -86,24 +104,16 @@ export default async function InboundReviewPage() {
       ))}
 
       {recentlyClosed.length > 0 && (
-        <div className="card">
-          <div className="card-title">Recently closed</div>
-          <table className="table mt-2">
-            <thead>
-              <tr><th>When</th><th>Reason</th><th>Outcome</th><th>Note</th></tr>
-            </thead>
-            <tbody>
-              {recentlyClosed.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.resolved_at ? new Date(r.resolved_at).toLocaleString() : "—"}</td>
-                  <td><code className="small">{r.reason_code}</code></td>
-                  <td>{r.state}</td>
-                  <td className="muted small">{r.resolution_note ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Card>
+          <CardHeader title="Recently closed" />
+          <CardBody>
+            <DataTable
+              columns={closedColumns}
+              rows={recentlyClosed}
+              keyExtractor={(r) => r.id}
+            />
+          </CardBody>
+        </Card>
       )}
     </div>
   );

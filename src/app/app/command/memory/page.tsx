@@ -8,7 +8,11 @@
  */
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
+import { fmtDate } from "@/lib/format";
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { Card, CardHeader, CardBody } from "@/components/ui/Card";
+import { Badge, StatusBadge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export const metadata = { title: "Memory — Singha Central" };
 
@@ -100,86 +104,98 @@ export default async function MemoryPage() {
     }
   }
 
-  const SectionCard = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div className="card">
-      <div className="card-title">{title}</div>
-      {children}
-    </div>
-  );
-
   return (
     <div className="stack gap-3">
-      <div className="row between">
+      <div className="row between wrap gap-2">
         <div>
           <h1>Organizational memory</h1>
           <p className="muted mt-1">Prior cases, tasks and customer history with provenance.</p>
         </div>
-        <Link className="btn ghost sm" href="/app/command">← Command Centre</Link>
+        <Link className="btn ghost sm" href="/app/command" aria-label="Back to Command Centre">← Command Centre</Link>
       </div>
 
       <div className="grid cols-3">
-        <SectionCard title={`Cases (${cases.length})`}>
-          {cases.length === 0 ? (
-            <div className="empty">No cases yet.</div>
-          ) : (
-            <div className="stack gap-1 mt-2">
-              {cases.map((c) => (
-                <div key={c.id} className="small" style={{ borderBottom: "1px solid var(--panel-border)", padding: "6px 0" }}>
-                  <div className="row between">
-                    <span className="badge">{c.case_type}</span>
-                    <span className="dim mono">case:{String(c.id).slice(0, 8)}</span>
-                  </div>
-                  <div className="mt-1">{c.outcome ?? "—"}</div>
-                  <div className="dim small">{new Date(c.created_at).toLocaleDateString()}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-
-        <SectionCard title={`Tasks (${tasks.length})`}>
-          {tasks.length === 0 ? (
-            <div className="empty">No tasks yet.</div>
-          ) : (
-            <div className="stack gap-1 mt-2">
-              {tasks.map((t) => (
-                <div key={t.id} className="small" style={{ borderBottom: "1px solid var(--panel-border)", padding: "6px 0" }}>
-                  <div className="row between">
-                    <Link href={`/app/operations/tasks/${t.id}`} className="link">{t.title}</Link>
-                    <span className="badge">{t.status.replace(/_/g, " ")}</span>
-                  </div>
-                  <div className="dim small">task:{String(t.id).slice(0, 8)} · {t.due_date ? `due ${t.due_date}` : new Date(t.created_at).toLocaleDateString()}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-
-        <SectionCard title={`Customers (${customers.length})`}>
-          {customers.length === 0 ? (
-            <div className="empty">No customers yet.</div>
-          ) : (
-            <div className="stack gap-1 mt-2">
-              {customers.map((c) => {
-                const ids = identitiesByCustomer.get(c.id) ?? [];
-                return (
-                  <div key={c.id} className="small" style={{ borderBottom: "1px solid var(--panel-border)", padding: "6px 0" }}>
+        <Card ariaLabel={`Cases (${cases.length})`}>
+          <CardHeader title={`Cases (${cases.length})`} />
+          <CardBody padding="sm">
+            {cases.length === 0 ? (
+              <EmptyState title="No cases yet" icon="clipboard" />
+            ) : (
+              <div className="stack gap-1">
+                {cases.map((c) => (
+                  <div key={c.id} className="small row-item">
                     <div className="row between">
-                      <Link href={`/app/sales/customers/${c.id}`} className="link">{c.name}</Link>
-                      <span className="dim mono">customer:{String(c.id).slice(0, 8)}</span>
+                      <Badge>{c.case_type}</Badge>
+                      <span className="dim mono">case:{String(c.id).slice(0, 8)}</span>
                     </div>
-                    {ids.length > 0 && (
-                      <div className="dim small mt-1">
-                        {ids.map((i) => `${i.actor_type}:${i.identifier}`).join(" · ")}
-                      </div>
-                    )}
+                    <div className="mt-1">{c.outcome ?? "—"}</div>
+                    <div className="dim small">{fmtDate(c.created_at)}</div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </SectionCard>
+                ))}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+
+        <Card ariaLabel={`Tasks (${tasks.length})`}>
+          <CardHeader title={`Tasks (${tasks.length})`} />
+          <CardBody padding="sm">
+            {tasks.length === 0 ? (
+              <EmptyState title="No tasks yet" icon="list-todo" />
+            ) : (
+              <div className="stack gap-1">
+                {tasks.map((t) => (
+                  <div key={t.id} className="small row-item">
+                    <div className="row between">
+                      <Link href={`/app/operations/tasks/${t.id}`} className="link">{t.title}</Link>
+                      <StatusBadge status={t.status.replace(/_/g, " ")} />
+                    </div>
+                    <div className="dim small">task:{String(t.id).slice(0, 8)} · {t.due_date ? `due ${fmtDate(t.due_date)}` : fmtDate(t.created_at)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+
+        <Card ariaLabel={`Customers (${customers.length})`}>
+          <CardHeader title={`Customers (${customers.length})`} />
+          <CardBody padding="sm">
+            {customers.length === 0 ? (
+              <EmptyState title="No customers yet" icon="user-round" />
+            ) : (
+              <div className="stack gap-1">
+                {customers.map((c) => {
+                  const ids = identitiesByCustomer.get(c.id) ?? [];
+                  return (
+                    <div key={c.id} className="small row-item">
+                      <div className="row between">
+                        <Link href={`/app/sales/customers/${c.id}`} className="link">{c.name}</Link>
+                        <span className="dim mono">customer:{String(c.id).slice(0, 8)}</span>
+                      </div>
+                      {ids.length > 0 && (
+                        <div className="dim small mt-1">
+                          {ids.map((i) => `${i.actor_type}:${i.identifier}`).join(" · ")}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardBody>
+        </Card>
       </div>
+
+      <style jsx>{`
+        .row-item {
+          border-bottom: 1px solid var(--panel-border);
+          padding: 6px 0;
+        }
+        .row-item:last-child {
+          border-bottom: none;
+        }
+      `}</style>
     </div>
   );
 }
