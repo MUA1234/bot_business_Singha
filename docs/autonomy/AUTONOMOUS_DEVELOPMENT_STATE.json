@@ -1,7 +1,9 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [],
+  "activeRequirementIds": [
+    "COM-007"
+  ],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -279,8 +281,8 @@
   },
   "lastGreenSha": "52547a2c68d622807d641134dc597e114fe5d028",
   "latestMigration": "0103_task_escalation_chain.sql",
-  "lastCompletedAction": "Accepted SCH-004 Escalation and missed-response recovery as locally verified on kimi/found006-rls-cutover at 52547a2c68d622807d641134dc597e114fe5d028.",
-  "nextAction": "Select the next dependency-ordered implementable requirement and continue the autonomous pass.",
+  "lastCompletedAction": "Selected COM-007 Human handover, opt-out and communication preferences as the next dependency-ordered implementable requirement (absent; deps COM-001 verified; stage5 P1).",
+  "nextAction": "Add communication preferences/human handover/opt-out persistence, wire the WhatsApp webhook and outbound paths to respect them, add server actions and campaign tests.",
   "lastTargetedTests": [
     "tests/campaign/sch-004-escalation-chain.test.ts (8 passed)",
     "tests/follow-up.test.ts (14 passed)",
@@ -406,7 +408,7 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T09:15:00Z",
+  "updatedAt": "2026-08-23T09:25:00Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
