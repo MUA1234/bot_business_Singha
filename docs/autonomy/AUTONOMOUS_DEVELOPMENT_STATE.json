@@ -1,21 +1,20 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [
-    "CRM-005"
-  ],
+  "activeRequirementIds": [],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "22cc2730a800f4464b7936b93768e93f2c4b5835",
-    "outcome": "LOCALLY ACCEPTED: CRM-003 consultant and service-provider registry. Migration 0101 adds company-scoped service_providers with capabilities, service areas, capacity/price notes, compliance and insurance status/expiry; capability-gated RLS and updated_at trigger. The procurement service-provider list/detail pages surface badges and a status update action; providerHealth classifies operational health deterministically.",
+    "testedSha": "7b939f10297cb122056c7a9400e879019f7668be",
+    "outcome": "LOCALLY ACCEPTED: CRM-005 compliance and insurance status per counterparty. Migration 0102 extends suppliers and service_providers with compliance_status, insurance_status and insurance_expiry; capability-gated update policies protect the fields. The procurement suppliers page surfaces compliance/insurance badges and overall health; createPurchaseOrder reads the supplier, computes counterpartyHealth, and fail-closed refuses to create a PO when health is blocked, writing a purchase_order.rejected_compliance audit event.",
     "container": "disposable local PostgreSQL 16 (port 55441) with supabase-shim",
     "corrections": [
-      "Added src/db/migrations/0101_service_provider_registry.sql and updated security/rls-classification.json.",
-      "Added src/modules/crm/service-provider.ts, src/app/app/procurement/service-providers/page.tsx, [id]/page.tsx, actions.ts; linked from procurement home.",
-      "Added tests/campaign/crm-003-service-providers.test.ts (8 passed) and tests/service-provider.test.ts (9 passed).",
-      "Fresh disposable PostgreSQL 16 0001-0101 and narrow upgrade 0100→0101 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on.",
-      "npm run verify (989 unit tests / 2 skipped / 143 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed."
+      "Added src/db/migrations/0102_counterparty_compliance.sql.",
+      "Added src/modules/crm/counterparty-compliance.ts with counterpartyHealth and canOrderFromCounterparty.",
+      "Updated suppliers page and purchase-order create form/action to gate blocked counterparties.",
+      "Added tests/campaign/crm-005-counterparty-compliance.test.ts (9 passed) and tests/counterparty-compliance.test.ts (14 passed).",
+      "Fresh disposable PostgreSQL 16 0001-0102 and narrow upgrade 0101→0102 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on.",
+      "npm run verify (1012 unit tests / 2 skipped / 145 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed."
     ]
   },
   "currentBranch": "kimi/found006-rls-cutover",
@@ -277,29 +276,29 @@
     "evidence": "tests/campaign/gov-002-directive-escalation.test.ts (15 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression); tests/campaign/cron-auth.test.ts (9 passed regression); fresh disposable PostgreSQL 16 0001-0099 full migration; narrow upgrade 0098→0099; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (916 unit tests / 2 skipped / 136 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
   },
-  "lastGreenSha": "22cc2730a800f4464b7936b93768e93f2c4b5835",
-  "latestMigration": "0101_service_provider_registry.sql",
-  "lastCompletedAction": "Selected CRM-005 compliance and insurance status per counterparty as next dependency-ordered implementable requirement (deps CRM-003 and RSK-004 locally verified).",
-  "nextAction": "Implement CRM-005 database/service/UI and tests, then run acceptance gates.",
+  "lastGreenSha": "7b939f10297cb122056c7a9400e879019f7668be",
+  "latestMigration": "0102_counterparty_compliance.sql",
+  "lastCompletedAction": "Accepted CRM-005 compliance and insurance status per counterparty as locally verified on kimi/found006-rls-cutover at 7b939f10297cb122056c7a9400e879019f7668be.",
+  "nextAction": "Select the next dependency-ordered implementable requirement and continue the autonomous pass.",
   "lastTargetedTests": [
-    "tests/campaign/crm-003-service-providers.test.ts (8 passed)",
-    "tests/service-provider.test.ts (9 passed)"
+    "tests/campaign/crm-005-counterparty-compliance.test.ts (9 passed)",
+    "tests/counterparty-compliance.test.ts (14 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "22cc2730a800f4464b7936b93768e93f2c4b5835 on kimi/found006-rls-cutover",
+    "sha": "7b939f10297cb122056c7a9400e879019f7668be on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "989 passed / 2 skipped / 143 files",
-    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0101 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
-    "integrationNarrowUpgrade": "passed: 0100→0101",
+    "unit": "1012 passed / 2 skipped / 145 files",
+    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0102 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
+    "integrationNarrowUpgrade": "passed: 0101→0102",
     "integrationLegacyUpgrade": "not run for this package (foundation branch; previous requirements covered legacy upgrades)",
-    "migrationIdempotency": "migration-lint 0001-0101 sequential, no gaps or duplicates",
+    "migrationIdempotency": "migration-lint 0001-0102 sequential, no gaps or duplicates",
     "build": "clean",
     "verify": "passed: secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests",
     "secretScan": "no tracked secrets found",
-    "migrationLint": "101 migrations, sequential 0001–0101, no gaps or duplicates",
+    "migrationLint": "102 migrations, sequential 0001–0102, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "crm-003-service-providers.test.ts proves migration 0101 creates the service_providers table with capability-gated RLS, the pages/actions surface the registry, and providerHealth deterministically classifies verified/warning/blocked states. service-provider.test.ts covers the helper.",
+    "discriminationProof": "crm-005-counterparty-compliance.test.ts proves migration 0102 adds compliance/insurance fields and capability-gated policies, the suppliers page and PO action surface the gate, and counterparty-compliance.test.ts covers deterministic health classification.",
     "note": "No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent during this acceptance pass."
   },
   "openFindings": [
@@ -396,11 +395,12 @@
       "fin004": 0,
       "fin006": 0,
       "prj003": 0,
-      "crm003": 0
+      "crm003": 0,
+      "crm005": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T08:07:00Z",
+  "updatedAt": "2026-08-23T08:32:00Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -432,5 +432,13 @@
     "outcome": "LOCALLY ACCEPTED: CRM-003 consultant and service-provider registry. Migration 0101 adds company-scoped service_providers with capabilities, service areas, capacity/price notes, compliance and insurance status/expiry; capability-gated RLS and updated_at trigger. The procurement service-provider list/detail pages surface badges and a status update action; providerHealth classifies operational health deterministically.",
     "evidence": "Added src/db/migrations/0101_service_provider_registry.sql and updated security/rls-classification.json. Added src/modules/crm/service-provider.ts, src/app/app/procurement/service-providers/page.tsx, [id]/page.tsx, actions.ts; linked from procurement home. Added tests/campaign/crm-003-service-providers.test.ts (8 passed) and tests/service-provider.test.ts (9 passed). Fresh disposable PostgreSQL 16 0001-0101 and narrow upgrade 0100→0101 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (989 unit tests / 2 skipped / 143 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live service-provider workflow tested."
+  },
+  "crm005LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "7b939f10297cb122056c7a9400e879019f7668be",
+    "outcome": "LOCALLY ACCEPTED: CRM-005 compliance and insurance status per counterparty. Migration 0102 extends suppliers and service_providers with compliance_status, insurance_status and insurance_expiry; capability-gated update policies protect the fields. The procurement suppliers page surfaces compliance/insurance badges and overall health; createPurchaseOrder reads the supplier, computes counterpartyHealth, and fail-closed refuses to create a PO when health is blocked, writing a purchase_order.rejected_compliance audit event.",
+    "evidence": "Added src/db/migrations/0102_counterparty_compliance.sql. Added src/modules/crm/counterparty-compliance.ts with counterpartyHealth and canOrderFromCounterparty. Updated suppliers page and purchase-order create form/action to gate blocked counterparties. Added tests/campaign/crm-005-counterparty-compliance.test.ts (9 passed) and tests/counterparty-compliance.test.ts (14 passed). Fresh disposable PostgreSQL 16 0001-0102 and narrow upgrade 0101→0102 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1012 unit tests / 2 skipped / 145 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live PO workflow tested. Assignment gating (not just ordering) remains future work."
   }
 }

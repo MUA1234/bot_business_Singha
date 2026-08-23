@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 46 |
-| absent | 30 |
+| locally_verified | 47 |
+| absent | 29 |
 | specified | 5 |
 | blocked_owner | 4 |
 | foundation_only | 3 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **46** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **39** |
+| **Verified** (locally / preview / staging / production) | **47** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **38** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -42,7 +42,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | AIM | 8 | 3 | 5 |
 | AST | 1 | 0 | 1 |
 | COM | 8 | 1 | 7 |
-| CRM | 5 | 3 | 2 |
+| CRM | 5 | 4 | 1 |
 | CTL | 4 | 2 | 2 |
 | FIN | 8 | 7 | 1 |
 | FOUND | 6 | 5 | 1 |
@@ -85,7 +85,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | CRM-002 | Canonical supplier identity | P0 | **locally_verified** | src/app/app/procurement/suppliers/page.tsx | 5349d00 | — |
 | CRM-003 | Consultant and service-provider registry | P1 | **locally_verified** | src/app/app/procurement/service-providers/page.tsx and src/app/app/procurement/service-providers/[id]/page.tsx | 22cc2730a800f4464b7936b93768e93f2c4b5835 | — |
 | CRM-004 | Counterparty performance, reliability and history | P2 | **absent** | none | none | — |
-| CRM-005 | Compliance and insurance status per counterparty | P1 | **absent** | none | none | — |
+| CRM-005 | Compliance and insurance status per counterparty | P1 | **locally_verified** | src/app/app/procurement/purchase-orders/actions.ts (createPurchaseOrder gates blocked suppliers) | 7b939f10297cb122056c7a9400e879019f7668be | — |
 | CTL-001 | Exception-led operational overview | P0 | **locally_verified** | src/app/app/command/page.tsx | 707761c | — |
 | CTL-002 | Cross-company portfolio overview | P2 | **absent** | none | none | — |
 | CTL-003 | Integration and AI/model health on the control surface | P1 | **locally_verified** | src/app/app/admin/health/page.tsx | 8b90057 | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **39**; blocked (owner): **4**;
+mode. Incomplete and implementable: **38**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

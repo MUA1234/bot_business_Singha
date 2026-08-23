@@ -1114,17 +1114,17 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: [CRM-003, RSK-004]
-    status: absent
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/app/procurement/purchase-orders/actions.ts (createPurchaseOrder gates blocked suppliers)
+    database_evidence: src/db/migrations/0102_counterparty_compliance.sql extends suppliers and service_providers with compliance_status/insurance_status/insurance_expiry, indexes, and capability-gated update policies.
+    service_evidence: src/modules/crm/counterparty-compliance.ts (counterpartyHealth, canOrderFromCounterparty)
+    ui_evidence: Suppliers page shows compliance/insurance badges and health; purchase-order create form includes supplier dropdown and is rejected for blocked suppliers.
+    test_evidence: tests/campaign/crm-005-counterparty-compliance.test.ts; tests/counterparty-compliance.test.ts
+    security_evidence: company-scoped reads via Supabase RLS; capability-gated compliance updates (procurement.counterparty.compliance); procurement-department gate on PO creation; audit event purchase_order.rejected_compliance.
+    audit_health_evidence: purchase_order.rejected_compliance audit action
+    last_verified_sha: 7b939f10297cb122056c7a9400e879019f7668be
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
     residual_risks: Campaign scenario CNF-02 exists for this and currently escalates only from a supplied risk label.
