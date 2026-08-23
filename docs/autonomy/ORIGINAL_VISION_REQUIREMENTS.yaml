@@ -1498,9 +1498,9 @@ requirements:
     phase: stage4
     priority: P2
     dependencies: [CTL-001, FIN-003, WRK-002]
-    status: absent
+    status: implementation_in_progress
     feature_flag: none
-    runtime_entrypoint: none
+    runtime_entrypoint: src/app/app/command/health/page.tsx
     database_evidence: none
     service_evidence: none
     ui_evidence: none
