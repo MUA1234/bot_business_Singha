@@ -6,6 +6,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 import { loadPostedJournals } from "@/lib/ledger-report";
 import { dec, decSub, fmtMoney } from "@/lib/money";
+import { Card, CardHeader, CardBody, EmptyState } from "@/components/ui";
 import { trialBalance, profitAndLoss } from "@/accounting/trial-balance";
 
 export const metadata = { title: "Profit & Loss — Singha Central" };
@@ -23,21 +24,25 @@ export default async function PnlPage() {
     side === "income" ? decSub(r.credit, r.debit).toFixed() : decSub(r.debit, r.credit).toFixed();
 
   const Section = ({ title, rows, side, total }: { title: string; rows: typeof tb.rows; side: "income" | "expense"; total: string }) => (
-    <div className="card">
-      <div className="card-title">{title}</div>
-      {rows.length === 0 ? <div className="empty">Nothing posted.</div> : (
-        <div className="table-wrap mt-3">
-          <table className="data">
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.account_code}><td className="mono">{r.account_code}</td><td className="num">{m(rowAmount(r, side))}</td></tr>
-              ))}
-              <tr><td style={{ fontWeight: 700 }}>Total {title.toLowerCase()}</td><td className="num" style={{ fontWeight: 700 }}>{m(total)}</td></tr>
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+    <Card>
+      <CardHeader title={title} />
+      <CardBody>
+        {rows.length === 0 ? (
+          <EmptyState title="Nothing posted" />
+        ) : (
+          <div className="table-wrap">
+            <table className="data">
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.account_code}><td className="mono">{r.account_code}</td><td className="num">{m(rowAmount(r, side))}</td></tr>
+                ))}
+                <tr><td style={{ fontWeight: 700 }}>Total {title.toLowerCase()}</td><td className="num" style={{ fontWeight: 700 }}>{m(total)}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardBody>
+    </Card>
   );
 
   return (

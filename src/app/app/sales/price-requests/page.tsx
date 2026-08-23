@@ -1,5 +1,6 @@
 import { requireDepartment } from "@/lib/auth";
 import { PriceRequests } from "@/components/PriceRequests";
+import { Card, CardHeader, CardBody } from "@/components/ui";
 
 export const metadata = { title: "Price Confirmations — Singha Central" };
 
@@ -16,9 +17,12 @@ export default async function SalesPriceRequests() {
           quotation is finalised and sent to the customer automatically.
         </p>
       </div>
-      <div className="card">
-        <PriceRequests companyId={p.companyId} department={department} />
-      </div>
+      <Card>
+        <CardHeader title="Open price confirmations" />
+        <CardBody>
+          <PriceRequests companyId={p.companyId} department={department} />
+        </CardBody>
+      </Card>
     </div>
   );
 }

@@ -6,6 +6,8 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
+import { Card, CardHeader, CardBody, Button, StatusBadge, EmptyState, DataTable, type DataTableColumn } from "@/components/ui";
+import { fmtDate, fmtNumber } from "@/lib/format";
 import { createLoan } from "./actions";
 
 export const metadata = { title: "Loans — Singha Central" };
@@ -32,36 +34,43 @@ export default async function LoansPage() {
     <div className="stack gap-3">
       <div><h1>Loans</h1><p className="muted mt-1">Register a loan and see its amortization schedule.</p></div>
 
-      <div className="card">
-        <div className="card-title">New loan</div>
-        <form action={createLoan} className="row gap-1 wrap mt-2">
-          <input name="counterparty" className="input" style={{ width: 160 }} placeholder="Lender / borrower" />
-          <input name="principal" className="input" style={{ width: 130 }} placeholder="Principal" inputMode="decimal" />
-          <input name="interest_rate" className="input" style={{ width: 100 }} placeholder="Rate % p.a." inputMode="decimal" />
-          <input name="term_months" className="input" style={{ width: 100 }} placeholder="Months" inputMode="numeric" />
-          <label className="small dim">Start <input name="start_date" type="date" className="input" style={{ width: 150 }} /></label>
-          <button className="btn" type="submit">Create + schedule</button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader title="New loan" />
+        <CardBody>
+          <form action={createLoan} className="row gap-1 wrap">
+            <input name="counterparty" className="input" style={{ flex: "0 0 160px", minWidth: 140 }} placeholder="Lender / borrower" />
+            <input name="principal" className="input" style={{ flex: "0 0 130px", minWidth: 110 }} placeholder="Principal" inputMode="decimal" />
+            <input name="interest_rate" className="input" style={{ flex: "0 0 100px", minWidth: 80 }} placeholder="Rate % p.a." inputMode="decimal" />
+            <input name="term_months" className="input" style={{ flex: "0 0 100px", minWidth: 80 }} placeholder="Months" inputMode="numeric" />
+            <label className="small dim">Start <input name="start_date" type="date" className="input" style={{ width: 150 }} /></label>
+            <Button type="submit">Create + schedule</Button>
+          </form>
+        </CardBody>
+      </Card>
 
       {loans.length === 0 ? (
-        <div className="card"><div className="empty">No loans yet.</div></div>
+        <Card>
+          <EmptyState title="No loans yet" />
+        </Card>
       ) : loans.map((l) => {
         const sched = byLoan.get(l.id) ?? [];
+        const columns: DataTableColumn<(typeof sched)[number]>[] = [
+          { key: "due", header: "Due", render: (s) => <span className="dim small">{fmtDate(s.due_date)}</span> },
+          { key: "principal", header: "Principal", align: "right", render: (s) => fmtMoney(s.principal_due) },
+          { key: "interest", header: "Interest", align: "right", render: (s) => fmtMoney(s.interest_due) },
+          { key: "status", header: "Status", render: (s) => <StatusBadge status={s.status} /> },
+        ];
         return (
-          <div key={l.id} className="card">
-            <div className="card-title">{l.counterparty ?? "Loan"} — {fmtMoney(l.principal, l.currency)} @ {Number(l.interest_rate)}% <span className="badge">{l.status}</span></div>
-            <div className="table-wrap mt-3">
-              <table className="data">
-                <thead><tr><th>Due</th><th className="num">Principal</th><th className="num">Interest</th><th>Status</th></tr></thead>
-                <tbody>
-                  {sched.slice(0, 24).map((s, i) => (
-                    <tr key={i}><td className="dim small">{s.due_date}</td><td className="num">{fmtMoney(s.principal_due)}</td><td className="num">{fmtMoney(s.interest_due)}</td><td><span className="badge">{s.status}</span></td></tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <Card key={l.id}>
+            <CardHeader
+              title={
+                <span>{l.counterparty ?? "Loan"} — {fmtMoney(l.principal, l.currency)} @ {fmtNumber(Number(l.interest_rate))}% <StatusBadge status={l.status} /></span>
+              }
+            />
+            <CardBody>
+              <DataTable columns={columns} rows={sched.slice(0, 24)} keyExtractor={(s) => `${l.id}-${s.due_date}-${s.principal_due}-${s.interest_due}`} emptyTitle="No schedule" />
+            </CardBody>
+          </Card>
         );
       })}
     </div>

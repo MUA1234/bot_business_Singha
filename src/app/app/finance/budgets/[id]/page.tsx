@@ -8,8 +8,18 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
+import { fmtNumber } from "@/lib/format";
 import { computeBudgetVsActual } from "@/modules/finance/budget-vs-actual";
 import { projectScenarios, type ScenarioKind } from "@/modules/finance/scenario-analysis";
+import {
+  Card,
+  CardHeader,
+  CardBody,
+  EmptyState,
+  DataTable,
+  type DataTableColumn,
+  Button,
+} from "@/components/ui";
 import { createBudgetLine, createScenario } from "../actions";
 
 export const metadata = { title: "Budget Detail — Singha Central" };
@@ -133,6 +143,39 @@ export default async function BudgetDetailPage({ params, searchParams }: { param
 
   const scenarioLineById = new Map(scenarioResult.lines.map((l) => [l.budgetLineId, l]));
 
+  const lineColumns: DataTableColumn<any>[] = [
+    { key: "period", header: "Period", render: (l) => <span className="dim small">{periodById.get(l.periodId)?.name ?? l.periodId}</span> },
+    { key: "account", header: "Account", className: "mono", render: (l) => l.accountCode ?? "—" },
+    { key: "project", header: "Project", render: (l) => <span className="dim">{l.projectId ? projectById.get(l.projectId) ?? l.projectId : "—"}</span> },
+    { key: "budgeted", header: "Budgeted", align: "right", render: (l) => fmt(l.budgeted) },
+    { key: "actual", header: "Actual", align: "right", render: (l) => fmt(l.actual) },
+    {
+      key: "variance",
+      header: "Variance",
+      align: "right",
+      render: (l) => (
+        <span style={{ color: l.variance.startsWith("-") ? "var(--danger)" : "var(--ok)" }}>
+          {fmt(l.variance)}
+        </span>
+      ),
+    },
+    {
+      key: "variancePct",
+      header: "Variance %",
+      align: "right",
+      render: (l) => (l.variancePercent != null ? `${fmtNumber(l.variancePercent, 1)}%` : "—"),
+    },
+    {
+      key: "projected",
+      header: `Projected (${selectedScenario})`,
+      align: "right",
+      render: (l) => {
+        const scenarioLine = scenarioLineById.get(l.budgetLineId);
+        return scenarioLine ? fmt(scenarioLine.projected[selectedScenario]) : "—";
+      },
+    },
+  ];
+
   return (
     <div className="stack gap-3">
       <div className="row between">
@@ -144,109 +187,97 @@ export default async function BudgetDetailPage({ params, searchParams }: { param
       </div>
 
       <div className="grid cols-4">
-        <div className="card stat"><div className="k">Budgeted</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmt(bva.totals.budgeted)}</div></div>
-        <div className="card stat"><div className="k">Actual</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmt(bva.totals.actual)}</div></div>
-        <div className="card stat"><div className="k">Variance</div><div className="v" style={{ fontSize: "1.4rem", color: bva.totals.variance.startsWith("-") ? "var(--danger)" : "var(--ok)" }}>{fmt(bva.totals.variance)}</div></div>
-        <div className="card stat"><div className="k">Variance %</div><div className="v" style={{ fontSize: "1.4rem" }}>{bva.totals.variancePercent ?? "—"}%</div></div>
+        <Card className="stat"><div className="k">Budgeted</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmt(bva.totals.budgeted)}</div></Card>
+        <Card className="stat"><div className="k">Actual</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmt(bva.totals.actual)}</div></Card>
+        <Card className="stat"><div className="k">Variance</div><div className="v" style={{ fontSize: "1.4rem", color: bva.totals.variance.startsWith("-") ? "var(--danger)" : "var(--ok)" }}>{fmt(bva.totals.variance)}</div></Card>
+        <Card className="stat"><div className="k">Variance %</div><div className="v" style={{ fontSize: "1.4rem" }}>{bva.totals.variancePercent != null ? `${fmtNumber(bva.totals.variancePercent, 1)}%` : "—"}</div></Card>
       </div>
 
-      <div className="card">
-        <div className="card-title">Scenario analysis</div>
-        <div className="row gap-1 wrap mt-2">
-          {(["best", "expected", "worst"] as ScenarioKind[]).map((kind) => (
-            <Link
-              key={kind}
-              href={`/app/finance/budgets/${budgetId}?scenario=${kind}`}
-              className={`btn sm ${selectedScenario === kind ? "" : "ghost"}`}
-            >
-              {kind.charAt(0).toUpperCase() + kind.slice(1)}
-            </Link>
-          ))}
-        </div>
-        <div className="grid cols-4 mt-3">
-          <div className="card stat"><div className="k">Projected ({selectedScenario})</div><div className="v">{fmt(scenarioResult.totals.projected[selectedScenario])}</div></div>
-          <div className="card stat"><div className="k">vs Budget</div><div className="v">{fmt(scenarioResult.totals.vsBudget[selectedScenario])}</div></div>
-          <div className="card stat"><div className="k">vs Actual</div><div className="v">{fmt(scenarioResult.totals.vsActual[selectedScenario])}</div></div>
-          <div className="card stat"><div className="k">Actual</div><div className="v">{fmt(scenarioResult.totals.actual)}</div></div>
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card-title">Budget lines</div>
-        {bva.lines.length === 0 ? (
-          <div className="empty">No budget lines yet.</div>
-        ) : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Period</th><th>Account</th><th>Project</th><th className="num">Budgeted</th><th className="num">Actual</th><th className="num">Variance</th><th className="num">Variance %</th><th className="num">Projected ({selectedScenario})</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bva.lines.map((l) => {
-                  const scenarioLine = scenarioLineById.get(l.budgetLineId);
-                  return (
-                    <tr key={l.budgetLineId}>
-                      <td className="dim small">{periodById.get(l.periodId)?.name ?? l.periodId}</td>
-                      <td className="mono">{l.accountCode ?? "—"}</td>
-                      <td className="dim">{l.projectId ? projectById.get(l.projectId) ?? l.projectId : "—"}</td>
-                      <td className="num">{fmt(l.budgeted)}</td>
-                      <td className="num">{fmt(l.actual)}</td>
-                      <td className="num" style={{ color: l.variance.startsWith("-") ? "var(--danger)" : "var(--ok)" }}>{fmt(l.variance)}</td>
-                      <td className="num">{l.variancePercent ?? "—"}%</td>
-                      <td className="num">{scenarioLine ? fmt(scenarioLine.projected[selectedScenario]) : "—"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      <Card>
+        <CardHeader title="Scenario analysis" />
+        <CardBody>
+          <div className="row gap-1 wrap">
+            {(["best", "expected", "worst"] as ScenarioKind[]).map((kind) => (
+              <Link
+                key={kind}
+                href={`/app/finance/budgets/${budgetId}?scenario=${kind}`}
+                className={`btn sm ${selectedScenario === kind ? "" : "ghost"}`}
+              >
+                {kind.charAt(0).toUpperCase() + kind.slice(1)}
+              </Link>
+            ))}
           </div>
-        )}
-      </div>
+          <div className="grid cols-4 mt-3">
+            <Card className="stat"><div className="k">Projected ({selectedScenario})</div><div className="v">{fmt(scenarioResult.totals.projected[selectedScenario])}</div></Card>
+            <Card className="stat"><div className="k">vs Budget</div><div className="v">{fmt(scenarioResult.totals.vsBudget[selectedScenario])}</div></Card>
+            <Card className="stat"><div className="k">vs Actual</div><div className="v">{fmt(scenarioResult.totals.vsActual[selectedScenario])}</div></Card>
+            <Card className="stat"><div className="k">Actual</div><div className="v">{fmt(scenarioResult.totals.actual)}</div></Card>
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title="Budget lines" />
+        <CardBody>
+          {bva.lines.length === 0 ? (
+            <EmptyState title="No budget lines yet" />
+          ) : (
+            <DataTable
+              columns={lineColumns}
+              rows={bva.lines}
+              keyExtractor={(l) => l.budgetLineId}
+              className="mt-3"
+            />
+          )}
+        </CardBody>
+      </Card>
 
       <div className="grid cols-2">
-        <div className="card">
-          <div className="card-title">Add budget line</div>
-          <form action={createBudgetLine} className="stack gap-1 mt-2">
-            <input type="hidden" name="budget_id" value={budgetId} />
-            <select name="account_code" className="input">
-              <option value="">Account…</option>
-              {accounts.map((a: any) => (
-                <option key={a.code} value={a.code}>{a.code} — {a.name}</option>
-              ))}
-            </select>
-            <select name="period_id" className="input" required>
-              <option value="">Period…</option>
-              {periods.map((pp: any) => (
-                <option key={pp.id} value={pp.id}>{pp.name}</option>
-              ))}
-            </select>
-            <select name="project_id" className="input">
-              <option value="">Project…</option>
-              {projects.map((pr: any) => (
-                <option key={pr.id} value={pr.id}>{pr.name}</option>
-              ))}
-            </select>
-            <input name="amount" className="input" placeholder={`Amount (${currency})`} inputMode="decimal" required />
-            <button className="btn" type="submit">Add line</button>
-          </form>
-        </div>
+        <Card>
+          <CardHeader title="Add budget line" />
+          <CardBody>
+            <form action={createBudgetLine} className="stack gap-1">
+              <input type="hidden" name="budget_id" value={budgetId} />
+              <select name="account_code" className="input">
+                <option value="">Account…</option>
+                {accounts.map((a: any) => (
+                  <option key={a.code} value={a.code}>{a.code} — {a.name}</option>
+                ))}
+              </select>
+              <select name="period_id" className="input" required>
+                <option value="">Period…</option>
+                {periods.map((pp: any) => (
+                  <option key={pp.id} value={pp.id}>{pp.name}</option>
+                ))}
+              </select>
+              <select name="project_id" className="input">
+                <option value="">Project…</option>
+                {projects.map((pr: any) => (
+                  <option key={pr.id} value={pr.id}>{pr.name}</option>
+                ))}
+              </select>
+              <input name="amount" className="input" placeholder={`Amount (${currency})`} inputMode="decimal" required />
+              <Button type="submit">Add line</Button>
+            </form>
+          </CardBody>
+        </Card>
 
-        <div className="card">
-          <div className="card-title">Create scenario</div>
-          <form action={createScenario} className="stack gap-1 mt-2">
-            <input type="hidden" name="budget_id" value={budgetId} />
-            <select name="kind" className="input" required>
-              <option value="">Kind…</option>
-              <option value="best">Best</option>
-              <option value="expected">Expected</option>
-              <option value="worst">Worst</option>
-            </select>
-            <textarea name="assumptions" className="input" rows={4} placeholder='{"REV-001": {"percent": "0.10"}, "kindMultiplier": {"best": "1.10", "expected": "1.00", "worst": "0.90"}}' defaultValue='{"kindMultiplier": {"best": "1.10", "expected": "1.00", "worst": "0.90"}}' />
-            <button className="btn" type="submit">Save scenario</button>
-          </form>
-        </div>
+        <Card>
+          <CardHeader title="Create scenario" />
+          <CardBody>
+            <form action={createScenario} className="stack gap-1">
+              <input type="hidden" name="budget_id" value={budgetId} />
+              <select name="kind" className="input" required>
+                <option value="">Kind…</option>
+                <option value="best">Best</option>
+                <option value="expected">Expected</option>
+                <option value="worst">Worst</option>
+              </select>
+              <textarea name="assumptions" className="input" rows={4} placeholder='{"REV-001": {"percent": "0.10"}, "kindMultiplier": {"best": "1.10", "expected": "1.00", "worst": "0.90"}}' defaultValue='{"kindMultiplier": {"best": "1.10", "expected": "1.00", "worst": "0.90"}}' />
+              <Button type="submit">Save scenario</Button>
+            </form>
+          </CardBody>
+        </Card>
       </div>
     </div>
   );

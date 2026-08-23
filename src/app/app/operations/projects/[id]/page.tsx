@@ -17,10 +17,13 @@ import { riskExposureLevel, riskNeedsReview } from "@/modules/project/risks";
 import { decisionStatusLabel, type DecisionOption } from "@/modules/project/decisions";
 import { compareScenarios } from "@/modules/project/scenarios";
 import { updateProjectStatus, createProjectRisk, updateProjectRiskStatus, createProjectDecision, decideProjectDecision, createProjectScenario, chooseProjectScenario } from "../actions";
+import { Card, CardHeader, CardBody, Badge, EmptyState, DataTable, type DataTableColumn } from "@/components/ui";
+import { fmtDate, fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "Project — Singha Central" };
 
 const PROJECT_STATUSES = ["active", "on_hold", "completed", "cancelled"] as const;
+type BadgeVariant = "default" | "ok" | "warn" | "danger" | "info" | "accent";
 
 async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
   try {
@@ -53,12 +56,11 @@ function flattenJournalLines(entries: any[]): Parameters<typeof computeProjectBu
   return out;
 }
 
-function statusTone(status: string): string {
+function statusVariant(status: string): BadgeVariant {
   if (status === "active") return "ok";
   if (status === "on_hold") return "warn";
-  if (status === "completed") return "";
   if (status === "cancelled") return "danger";
-  return "";
+  return "default";
 }
 
 export default async function ProjectDetailPage({ params }: { params: { id: string } }) {
@@ -272,299 +274,331 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
   }));
   const scenarioComparison = compareScenarios(projectScenarios);
 
+  const forecastColumns: DataTableColumn<typeof budgetForecast.forecastCurve[number]>[] = [
+    {
+      key: "period",
+      header: "Period",
+      render: (point) => (
+        <span className="dim small">
+          {point.periodName ?? point.periodId}
+          <span className="dim"> · {fmtDate(point.startDate)} → {fmtDate(point.endDate)}</span>
+        </span>
+      ),
+    },
+    { key: "budgeted", header: "Budgeted", align: "right", render: (point) => fmt(point.budgeted) },
+    { key: "actual", header: "Actual", align: "right", render: (point) => fmt(point.actual) },
+    {
+      key: "variance",
+      header: "Variance",
+      align: "right",
+      render: (point) => <span style={{ color: point.variance.startsWith("-") ? "var(--danger)" : "var(--ok)" }}>{fmt(point.variance)}</span>,
+    },
+  ];
+
+  const resourceColumns: DataTableColumn<typeof resourceReq.people[number]>[] = [
+    { key: "person", header: "Person", render: (person) => person.name },
+    { key: "planned", header: "Planned h", align: "right", render: (person) => fmtNumber(person.plannedHours) },
+    { key: "actual", header: "Actual h", align: "right", render: (person) => fmtNumber(person.actualHours) },
+    { key: "remaining", header: "Remaining h", align: "right", render: (person) => fmtNumber(person.remainingHours) },
+    { key: "open", header: "Open", align: "right", render: (person) => fmtNumber(person.openTasks) },
+    {
+      key: "blocked",
+      header: "Blocked",
+      align: "right",
+      render: (person) => <span style={{ color: person.blockedTasks > 0 ? "var(--danger)" : undefined }}>{fmtNumber(person.blockedTasks)}</span>,
+    },
+    {
+      key: "overdue",
+      header: "Overdue",
+      align: "right",
+      render: (person) => <span style={{ color: person.overdueTasks > 0 ? "var(--danger)" : undefined }}>{fmtNumber(person.overdueTasks)}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (person) => <Badge variant={person.status === "overloaded" ? "danger" : person.status === "underallocated" ? "warn" : "ok"}>{person.status}</Badge>,
+    },
+  ];
+
+  const riskColumns: DataTableColumn<typeof projectRisks[number]>[] = [
+    { key: "title", header: "Title", render: (r) => r.title },
+    {
+      key: "impact",
+      header: "Impact",
+      render: (r) => <Badge variant={r.impact === "critical" || r.impact === "high" ? "danger" : r.impact === "medium" ? "warn" : "default"}>{r.impact}</Badge>,
+    },
+    { key: "likelihood", header: "Likelihood", render: (r) => r.likelihood },
+    {
+      key: "exposure",
+      header: "Exposure",
+      render: (r) => <Badge variant={r.exposure === "severe" ? "danger" : r.exposure === "high" ? "warn" : "default"}>{r.exposure}</Badge>,
+    },
+    { key: "status", header: "Status", render: (r) => r.status },
+    {
+      key: "review",
+      header: "Review",
+      render: (r) => r.needsReview ? <Badge variant="danger">due</Badge> : r.reviewDate ? fmtDate(r.reviewDate) : "—",
+    },
+    {
+      key: "action",
+      header: "Action",
+      render: (r) => (
+        <form action={updateProjectRiskStatus} className="row gap-1">
+          <input type="hidden" name="risk_id" value={r.id} />
+          <select name="status" className="input sm" defaultValue={r.status}>
+            <option value="open">open</option>
+            <option value="mitigated">mitigated</option>
+            <option value="accepted">accepted</option>
+            <option value="closed">closed</option>
+          </select>
+          <button className="btn sm" type="submit">Save</button>
+        </form>
+      ),
+    },
+  ];
+
+  const scenarioColumns: DataTableColumn<typeof projectScenarios[number]>[] = [
+    {
+      key: "title",
+      header: "Scenario",
+      render: (s) => (
+        <>
+          {s.title} {s.id === scenarioComparison.preferredId && <Badge variant="ok">advisory preferred</Badge>}
+        </>
+      ),
+    },
+    { key: "best", header: "Best", align: "right", render: (s) => fmtMoney(s.bestCaseTotal, s.currency) },
+    { key: "expected", header: "Expected", align: "right", render: (s) => fmtMoney(s.expectedTotal, s.currency) },
+    { key: "worst", header: "Worst", align: "right", render: (s) => fmtMoney(s.worstCaseTotal, s.currency) },
+    { key: "chosen", header: "Chosen", render: (s) => (s.chosen ? "✓" : "—") },
+    {
+      key: "action",
+      header: "Action",
+      render: (s) =>
+        !s.chosen ? (
+          <form action={chooseProjectScenario}>
+            <input type="hidden" name="scenario_id" value={s.id} />
+            <button className="btn sm" type="submit">Choose</button>
+          </form>
+        ) : null,
+    },
+  ];
+
   return (
     <div className="stack gap-3">
       <div className="row between">
         <div>
           <h1>{project.name}</h1>
           <p className="muted mt-1">
-            <span className={`badge ${statusTone(project.status)}`}>{project.status.replace(/_/g, " ")}</span>
+            <Badge variant={statusVariant(project.status)}>{project.status.replace(/_/g, " ")}</Badge>
             {project.code && <span className="dim small mono" style={{ marginLeft: 8 }}>{project.code}</span>}
           </p>
         </div>
         <Link className="btn ghost sm" href="/app/operations/projects">← Projects</Link>
       </div>
 
-      <div className="card">
-        <div className="card-title">Update status</div>
-        <form action={updateProjectStatus} className="row gap-1 wrap mt-2">
-          <input type="hidden" name="project_id" value={projectId} />
-          <select name="status" className="input" defaultValue={project.status} style={{ width: 160 }}>
-            {PROJECT_STATUSES.map((s) => (
-              <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
-            ))}
-          </select>
-          <button className="btn" type="submit">Save</button>
-        </form>
-      </div>
-
-      <div className="card">
-        <div className="card-title">Budget vs actual — {budgetCurrency}</div>
-        <div className="grid cols-4 mt-3">
-          <div className="card stat"><div className="k">Budgeted</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmt(budgetForecast.budgetVsActual.totals.budgeted)}</div></div>
-          <div className="card stat"><div className="k">Actual</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmt(budgetForecast.budgetVsActual.totals.actual)}</div></div>
-          <div className="card stat"><div className="k">Variance</div><div className="v" style={{ fontSize: "1.4rem", color: budgetForecast.budgetVsActual.totals.variance.startsWith("-") ? "var(--danger)" : "var(--ok)" }}>{fmt(budgetForecast.budgetVsActual.totals.variance)}</div></div>
-          <div className="card stat"><div className="k">Variance %</div><div className="v" style={{ fontSize: "1.4rem" }}>{budgetForecast.budgetVsActual.totals.variancePercent ?? "—"}%</div></div>
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card-title">Forecast curve by period</div>
-        {budgetForecast.forecastCurve.length === 0 ? (
-          <div className="empty mt-2">No periods defined.</div>
-        ) : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead>
-                <tr><th>Period</th><th className="num">Budgeted</th><th className="num">Actual</th><th className="num">Variance</th></tr>
-              </thead>
-              <tbody>
-                {budgetForecast.forecastCurve.map((point) => (
-                  <tr key={point.periodId}>
-                    <td className="dim small">
-                      {point.periodName ?? point.periodId}
-                      <span className="dim"> · {point.startDate} → {point.endDate}</span>
-                    </td>
-                    <td className="num">{fmt(point.budgeted)}</td>
-                    <td className="num">{fmt(point.actual)}</td>
-                    <td className="num" style={{ color: point.variance.startsWith("-") ? "var(--danger)" : "var(--ok)" }}>{fmt(point.variance)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      <div className="card">
-        <div className="card-title">Resource requirements</div>
-        <div className="grid cols-4 mt-3">
-          <div className="card stat"><div className="k">Assigned people</div><div className="v" style={{ fontSize: "1.4rem" }}>{resourceReq.totals.assignedPeople}</div></div>
-          <div className="card stat"><div className="k">Planned hours</div><div className="v" style={{ fontSize: "1.4rem" }}>{resourceReq.totals.plannedHours}</div></div>
-          <div className="card stat"><div className="k">Actual hours</div><div className="v" style={{ fontSize: "1.4rem" }}>{resourceReq.totals.actualHours}</div></div>
-          <div className="card stat"><div className="k">Remaining hours</div><div className="v" style={{ fontSize: "1.4rem" }}>{resourceReq.totals.remainingHours}</div></div>
-        </div>
-        <div className="grid cols-3 mt-3">
-          <div className="card stat"><div className="k">Open tasks</div><div className="v">{resourceReq.totals.openTasks}</div></div>
-          <div className="card stat"><div className="k">Blocked</div><div className="v" style={{ color: resourceReq.totals.blockedTasks > 0 ? "var(--danger)" : undefined }}>{resourceReq.totals.blockedTasks}</div></div>
-          <div className="card stat"><div className="k">Overdue</div><div className="v" style={{ color: resourceReq.totals.overdueTasks > 0 ? "var(--danger)" : undefined }}>{resourceReq.totals.overdueTasks}</div></div>
-        </div>
-
-        {resourceReq.people.length === 0 ? (
-          <div className="empty mt-3">No assigned staff.</div>
-        ) : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Person</th><th className="num">Planned h</th><th className="num">Actual h</th>
-                  <th className="num">Remaining h</th><th className="num">Open</th>
-                  <th className="num">Blocked</th><th className="num">Overdue</th><th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resourceReq.people.map((person) => (
-                  <tr key={person.membershipId}>
-                    <td>{person.name}</td>
-                    <td className="num">{person.plannedHours}</td>
-                    <td className="num">{person.actualHours}</td>
-                    <td className="num">{person.remainingHours}</td>
-                    <td className="num">{person.openTasks}</td>
-                    <td className="num" style={{ color: person.blockedTasks > 0 ? "var(--danger)" : undefined }}>{person.blockedTasks}</td>
-                    <td className="num" style={{ color: person.overdueTasks > 0 ? "var(--danger)" : undefined }}>{person.overdueTasks}</td>
-                    <td><span className={`badge ${person.status === "overloaded" ? "danger" : person.status === "underallocated" ? "warn" : "ok"}`}>{person.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {resourceReq.unassigned.taskCount > 0 && (
-          <p className="small muted mt-2">
-            Unassigned: {resourceReq.unassigned.taskCount} task(s), {resourceReq.unassigned.plannedHours}h planned,
-            {" "}{resourceReq.unassigned.remainingHours}h remaining.
-          </p>
-        )}
-      </div>
-
-      <div className="card">
-        <div className="card-title">Project risks</div>
-        {projectRisks.length === 0 ? (
-          <div className="empty mt-2">No risks recorded.</div>
-        ) : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead>
-                <tr><th>Title</th><th>Impact</th><th>Likelihood</th><th>Exposure</th><th>Status</th><th>Review</th><th>Action</th></tr>
-              </thead>
-              <tbody>
-                {projectRisks.map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.title}</td>
-                    <td><span className={`badge ${r.impact === "critical" || r.impact === "high" ? "danger" : r.impact === "medium" ? "warn" : ""}`}>{r.impact}</span></td>
-                    <td>{r.likelihood}</td>
-                    <td><span className={`badge ${r.exposure === "severe" ? "danger" : r.exposure === "high" ? "warn" : ""}`}>{r.exposure}</span></td>
-                    <td>{r.status}</td>
-                    <td>{r.needsReview ? <span className="badge danger">due</span> : r.reviewDate ? String(r.reviewDate) : "—"}</td>
-                    <td>
-                      <form action={updateProjectRiskStatus} className="row gap-1">
-                        <input type="hidden" name="risk_id" value={r.id} />
-                        <select name="status" className="input sm" defaultValue={r.status}>
-                          <option value="open">open</option>
-                          <option value="mitigated">mitigated</option>
-                          <option value="accepted">accepted</option>
-                          <option value="closed">closed</option>
-                        </select>
-                        <button className="btn sm" type="submit">Save</button>
-                      </form>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <form action={createProjectRisk} className="stack gap-1 mt-3">
-          <input type="hidden" name="project_id" value={projectId} />
-          <div className="row gap-1 wrap">
-            <input name="title" className="input" placeholder="Risk title" required style={{ minWidth: 200 }} />
-            <select name="impact" className="input" defaultValue="medium">
-              <option value="low">low impact</option>
-              <option value="medium">medium impact</option>
-              <option value="high">high impact</option>
-              <option value="critical">critical impact</option>
+      <Card>
+        <CardHeader title="Update status" />
+        <CardBody>
+          <form action={updateProjectStatus} className="row gap-1 wrap mt-2">
+            <input type="hidden" name="project_id" value={projectId} />
+            <select name="status" className="input" defaultValue={project.status} style={{ width: 160 }}>
+              {PROJECT_STATUSES.map((s) => (
+                <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+              ))}
             </select>
-            <select name="likelihood" className="input" defaultValue="medium">
-              <option value="low">low likelihood</option>
-              <option value="medium">medium likelihood</option>
-              <option value="high">high likelihood</option>
-              <option value="critical">critical likelihood</option>
-            </select>
-            <select name="status" className="input" defaultValue="open">
-              <option value="open">open</option>
-              <option value="mitigated">mitigated</option>
-              <option value="accepted">accepted</option>
-              <option value="closed">closed</option>
-            </select>
-            <input name="review_date" type="date" className="input" />
-          </div>
-          <textarea name="description" className="input" placeholder="Description" rows={2} />
-          <textarea name="mitigation" className="input" placeholder="Mitigation" rows={2} />
-          <button className="btn" type="submit">Add risk</button>
-        </form>
-      </div>
+            <button className="btn" type="submit">Save</button>
+          </form>
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">Project decisions</div>
-        {projectDecisions.length === 0 ? (
-          <div className="empty mt-2">No decisions recorded.</div>
-        ) : (
-          <div className="stack gap-2 mt-3">
-            {projectDecisions.map((d) => (
-              <div key={d.id} className="card">
-                <div className="row between">
-                  <strong>{d.title}</strong>
-                  <span className={`badge ${d.status === "decided" ? "ok" : d.status === "reversed" ? "warn" : ""}`}>{d.statusLabel}</span>
-                </div>
-                {d.context && <p className="small muted mt-1">{d.context}</p>}
-                {d.options.length > 0 && (
-                  <ul className="small mt-1">
-                    {d.options.map((o) => (
-                      <li key={o.id} className={o.id === d.decidedOptionId ? "bold" : undefined}>
-                        {o.label} {o.id === d.decidedOptionId && "✓"}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {d.rationale && <p className="small mt-1">Rationale: {d.rationale}</p>}
-                {d.status !== "decided" && d.status !== "reversed" && (
-                  <form action={decideProjectDecision} className="stack gap-1 mt-2">
-                    <input type="hidden" name="decision_id" value={d.id} />
-                    <input type="hidden" name="status" value="decided" />
-                    <select name="option_id" className="input sm" required>
-                      <option value="">Choose option…</option>
-                      {d.options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-                    </select>
-                    <textarea name="rationale" className="input" placeholder="Rationale" rows={2} />
-                    <button className="btn sm" type="submit">Record decision</button>
-                  </form>
-                )}
-              </div>
-            ))}
+      <Card>
+        <CardHeader title={`Budget vs actual — ${budgetCurrency}`} />
+        <CardBody>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-3)" }} className="mt-3">
+            <div className="card stat"><div className="k">Budgeted</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmt(budgetForecast.budgetVsActual.totals.budgeted)}</div></div>
+            <div className="card stat"><div className="k">Actual</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmt(budgetForecast.budgetVsActual.totals.actual)}</div></div>
+            <div className="card stat"><div className="k">Variance</div><div className="v" style={{ fontSize: "1.4rem", color: budgetForecast.budgetVsActual.totals.variance.startsWith("-") ? "var(--danger)" : "var(--ok)" }}>{fmt(budgetForecast.budgetVsActual.totals.variance)}</div></div>
+            <div className="card stat"><div className="k">Variance %</div><div className="v" style={{ fontSize: "1.4rem" }}>{budgetForecast.budgetVsActual.totals.variancePercent ?? "—"}%</div></div>
           </div>
-        )}
+        </CardBody>
+      </Card>
 
-        <form action={createProjectDecision} className="stack gap-1 mt-3">
-          <input type="hidden" name="project_id" value={projectId} />
-          <input name="title" className="input" placeholder="Decision title" required />
-          <textarea name="context" className="input" placeholder="Context" rows={2} />
-          <textarea
-            name="options"
-            className="input"
-            placeholder='Options as JSON, e.g. [{"id":"a","label":"Option A"},{"id":"b","label":"Option B"}]'
-            rows={2}
-            defaultValue='[{"id":"a","label":"Option A"},{"id":"b","label":"Option B"}]'
+      <Card>
+        <CardHeader title="Forecast curve by period" />
+        <CardBody>
+          <DataTable
+            columns={forecastColumns}
+            rows={budgetForecast.forecastCurve}
+            keyExtractor={(point) => point.periodId}
+            emptyTitle="No periods defined"
+            className="mt-3"
           />
-          <button className="btn" type="submit">Add decision</button>
-        </form>
-      </div>
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">Scenario comparison</div>
-        {projectScenarios.length === 0 ? (
-          <div className="empty mt-2">No scenarios recorded.</div>
-        ) : (
-          <>
-            <div className="table-wrap mt-3">
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th>Scenario</th><th className="num">Best</th><th className="num">Expected</th><th className="num">Worst</th><th>Chosen</th><th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {projectScenarios.map((s) => (
-                    <tr key={s.id} className={s.chosen ? "highlight" : undefined}>
-                      <td>{s.title} {s.id === scenarioComparison.preferredId && <span className="badge ok">advisory preferred</span>}</td>
-                      <td className="num">{fmtMoney(s.bestCaseTotal, s.currency)}</td>
-                      <td className="num">{fmtMoney(s.expectedTotal, s.currency)}</td>
-                      <td className="num">{fmtMoney(s.worstCaseTotal, s.currency)}</td>
-                      <td>{s.chosen ? "✓" : "—"}</td>
-                      <td>
-                        {!s.chosen && (
-                          <form action={chooseProjectScenario}>
-                            <input type="hidden" name="scenario_id" value={s.id} />
-                            <button className="btn sm" type="submit">Choose</button>
-                          </form>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      <Card>
+        <CardHeader title="Resource requirements" />
+        <CardBody>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-3)" }} className="mt-3">
+            <div className="card stat"><div className="k">Assigned people</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmtNumber(resourceReq.totals.assignedPeople)}</div></div>
+            <div className="card stat"><div className="k">Planned hours</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmtNumber(resourceReq.totals.plannedHours)}</div></div>
+            <div className="card stat"><div className="k">Actual hours</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmtNumber(resourceReq.totals.actualHours)}</div></div>
+            <div className="card stat"><div className="k">Remaining hours</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmtNumber(resourceReq.totals.remainingHours)}</div></div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "var(--space-3)" }} className="mt-3">
+            <div className="card stat"><div className="k">Open tasks</div><div className="v">{fmtNumber(resourceReq.totals.openTasks)}</div></div>
+            <div className="card stat"><div className="k">Blocked</div><div className="v" style={{ color: resourceReq.totals.blockedTasks > 0 ? "var(--danger)" : undefined }}>{fmtNumber(resourceReq.totals.blockedTasks)}</div></div>
+            <div className="card stat"><div className="k">Overdue</div><div className="v" style={{ color: resourceReq.totals.overdueTasks > 0 ? "var(--danger)" : undefined }}>{fmtNumber(resourceReq.totals.overdueTasks)}</div></div>
+          </div>
+
+          <DataTable
+            columns={resourceColumns}
+            rows={resourceReq.people}
+            keyExtractor={(person) => person.membershipId}
+            emptyTitle="No assigned staff"
+            className="mt-3"
+          />
+
+          {resourceReq.unassigned.taskCount > 0 && (
+            <p className="small muted mt-2">
+              Unassigned: {fmtNumber(resourceReq.unassigned.taskCount)} task(s), {fmtNumber(resourceReq.unassigned.plannedHours)}h planned,
+              {" "}{fmtNumber(resourceReq.unassigned.remainingHours)}h remaining.
+            </p>
+          )}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title="Project risks" />
+        <CardBody>
+          <DataTable
+            columns={riskColumns}
+            rows={projectRisks}
+            keyExtractor={(r) => r.id}
+            emptyTitle="No risks recorded"
+            className="mt-3"
+          />
+
+          <form action={createProjectRisk} className="stack gap-1 mt-3">
+            <input type="hidden" name="project_id" value={projectId} />
+            <div className="row gap-1 wrap">
+              <input name="title" className="input" placeholder="Risk title" required style={{ minWidth: 200 }} />
+              <select name="impact" className="input" defaultValue="medium">
+                <option value="low">low impact</option>
+                <option value="medium">medium impact</option>
+                <option value="high">high impact</option>
+                <option value="critical">critical impact</option>
+              </select>
+              <select name="likelihood" className="input" defaultValue="medium">
+                <option value="low">low likelihood</option>
+                <option value="medium">medium likelihood</option>
+                <option value="high">high likelihood</option>
+                <option value="critical">critical likelihood</option>
+              </select>
+              <select name="status" className="input" defaultValue="open">
+                <option value="open">open</option>
+                <option value="mitigated">mitigated</option>
+                <option value="accepted">accepted</option>
+                <option value="closed">closed</option>
+              </select>
+              <input name="review_date" type="date" className="input" />
             </div>
-            {scenarioComparison.preferredId && (
-              <p className="small muted mt-2">Advisory preference: {projectScenarios.find((s) => s.id === scenarioComparison.preferredId)?.title} — {scenarioComparison.reason}</p>
-            )}
-          </>
-        )}
+            <textarea name="description" className="input" placeholder="Description" rows={2} />
+            <textarea name="mitigation" className="input" placeholder="Mitigation" rows={2} />
+            <button className="btn" type="submit">Add risk</button>
+          </form>
+        </CardBody>
+      </Card>
 
-        <form action={createProjectScenario} className="stack gap-1 mt-3">
-          <input type="hidden" name="project_id" value={projectId} />
-          <div className="row gap-1 wrap">
-            <input name="title" className="input" placeholder="Scenario title" required style={{ minWidth: 200 }} />
-            <input name="currency" className="input" placeholder="Currency" defaultValue={budgetCurrency} style={{ width: 80 }} />
-          </div>
-          <div className="row gap-1 wrap">
-            <input name="best_case_total" className="input" placeholder="Best case total" defaultValue="0" />
-            <input name="expected_total" className="input" placeholder="Expected total" defaultValue="0" />
-            <input name="worst_case_total" className="input" placeholder="Worst case total" defaultValue="0" />
-          </div>
-          <button className="btn" type="submit">Add scenario</button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader title="Project decisions" />
+        <CardBody>
+          {projectDecisions.length === 0 ? (
+            <EmptyState title="No decisions recorded" icon="git-commit" />
+          ) : (
+            <div className="stack gap-2 mt-3">
+              {projectDecisions.map((d) => (
+                <Card key={d.id} padding="sm">
+                  <CardBody>
+                    <div className="row between">
+                      <strong>{d.title}</strong>
+                      <Badge variant={d.status === "decided" ? "ok" : d.status === "reversed" ? "warn" : "default"}>{d.statusLabel}</Badge>
+                    </div>
+                    {d.context && <p className="small muted mt-1">{d.context}</p>}
+                    {d.options.length > 0 && (
+                      <ul className="small mt-1">
+                        {d.options.map((o) => (
+                          <li key={o.id} className={o.id === d.decidedOptionId ? "bold" : undefined}>
+                            {o.label} {o.id === d.decidedOptionId && "✓"}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {d.rationale && <p className="small mt-1">Rationale: {d.rationale}</p>}
+                    {d.status !== "decided" && d.status !== "reversed" && (
+                      <form action={decideProjectDecision} className="stack gap-1 mt-2">
+                        <input type="hidden" name="decision_id" value={d.id} />
+                        <input type="hidden" name="status" value="decided" />
+                        <select name="option_id" className="input sm" required>
+                          <option value="">Choose option…</option>
+                          {d.options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                        </select>
+                        <textarea name="rationale" className="input" placeholder="Rationale" rows={2} />
+                        <button className="btn sm" type="submit">Record decision</button>
+                      </form>
+                    )}
+                  </CardBody>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          <form action={createProjectDecision} className="stack gap-1 mt-3">
+            <input type="hidden" name="project_id" value={projectId} />
+            <input name="title" className="input" placeholder="Decision title" required />
+            <textarea name="context" className="input" placeholder="Context" rows={2} />
+            <textarea
+              name="options"
+              className="input"
+              placeholder='Options as JSON, e.g. [{"id":"a","label":"Option A"},{"id":"b","label":"Option B"}]'
+              rows={2}
+              defaultValue='[{"id":"a","label":"Option A"},{"id":"b","label":"Option B"}]'
+            />
+            <button className="btn" type="submit">Add decision</button>
+          </form>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader title="Scenario comparison" />
+        <CardBody>
+          <DataTable
+            columns={scenarioColumns}
+            rows={projectScenarios}
+            keyExtractor={(s) => s.id}
+            emptyTitle="No scenarios recorded"
+            className="mt-3"
+          />
+          {scenarioComparison.preferredId && (
+            <p className="small muted mt-2">Advisory preference: {projectScenarios.find((s) => s.id === scenarioComparison.preferredId)?.title} — {scenarioComparison.reason}</p>
+          )}
+
+          <form action={createProjectScenario} className="stack gap-1 mt-3">
+            <input type="hidden" name="project_id" value={projectId} />
+            <div className="row gap-1 wrap">
+              <input name="title" className="input" placeholder="Scenario title" required style={{ minWidth: 200 }} />
+              <input name="currency" className="input" placeholder="Currency" defaultValue={budgetCurrency} style={{ width: 80 }} />
+            </div>
+            <div className="row gap-1 wrap">
+              <input name="best_case_total" className="input" placeholder="Best case total" defaultValue="0" />
+              <input name="expected_total" className="input" placeholder="Expected total" defaultValue="0" />
+              <input name="worst_case_total" className="input" placeholder="Worst case total" defaultValue="0" />
+            </div>
+            <button className="btn" type="submit">Add scenario</button>
+          </form>
+        </CardBody>
+      </Card>
     </div>
   );
 }

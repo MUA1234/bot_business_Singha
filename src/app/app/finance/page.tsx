@@ -6,6 +6,8 @@ import { Icon } from "@/components/Icon";
 import { decSub, decSum, fmtMoney } from "@/lib/money";
 import { ageItems, type AgingItem } from "@/modules/finance/aging";
 import { BarChart, agingBars } from "@/components/charts";
+import { Card, CardHeader, CardBody } from "@/components/ui";
+import { fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "Finance — Singha Central" };
 
@@ -99,7 +101,7 @@ export default async function FinanceHome() {
         {tiles.map((t) => (
           <Link key={t.k} href={t.href} className="card stat">
             <div className="k">{t.k}</div>
-            <div className="v" style={{ fontSize: "1.5rem" }}>{t.v}</div>
+            <div className="v" style={{ fontSize: "1.5rem" }}>{typeof t.v === "number" ? fmtNumber(t.v) : t.v}</div>
           </Link>
         ))}
       </div>
@@ -117,23 +119,50 @@ export default async function FinanceHome() {
         </Link>
       </div>
 
-      <div className="card">
-        <div className="card-title">Receivables vs payables — by age</div>
-        <div className="card-sub">Chase the amber and red receivable buckets first — the oldest debt is the hardest to collect.</div>
-        <div className="mt-2">
+      <Card>
+        <CardHeader
+          title="Receivables vs payables — by age"
+          subtitle="Chase the amber and red receivable buckets first — the oldest debt is the hardest to collect."
+        />
+        <CardBody>
           <div className="small dim" style={{ marginBottom: 2 }}>Receivables (owed to you)</div>
           <BarChart data={agingBars(ar.buckets, fmt)} height={120} />
           <div className="small dim" style={{ marginTop: 8, marginBottom: 2 }}>Payables (you owe)</div>
           <BarChart data={agingBars(ap.buckets, fmt)} height={120} />
-        </div>
-      </div>
+        </CardBody>
+      </Card>
 
       <div className="grid cols-3">
-        <Link href="/app/finance/budgets" className="card"><div className="card-title row gap-1"><Icon name="pie-chart" size={17} /> Budgets vs actual</div><p className="card-sub">Build budgets and compare them to journal activity and scenarios.</p></Link>
-        <Link href="/app/finance/invoices" className="card"><div className="card-title row gap-1"><Icon name="file-text" size={17} /> Invoices</div><p className="card-sub">Billing documents from quotations.</p></Link>
-        <Link href="/app/finance/price-requests" className="card"><div className="card-title row gap-1"><Icon name="help-circle" size={17} /> Price Confirmations</div><p className="card-sub">Confirm prices routed to finance.</p></Link>
-        <Link href="/app/finance/exports" className="card"><div className="card-title row gap-1"><Icon name="table" size={17} /> Excel Exports</div><p className="card-sub">Download logs as Excel-compatible CSV.</p></Link>
-        <Link href="/app/finance/funding" className="card"><div className="card-title row gap-1"><Icon name="target" size={17} /> Funding & investments</div><p className="card-sub">Funding gap from the forecast and the investment register.</p></Link>
+        <Link href="/app/finance/budgets">
+          <Card>
+            <div className="card-title row gap-1"><Icon name="pie-chart" size={17} /> Budgets vs actual</div>
+            <p className="card-sub">Build budgets and compare them to journal activity and scenarios.</p>
+          </Card>
+        </Link>
+        <Link href="/app/finance/invoices">
+          <Card>
+            <div className="card-title row gap-1"><Icon name="file-text" size={17} /> Invoices</div>
+            <p className="card-sub">Billing documents from quotations.</p>
+          </Card>
+        </Link>
+        <Link href="/app/finance/price-requests">
+          <Card>
+            <div className="card-title row gap-1"><Icon name="help-circle" size={17} /> Price Confirmations</div>
+            <p className="card-sub">Confirm prices routed to finance.</p>
+          </Card>
+        </Link>
+        <Link href="/app/finance/exports">
+          <Card>
+            <div className="card-title row gap-1"><Icon name="table" size={17} /> Excel Exports</div>
+            <p className="card-sub">Download logs as Excel-compatible CSV.</p>
+          </Card>
+        </Link>
+        <Link href="/app/finance/funding">
+          <Card>
+            <div className="card-title row gap-1"><Icon name="target" size={17} /> Funding & investments</div>
+            <p className="card-sub">Funding gap from the forecast and the investment register.</p>
+          </Card>
+        </Link>
       </div>
     </div>
   );

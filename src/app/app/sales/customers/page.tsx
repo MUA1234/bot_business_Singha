@@ -8,6 +8,8 @@
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { Card, CardHeader, CardBody, Badge, StatusBadge, DataTable } from "@/components/ui";
+import { fmtDateTime } from "@/lib/format";
 
 export const metadata = { title: "Customers — Singha Central" };
 
@@ -32,6 +34,13 @@ interface Conversation {
   status: string;
   last_inbound_at: string | null;
 }
+
+const CONVO_VARIANT: Record<string, "default" | "info" | "warn" | "ok"> = {
+  collecting: "info",
+  quoting: "info",
+  awaiting_price: "warn",
+  quoted: "ok",
+};
 
 /** Detect identities claimed by more than one active customer in the same company. */
 function findDuplicateIdentities(customers: Customer[]): Map<string, string[]> {
@@ -103,6 +112,8 @@ export default async function CustomersPage() {
     for (const id of ids) duplicateCustomerIds.add(id);
   }
 
+  const conversations: Conversation[] = (convos ?? []) as Conversation[];
+
   return (
     <div className="stack gap-3">
       <div className="row between">
@@ -120,71 +131,71 @@ export default async function CustomersPage() {
         </div>
       )}
 
-      <div className="card">
-        <div className="card-title">Canonical customers</div>
-        {(customers ?? []).length === 0 ? (
-          <div className="empty mt-2">No customers yet.</div>
-        ) : (
-          <div className="table-wrap mt-2">
-            <table className="data">
-              <thead>
-                <tr><th>Customer</th><th>Channel identities</th><th>Status</th></tr>
-              </thead>
-              <tbody>
-                {customers.map((c) => {
-                  const isDuplicate = duplicateCustomerIds.has(c.id);
-                  return (
-                    <tr key={c.id}>
-                      <td style={{ fontWeight: 600 }}>
-                        {c.name}
-                        {isDuplicate && <span className="badge warn ml-1">duplicate</span>}
-                      </td>
-                      <td className="dim small">
-                        {c.channel_identities.length === 0 ? (
-                          "—"
-                        ) : (
-                          <div className="stack gap-0">
-                            {c.channel_identities.map((ch, idx) => (
-                              <div key={idx} className="mono">{ch.channel}: {ch.identity}</div>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                      <td><span className="badge">{c.status}</span></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title="Canonical customers" />
+        <CardBody>
+          <DataTable
+            columns={[
+              {
+                key: "customer",
+                header: "Customer",
+                render: (c) => (
+                  <span style={{ fontWeight: 600 }}>
+                    {c.name}
+                    {duplicateCustomerIds.has(c.id) && (
+                      <Badge variant="warn" className="ml-1">duplicate</Badge>
+                    )}
+                  </span>
+                ),
+              },
+              {
+                key: "channels",
+                header: "Channel identities",
+                render: (c) =>
+                  c.channel_identities.length === 0 ? (
+                    "—"
+                  ) : (
+                    <div className="stack gap-0 dim small">
+                      {c.channel_identities.map((ch, idx) => (
+                        <div key={idx} className="mono">{ch.channel}: {ch.identity}</div>
+                      ))}
+                    </div>
+                  ),
+              },
+              { key: "status", header: "Status", render: (c) => <StatusBadge status={c.status} /> },
+            ]}
+            rows={customers}
+            keyExtractor={(c) => c.id}
+            emptyTitle="No customers yet"
+          />
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">Recent WhatsApp conversations</div>
-        {(convos ?? []).length === 0 ? (
-          <div className="empty mt-2">No customer conversations yet.</div>
-        ) : (
-          <div className="table-wrap mt-2">
-            <table className="data">
-              <thead>
-                <tr><th>Customer</th><th>Number</th><th>Status</th><th>Last message</th><th></th></tr>
-              </thead>
-              <tbody>
-                {(convos as Conversation[]).map((c) => (
-                  <tr key={c.id}>
-                    <td style={{ fontWeight: 600 }}>{c.customer_name ?? "—"}</td>
-                    <td className="mono dim">+{c.customer_wa_id}</td>
-                    <td><span className="badge">{c.status.replace("_", " ")}</span></td>
-                    <td className="dim small">{c.last_inbound_at ? new Date(c.last_inbound_at).toLocaleString() : "—"}</td>
-                    <td><Link className="btn ghost sm" href={`/app/sales/customers/${c.id}`}>View chat</Link></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title="Recent WhatsApp conversations" />
+        <CardBody>
+          <DataTable
+            columns={[
+              { key: "customer", header: "Customer", render: (c) => <span style={{ fontWeight: 600 }}>{c.customer_name ?? "—"}</span> },
+              { key: "number", header: "Number", render: (c) => <span className="mono dim">+{c.customer_wa_id}</span> },
+              {
+                key: "status",
+                header: "Status",
+                render: (c) => <Badge variant={CONVO_VARIANT[c.status] ?? "default"}>{c.status.replace("_", " ")}</Badge>,
+              },
+              { key: "last", header: "Last message", render: (c) => <span className="dim small">{fmtDateTime(c.last_inbound_at)}</span> },
+              {
+                key: "action",
+                header: "",
+                render: (c) => <Link className="btn ghost sm" href={`/app/sales/customers/${c.id}`}>View chat</Link>,
+              },
+            ]}
+            rows={conversations}
+            keyExtractor={(c) => c.id}
+            emptyTitle="No customer conversations yet"
+          />
+        </CardBody>
+      </Card>
     </div>
   );
 }

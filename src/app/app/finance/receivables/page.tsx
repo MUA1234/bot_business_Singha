@@ -9,7 +9,16 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { decGtZero, decSub, fmtMoney } from "@/lib/money";
+import { fmtDate } from "@/lib/format";
 import { bucketFor, type AgingBucket } from "@/modules/finance/aging";
+import {
+  Card,
+  CardHeader,
+  CardBody,
+  Badge,
+  DataTable,
+  type DataTableColumn,
+} from "@/components/ui";
 
 export const metadata = { title: "Receivables & Payables — Singha Central" };
 
@@ -57,32 +66,37 @@ function toRows(records: any[], refKey: string, partyName: (r: any) => string, n
 }
 
 function Table({ title, rows }: { title: string; rows: Row[] }) {
+  type KeyedRow = Row & { key: string };
+  const keyedRows: KeyedRow[] = rows.map((r, i) => ({ ...r, key: `${title}-${i}` }));
+  const columns: DataTableColumn<KeyedRow>[] = [
+    { key: "ref", header: "Ref", render: (r) => <span className="mono">{r.ref}</span> },
+    { key: "party", header: "Party", render: (r) => r.party },
+    { key: "due", header: "Due", render: (r) => <span className="dim small">{fmtDate(r.dueDate)}</span> },
+    { key: "outstanding", header: "Outstanding", align: "right", render: (r) => fmtMoney(r.outstanding, r.currency) },
+    {
+      key: "age",
+      header: "Age",
+      render: (r) => (
+        <Badge variant={r.bucket === "d90_plus" ? "danger" : r.bucket === "current" ? "default" : "warn"}>
+          {BUCKET_LABEL[r.bucket]}
+        </Badge>
+      ),
+    },
+  ];
+
   return (
-    <div className="card">
-      <div className="card-title">{title} ({rows.length})</div>
-      {rows.length === 0 ? (
-        <div className="empty">Nothing outstanding.</div>
-      ) : (
-        <div className="table-wrap mt-3">
-          <table className="data">
-            <thead>
-              <tr><th>Ref</th><th>Party</th><th>Due</th><th className="num">Outstanding</th><th>Age</th></tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={i}>
-                  <td className="mono">{r.ref}</td>
-                  <td>{r.party}</td>
-                  <td className="dim small">{r.dueDate ?? "—"}</td>
-                  <td className="num">{fmtMoney(r.outstanding, r.currency)}</td>
-                  <td><span className={`badge ${r.bucket === "d90_plus" ? "danger" : r.bucket === "current" ? "" : "warn"}`}>{BUCKET_LABEL[r.bucket]}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+    <Card>
+      <CardHeader title={`${title} (${rows.length})`} />
+      <CardBody>
+        <DataTable
+          columns={columns}
+          rows={keyedRows}
+          keyExtractor={(r) => r.key}
+          emptyTitle="Nothing outstanding"
+          className="mt-3"
+        />
+      </CardBody>
+    </Card>
   );
 }
 

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { Card, CardHeader, CardBody, Badge, DataTable } from "@/components/ui";
+import { fmtDateTime } from "@/lib/format";
 
 export const metadata = { title: "Sales — Singha Central" };
 
@@ -11,6 +13,21 @@ async function count(table: string, companyId: string, extra?: (q: any) => any) 
   const { count } = await q;
   return count ?? 0;
 }
+
+interface RecentConversation {
+  id: string;
+  customer_wa_id: string;
+  customer_name: string | null;
+  status: string;
+  updated_at: string;
+}
+
+const CONVO_VARIANT: Record<string, "default" | "info" | "warn" | "ok"> = {
+  collecting: "info",
+  quoting: "info",
+  awaiting_price: "warn",
+  quoted: "ok",
+};
 
 export default async function SalesHome() {
   const p = await requireDepartment("sales");
@@ -35,6 +52,8 @@ export default async function SalesHome() {
     { k: "Conversations", v: convos, href: "/app/sales/customers" },
   ];
 
+  const recentRows: RecentConversation[] = (recent ?? []) as RecentConversation[];
+
   return (
     <div className="stack gap-3">
       <div>
@@ -49,41 +68,29 @@ export default async function SalesHome() {
           </Link>
         ))}
       </div>
-      <div className="card">
-        <div className="card-title">Recent WhatsApp conversations</div>
-        {(recent ?? []).length === 0 ? (
-          <div className="empty">No conversations yet. They appear when customers message your WhatsApp number.</div>
-        ) : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead>
-                <tr><th>Customer</th><th>Number</th><th>Status</th><th>Updated</th></tr>
-              </thead>
-              <tbody>
-                {recent!.map((c: any) => (
-                  <tr key={c.id}>
-                    <td style={{ fontWeight: 600 }}>{c.customer_name ?? "—"}</td>
-                    <td className="mono dim">+{c.customer_wa_id}</td>
-                    <td><StatusBadge status={c.status} /></td>
-                    <td className="dim small">{new Date(c.updated_at).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title="Recent WhatsApp conversations" />
+        <CardBody>
+          <DataTable
+            columns={[
+              { key: "customer", header: "Customer", render: (c) => <span style={{ fontWeight: 600 }}>{c.customer_name ?? "—"}</span> },
+              { key: "number", header: "Number", render: (c) => <span className="mono dim">+{c.customer_wa_id}</span> },
+              {
+                key: "status",
+                header: "Status",
+                render: (c) => (
+                  <Badge variant={CONVO_VARIANT[c.status] ?? "default"}>{c.status.replace("_", " ")}</Badge>
+                ),
+              },
+              { key: "updated", header: "Updated", render: (c) => <span className="dim small">{fmtDateTime(c.updated_at)}</span> },
+            ]}
+            rows={recentRows}
+            keyExtractor={(c) => c.id}
+            emptyTitle="No conversations yet"
+            emptyDescription="They appear when customers message your WhatsApp number."
+          />
+        </CardBody>
+      </Card>
     </div>
   );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    collecting: "info",
-    quoting: "info",
-    awaiting_price: "warn",
-    quoted: "ok",
-    closed: "",
-  };
-  return <span className={`badge ${map[status] ?? ""}`}>{status.replace("_", " ")}</span>;
 }

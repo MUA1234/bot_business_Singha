@@ -6,6 +6,7 @@
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { Card, CardHeader, CardBody, Button, StatusBadge, EmptyState, DataTable, type DataTableColumn } from "@/components/ui";
 import { createFiscalYear, setPeriodStatus } from "./actions";
 
 export const metadata = { title: "Periods — Singha Central" };
@@ -39,50 +40,71 @@ export default async function PeriodsPage() {
     <div className="stack gap-3">
       <div><h1>Accounting Periods</h1><p className="muted mt-1">Close a period to lock the ledger against it. Reopening is audited.</p></div>
 
-      <div className="card">
-        <div className="card-title">New fiscal year</div>
-        <form action={createFiscalYear} className="row gap-1 mt-2">
-          <input name="year" className="input" style={{ width: 120 }} placeholder="Year" inputMode="numeric" defaultValue={String(thisYear)} />
-          <button className="btn" type="submit">Create year + 12 periods</button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader title="New fiscal year" />
+        <CardBody>
+          <form action={createFiscalYear} className="row gap-1 wrap">
+            <input name="year" className="input" style={{ flex: "0 0 120px", minWidth: 100 }} placeholder="Year" inputMode="numeric" defaultValue={String(thisYear)} />
+            <Button type="submit">Create year + 12 periods</Button>
+          </form>
+        </CardBody>
+      </Card>
 
       {years.length === 0 ? (
-        <div className="card"><div className="empty">No fiscal years yet.</div></div>
-      ) : years.map((y) => (
-        <div key={y.id} className="card">
-          <div className="card-title">FY {y.name} <span className={`badge ${badge(y.status)}`}>{y.status}</span></div>
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead><tr><th>Period</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody>
-                {(byYear.get(y.id) ?? []).map((pr) => (
-                  <tr key={pr.id}>
-                    <td className="mono">{pr.name}</td>
-                    <td><span className={`badge ${badge(pr.status)}`}>{pr.status}</span></td>
-                    <td>
-                      <div className="row gap-1 wrap">
-                        {pr.status === "open" && (
-                          <form action={setPeriodStatus}><input type="hidden" name="id" value={pr.id} /><input type="hidden" name="status" value="closed" /><button className="btn ghost sm" type="submit">Close</button></form>
-                        )}
-                        {pr.status === "closed" && (
-                          <>
-                            <form action={setPeriodStatus}><input type="hidden" name="id" value={pr.id} /><input type="hidden" name="status" value="open" /><button className="btn ghost sm" type="submit">Reopen</button></form>
-                            <form action={setPeriodStatus}><input type="hidden" name="id" value={pr.id} /><input type="hidden" name="status" value="locked" /><button className="btn ghost sm danger" type="submit">Lock</button></form>
-                          </>
-                        )}
-                        {pr.status === "locked" && (
-                          <form action={setPeriodStatus}><input type="hidden" name="id" value={pr.id} /><input type="hidden" name="status" value="open" /><button className="btn ghost sm" type="submit">Reopen</button></form>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
+        <Card>
+          <EmptyState title="No fiscal years yet" />
+        </Card>
+      ) : years.map((y) => {
+        const periodsForYear = byYear.get(y.id) ?? [];
+        const columns: DataTableColumn<(typeof periodsForYear)[number]>[] = [
+          { key: "name", header: "Period", render: (pr) => <span className="mono">{pr.name}</span> },
+          { key: "status", header: "Status", render: (pr) => <StatusBadge status={pr.status} /> },
+          {
+            key: "actions",
+            header: "Actions",
+            render: (pr) => (
+              <div className="row gap-1 wrap">
+                {pr.status === "open" && (
+                  <form action={setPeriodStatus}>
+                    <input type="hidden" name="id" value={pr.id} />
+                    <input type="hidden" name="status" value="closed" />
+                    <Button variant="ghost" size="sm" type="submit">Close</Button>
+                  </form>
+                )}
+                {pr.status === "closed" && (
+                  <>
+                    <form action={setPeriodStatus}>
+                      <input type="hidden" name="id" value={pr.id} />
+                      <input type="hidden" name="status" value="open" />
+                      <Button variant="ghost" size="sm" type="submit">Reopen</Button>
+                    </form>
+                    <form action={setPeriodStatus}>
+                      <input type="hidden" name="id" value={pr.id} />
+                      <input type="hidden" name="status" value="locked" />
+                      <Button variant="danger" size="sm" type="submit">Lock</Button>
+                    </form>
+                  </>
+                )}
+                {pr.status === "locked" && (
+                  <form action={setPeriodStatus}>
+                    <input type="hidden" name="id" value={pr.id} />
+                    <input type="hidden" name="status" value="open" />
+                    <Button variant="ghost" size="sm" type="submit">Reopen</Button>
+                  </form>
+                )}
+              </div>
+            ),
+          },
+        ];
+        return (
+          <Card key={y.id}>
+            <CardHeader title={<span>FY {y.name} <StatusBadge status={y.status} /></span>} />
+            <CardBody>
+              <DataTable columns={columns} rows={periodsForYear} keyExtractor={(pr) => pr.id} emptyTitle="No periods for this year" />
+            </CardBody>
+          </Card>
+        );
+      })}
     </div>
   );
 }

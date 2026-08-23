@@ -7,6 +7,7 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
+import { Card, CardHeader, CardBody, Button, DataTable, type DataTableColumn } from "@/components/ui";
 import { createBankAccount, createCashAccount } from "./actions";
 
 export const metadata = { title: "Bank & Cash — Singha Central" };
@@ -20,34 +21,30 @@ async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 }
 
 function AccountCard({ title, rows, action, kind }: { title: string; rows: any[]; action: (fd: FormData) => void; kind: string }) {
+  const columns: DataTableColumn<(typeof rows)[number]>[] = [
+    { key: "name", header: "Name", render: (r) => <span style={{ fontWeight: 600 }}>{r.name}</span> },
+    { key: "currency", header: "Ccy", render: (r) => <span className="dim small">{r.currency}</span> },
+    { key: "opening", header: "Opening", align: "right", render: (r) => fmtMoney(r.opening_balance) },
+    { key: "gl", header: "GL", render: (r) => <span className="mono dim small">{r.gl_account_code ?? "—"}</span> },
+  ];
   return (
-    <div className="card">
-      <div className="card-title">{title} ({rows.length})</div>
-      <form action={action} className="row gap-1 wrap mt-2">
-        <input name="name" className="input" style={{ flex: 1, minWidth: 150 }} placeholder={`${kind} name`} required />
-        <input name="currency" className="input" style={{ width: 80 }} placeholder="LKR" defaultValue="LKR" />
-        <input name="opening_balance" className="input" style={{ width: 130 }} placeholder="Opening bal." inputMode="decimal" />
-        <input name="gl_account_code" className="input" style={{ width: 110 }} placeholder="GL code" />
-        <button className="btn ghost sm" type="submit">Add</button>
-      </form>
-      {rows.length > 0 && (
-        <div className="table-wrap mt-3">
-          <table className="data">
-            <thead><tr><th>Name</th><th>Ccy</th><th className="num">Opening</th><th>GL</th></tr></thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td style={{ fontWeight: 600 }}>{r.name}</td>
-                  <td className="dim small">{r.currency}</td>
-                  <td className="num">{fmtMoney(r.opening_balance)}</td>
-                  <td className="mono dim small">{r.gl_account_code ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+    <Card>
+      <CardHeader title={`${title} (${rows.length})`} />
+      <CardBody>
+        <form action={action} className="row gap-1 wrap">
+          <input name="name" className="input" style={{ flex: 1, minWidth: 150 }} placeholder={`${kind} name`} required />
+          <input name="currency" className="input" style={{ flex: "0 0 80px", minWidth: 60 }} placeholder="LKR" defaultValue="LKR" />
+          <input name="opening_balance" className="input" style={{ flex: "0 0 130px", minWidth: 110 }} placeholder="Opening bal." inputMode="decimal" />
+          <input name="gl_account_code" className="input" style={{ flex: "0 0 110px", minWidth: 90 }} placeholder="GL code" />
+          <Button variant="ghost" size="sm" type="submit">Add</Button>
+        </form>
+        {rows.length > 0 && (
+          <div className="mt-3">
+            <DataTable columns={columns} rows={rows} keyExtractor={(r) => r.id} />
+          </div>
+        )}
+      </CardBody>
+    </Card>
   );
 }
 

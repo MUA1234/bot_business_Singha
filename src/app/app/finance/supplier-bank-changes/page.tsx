@@ -6,6 +6,16 @@
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { fmtDate } from "@/lib/format";
+import {
+  Card,
+  CardHeader,
+  CardBody,
+  StatusBadge,
+  DataTable,
+  type DataTableColumn,
+  Button,
+} from "@/components/ui";
 import { requestBankChange, decideBankChange } from "./actions";
 
 export const metadata = { title: "Supplier Bank Changes — Singha Central" };
@@ -28,6 +38,45 @@ export default async function BankChangesPage() {
   ]);
   const nameOf = (sid: string) => suppliers.find((s) => s.id === sid)?.name ?? sid;
 
+  const columns: DataTableColumn<any>[] = [
+    { key: "when", header: "When", render: (c) => <span className="small dim">{fmtDate(c.created_at)}</span> },
+    { key: "supplier", header: "Supplier", render: (c) => nameOf(c.supplier_id) },
+    {
+      key: "newAccount",
+      header: "New account",
+      render: (c) => (
+        <span className="small">
+          {c.new_account_name ? `${c.new_account_name} · ` : ""}{c.new_account_number ?? ""}
+        </span>
+      ),
+    },
+    { key: "status", header: "Status", render: (c) => <StatusBadge status={c.status} /> },
+    {
+      key: "action",
+      header: "",
+      render: (c) => {
+        if (c.status !== "pending") return null;
+        const isRequester = c.requested_by === p.userId;
+        return isRequester ? (
+          <span className="small dim">awaiting another approver</span>
+        ) : (
+          <div className="row gap-1 wrap">
+            <form action={decideBankChange}>
+              <input type="hidden" name="id" value={c.id} />
+              <input type="hidden" name="decision" value="approved" />
+              <Button size="sm" type="submit">Approve</Button>
+            </form>
+            <form action={decideBankChange}>
+              <input type="hidden" name="id" value={c.id} />
+              <input type="hidden" name="decision" value="rejected" />
+              <Button variant="ghost" size="sm" type="submit">Reject</Button>
+            </form>
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
     <div className="stack gap-3">
       <div>
@@ -35,54 +84,33 @@ export default async function BankChangesPage() {
         <p className="muted mt-1">A bank-detail change is sensitive: it must be requested by one person and approved by another before it applies.</p>
       </div>
 
-      <div className="card">
-        <div className="card-title">Request a change</div>
-        <form action={requestBankChange} className="row gap-1 wrap mt-2">
-          <select name="supplier_id" className="select" style={{ minWidth: 180 }} required>
-            <option value="">Select supplier…</option>
-            {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <input name="new_account_name" className="input" style={{ width: 180 }} placeholder="New account name" />
-          <input name="new_account_number" className="input" style={{ width: 180 }} placeholder="New account number" />
-          <button className="btn ghost sm" type="submit">Request</button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader title="Request a change" />
+        <CardBody>
+          <form action={requestBankChange} className="row gap-1 wrap items-end">
+            <select name="supplier_id" className="select" style={{ minWidth: 180 }} required>
+              <option value="">Select supplier…</option>
+              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <input name="new_account_name" className="input" style={{ width: 180 }} placeholder="New account name" />
+            <input name="new_account_number" className="input" style={{ width: 180 }} placeholder="New account number" />
+            <Button variant="ghost" size="sm" type="submit">Request</Button>
+          </form>
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">Recent changes</div>
-        {changes.length === 0 ? (
-          <div className="empty mt-2">No bank-detail changes yet.</div>
-        ) : (
-          <div className="table-wrap mt-2">
-            <table className="data">
-              <thead><tr><th>When</th><th>Supplier</th><th>New account</th><th>Status</th><th></th></tr></thead>
-              <tbody>
-                {changes.map((c) => {
-                  const isRequester = c.requested_by === p.userId;
-                  return (
-                    <tr key={c.id}>
-                      <td className="small dim">{new Date(c.created_at).toLocaleDateString()}</td>
-                      <td>{nameOf(c.supplier_id)}</td>
-                      <td className="small">{c.new_account_name ? `${c.new_account_name} · ` : ""}{c.new_account_number ?? ""}</td>
-                      <td><span className={`badge ${c.status === "approved" ? "ok" : c.status === "rejected" ? "danger" : "warn"}`}>{c.status}</span></td>
-                      <td>
-                        {c.status === "pending" && (isRequester ? (
-                          <span className="small dim">awaiting another approver</span>
-                        ) : (
-                          <div className="row gap-1">
-                            <form action={decideBankChange}><input type="hidden" name="id" value={c.id} /><input type="hidden" name="decision" value="approved" /><button className="btn sm" type="submit">Approve</button></form>
-                            <form action={decideBankChange}><input type="hidden" name="id" value={c.id} /><input type="hidden" name="decision" value="rejected" /><button className="btn ghost sm" type="submit">Reject</button></form>
-                          </div>
-                        ))}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title="Recent changes" />
+        <CardBody>
+          <DataTable
+            columns={columns}
+            rows={changes}
+            keyExtractor={(c) => c.id}
+            emptyTitle="No bank-detail changes yet"
+            className="mt-3"
+          />
+        </CardBody>
+      </Card>
     </div>
   );
 }

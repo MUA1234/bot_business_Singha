@@ -6,6 +6,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { Card, CardHeader, CardBody, Button, Badge, EmptyState, DataTable, type DataTableColumn } from "@/components/ui";
 import { createAccount } from "./actions";
 
 export const metadata = { title: "Chart of Accounts — Singha Central" };
@@ -27,6 +28,13 @@ export default async function ChartOfAccountsPage() {
     rows = [];
   }
 
+  const columns: DataTableColumn<(typeof rows)[number]>[] = [
+    { key: "code", header: "Code", render: (r) => <span className="mono" style={{ fontWeight: 600 }}>{r.code}</span> },
+    { key: "name", header: "Name", render: (r) => r.name },
+    { key: "type", header: "Type", render: (r) => <Badge>{r.type}</Badge> },
+    { key: "active", header: "Active", render: (r) => r.is_active ? <Badge variant="ok">yes</Badge> : <Badge>no</Badge> },
+  ];
+
   return (
     <div className="stack gap-3">
       <div className="row between">
@@ -37,40 +45,32 @@ export default async function ChartOfAccountsPage() {
         <Link className="btn ghost sm" href="/app/finance/journals">Journals →</Link>
       </div>
 
-      <div className="card">
-        <div className="card-title">New account</div>
-        <form action={createAccount} className="row gap-1 wrap mt-2">
-          <input name="code" className="input" style={{ width: 120 }} placeholder="Code (e.g. 1000)" required />
-          <input name="name" className="input" style={{ flex: 1, minWidth: 160 }} placeholder="Account name" required />
-          <select name="type" className="select" style={{ width: 150 }} defaultValue="asset">
-            {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <button className="btn" type="submit">Add</button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader title="New account" />
+        <CardBody>
+          <form action={createAccount} className="row gap-1 wrap">
+            <input name="code" className="input" style={{ flex: "0 0 120px", minWidth: 100 }} placeholder="Code (e.g. 1000)" required />
+            <input name="name" className="input" style={{ flex: 1, minWidth: 160 }} placeholder="Account name" required />
+            <select name="type" className="select" style={{ flex: "0 0 150px", minWidth: 120 }} defaultValue="asset">
+              {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <Button type="submit">Add</Button>
+          </form>
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">Accounts ({rows.length})</div>
-        {rows.length === 0 ? (
-          <div className="empty">No accounts yet. Add a few (e.g. 1000 Cash / asset, 4000 Sales / income).</div>
-        ) : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Active</th></tr></thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.code}>
-                    <td className="mono" style={{ fontWeight: 600 }}>{r.code}</td>
-                    <td>{r.name}</td>
-                    <td><span className="badge">{r.type}</span></td>
-                    <td>{r.is_active ? <span className="badge ok">yes</span> : <span className="badge">no</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title={`Accounts (${rows.length})`} />
+        <CardBody>
+          <DataTable
+            columns={columns}
+            rows={rows}
+            keyExtractor={(r) => r.code}
+            emptyTitle="No accounts yet"
+            emptyDescription="Add a few (e.g. 1000 Cash / asset, 4000 Sales / income)."
+          />
+        </CardBody>
+      </Card>
     </div>
   );
 }

@@ -10,6 +10,8 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { providerHealth } from "@/modules/crm/service-provider";
 import { updateServiceProviderStatus } from "../actions";
+import { Card, CardHeader, CardBody, Badge, FormField } from "@/components/ui";
+import { fmtDate } from "@/lib/format";
 
 export const metadata = { title: "Service Provider — Singha Central" };
 
@@ -39,64 +41,68 @@ export default async function ServiceProviderDetail({ params }: { params: { id: 
         <div>
           <h1>{provider.name}</h1>
           <p className="muted mt-1">
-            <span className={`badge ${healthBadge}`}>{health}</span>
-            <span className="badge ml-1">{provider.status}</span>
+            <Badge variant={healthBadge}>{health}</Badge>
+            <Badge className="ml-1">{provider.status}</Badge>
           </p>
         </div>
         <Link className="btn ghost sm" href="/app/procurement/service-providers">← All providers</Link>
       </div>
 
-      <div className="card">
-        <div className="card-title">Provider details</div>
-        <div className="stack gap-1 mt-2">
-          <div><strong>Capabilities:</strong> {(provider.capabilities ?? []).length === 0 ? "—" : provider.capabilities.join(", ")}</div>
-          <div><strong>Service areas:</strong> {(provider.service_areas ?? []).length === 0 ? "—" : provider.service_areas.join(", ")}</div>
-          {provider.capacity_notes && <div><strong>Capacity notes:</strong> {provider.capacity_notes}</div>}
-          {provider.price_notes && <div><strong>Price notes:</strong> {provider.price_notes}</div>}
-          <div><strong>Compliance:</strong> <span className="badge">{provider.compliance_status}</span></div>
-          <div><strong>Insurance:</strong> <span className="badge">{provider.insurance_status}</span> {provider.insurance_expiry && <span className="dim small">expires {provider.insurance_expiry}</span>}</div>
-        </div>
-      </div>
+      <Card>
+        <CardHeader title="Provider details" />
+        <CardBody>
+          <div className="stack gap-1 mt-2">
+            <div><strong>Capabilities:</strong> {(provider.capabilities ?? []).length === 0 ? "—" : provider.capabilities.join(", ")}</div>
+            <div><strong>Service areas:</strong> {(provider.service_areas ?? []).length === 0 ? "—" : provider.service_areas.join(", ")}</div>
+            {provider.capacity_notes && <div><strong>Capacity notes:</strong> {provider.capacity_notes}</div>}
+            {provider.price_notes && <div><strong>Price notes:</strong> {provider.price_notes}</div>}
+            <div><strong>Compliance:</strong> <Badge>{provider.compliance_status}</Badge></div>
+            <div><strong>Insurance:</strong> <Badge>{provider.insurance_status}</Badge> {provider.insurance_expiry && <span className="dim small">expires {fmtDate(provider.insurance_expiry)}</span>}</div>
+          </div>
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">Update status</div>
-        <form action={updateServiceProviderStatus} className="stack gap-2 mt-2">
-          <input type="hidden" name="id" value={provider.id} />
-          <div className="row gap-1 wrap">
-            <label className="small">Status
-              <select name="status" className="select" defaultValue={provider.status}>
-                <option value="active">active</option>
-                <option value="inactive">inactive</option>
-                <option value="blacklisted">blacklisted</option>
-              </select>
-            </label>
-            <label className="small">Compliance
-              <select name="compliance_status" className="select" defaultValue={provider.compliance_status}>
-                <option value="pending">pending</option>
-                <option value="verified">verified</option>
-                <option value="expired">expired</option>
-              </select>
-            </label>
-            <label className="small">Insurance
-              <select name="insurance_status" className="select" defaultValue={provider.insurance_status}>
-                <option value="pending">pending</option>
-                <option value="valid">valid</option>
-                <option value="expired">expired</option>
-              </select>
-            </label>
-            <label className="small">Insurance expiry
-              <input type="date" name="insurance_expiry" className="input" defaultValue={provider.insurance_expiry ?? ""} />
-            </label>
-          </div>
-          <div className="row gap-1 wrap">
-            <input name="capabilities" className="input" style={{ flex: 1, minWidth: 200 }} defaultValue={(provider.capabilities ?? []).join(", ")} placeholder="Capabilities, comma-separated" />
-            <input name="service_areas" className="input" style={{ flex: 1, minWidth: 200 }} defaultValue={(provider.service_areas ?? []).join(", ")} placeholder="Service areas, comma-separated" />
-          </div>
-          <textarea name="capacity_notes" className="textarea" defaultValue={provider.capacity_notes ?? ""} placeholder="Capacity notes" />
-          <textarea name="price_notes" className="textarea" defaultValue={provider.price_notes ?? ""} placeholder="Price notes" />
-          <button className="btn" type="submit">Save changes</button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader title="Update status" />
+        <CardBody>
+          <form action={updateServiceProviderStatus} className="stack gap-2 mt-2">
+            <input type="hidden" name="id" value={provider.id} />
+            <div className="row gap-1 wrap" style={{ alignItems: "flex-end" }}>
+              <FormField name="status" label="Status" className="field">
+                <select name="status" className="select" defaultValue={provider.status}>
+                  <option value="active">active</option>
+                  <option value="inactive">inactive</option>
+                  <option value="blacklisted">blacklisted</option>
+                </select>
+              </FormField>
+              <FormField name="compliance_status" label="Compliance" className="field">
+                <select name="compliance_status" className="select" defaultValue={provider.compliance_status}>
+                  <option value="pending">pending</option>
+                  <option value="verified">verified</option>
+                  <option value="expired">expired</option>
+                </select>
+              </FormField>
+              <FormField name="insurance_status" label="Insurance" className="field">
+                <select name="insurance_status" className="select" defaultValue={provider.insurance_status}>
+                  <option value="pending">pending</option>
+                  <option value="valid">valid</option>
+                  <option value="expired">expired</option>
+                </select>
+              </FormField>
+              <FormField name="insurance_expiry" label="Insurance expiry" className="field">
+                <input type="date" name="insurance_expiry" className="input" defaultValue={provider.insurance_expiry ?? ""} />
+              </FormField>
+            </div>
+            <div className="row gap-1 wrap">
+              <input name="capabilities" className="input" style={{ flex: 1, minWidth: 200 }} defaultValue={(provider.capabilities ?? []).join(", ")} placeholder="Capabilities, comma-separated" />
+              <input name="service_areas" className="input" style={{ flex: 1, minWidth: 200 }} defaultValue={(provider.service_areas ?? []).join(", ")} placeholder="Service areas, comma-separated" />
+            </div>
+            <textarea name="capacity_notes" className="textarea" defaultValue={provider.capacity_notes ?? ""} placeholder="Capacity notes" />
+            <textarea name="price_notes" className="textarea" defaultValue={provider.price_notes ?? ""} placeholder="Price notes" />
+            <button className="btn" type="submit">Save changes</button>
+          </form>
+        </CardBody>
+      </Card>
     </div>
   );
 }

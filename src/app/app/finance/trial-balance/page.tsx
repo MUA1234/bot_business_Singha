@@ -9,6 +9,7 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { dec, decGtZero, fmtMoney } from "@/lib/money";
 import { trialBalance, profitAndLoss, balanceSheet } from "@/accounting/trial-balance";
+import { Card, CardHeader, CardBody, Badge } from "@/components/ui";
 import type { PostedJournal } from "@/accounting/journal";
 import type { AccountType } from "@/domain/accounts";
 
@@ -72,33 +73,39 @@ export default async function TrialBalancePage() {
         <div className="card stat"><div className="k">A = L + E</div><div className="v" style={{ fontSize: "1.4rem", color: bs.balances ? "var(--ok)" : "var(--danger)" }}>{bs.balances ? "balances" : "off"}</div></div>
       </div>
 
-      <div className="card">
-        <div className="card-title">Trial balance {tb.balanced ? <span className="badge ok">balanced</span> : <span className="badge danger">unbalanced</span>}</div>
-        {tb.rows.length === 0 ? (
-          <div className="empty">No posted journals yet.</div>
-        ) : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead><tr><th>Account</th><th>Type</th><th className="num">Debit</th><th className="num">Credit</th></tr></thead>
-              <tbody>
-                {tb.rows.map((r) => (
-                  <tr key={r.account_code}>
-                    <td className="mono">{r.account_code}</td>
-                    <td><span className="badge">{r.account_type}</span></td>
-                    <td className="num">{decGtZero(r.debit) ? m(r.debit) : "—"}</td>
-                    <td className="num">{decGtZero(r.credit) ? m(r.credit) : "—"}</td>
+      <Card>
+        <CardHeader
+          title={
+            <span>Trial balance {tb.balanced ? <Badge variant="ok">balanced</Badge> : <Badge variant="danger">unbalanced</Badge>}</span>
+          }
+        />
+        <CardBody>
+          {tb.rows.length === 0 ? (
+            <p className="muted">No posted journals yet.</p>
+          ) : (
+            <div className="table-wrap">
+              <table className="data">
+                <thead><tr><th>Account</th><th>Type</th><th className="num">Debit</th><th className="num">Credit</th></tr></thead>
+                <tbody>
+                  {tb.rows.map((r) => (
+                    <tr key={r.account_code}>
+                      <td className="mono">{r.account_code}</td>
+                      <td><Badge>{r.account_type}</Badge></td>
+                      <td className="num">{decGtZero(r.debit) ? m(r.debit) : "—"}</td>
+                      <td className="num">{decGtZero(r.credit) ? m(r.credit) : "—"}</td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td style={{ fontWeight: 700 }}>Total</td><td></td>
+                    <td className="num" style={{ fontWeight: 700 }}>{m(tb.total_debit)}</td>
+                    <td className="num" style={{ fontWeight: 700 }}>{m(tb.total_credit)}</td>
                   </tr>
-                ))}
-                <tr>
-                  <td style={{ fontWeight: 700 }}>Total</td><td></td>
-                  <td className="num" style={{ fontWeight: 700 }}>{m(tb.total_debit)}</td>
-                  <td className="num" style={{ fontWeight: 700 }}>{m(tb.total_credit)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }

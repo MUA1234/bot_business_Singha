@@ -11,6 +11,8 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { allowedTransitions, type TaskState } from "@/modules/work/task-lifecycle";
 import { scorePriority } from "@/management/ai-manager/priority";
 import { createTask, setTaskStatus } from "./actions";
+import { Card, CardHeader, CardBody, Badge, EmptyState, DataTable, type DataTableColumn, FormField } from "@/components/ui";
+import { fmtDate } from "@/lib/format";
 
 export const metadata = { title: "Tasks — Singha Central" };
 
@@ -47,6 +49,48 @@ export default async function OpsTasks() {
       scorePriority({ status: a.status, dueDate: a.due_date, basePriority: a.priority }, now),
   );
 
+  const columns: DataTableColumn<TaskRow>[] = [
+    {
+      key: "title",
+      header: "Task",
+      render: (t) => (
+        <Link href={`/app/operations/tasks/${t.id}`} style={{ fontWeight: 600 }}>
+          {t.title}
+        </Link>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (t) => <Badge variant={t.status === "blocked" ? "danger" : t.status === "overdue" ? "danger" : "default"}>{t.status.replace(/_/g, " ")}</Badge>,
+    },
+    {
+      key: "due",
+      header: "Due",
+      className: "dim small",
+      render: (t) => fmtDate(t.due_date),
+    },
+    {
+      key: "move",
+      header: "Move to",
+      render: (t) => {
+        const moves = allowedTransitions(t.status).filter((s) => s !== "completed");
+        if (moves.length === 0) return <span className="small dim">—</span>;
+        return (
+          <div className="row gap-1 wrap">
+            {moves.map((to) => (
+              <form action={setTaskStatus} key={to}>
+                <input type="hidden" name="task_id" value={t.id} />
+                <input type="hidden" name="to" value={to} />
+                <button className="btn ghost sm" type="submit">{to.replace(/_/g, " ")}</button>
+              </form>
+            ))}
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
     <div className="stack gap-3">
       <div>
@@ -54,62 +98,34 @@ export default async function OpsTasks() {
         <p className="muted mt-1">Create work and move it through its lifecycle. Completion needs verified evidence.</p>
       </div>
 
-      <div className="card">
-        <div className="card-title">New task</div>
-        <form action={createTask} className="stack gap-2 mt-2" style={{ maxWidth: 560 }}>
-          <input name="title" className="input" placeholder="Task title" required />
-          <textarea name="description" className="textarea" placeholder="Description (optional)" />
-          <label className="row gap-1 small muted">
-            <input type="checkbox" name="requires_evidence" /> Requires evidence before it can be completed
-          </label>
-          <button className="btn" type="submit">Create task</button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader title="New task" />
+        <CardBody>
+          <form action={createTask} className="stack gap-2 mt-2" style={{ maxWidth: 560 }}>
+            <FormField name="title" label="Title" placeholder="Task title" required />
+            <FormField name="description" label="Description">
+              <textarea name="description" className="textarea" placeholder="Description (optional)" rows={3} />
+            </FormField>
+            <label className="row gap-1 small muted">
+              <input type="checkbox" name="requires_evidence" /> Requires evidence before it can be completed
+            </label>
+            <button className="btn" type="submit">Create task</button>
+          </form>
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">All tasks ({rows.length})</div>
-        {rows.length === 0 ? (
-          <div className="empty">No tasks yet. Create one above (needs the Phase-2 tables applied).</div>
-        ) : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead>
-                <tr><th>Task</th><th>Status</th><th>Due</th><th>Move to</th></tr>
-              </thead>
-              <tbody>
-                {rows.map((t) => {
-                  // Offer legal transitions, minus "completed" (that needs the evidence flow).
-                  const moves = allowedTransitions(t.status).filter((s) => s !== "completed");
-                  return (
-                    <tr key={t.id}>
-                      <td style={{ fontWeight: 600 }}>
-                        <Link href={`/app/operations/tasks/${t.id}`}>{t.title}</Link>
-                      </td>
-                      <td><span className="badge">{t.status.replace(/_/g, " ")}</span></td>
-                      <td className="dim small">{t.due_date ?? "—"}</td>
-                      <td>
-                        <div className="row gap-1 wrap">
-                          {moves.length === 0 ? (
-                            <span className="small dim">—</span>
-                          ) : (
-                            moves.map((to) => (
-                              <form action={setTaskStatus} key={to}>
-                                <input type="hidden" name="task_id" value={t.id} />
-                                <input type="hidden" name="to" value={to} />
-                                <button className="btn ghost sm" type="submit">{to.replace(/_/g, " ")}</button>
-                              </form>
-                            ))
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title={`All tasks (${rows.length})`} />
+        <CardBody>
+          <DataTable
+            columns={columns}
+            rows={rows}
+            keyExtractor={(t) => t.id}
+            emptyTitle="No tasks yet"
+            emptyDescription="Create one above (needs the Phase-2 tables applied)."
+          />
+        </CardBody>
+      </Card>
     </div>
   );
 }

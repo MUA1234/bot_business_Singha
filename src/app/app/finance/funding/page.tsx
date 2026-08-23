@@ -11,6 +11,9 @@ import { buildCommitmentOutflows } from "@/modules/finance/commitment-outflows";
 import { computeCashPosition } from "@/modules/finance/cash-position";
 import { computeFundingGap, computeInvestmentEconomics, suggestFundingRequirementName } from "@/modules/finance/funding";
 import { Icon } from "@/components/Icon";
+import { Card, CardHeader, CardBody, Button, Badge, StatusBadge, DataTable, type DataTableColumn } from "@/components/ui";
+import type { BadgeVariant } from "@/components/ui/Badge";
+import { fmtDate } from "@/lib/format";
 import { createFundingRequirement, createInvestment, updateFundingRequirementStatus, disposeInvestment } from "./actions";
 
 export const metadata = { title: "Funding & Investments — Singha Central" };
@@ -97,10 +100,85 @@ export default async function FundingPage() {
   const gap = computeFundingGap(forecast);
   const fmt = (v: string) => fmtMoney(v, currency);
 
-  const statusBadge = (status: string) => {
-    const map: Record<string, string> = { draft: "info", requested: "warn", approved: "ok", rejected: "danger", funded: "ok" };
-    return <span className={`badge ${map[status] ?? "info"}`}>{status}</span>;
+  const statusVariant = (status: string): BadgeVariant => {
+    const map: Record<string, BadgeVariant> = { draft: "info", requested: "warn", approved: "ok", rejected: "danger", funded: "ok" };
+    return map[status] ?? "info";
   };
+
+  const fundingColumns: DataTableColumn<(typeof fundingReqs)[number]>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (r) => (
+        <span>
+          <strong>{r.name}</strong>
+          {r.description ? <div className="small dim">{r.description}</div> : null}
+        </span>
+      ),
+    },
+    { key: "required", header: "Required", align: "right", render: (r) => <span className="mono">{fmtMoney(String(r.required_amount), r.currency)}</span> },
+    { key: "by", header: "By", render: (r) => <span className="dim">{fmtDate(r.required_by_date) ?? "—"}</span> },
+    { key: "status", header: "Status", render: (r) => <Badge variant={statusVariant(r.status)}>{r.status}</Badge> },
+    { key: "source", header: "Source", render: (r) => <span className="dim">{r.funding_source ?? "—"}</span> },
+    {
+      key: "action",
+      header: "",
+      render: (r) => (
+        <form action={updateFundingRequirementStatus} className="row gap-1 wrap">
+          <input type="hidden" name="id" value={r.id} />
+          <select name="status" className="input sm" defaultValue={r.status}>
+            <option value="draft">draft</option>
+            <option value="requested">requested</option>
+            <option value="approved">approved</option>
+            <option value="rejected">rejected</option>
+            <option value="funded">funded</option>
+          </select>
+          <input name="funding_source" className="input sm" placeholder="Source" defaultValue={r.funding_source ?? ""} />
+          <Button size="sm" type="submit">Update</Button>
+        </form>
+      ),
+    },
+  ];
+
+  const investmentColumns: DataTableColumn<(typeof investments)[number]>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (inv) => (
+        <span>
+          <strong>{inv.name}</strong>
+          {inv.location ? <div className="small dim">{inv.location}</div> : null}
+        </span>
+      ),
+    },
+    { key: "kind", header: "Kind", render: (inv) => <span className="dim">{inv.kind ?? "—"}</span> },
+    { key: "costBasis", header: "Cost basis", align: "right", render: (inv) => <span className="mono">{fmtMoney(computeInvestmentEconomics(inv).costBasis, inv.currency)}</span> },
+    { key: "currentValue", header: "Current / proceeds", align: "right", render: (inv) => <span className="mono">{fmtMoney(computeInvestmentEconomics(inv).currentValue, inv.currency)}</span> },
+    {
+      key: "gain",
+      header: "Gain / loss",
+      align: "right",
+      render: (inv) => {
+        const econ = computeInvestmentEconomics(inv);
+        return <span className="mono">{econ.realizedGainOrLoss !== null ? fmtMoney(econ.realizedGainOrLoss, inv.currency) : fmtMoney(econ.unrealizedGainOrLoss, inv.currency)}</span>;
+      },
+    },
+    { key: "status", header: "Status", render: (inv) => <StatusBadge status={inv.status} /> },
+    {
+      key: "action",
+      header: "",
+      render: (inv) => inv.status === "active" ? (
+        <form action={disposeInvestment} className="row gap-1 wrap">
+          <input type="hidden" name="id" value={inv.id} />
+          <input name="disposal_proceeds" className="input sm" placeholder="Proceeds" required />
+          <input name="disposal_date" className="input sm" type="date" defaultValue={today} required />
+          <Button size="sm" type="submit">Dispose</Button>
+        </form>
+      ) : (
+        <span className="small dim">{fmtDate(inv.disposal_date) ?? "—"}</span>
+      ),
+    },
+  ];
 
   return (
     <div className="stack gap-3">
@@ -126,116 +204,48 @@ export default async function FundingPage() {
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-title">New funding requirement</div>
-        <form action={createFundingRequirement} className="row gap-1 wrap mt-2">
-          <input name="name" className="input" style={{ flex: 1, minWidth: 150 }} placeholder="Requirement name" defaultValue={gap.goesNegative ? suggestFundingRequirementName(gap.date) : ""} required />
-          <input name="description" className="input" style={{ flex: 1, minWidth: 150 }} placeholder="Description" />
-          <input name="required_amount" className="input" style={{ width: 120 }} placeholder="Amount" defaultValue={gap.goesNegative ? gap.amount : ""} required />
-          <input name="currency" className="input" style={{ width: 70 }} placeholder="LKR" defaultValue={currency} maxLength={3} required />
-          <input name="required_by_date" className="input" style={{ width: 150 }} type="date" defaultValue={gap.date} />
-          <button className="btn" type="submit">Create</button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader title="New funding requirement" />
+        <CardBody>
+          <form action={createFundingRequirement} className="row gap-1 wrap">
+            <input name="name" className="input" style={{ flex: 1, minWidth: 150 }} placeholder="Requirement name" defaultValue={gap.goesNegative ? suggestFundingRequirementName(gap.date) : ""} required />
+            <input name="description" className="input" style={{ flex: 1, minWidth: 150 }} placeholder="Description" />
+            <input name="required_amount" className="input" style={{ flex: "0 0 120px", minWidth: 100 }} placeholder="Amount" defaultValue={gap.goesNegative ? gap.amount : ""} required />
+            <input name="currency" className="input" style={{ flex: "0 0 70px", minWidth: 60 }} placeholder="LKR" defaultValue={currency} maxLength={3} required />
+            <input name="required_by_date" className="input" style={{ flex: "0 0 150px", minWidth: 130 }} type="date" defaultValue={gap.date} />
+            <Button type="submit">Create</Button>
+          </form>
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">Funding requirements ({fundingReqs.length})</div>
-        {fundingReqs.length === 0 ? (
-          <div className="empty">No funding requirements recorded.</div>
-        ) : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead>
-                <tr><th>Name</th><th className="num">Required</th><th>By</th><th>Status</th><th>Source</th><th></th></tr>
-              </thead>
-              <tbody>
-                {fundingReqs.map((r: any) => (
-                  <tr key={r.id}>
-                    <td><strong>{r.name}</strong>{r.description ? <div className="small dim">{r.description}</div> : null}</td>
-                    <td className="num mono">{fmtMoney(String(r.required_amount), r.currency)}</td>
-                    <td className="dim">{r.required_by_date ?? "—"}</td>
-                    <td>{statusBadge(r.status)}</td>
-                    <td className="dim">{r.funding_source ?? "—"}</td>
-                    <td>
-                      <form action={updateFundingRequirementStatus} className="row gap-1">
-                        <input type="hidden" name="id" value={r.id} />
-                        <select name="status" className="input sm" defaultValue={r.status}>
-                          <option value="draft">draft</option>
-                          <option value="requested">requested</option>
-                          <option value="approved">approved</option>
-                          <option value="rejected">rejected</option>
-                          <option value="funded">funded</option>
-                        </select>
-                        <input name="funding_source" className="input sm" placeholder="Source" defaultValue={r.funding_source ?? ""} />
-                        <button className="btn sm" type="submit">Update</button>
-                      </form>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title={`Funding requirements (${fundingReqs.length})`} />
+        <CardBody>
+          <DataTable columns={fundingColumns} rows={fundingReqs} keyExtractor={(r) => r.id} emptyTitle="No funding requirements recorded" />
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">New investment</div>
-        <form action={createInvestment} className="row gap-1 wrap mt-2">
-          <input name="name" className="input" style={{ flex: 1, minWidth: 150 }} placeholder="Investment name" required />
-          <input name="kind" className="input" style={{ width: 120 }} placeholder="Kind" />
-          <input name="cost_basis" className="input" style={{ width: 120 }} placeholder="Cost basis" required />
-          <input name="currency" className="input" style={{ width: 70 }} placeholder="LKR" defaultValue={currency} maxLength={3} required />
-          <input name="acquisition_date" className="input" style={{ width: 150 }} type="date" />
-          <input name="location" className="input" style={{ width: 140 }} placeholder="Location / custodian" />
-          <button className="btn" type="submit">Create</button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader title="New investment" />
+        <CardBody>
+          <form action={createInvestment} className="row gap-1 wrap">
+            <input name="name" className="input" style={{ flex: 1, minWidth: 150 }} placeholder="Investment name" required />
+            <input name="kind" className="input" style={{ flex: "0 0 120px", minWidth: 100 }} placeholder="Kind" />
+            <input name="cost_basis" className="input" style={{ flex: "0 0 120px", minWidth: 100 }} placeholder="Cost basis" required />
+            <input name="currency" className="input" style={{ flex: "0 0 70px", minWidth: 60 }} placeholder="LKR" defaultValue={currency} maxLength={3} required />
+            <input name="acquisition_date" className="input" style={{ flex: "0 0 150px", minWidth: 130 }} type="date" />
+            <input name="location" className="input" style={{ flex: "0 0 140px", minWidth: 120 }} placeholder="Location / custodian" />
+            <Button type="submit">Create</Button>
+          </form>
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">Investments ({investments.length})</div>
-        {investments.length === 0 ? (
-          <div className="empty">No investments recorded.</div>
-        ) : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead>
-                <tr><th>Name</th><th>Kind</th><th className="num">Cost basis</th><th className="num">Current / proceeds</th><th className="num">Gain / loss</th><th>Status</th><th></th></tr>
-              </thead>
-              <tbody>
-                {investments.map((inv: any) => {
-                  const econ = computeInvestmentEconomics(inv);
-                  return (
-                    <tr key={inv.id}>
-                      <td><strong>{inv.name}</strong>{inv.location ? <div className="small dim">{inv.location}</div> : null}</td>
-                      <td className="dim">{inv.kind ?? "—"}</td>
-                      <td className="num mono">{fmtMoney(econ.costBasis, inv.currency)}</td>
-                      <td className="num mono">{fmtMoney(econ.currentValue, inv.currency)}</td>
-                      <td className="num mono">
-                        {econ.realizedGainOrLoss !== null
-                          ? fmtMoney(econ.realizedGainOrLoss, inv.currency)
-                          : fmtMoney(econ.unrealizedGainOrLoss, inv.currency)}
-                      </td>
-                      <td><span className={`badge ${inv.status === "active" ? "ok" : "info"}`}>{inv.status}</span></td>
-                      <td>
-                        {inv.status === "active" ? (
-                          <form action={disposeInvestment} className="row gap-1">
-                            <input type="hidden" name="id" value={inv.id} />
-                            <input name="disposal_proceeds" className="input sm" placeholder="Proceeds" required />
-                            <input name="disposal_date" className="input sm" type="date" defaultValue={today} required />
-                            <button className="btn sm" type="submit">Dispose</button>
-                          </form>
-                        ) : (
-                          <span className="small dim">{inv.disposal_date ?? "—"}</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title={`Investments (${investments.length})`} />
+        <CardBody>
+          <DataTable columns={investmentColumns} rows={investments} keyExtractor={(inv) => inv.id} emptyTitle="No investments recorded" />
+        </CardBody>
+      </Card>
 
       <Link href="/app/finance" className="btn ghost">← Finance home</Link>
     </div>

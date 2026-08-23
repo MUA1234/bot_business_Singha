@@ -5,6 +5,15 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { fmtNumber } from "@/lib/format";
+import {
+  Card,
+  CardHeader,
+  CardBody,
+  DataTable,
+  type DataTableColumn,
+  Button,
+} from "@/components/ui";
 import { createBudget } from "./actions";
 
 export const metadata = { title: "Budgets vs Actual — Singha Central" };
@@ -34,6 +43,14 @@ export default async function BudgetsPage() {
 
   const fyById = new Map(fiscalYears.map((fy) => [fy.id, fy.name]));
 
+  const columns: DataTableColumn<any>[] = [
+    { key: "name", header: "Name", render: (b) => <Link href={`/app/finance/budgets/${b.id}`} className="link">{b.name}</Link> },
+    { key: "fiscal_year", header: "Fiscal year", render: (b) => <span className="dim">{b.fiscal_year_id ? fyById.get(b.fiscal_year_id) ?? "—" : "—"}</span> },
+    { key: "lines", header: "Lines", align: "right", render: (b) => fmtNumber(Array.isArray(b.budget_lines) ? b.budget_lines.length : 0) },
+    { key: "currency", header: "Currency", align: "right", className: "mono", render: (b) => b.currency },
+    { key: "action", header: "", render: (b) => <Link href={`/app/finance/budgets/${b.id}`} className="btn ghost sm">View</Link> },
+  ];
+
   return (
     <div className="stack gap-3">
       <div>
@@ -41,46 +58,35 @@ export default async function BudgetsPage() {
         <p className="muted mt-1">Build budgets by period and compare them to actual journal activity.</p>
       </div>
 
-      <div className="card">
-        <div className="card-title">New budget</div>
-        <form action={createBudget} className="row gap-1 wrap mt-2">
-          <input name="name" className="input" style={{ flex: 1, minWidth: 150 }} placeholder="Budget name" required />
-          <select name="fiscal_year_id" className="input" style={{ width: 160 }}>
-            <option value="">Fiscal year…</option>
-            {fiscalYears.map((fy) => (
-              <option key={fy.id} value={fy.id}>{fy.name}</option>
-            ))}
-          </select>
-          <input name="currency" className="input" style={{ width: 80 }} placeholder="LKR" defaultValue="LKR" maxLength={3} />
-          <button className="btn" type="submit">Create</button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader title="New budget" />
+        <CardBody>
+          <form action={createBudget} className="row gap-1 wrap items-end">
+            <input name="name" className="input" style={{ flex: 1, minWidth: 150 }} placeholder="Budget name" required />
+            <select name="fiscal_year_id" className="input" style={{ width: 160 }}>
+              <option value="">Fiscal year…</option>
+              {fiscalYears.map((fy) => (
+                <option key={fy.id} value={fy.id}>{fy.name}</option>
+              ))}
+            </select>
+            <input name="currency" className="input" style={{ width: 80 }} placeholder="LKR" defaultValue="LKR" maxLength={3} />
+            <Button type="submit">Create</Button>
+          </form>
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">Budgets ({budgets.length})</div>
-        {budgets.length === 0 ? (
-          <div className="empty">No budgets yet.</div>
-        ) : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead>
-                <tr><th>Name</th><th>Fiscal year</th><th className="num">Lines</th><th className="num">Currency</th><th></th></tr>
-              </thead>
-              <tbody>
-                {budgets.map((b) => (
-                  <tr key={b.id}>
-                    <td><Link href={`/app/finance/budgets/${b.id}`} className="link">{b.name}</Link></td>
-                    <td className="dim">{b.fiscal_year_id ? fyById.get(b.fiscal_year_id) ?? "—" : "—"}</td>
-                    <td className="num">{Array.isArray(b.budget_lines) ? b.budget_lines.length : 0}</td>
-                    <td className="num mono">{b.currency}</td>
-                    <td><Link href={`/app/finance/budgets/${b.id}`} className="btn ghost sm">View</Link></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title={`Budgets (${budgets.length})`} />
+        <CardBody>
+          <DataTable
+            columns={columns}
+            rows={budgets}
+            keyExtractor={(b) => b.id}
+            emptyTitle="No budgets yet"
+            className="mt-3"
+          />
+        </CardBody>
+      </Card>
     </div>
   );
 }

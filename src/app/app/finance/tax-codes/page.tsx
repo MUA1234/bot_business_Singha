@@ -7,6 +7,8 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { taxAmount } from "@/accounting/tax";
 import { fmtMoney } from "@/lib/money";
+import { Card, CardHeader, CardBody, Button, DataTable, type DataTableColumn } from "@/components/ui";
+import { fmtNumber } from "@/lib/format";
 import { createTaxCode } from "./actions";
 
 export const metadata = { title: "Tax Codes — Singha Central" };
@@ -21,40 +23,35 @@ export default async function TaxCodesPage() {
     rows = [];
   }
 
+  const columns: DataTableColumn<(typeof rows)[number]>[] = [
+    { key: "code", header: "Code", render: (r) => <span className="mono" style={{ fontWeight: 600 }}>{r.code}</span> },
+    { key: "name", header: "Name", render: (r) => r.name },
+    { key: "rate", header: "Rate", align: "right", render: (r) => `${fmtNumber(Number(r.rate))}%` },
+    { key: "tax", header: "Tax on 1,000", align: "right", render: (r) => <span className="dim">{fmtMoney(taxAmount("1000", Number(r.rate), "LKR"))}</span> },
+  ];
+
   return (
     <div className="stack gap-3">
       <div><h1>Tax Codes</h1><p className="muted mt-1">Rates used on invoices and bills.</p></div>
 
-      <div className="card">
-        <div className="card-title">New tax code</div>
-        <form action={createTaxCode} className="row gap-1 wrap mt-2">
-          <input name="code" className="input" style={{ width: 110 }} placeholder="Code (VAT)" required />
-          <input name="name" className="input" style={{ flex: 1, minWidth: 150 }} placeholder="Name" required />
-          <input name="rate" className="input" style={{ width: 100 }} placeholder="Rate %" inputMode="decimal" />
-          <button className="btn" type="submit">Add</button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader title="New tax code" />
+        <CardBody>
+          <form action={createTaxCode} className="row gap-1 wrap">
+            <input name="code" className="input" style={{ flex: "0 0 110px", minWidth: 90 }} placeholder="Code (VAT)" required />
+            <input name="name" className="input" style={{ flex: 1, minWidth: 150 }} placeholder="Name" required />
+            <input name="rate" className="input" style={{ flex: "0 0 100px", minWidth: 80 }} placeholder="Rate %" inputMode="decimal" />
+            <Button type="submit">Add</Button>
+          </form>
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">Tax codes ({rows.length})</div>
-        {rows.length === 0 ? <div className="empty">No tax codes yet.</div> : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead><tr><th>Code</th><th>Name</th><th className="num">Rate</th><th className="num">Tax on 1,000</th></tr></thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id}>
-                    <td className="mono" style={{ fontWeight: 600 }}>{r.code}</td>
-                    <td>{r.name}</td>
-                    <td className="num">{Number(r.rate)}%</td>
-                    <td className="num dim">{fmtMoney(taxAmount("1000", Number(r.rate), "LKR"))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title={`Tax codes (${rows.length})`} />
+        <CardBody>
+          <DataTable columns={columns} rows={rows} keyExtractor={(r) => r.id} emptyTitle="No tax codes yet" />
+        </CardBody>
+      </Card>
     </div>
   );
 }

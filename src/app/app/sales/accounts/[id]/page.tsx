@@ -9,10 +9,36 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { decGtZero, decSub, fmtMoney } from "@/lib/money";
 import { ageItems, bucketFor, type AgingItem } from "@/modules/finance/aging";
+import { Card, CardHeader, CardBody, Badge, StatusBadge, DataTable, EmptyState } from "@/components/ui";
+import { fmtDate } from "@/lib/format";
 
 export const metadata = { title: "Customer — Singha Central" };
 
 const BUCKET_LABEL: Record<string, string> = { current: "current", d1_30: "1–30", d31_60: "31–60", d61_90: "61–90", d90_plus: "90+" };
+const BUCKET_VARIANT: Record<string, "default" | "warn" | "danger"> = {
+  current: "default",
+  d1_30: "warn",
+  d31_60: "warn",
+  d61_90: "warn",
+  d90_plus: "danger",
+};
+
+interface Invoice {
+  id: string;
+  invoice_number: string;
+  currency: string;
+  total_amount: string;
+  amount_settled: string;
+  due_date: string | null;
+  status: string;
+}
+
+interface Receipt {
+  id: string;
+  amount: string;
+  currency: string;
+  payment_date: string;
+}
 
 export default async function CustomerDetail({ params }: { params: { id: string } }) {
   const p = await requireDepartment("sales");
@@ -27,9 +53,12 @@ export default async function CustomerDetail({ params }: { params: { id: string 
     db.from("payments").select("id, amount, currency, payment_date").eq("company_id", p.companyId).eq("party_type", "customer").eq("party_id", c.id).eq("direction", "in").order("payment_date", { ascending: false }).limit(50),
   ]);
 
-  const open = (invoices ?? []).filter((i: any) => !["paid", "cancelled"].includes(i.status));
-  const currency = (invoices ?? [])[0]?.currency ?? "LKR";
-  const aging = ageItems(open.map((i: any): AgingItem => ({ dueDate: i.due_date, outstanding: decSub(i.total_amount, i.amount_settled).toFixed() })), currency, now);
+  const invoiceRows: Invoice[] = (invoices ?? []) as Invoice[];
+  const receiptRows: Receipt[] = (receipts ?? []) as Receipt[];
+
+  const open = invoiceRows.filter((i) => !["paid", "cancelled"].includes(i.status));
+  const currency = invoiceRows[0]?.currency ?? "LKR";
+  const aging = ageItems(open.map((i): AgingItem => ({ dueDate: i.due_date, outstanding: decSub(i.total_amount, i.amount_settled).toFixed() })), currency, now);
   const m = (v: unknown) => fmtMoney(v, currency);
 
   return (
@@ -48,44 +77,56 @@ export default async function CustomerDetail({ params }: { params: { id: string 
         <div className="card stat"><div className="k">90+ days</div><div className="v" style={{ fontSize: "1.4rem" }}>{m(aging.buckets.d90_plus)}</div></div>
       </div>
 
-      <div className="card">
-        <div className="card-title">Invoices ({(invoices ?? []).length})</div>
-        {(invoices ?? []).length === 0 ? <div className="empty">No invoices.</div> : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead><tr><th>Number</th><th className="num">Total</th><th className="num">Outstanding</th><th>Age</th><th>Status</th></tr></thead>
-              <tbody>
-                {(invoices ?? []).map((i: any) => {
-                  const outstanding = decSub(i.total_amount, i.amount_settled);
-                  const bucket = ["paid", "cancelled"].includes(i.status) ? null : bucketFor(i.due_date ?? null, now);
-                  return (
-                    <tr key={i.id}>
-                      <td className="mono"><Link href={`/app/finance/customer-invoices/${i.id}`}>{i.invoice_number}</Link></td>
-                      <td className="num">{m(i.total_amount)}</td>
-                      <td className="num">{outstanding.greaterThan(0) ? m(outstanding) : "—"}</td>
-                      <td>{bucket ? <span className={`badge ${bucket === "d90_plus" ? "danger" : bucket === "current" ? "" : "warn"}`}>{BUCKET_LABEL[bucket]}</span> : "—"}</td>
-                      <td><span className={`badge ${i.status === "paid" ? "ok" : ""}`}>{i.status}</span></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title={`Invoices (${invoiceRows.length})`} />
+        <CardBody>
+          {invoiceRows.length === 0 ? (
+            <EmptyState title="No invoices" icon="inbox" />
+          ) : (
+            <DataTable
+              columns={[
+                { key: "number", header: "Number", render: (i) => <span className="mono"><Link href={`/app/finance/customer-invoices/${i.id}`}>{i.invoice_number}</Link></span> },
+                { key: "total", header: "Total", align: "right", render: (i) => m(i.total_amount) },
+                {
+                  key: "outstanding",
+                  header: "Outstanding",
+                  align: "right",
+                  render: (i) => {
+                    const outstanding = decSub(i.total_amount, i.amount_settled);
+                    return outstanding.greaterThan(0) ? m(outstanding) : "—";
+                  },
+                },
+                {
+                  key: "age",
+                  header: "Age",
+                  render: (i) => {
+                    const bucket = ["paid", "cancelled"].includes(i.status) ? null : bucketFor(i.due_date ?? null, now);
+                    return bucket ? <Badge variant={BUCKET_VARIANT[bucket] ?? "default"}>{BUCKET_LABEL[bucket]}</Badge> : "—";
+                  },
+                },
+                { key: "status", header: "Status", render: (i) => <StatusBadge status={i.status} /> },
+              ]}
+              rows={invoiceRows}
+              keyExtractor={(i) => i.id}
+            />
+          )}
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">Receipts ({(receipts ?? []).length})</div>
-        {(receipts ?? []).length === 0 ? <div className="empty">No receipts recorded.</div> : (
-          <div className="stack gap-1 mt-2">
-            {(receipts ?? []).map((r: any) => (
-              <div key={r.id} className="row between small" style={{ borderBottom: "1px solid var(--panel-border)", padding: "6px 0" }}>
-                <span>{m(r.amount)}</span><span className="dim">{r.payment_date}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title={`Receipts (${receiptRows.length})`} />
+        <CardBody>
+          <DataTable
+            columns={[
+              { key: "amount", header: "Amount", render: (r) => m(r.amount) },
+              { key: "date", header: "Date", render: (r) => <span className="dim small">{fmtDate(r.payment_date)}</span> },
+            ]}
+            rows={receiptRows}
+            keyExtractor={(r) => r.id}
+            emptyTitle="No receipts recorded"
+          />
+        </CardBody>
+      </Card>
     </div>
   );
 }

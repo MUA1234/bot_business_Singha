@@ -7,6 +7,8 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { dec, fmtMoney } from "@/lib/money";
+import { Card, CardHeader, CardBody, Button, EmptyState, DataTable, type DataTableColumn } from "@/components/ui";
+import { fmtDateTime } from "@/lib/format";
 import { recordCashCount } from "./actions";
 
 export const metadata = { title: "Cash Counts — Singha Central" };
@@ -27,6 +29,25 @@ export default async function CashCountsPage() {
     safe<any>(() => db.from("cash_counts").select("id, counted_amount, variance, counted_at, cash_accounts(name, currency)").eq("company_id", p.companyId).order("counted_at", { ascending: false }).limit(100) as any),
   ]);
 
+  const columns: DataTableColumn<(typeof counts)[number]>[] = [
+    { key: "account", header: "Account", render: (c) => <span style={{ fontWeight: 600 }}>{c.cash_accounts?.name ?? "—"}</span> },
+    { key: "counted", header: "Counted", align: "right", render: (c) => fmtMoney(c.counted_amount, c.cash_accounts?.currency) },
+    {
+      key: "variance",
+      header: "Variance",
+      align: "right",
+      render: (c) => {
+        const v = dec(c.variance);
+        return (
+          <span style={{ color: v.isNegative() ? "var(--danger)" : v.greaterThan(0) ? "var(--warn)" : "var(--ok)" }}>
+            {v.greaterThan(0) ? "+" : ""}{fmtMoney(v)}
+          </span>
+        );
+      },
+    },
+    { key: "when", header: "When", render: (c) => <span className="dim small">{fmtDateTime(c.counted_at)}</span> },
+  ];
+
   return (
     <div className="stack gap-3">
       <div className="row between">
@@ -34,44 +55,33 @@ export default async function CashCountsPage() {
         <Link className="btn ghost sm" href="/app/finance/accounts">Bank & Cash →</Link>
       </div>
 
-      <div className="card">
-        <div className="card-title">Record a count</div>
-        {accounts.length === 0 ? (
-          <div className="empty">Add a <Link href="/app/finance/accounts">cash account</Link> first.</div>
-        ) : (
-          <form action={recordCashCount} className="row gap-1 wrap mt-2">
-            <select name="cash_account_id" className="select" style={{ width: 200 }}>
-              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>)}
-            </select>
-            <input name="counted_amount" className="input" style={{ width: 140 }} placeholder="Counted amount" inputMode="decimal" />
-            <button className="btn" type="submit">Record</button>
-          </form>
-        )}
-      </div>
+      <Card>
+        <CardHeader title="Record a count" />
+        <CardBody>
+          {accounts.length === 0 ? (
+            <EmptyState
+              title="No cash account"
+              description="Add a cash account before recording a count."
+              action={{ label: "Bank & Cash", href: "/app/finance/accounts" }}
+            />
+          ) : (
+            <form action={recordCashCount} className="row gap-1 wrap">
+              <select name="cash_account_id" className="select" style={{ maxWidth: 260 }}>
+                {accounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.currency})</option>)}
+              </select>
+              <input name="counted_amount" className="input" style={{ flex: "0 0 140px", minWidth: 120 }} placeholder="Counted amount" inputMode="decimal" />
+              <Button type="submit">Record</Button>
+            </form>
+          )}
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">History ({counts.length})</div>
-        {counts.length === 0 ? <div className="empty">No counts yet.</div> : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead><tr><th>Account</th><th className="num">Counted</th><th className="num">Variance</th><th>When</th></tr></thead>
-              <tbody>
-                {counts.map((c) => {
-                  const v = dec(c.variance);
-                  return (
-                    <tr key={c.id}>
-                      <td style={{ fontWeight: 600 }}>{c.cash_accounts?.name ?? "—"}</td>
-                      <td className="num">{fmtMoney(c.counted_amount, c.cash_accounts?.currency)}</td>
-                      <td className="num" style={{ color: v.isNegative() ? "var(--danger)" : v.greaterThan(0) ? "var(--warn)" : "var(--ok)" }}>{v.greaterThan(0) ? "+" : ""}{fmtMoney(v)}</td>
-                      <td className="dim small">{c.counted_at ? new Date(c.counted_at).toLocaleString() : "—"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title={`History (${counts.length})`} />
+        <CardBody>
+          <DataTable columns={columns} rows={counts} keyExtractor={(c) => c.id} emptyTitle="No counts yet" />
+        </CardBody>
+      </Card>
     </div>
   );
 }

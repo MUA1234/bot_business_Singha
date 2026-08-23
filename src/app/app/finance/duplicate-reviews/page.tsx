@@ -18,6 +18,7 @@ import { requireMembership, membershipHasCapability } from "@/lib/access";
 import { supabaseRpcClient } from "@/lib/supabase/read";
 import { ReviewCard, type ReviewItem } from "./ReviewCard";
 import { DUPLICATE_REVIEW_CAPABILITY } from "./capability";
+import { Badge, EmptyState } from "@/components/ui";
 
 export const metadata = { title: "Suspected duplicates — Singha Central" };
 
@@ -72,14 +73,17 @@ export default async function DuplicateReviewsPage() {
       ) : (
         <>
           <div className="row gap-3 items-center">
-            <span className="badge warn" data-testid="dup-pending-count">{open.length} awaiting a decision</span>
+            <span data-testid="dup-pending-count"><Badge variant="warn">{open.length} awaiting a decision</Badge></span>
             <span className="muted text-sm">{closed.length} resolved</span>
           </div>
 
           {open.length === 0 ? (
-            <div className="notice" data-testid="dup-empty">
-              Nothing is waiting. Payments appear here only when the duplicate rule finds a close
-              enough resemblance to ask a person about it.
+            <div data-testid="dup-empty">
+              <EmptyState
+                title="Nothing is waiting"
+                description="Payments appear here only when the duplicate rule finds a close enough resemblance to ask a person about it."
+                icon="inbox"
+              />
             </div>
           ) : (
             <ul className="stack gap-4 list-none p-0" data-testid="dup-open-list">

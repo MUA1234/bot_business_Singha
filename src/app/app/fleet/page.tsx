@@ -8,6 +8,7 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { detectRenewals, type RenewalItem } from "@/management/ai-manager/renewals";
+import { Card, CardHeader, CardBody, Badge, EmptyState } from "@/components/ui";
 
 export const metadata = { title: "Fleet & Transport — Singha Central" };
 
@@ -37,7 +38,7 @@ export default async function FleetHome() {
     ...drivers.map((dr) => ({ id: `drv-${dr.id}`, label: `Driver licence: ${dr.name}`, dueDate: dr.licence_expiry, kind: "driver" })),
   ];
   const alerts = detectRenewals(items, now, 30);
-  const badge = (s: string) => (s === "critical" ? "danger" : s === "warn" ? "warn" : "info");
+  const badgeVariant = (s: string) => (s === "critical" ? "danger" : s === "warn" ? "warn" : "info");
 
   return (
     <div className="stack gap-3">
@@ -55,21 +56,23 @@ export default async function FleetHome() {
         <div className="card stat"><div className="k">Alerts</div><div className="v" style={{ fontSize: "1.5rem", color: alerts.length ? "var(--danger)" : "var(--ok)" }}>{alerts.length}</div></div>
       </div>
 
-      <div className="card">
-        <div className="card-title">Expiring &amp; overdue</div>
-        {alerts.length === 0 ? (
-          <div className="empty">No fleet documents or services overdue in the next 30 days.</div>
-        ) : (
-          <div className="stack gap-1 mt-2">
-            {alerts.map((a) => (
-              <div key={a.id} className="row between" style={{ padding: "8px 4px", borderBottom: "1px solid var(--panel-border)" }}>
-                <span>{a.label}</span>
-                <span className={`badge ${badge(a.severity)}`}>{a.status === "expired" ? "expired" : `${a.daysUntil}d`}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title="Expiring &amp; overdue" />
+        <CardBody>
+          {alerts.length === 0 ? (
+            <EmptyState title="No upcoming expiries" description="No fleet documents or services are overdue in the next 30 days." icon="check-circle" />
+          ) : (
+            <div className="stack gap-1 mt-2">
+              {alerts.map((a) => (
+                <div key={a.id} className="row between" style={{ padding: "8px 4px", borderBottom: "1px solid var(--panel-border)" }}>
+                  <span>{a.label}</span>
+                  <Badge variant={badgeVariant(a.severity)}>{a.status === "expired" ? "expired" : `${a.daysUntil}d`}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }

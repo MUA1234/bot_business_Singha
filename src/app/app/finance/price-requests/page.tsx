@@ -1,5 +1,6 @@
 import { requireDepartment } from "@/lib/auth";
 import { PriceRequests } from "@/components/PriceRequests";
+import { Card, CardHeader, CardBody } from "@/components/ui";
 
 export const metadata = { title: "Price Confirmations — Singha Central" };
 
@@ -12,9 +13,12 @@ export default async function FinancePriceRequests() {
         <h1>Price Confirmations</h1>
         <p className="muted mt-1">Items routed to finance for a confirmed price.</p>
       </div>
-      <div className="card">
-        <PriceRequests companyId={p.companyId} department={department} />
-      </div>
+      <Card>
+        <CardHeader title="Pending confirmations" />
+        <CardBody>
+          <PriceRequests companyId={p.companyId} department={department} />
+        </CardBody>
+      </Card>
     </div>
   );
 }

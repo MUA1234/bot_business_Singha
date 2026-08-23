@@ -6,6 +6,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { Card, CardBody, EmptyState } from "@/components/ui";
 import { JournalForm } from "./JournalForm";
 
 export const metadata = { title: "New Journal — Singha Central" };
@@ -38,9 +39,17 @@ export default async function NewJournalPage() {
       </div>
 
       {accounts.length === 0 ? (
-        <div className="card"><div className="empty">Add accounts first in <Link href="/app/finance/chart-of-accounts">Chart of Accounts</Link>.</div></div>
+        <Card>
+          <EmptyState
+            title="No accounts yet"
+            description="Add accounts in Chart of Accounts before posting a journal."
+            action={{ label: "Chart of Accounts", href: "/app/finance/chart-of-accounts" }}
+          />
+        </Card>
       ) : (
-        <div className="card"><JournalForm accounts={accounts} currency="LKR" /></div>
+        <Card>
+          <JournalForm accounts={accounts} currency="LKR" />
+        </Card>
       )}
     </div>
   );

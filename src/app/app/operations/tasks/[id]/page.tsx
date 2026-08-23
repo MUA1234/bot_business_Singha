@@ -12,6 +12,8 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import type { TaskState } from "@/modules/work/task-lifecycle";
 import { signedEvidenceUrl } from "@/lib/documents";
 import { isV31FlagEnabled } from "@/config/flags";
+import { fmtDate, fmtNumber } from "@/lib/format";
+import { Card, CardHeader, CardBody, Badge, EmptyState } from "@/components/ui";
 import {
   addCheckIn, addEvidence, completeTask, assignTask, uploadTaskEvidence,
   submitEstimate, declineTask, startTask, logProgress, reportBlocker, unblockTask,
@@ -87,221 +89,238 @@ export default async function TaskDetail({ params }: { params: { id: string } })
       <div className="row between">
         <div>
           <h1>{task.title}</h1>
-          <p className="muted mt-1"><span className="badge">{status.replace(/_/g, " ")}</span>
-            {task.requires_evidence && <span className="badge warn" style={{ marginLeft: 6 }}>evidence required</span>}
+          <p className="muted mt-1">
+            <Badge variant={status === "blocked" ? "danger" : status === "overdue" ? "danger" : "default"}>{status.replace(/_/g, " ")}</Badge>
+            {task.requires_evidence && <Badge variant="warn" style={{ marginLeft: 6 }}>evidence required</Badge>}
           </p>
         </div>
         <Link className="btn ghost sm" href="/app/operations/tasks">← All tasks</Link>
       </div>
 
-      {task.description && <div className="card"><p>{task.description}</p></div>}
+      {task.description && (
+        <Card>
+          <CardBody><p>{task.description}</p></CardBody>
+        </Card>
+      )}
 
       {(isManager || isAssignee) && (
-        <div className="card">
-          <div className="card-title">Progress</div>
-          <p className="small muted mt-1">
-            {task.estimate_hours != null && <>Est: {task.estimate_hours}h · </>}
-            {task.actual_hours != null && <>Actual: {task.actual_hours}h · </>}
-            {task.remaining_hours != null && <>Remaining: {task.remaining_hours}h</>}
-            {task.expected_completion && <> · ETA {task.expected_completion}</>}
-          </p>
-          {task.blocker_reason && <p className="badge warn mt-1">Blocked: {task.blocker_reason}</p>}
+        <Card>
+          <CardHeader title="Progress" />
+          <CardBody>
+            <p className="small muted mt-1">
+              {task.estimate_hours != null && <>Est: {fmtNumber(task.estimate_hours)}h · </>}
+              {task.actual_hours != null && <>Actual: {fmtNumber(task.actual_hours)}h · </>}
+              {task.remaining_hours != null && <>Remaining: {fmtNumber(task.remaining_hours)}h</>}
+              {task.expected_completion && <> · ETA {fmtDate(task.expected_completion)}</>}
+            </p>
+            {task.blocker_reason && <Badge variant="warn" className="mt-1">Blocked: {task.blocker_reason}</Badge>}
 
-          {status === "awaiting_estimate" && (
-            <div className="stack gap-2 mt-2">
-              <form action={submitEstimate} className="row gap-1 wrap">
-                <input type="hidden" name="task_id" value={task.id} />
-                <input name="hours" className="input" style={{ width: 120 }} placeholder="Estimate (h)" inputMode="decimal" />
-                <input name="expected_completion" className="input" type="date" style={{ width: 170 }} />
-                <button className="btn ghost sm" type="submit">Submit estimate</button>
-              </form>
-              <form action={declineTask} className="row gap-1 wrap">
-                <input type="hidden" name="task_id" value={task.id} />
-                <input name="reason" className="input" style={{ flex: 1, minWidth: 160 }} placeholder="Decline reason" />
-                <button className="btn ghost sm" type="submit">Decline</button>
-              </form>
-              {isManager && (
-                <form action={acceptEstimate}>
+            {status === "awaiting_estimate" && (
+              <div className="stack gap-2 mt-2">
+                <form action={submitEstimate} className="row gap-1 wrap">
                   <input type="hidden" name="task_id" value={task.id} />
-                  <button className="btn sm" type="submit">Accept estimate → schedule</button>
+                  <input name="hours" className="input" style={{ width: 120 }} placeholder="Estimate (h)" inputMode="decimal" />
+                  <input name="expected_completion" className="input" type="date" style={{ width: 170 }} />
+                  <button className="btn ghost sm" type="submit">Submit estimate</button>
                 </form>
-              )}
-            </div>
-          )}
+                <form action={declineTask} className="row gap-1 wrap">
+                  <input type="hidden" name="task_id" value={task.id} />
+                  <input name="reason" className="input" style={{ flex: 1, minWidth: 160 }} placeholder="Decline reason" />
+                  <button className="btn ghost sm" type="submit">Decline</button>
+                </form>
+                {isManager && (
+                  <form action={acceptEstimate}>
+                    <input type="hidden" name="task_id" value={task.id} />
+                    <button className="btn sm" type="submit">Accept estimate → schedule</button>
+                  </form>
+                )}
+              </div>
+            )}
 
-          {status === "scheduled" && (
-            <form action={startTask} className="mt-2"><input type="hidden" name="task_id" value={task.id} /><button className="btn sm" type="submit">Start work</button></form>
-          )}
+            {status === "scheduled" && (
+              <form action={startTask} className="mt-2"><input type="hidden" name="task_id" value={task.id} /><button className="btn sm" type="submit">Start work</button></form>
+            )}
 
-          {status === "in_progress" && (
-            <div className="stack gap-2 mt-2">
-              <form action={logProgress} className="row gap-1 wrap">
-                <input type="hidden" name="task_id" value={task.id} />
-                <input name="hours" className="input" style={{ width: 140 }} placeholder="Actual hours" inputMode="decimal" />
-                <button className="btn ghost sm" type="submit">Log hours</button>
-              </form>
-              <form action={reportBlocker} className="row gap-1 wrap">
-                <input type="hidden" name="task_id" value={task.id} />
-                <input name="reason" className="input" style={{ flex: 1, minWidth: 160 }} placeholder="Blocker reason" />
-                <button className="btn ghost sm" type="submit">Report blocker</button>
-              </form>
-              <form action={submitForEvidence}><input type="hidden" name="task_id" value={task.id} /><button className="btn ghost sm" type="submit">Ready for evidence</button></form>
-            </div>
-          )}
+            {status === "in_progress" && (
+              <div className="stack gap-2 mt-2">
+                <form action={logProgress} className="row gap-1 wrap">
+                  <input type="hidden" name="task_id" value={task.id} />
+                  <input name="hours" className="input" style={{ width: 140 }} placeholder="Actual hours" inputMode="decimal" />
+                  <button className="btn ghost sm" type="submit">Log hours</button>
+                </form>
+                <form action={reportBlocker} className="row gap-1 wrap">
+                  <input type="hidden" name="task_id" value={task.id} />
+                  <input name="reason" className="input" style={{ flex: 1, minWidth: 160 }} placeholder="Blocker reason" />
+                  <button className="btn ghost sm" type="submit">Report blocker</button>
+                </form>
+                <form action={submitForEvidence}><input type="hidden" name="task_id" value={task.id} /><button className="btn ghost sm" type="submit">Ready for evidence</button></form>
+              </div>
+            )}
 
-          {status === "blocked" && (
-            <form action={unblockTask} className="mt-2"><input type="hidden" name="task_id" value={task.id} /><button className="btn sm" type="submit">Unblock</button></form>
-          )}
+            {status === "blocked" && (
+              <form action={unblockTask} className="mt-2"><input type="hidden" name="task_id" value={task.id} /><button className="btn sm" type="submit">Unblock</button></form>
+            )}
 
-          {status === "awaiting_evidence" && (
-            <form action={requestVerification} className="mt-2"><input type="hidden" name="task_id" value={task.id} /><button className="btn sm" type="submit">Request verification</button></form>
-          )}
+            {status === "awaiting_evidence" && (
+              <form action={requestVerification} className="mt-2"><input type="hidden" name="task_id" value={task.id} /><button className="btn sm" type="submit">Request verification</button></form>
+            )}
 
-          {isManager && status === "verification" && (
-            <form action={returnForCorrection} className="mt-2"><input type="hidden" name="task_id" value={task.id} /><button className="btn ghost sm" type="submit">Return for correction</button></form>
-          )}
-        </div>
+            {isManager && status === "verification" && (
+              <form action={returnForCorrection} className="mt-2"><input type="hidden" name="task_id" value={task.id} /><button className="btn ghost sm" type="submit">Return for correction</button></form>
+            )}
+          </CardBody>
+        </Card>
       )}
 
       {isManager && (
-        <div className="card">
-          <div className="card-title">Assignment</div>
-          <form action={assignTask} className="row gap-1 wrap mt-2">
-            <input type="hidden" name="task_id" value={task.id} />
-            <select name="assigned_to" className="select" style={{ width: 200 }} defaultValue={task.assigned_to ?? ""}>
-              <option value="">Unassigned</option>
-              {(employees ?? []).map((e: any) => <option key={e.id} value={e.id}>{e.full_name || e.username}</option>)}
-            </select>
-            <input name="estimate_hours" className="input" style={{ width: 130 }} placeholder="Estimate (h)" inputMode="decimal" defaultValue={task.estimate_hours ?? ""} />
-            <button className="btn ghost sm" type="submit">Save</button>
-          </form>
-        </div>
+        <Card>
+          <CardHeader title="Assignment" />
+          <CardBody>
+            <form action={assignTask} className="row gap-1 wrap mt-2">
+              <input type="hidden" name="task_id" value={task.id} />
+              <select name="assigned_to" className="select" style={{ width: 200 }} defaultValue={task.assigned_to ?? ""}>
+                <option value="">Unassigned</option>
+                {(employees ?? []).map((e: any) => <option key={e.id} value={e.id}>{e.full_name || e.username}</option>)}
+              </select>
+              <input name="estimate_hours" className="input" style={{ width: 130 }} placeholder="Estimate (h)" inputMode="decimal" defaultValue={task.estimate_hours ?? ""} />
+              <button className="btn ghost sm" type="submit">Save</button>
+            </form>
+          </CardBody>
+        </Card>
       )}
 
       {isManager && canOfferComplete && (
-        <div className="card">
-          <div className="card-title">Verification</div>
-          <p className="card-sub mt-1">
-            {blockedForEvidence
-              ? "This task requires evidence. Add at least one evidence item below before it can be completed."
-              : "Acceptance criteria met — you may complete this task."}
-          </p>
-          <form action={completeTask} className="mt-2">
-            <input type="hidden" name="task_id" value={task.id} />
-            <button className="btn" type="submit" disabled={blockedForEvidence}>Verify &amp; complete</button>
-          </form>
-        </div>
+        <Card>
+          <CardHeader title="Verification" />
+          <CardBody>
+            <p className="card-sub mt-1">
+              {blockedForEvidence
+                ? "This task requires evidence. Add at least one evidence item below before it can be completed."
+                : "Acceptance criteria met — you may complete this task."}
+            </p>
+            <form action={completeTask} className="mt-2">
+              <input type="hidden" name="task_id" value={task.id} />
+              <button className="btn" type="submit" disabled={blockedForEvidence}>Verify &amp; complete</button>
+            </form>
+          </CardBody>
+        </Card>
       )}
 
-      <div className="grid cols-2">
-        <div className="card">
-          <div className="card-title">Evidence ({evidenceCount})</div>
-          <form action={addEvidence} className="row gap-1 wrap mt-2">
-            <input type="hidden" name="task_id" value={task.id} />
-            <select name="kind" className="select" style={{ width: 150 }}>
-              {EVIDENCE_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
-            </select>
-            <input name="reference" className="input" style={{ flex: 1, minWidth: 140 }} placeholder="reference / link" />
-            <button className="btn ghost sm" type="submit">Add</button>
-          </form>
-          <form action={uploadTaskEvidence} className="row gap-1 wrap mt-2">
-            <input type="hidden" name="task_id" value={task.id} />
-            <input type="file" name="file" className="input" style={{ flex: 1, minWidth: 180 }} />
-            <button className="btn ghost sm" type="submit">Upload file</button>
-          </form>
-          <div className="stack gap-1 mt-3">
-            {evidenceCount === 0 && <div className="empty">No evidence yet.</div>}
-            {(evidence ?? []).map((e: any) => {
-              const url = e.document_id ? urlByDoc.get(e.document_id) : null;
-              return (
-                <div key={e.id} className="row between small" style={{ borderBottom: "1px solid var(--panel-border)", padding: "6px 0" }}>
-                  <span>
-                    <span className="badge">{e.kind}</span>{" "}
-                    {url ? <a href={url} target="_blank" rel="noreferrer">{e.reference ?? "download"}</a> : (e.reference ?? "")}
-                  </span>
-                  <span className="dim">{new Date(e.created_at).toLocaleDateString()}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "var(--space-3)" }}>
+        <Card>
+          <CardHeader title={`Evidence (${evidenceCount})`} />
+          <CardBody>
+            <form action={addEvidence} className="row gap-1 wrap mt-2">
+              <input type="hidden" name="task_id" value={task.id} />
+              <select name="kind" className="select" style={{ width: 150 }}>
+                {EVIDENCE_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+              </select>
+              <input name="reference" className="input" style={{ flex: 1, minWidth: 140 }} placeholder="reference / link" />
+              <button className="btn ghost sm" type="submit">Add</button>
+            </form>
+            <form action={uploadTaskEvidence} className="row gap-1 wrap mt-2">
+              <input type="hidden" name="task_id" value={task.id} />
+              <input type="file" name="file" className="input" style={{ flex: 1, minWidth: 180 }} />
+              <button className="btn ghost sm" type="submit">Upload file</button>
+            </form>
+            <div className="stack gap-1 mt-3">
+              {evidenceCount === 0 && <EmptyState title="No evidence yet" icon="paperclip" />}
+              {(evidence ?? []).map((e: any) => {
+                const url = e.document_id ? urlByDoc.get(e.document_id) : null;
+                return (
+                  <div key={e.id} className="row between small" style={{ borderBottom: "1px solid var(--panel-border)", padding: "6px 0" }}>
+                    <span>
+                      <Badge>{e.kind}</Badge>{" "}
+                      {url ? <a href={url} target="_blank" rel="noreferrer">{e.reference ?? "download"}</a> : (e.reference ?? "")}
+                    </span>
+                    <span className="dim">{fmtDate(e.created_at)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardBody>
+        </Card>
 
-        <div className="card">
-          <div className="card-title">Check-ins</div>
-          <form action={addCheckIn} className="row gap-1 wrap mt-2">
-            <input type="hidden" name="task_id" value={task.id} />
-            <input name="note" className="input" style={{ flex: 1, minWidth: 140 }} placeholder="progress note" />
-            <input name="progress_pct" className="input" style={{ width: 80 }} placeholder="%" inputMode="numeric" />
-            <button className="btn ghost sm" type="submit">Log</button>
-          </form>
-          <div className="stack gap-1 mt-3">
-            {(checkIns ?? []).length === 0 && <div className="empty">No check-ins yet.</div>}
-            {(checkIns ?? []).map((c: any) => (
-              <div key={c.id} className="row between small" style={{ borderBottom: "1px solid var(--panel-border)", padding: "6px 0" }}>
-                <span>{c.note ?? "—"}{c.progress_pct != null && <span className="dim"> · {c.progress_pct}%</span>}</span>
-                <span className="dim">{new Date(c.created_at).toLocaleDateString()}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <Card>
+          <CardHeader title="Check-ins" />
+          <CardBody>
+            <form action={addCheckIn} className="row gap-1 wrap mt-2">
+              <input type="hidden" name="task_id" value={task.id} />
+              <input name="note" className="input" style={{ flex: 1, minWidth: 140 }} placeholder="progress note" />
+              <input name="progress_pct" className="input" style={{ width: 80 }} placeholder="%" inputMode="numeric" />
+              <button className="btn ghost sm" type="submit">Log</button>
+            </form>
+            <div className="stack gap-1 mt-3">
+              {(checkIns ?? []).length === 0 && <EmptyState title="No check-ins yet" icon="message-square" />}
+              {(checkIns ?? []).map((c: any) => (
+                <div key={c.id} className="row between small" style={{ borderBottom: "1px solid var(--panel-border)", padding: "6px 0" }}>
+                  <span>{c.note ?? "—"}{c.progress_pct != null && <span className="dim"> · {c.progress_pct}%</span>}</span>
+                  <span className="dim">{fmtDate(c.created_at)}</span>
+                </div>
+              ))}
+            </div>
+          </CardBody>
+        </Card>
       </div>
 
       {guideEnabled && (
-        <div className="card">
-          <div className="card-title">AI Guide</div>
-          {canManageGuide && (
-            <form action={createAiGuideMessage} className="stack gap-2 mt-2">
-              <input type="hidden" name="task_id" value={task.id} />
-              <div className="row gap-1 wrap">
-                <select name="kind" className="select" defaultValue="next_action">
-                  <option value="next_action">Next action</option>
-                  <option value="clarification">Clarification</option>
-                  <option value="blocker_help">Blocker help</option>
-                  <option value="encouragement">Encouragement</option>
-                  <option value="escalation">Escalation</option>
-                  <option value="answer">Answer</option>
-                </select>
-                <select name="visibility" className="select" defaultValue="task_team">
-                  <option value="task_team">Task team</option>
-                  <option value="seniors">Seniors</option>
-                  <option value="private">Private</option>
-                </select>
-                <input name="confidence" className="input" style={{ width: 80 }} defaultValue="0.8" inputMode="decimal" placeholder="conf" />
-              </div>
-              <textarea name="body" className="textarea" placeholder="Guidance message" required style={{ minHeight: 60 }} />
-              <input name="audience_refs" className="input" placeholder="Private recipient user id(s), comma-separated" />
-              <input name="proposed_next_action" className="input" placeholder="Optional proposed next action JSON" />
-              <button className="btn ghost sm" type="submit">Add guide message</button>
-            </form>
-          )}
-          <div className="stack gap-2 mt-3">
-            {visibleGuideMessages.length === 0 && <div className="empty">No AI guide messages yet.</div>}
-            {visibleGuideMessages.map((m: any) => (
-              <div key={m.id} className="small" style={{ borderBottom: "1px solid var(--panel-border)", padding: "6px 0" }}>
-                <div className="row between">
-                  <span>
-                    <span className="badge">{m.kind.replace(/_/g, " ")}</span>
-                    <span className="badge" style={{ marginLeft: 6 }}>{m.visibility}</span>
-                    {m.confidence != null && <span className="dim" style={{ marginLeft: 6 }}>conf {m.confidence}</span>}
-                  </span>
-                  <span className="dim">{new Date(m.created_at).toLocaleDateString()}</span>
+        <Card>
+          <CardHeader title="AI Guide" />
+          <CardBody>
+            {canManageGuide && (
+              <form action={createAiGuideMessage} className="stack gap-2 mt-2">
+                <input type="hidden" name="task_id" value={task.id} />
+                <div className="row gap-1 wrap">
+                  <select name="kind" className="select" defaultValue="next_action">
+                    <option value="next_action">Next action</option>
+                    <option value="clarification">Clarification</option>
+                    <option value="blocker_help">Blocker help</option>
+                    <option value="encouragement">Encouragement</option>
+                    <option value="escalation">Escalation</option>
+                    <option value="answer">Answer</option>
+                  </select>
+                  <select name="visibility" className="select" defaultValue="task_team">
+                    <option value="task_team">Task team</option>
+                    <option value="seniors">Seniors</option>
+                    <option value="private">Private</option>
+                  </select>
+                  <input name="confidence" className="input" style={{ width: 80 }} defaultValue="0.8" inputMode="decimal" placeholder="conf" />
                 </div>
-                <p className="mt-1">{m.body}</p>
-                {m.proposed_next_action && (
-                  <div className="card mt-1" style={{ background: "var(--panel-bg)" }}>
-                    <div className="small muted">Proposed next action</div>
-                    <div className="small"><strong>{String(m.proposed_next_action.action ?? "—")}</strong></div>
-                    <div className="small dim">{String(m.proposed_next_action.reason ?? "")}</div>
-                    <div className="small dim">
-                      authority {String(m.proposed_next_action.requiredAuthority ?? "—")}
-                      {m.proposed_next_action.expiresAt ? ` · expires ${String(m.proposed_next_action.expiresAt)}` : ""}
-                    </div>
+                <textarea name="body" className="textarea" placeholder="Guidance message" required style={{ minHeight: 60 }} />
+                <input name="audience_refs" className="input" placeholder="Private recipient user id(s), comma-separated" />
+                <input name="proposed_next_action" className="input" placeholder="Optional proposed next action JSON" />
+                <button className="btn ghost sm" type="submit">Add guide message</button>
+              </form>
+            )}
+            <div className="stack gap-2 mt-3">
+              {visibleGuideMessages.length === 0 && <EmptyState title="No AI guide messages yet" icon="bot" />}
+              {visibleGuideMessages.map((m: any) => (
+                <div key={m.id} className="small" style={{ borderBottom: "1px solid var(--panel-border)", padding: "6px 0" }}>
+                  <div className="row between">
+                    <span>
+                      <Badge>{m.kind.replace(/_/g, " ")}</Badge>
+                      <Badge style={{ marginLeft: 6 }}>{m.visibility}</Badge>
+                      {m.confidence != null && <span className="dim" style={{ marginLeft: 6 }}>conf {m.confidence}</span>}
+                    </span>
+                    <span className="dim">{fmtDate(m.created_at)}</span>
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+                  <p className="mt-1">{m.body}</p>
+                  {m.proposed_next_action && (
+                    <div className="card mt-1" style={{ background: "var(--panel-bg)" }}>
+                      <div className="small muted">Proposed next action</div>
+                      <div className="small"><strong>{String(m.proposed_next_action.action ?? "—")}</strong></div>
+                      <div className="small dim">{String(m.proposed_next_action.reason ?? "")}</div>
+                      <div className="small dim">
+                        authority {String(m.proposed_next_action.requiredAuthority ?? "—")}
+                        {m.proposed_next_action.expiresAt ? ` · expires ${String(m.proposed_next_action.expiresAt)}` : ""}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardBody>
+        </Card>
       )}
     </div>
   );

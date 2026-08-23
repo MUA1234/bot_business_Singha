@@ -9,6 +9,7 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { detectTaskExceptions, type TaskLike } from "@/management/ai-manager/exceptions";
 import { BarChart, type BarDatum } from "@/components/charts";
 import { TASK_STATES } from "@/modules/work/task-lifecycle";
+import { Card, CardHeader, CardBody, Badge, EmptyState } from "@/components/ui";
 
 export const metadata = { title: "Operations — Singha Central" };
 const TERMINAL = new Set(["completed", "cancelled"]);
@@ -66,27 +67,32 @@ export default async function OperationsHome() {
         ))}
       </div>
       {statusData.length > 0 && (
-        <div className="card">
-          <div className="card-title">Tasks by status</div>
-          <div className="card-sub">Clear the amber blocked and red overdue bars first — they stall delivery.</div>
-          <div className="mt-2">
-            <BarChart data={statusData} valueOnAll />
-          </div>
-        </div>
+        <Card>
+          <CardHeader title="Tasks by status" subtitle="Clear the amber blocked and red overdue bars first — they stall delivery." />
+          <CardBody>
+            <div className="mt-2">
+              <BarChart data={statusData} valueOnAll />
+            </div>
+          </CardBody>
+        </Card>
       )}
-      <div className="card">
-        <div className="card-title">Needs attention</div>
-        {exceptions.length === 0 ? <div className="empty">Nothing flagged.</div> : (
-          <div className="stack gap-1 mt-2">
-            {exceptions.slice(0, 12).map((e, i) => (
-              <div key={i} className="row between" style={{ padding: "8px 4px", borderBottom: "1px solid var(--panel-border)" }}>
-                {e.taskId ? <Link href={`/app/operations/tasks/${e.taskId}`}>{e.message}</Link> : <span>{e.message}</span>}
-                <span className={`badge ${e.severity === "critical" ? "danger" : e.severity === "warn" ? "warn" : "info"}`}>{e.type.replace(/_/g, " ")}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title="Needs attention" />
+        <CardBody>
+          {exceptions.length === 0 ? (
+            <EmptyState title="Nothing flagged" description="No task exceptions detected." icon="check-circle" />
+          ) : (
+            <div className="stack gap-1 mt-2">
+              {exceptions.slice(0, 12).map((e, i) => (
+                <div key={i} className="row between" style={{ padding: "8px 4px", borderBottom: "1px solid var(--panel-border)" }}>
+                  {e.taskId ? <Link href={`/app/operations/tasks/${e.taskId}`}>{e.message}</Link> : <span>{e.message}</span>}
+                  <Badge variant={e.severity === "critical" ? "danger" : e.severity === "warn" ? "warn" : "info"}>{e.type.replace(/_/g, " ")}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }

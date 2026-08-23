@@ -8,6 +8,9 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { dec, fmtMoney } from "@/lib/money";
+import { Card, CardHeader, CardBody, Button, Badge, StatusBadge, EmptyState, DataTable, type DataTableColumn } from "@/components/ui";
+import type { BadgeVariant } from "@/components/ui/Badge";
+import { fmtDate } from "@/lib/format";
 import { suggestMatches, type BankTxn, type ReconCandidate } from "@/modules/finance/reconcile";
 import { importBankTransactions, confirmMatch } from "./actions";
 
@@ -44,6 +47,55 @@ export default async function ReconciliationPage() {
   const matched = suggestions.filter((s) => s.candidateId);
   const confBadge = (c: string) => (c === "high" ? "ok" : c === "medium" ? "warn" : "");
 
+  const txnColumns: DataTableColumn<(typeof suggestions)[number]>[] = [
+    {
+      key: "date",
+      header: "Date",
+      render: (s) => {
+        const t = byId.get(s.bankTxnId)!;
+        return <span className="dim small">{fmtDate(t.date)}</span>;
+      },
+    },
+    {
+      key: "description",
+      header: "Description",
+      render: (s) => {
+        const t = byId.get(s.bankTxnId)!;
+        return t.description ?? "—";
+      },
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      align: "right",
+      render: (s) => {
+        const t = byId.get(s.bankTxnId)!;
+        return fmtMoney(t.amount, t.currency);
+      },
+    },
+    {
+      key: "suggestion",
+      header: "Suggestion",
+      render: (s) => {
+        const t = byId.get(s.bankTxnId)!;
+        return s.candidateId ? (
+          <div className="row gap-1 wrap">
+            <Badge variant={confBadge(s.confidence) as BadgeVariant}>{s.candidateKind} · {s.confidence}</Badge>
+            <form action={confirmMatch}>
+              <input type="hidden" name="bank_txn_id" value={s.bankTxnId} />
+              <input type="hidden" name="target_type" value={s.candidateKind ?? ""} />
+              <input type="hidden" name="target_id" value={s.candidateId} />
+              <input type="hidden" name="amount" value={dec(t.amount).abs().toFixed(2)} />
+              <Button variant="ghost" size="sm" type="submit">Confirm</Button>
+            </form>
+          </div>
+        ) : (
+          <Badge>no match</Badge>
+        );
+      },
+    },
+  ];
+
   return (
     <div className="stack gap-3">
       <div className="row between">
@@ -54,20 +106,26 @@ export default async function ReconciliationPage() {
         <Link className="btn ghost sm" href="/app/finance">← Finance</Link>
       </div>
 
-      <div className="card">
-        <div className="card-title">Import bank statement</div>
-        {banks.length === 0 ? (
-          <div className="empty">Add a <Link href="/app/finance/accounts">bank account</Link> first.</div>
-        ) : (
-          <form action={importBankTransactions} className="stack gap-2 mt-2">
-            <select name="bank_account_id" className="select" style={{ width: 240 }}>
-              {banks.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.currency})</option>)}
-            </select>
-            <textarea name="lines" className="textarea" placeholder={"One per line: date, amount, description\n2026-08-05, -1500.00, Payment to Acme\n2026-08-06, 2000.00, Customer receipt"} />
-            <button className="btn" type="submit">Import lines</button>
-          </form>
-        )}
-      </div>
+      <Card>
+        <CardHeader title="Import bank statement" />
+        <CardBody>
+          {banks.length === 0 ? (
+            <EmptyState
+              title="No bank account"
+              description="Add a bank account first so you can import statement lines."
+              action={{ label: "Bank & Cash", href: "/app/finance/accounts" }}
+            />
+          ) : (
+            <form action={importBankTransactions} className="stack gap-2">
+              <select name="bank_account_id" className="select" style={{ maxWidth: 320 }}>
+                {banks.map((b) => <option key={b.id} value={b.id}>{b.name} ({b.currency})</option>)}
+              </select>
+              <textarea name="lines" className="textarea" placeholder={"One per line: date, amount, description\n2026-08-05, -1500.00, Payment to Acme\n2026-08-06, 2000.00, Customer receipt"} />
+              <Button type="submit">Import lines</Button>
+            </form>
+          )}
+        </CardBody>
+      </Card>
 
       <div className="grid cols-3">
         <div className="card stat"><div className="k">Unmatched txns</div><div className="v" style={{ fontSize: "1.5rem" }}>{txns.length}</div></div>
@@ -75,46 +133,16 @@ export default async function ReconciliationPage() {
         <div className="card stat"><div className="k">Candidates</div><div className="v" style={{ fontSize: "1.5rem" }}>{candidates.length}</div></div>
       </div>
 
-      <div className="card">
-        <div className="card-title">Bank transactions</div>
-        {txns.length === 0 ? (
-          <div className="empty">No unmatched bank transactions.</div>
-        ) : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead><tr><th>Date</th><th>Description</th><th className="num">Amount</th><th>Suggestion</th></tr></thead>
-              <tbody>
-                {suggestions.map((s) => {
-                  const t = byId.get(s.bankTxnId)!;
-                  return (
-                    <tr key={s.bankTxnId}>
-                      <td className="dim small">{t.date}</td>
-                      <td>{t.description ?? "—"}</td>
-                      <td className="num">{fmtMoney(t.amount, t.currency)}</td>
-                      <td>
-                        {s.candidateId ? (
-                          <div className="row gap-1">
-                            <span className={`badge ${confBadge(s.confidence)}`}>{s.candidateKind} · {s.confidence}</span>
-                            <form action={confirmMatch}>
-                              <input type="hidden" name="bank_txn_id" value={s.bankTxnId} />
-                              <input type="hidden" name="target_type" value={s.candidateKind ?? ""} />
-                              <input type="hidden" name="target_id" value={s.candidateId} />
-                              <input type="hidden" name="amount" value={dec(t.amount).abs().toFixed(2)} />
-                              <button className="btn ghost sm" type="submit">Confirm</button>
-                            </form>
-                          </div>
-                        ) : (
-                          <span className="badge">no match</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title="Bank transactions" />
+        <CardBody>
+          {txns.length === 0 ? (
+            <EmptyState title="No unmatched bank transactions" />
+          ) : (
+            <DataTable columns={txnColumns} rows={suggestions} keyExtractor={(s) => s.bankTxnId} />
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }

@@ -9,6 +9,8 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { dec } from "@/lib/money";
 import { rankProjectsByPriority, type ProjectPrioritisationInput } from "@/modules/project/portfolio-prioritisation";
 import { computeResourceRequirements, type ResourceTaskInput, type ResourceAssignmentInput, type ResourceMembershipInput, type ResourceEmployeeInput } from "@/modules/project/resource-requirements";
+import { Card, CardHeader, CardBody, Badge, EmptyState, DataTable, type DataTableColumn } from "@/components/ui";
+import { fmtDate, fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "Projects — Singha Central" };
 
@@ -44,13 +46,14 @@ interface TaskRow {
   task_assignments: { membership_id: string | null; estimate_hours: number | null }[];
 }
 
-function statusTone(status: string): string {
+function statusVariant(status: string): BadgeVariant {
   if (status === "active") return "ok";
   if (status === "on_hold") return "warn";
-  if (status === "completed") return "";
   if (status === "cancelled") return "danger";
-  return "";
+  return "default";
 }
+
+type BadgeVariant = "default" | "ok" | "warn" | "danger" | "info" | "accent";
 
 function isBlockedOrOverdue(task: TaskRow, today: string): boolean {
   if (task.status === "blocked" || task.status === "escalated") return true;
@@ -193,6 +196,66 @@ export default async function ProjectsPage() {
     return pa - pb;
   });
 
+  const columns: DataTableColumn<Project & { index: number }>[] = [
+    {
+      key: "priority",
+      header: "Priority",
+      render: (row) => <Badge variant="ok">#{row.index}</Badge>,
+    },
+    {
+      key: "project",
+      header: "Project",
+      render: (proj) => (
+        <Link className="link" href={`/app/operations/projects/${proj.id}`} style={{ fontWeight: 600 }}>
+          {proj.name}
+        </Link>
+      ),
+    },
+    {
+      key: "code",
+      header: "Code",
+      className: "dim small mono",
+      render: (proj) => proj.code ?? "—",
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (proj) => <Badge variant={statusVariant(proj.status)}>{proj.status.replace(/_/g, " ")}</Badge>,
+    },
+    {
+      key: "valueRank",
+      header: "Value rank",
+      align: "right",
+      render: (proj) => priorityByProject.get(proj.id)?.valueRank ?? "—",
+    },
+    {
+      key: "riskRank",
+      header: "Risk rank",
+      align: "right",
+      render: (proj) => priorityByProject.get(proj.id)?.riskRank ?? "—",
+    },
+    {
+      key: "capacityRank",
+      header: "Capacity rank",
+      align: "right",
+      render: (proj) => priorityByProject.get(proj.id)?.capacityRank ?? "—",
+    },
+    {
+      key: "dependencyRank",
+      header: "Dependency rank",
+      align: "right",
+      render: (proj) => priorityByProject.get(proj.id)?.dependencyRank ?? "—",
+    },
+    {
+      key: "created",
+      header: "Created",
+      className: "dim small",
+      render: (proj) => fmtDate(proj.created_at),
+    },
+  ];
+
+  const tableRows = sortedProjects.map((proj, idx) => ({ ...proj, index: idx + 1 }));
+
   return (
     <div className="stack gap-3">
       <div className="row between">
@@ -203,51 +266,21 @@ export default async function ProjectsPage() {
         <Link className="btn ghost sm" href="/app/operations">← Operations</Link>
       </div>
 
-      <div className="card">
-        <div className="card-title">Project registry — prioritised</div>
-        {projects.length === 0 ? (
-          <div className="empty mt-2">No projects yet.</div>
-        ) : (
-          <div className="table-wrap mt-2">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Priority</th>
-                  <th>Project</th>
-                  <th>Code</th>
-                  <th>Status</th>
-                  <th className="num">Value rank</th>
-                  <th className="num">Risk rank</th>
-                  <th className="num">Capacity rank</th>
-                  <th className="num">Dependency rank</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedProjects.map((proj, idx) => {
-                  const priority = priorityByProject.get(proj.id);
-                  return (
-                    <tr key={proj.id}>
-                      <td><span className="badge ok">#{idx + 1}</span></td>
-                      <td style={{ fontWeight: 600 }}><Link className="link" href={`/app/operations/projects/${proj.id}`}>{proj.name}</Link></td>
-                      <td className="dim small mono">{proj.code ?? "—"}</td>
-                      <td><span className={`badge ${statusTone(proj.status)}`}>{proj.status.replace(/_/g, " ")}</span></td>
-                      <td className="num">{priority?.valueRank ?? "—"}</td>
-                      <td className="num">{priority?.riskRank ?? "—"}</td>
-                      <td className="num">{priority?.capacityRank ?? "—"}</td>
-                      <td className="num">{priority?.dependencyRank ?? "—"}</td>
-                      <td className="dim small">{proj.created_at ? new Date(proj.created_at).toLocaleDateString() : "—"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <p className="small muted mt-2">
-          Priority is a weighted combination of value (higher is better), risk, capacity pressure and overdue/blocked dependencies.
-        </p>
-      </div>
+      <Card>
+        <CardHeader title="Project registry — prioritised" />
+        <CardBody>
+          <DataTable
+            columns={columns}
+            rows={tableRows}
+            keyExtractor={(r) => r.id}
+            emptyTitle="No projects yet"
+            emptyDescription="Create a project to see it ranked."
+          />
+          <p className="small muted mt-2">
+            Priority is a weighted combination of value (higher is better), risk, capacity pressure and overdue/blocked dependencies.
+          </p>
+        </CardBody>
+      </Card>
     </div>
   );
 }

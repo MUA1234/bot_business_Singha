@@ -8,16 +8,17 @@ interface BadgeProps {
   icon?: string;
   className?: string;
   title?: string;
+  style?: React.CSSProperties;
 }
 
 /**
  * Small status pill. `variant` uses reserved semantic colours except `accent`,
  * which is reserved for brand highlights (never for status).
  */
-export function Badge({ children, variant = "default", icon, className = "", title }: BadgeProps) {
+export function Badge({ children, variant = "default", icon, className = "", title, style }: BadgeProps) {
   const variantClass = variant === "default" ? "" : ` ${variant}`;
   return (
-    <span className={`badge${variantClass}${className ? ` ${className}` : ""}`} title={title}>
+    <span className={`badge${variantClass}${className ? ` ${className}` : ""}`} title={title} style={style}>
       {icon && <Icon name={icon} size={12} />}
       {children}
     </span>

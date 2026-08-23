@@ -9,23 +9,94 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
 import { needsReorder, reorderList, stockValuation, type StockItem } from "@/modules/procurement/inventory";
 import { createItem, moveStock } from "./actions";
+import { Card, CardHeader, CardBody, Badge, EmptyState, DataTable, type DataTableColumn } from "@/components/ui";
+import { fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "Inventory — Singha Central" };
+
+interface InventoryRow {
+  id: string;
+  name: string;
+  sku: string | null;
+  unit: string | null;
+  quantity_on_hand: number;
+  reorder_level: number;
+  unit_cost: string;
+  currency: string;
+}
 
 export default async function InventoryPage() {
   const p = await requireDepartment("procurement");
 
-  let rows: any[] = [];
+  let rawRows: any[] = [];
   try {
-    rows = (await supabaseReadClient().from("inventory_items").select("id, name, sku, unit, quantity_on_hand, reorder_level, unit_cost, currency").eq("company_id", p.companyId).order("name").limit(500)).data ?? [];
+    rawRows = (await supabaseReadClient().from("inventory_items").select("id, name, sku, unit, quantity_on_hand, reorder_level, unit_cost, currency").eq("company_id", p.companyId).order("name").limit(500)).data ?? [];
   } catch {
-    rows = [];
+    rawRows = [];
   }
 
-  const currency = rows[0]?.currency ?? "LKR";
-  const items: StockItem[] = rows.map((r) => ({ name: r.name, quantityOnHand: Number(r.quantity_on_hand ?? 0), reorderLevel: Number(r.reorder_level ?? 0), unitCost: String(r.unit_cost ?? 0) }));
+  const currency = rawRows[0]?.currency ?? "LKR";
+  const items: StockItem[] = rawRows.map((r) => ({ name: r.name, quantityOnHand: Number(r.quantity_on_hand ?? 0), reorderLevel: Number(r.reorder_level ?? 0), unitCost: String(r.unit_cost ?? 0) }));
   const reorder = reorderList(items).length;
   const valuation = stockValuation(items, currency);
+
+  const rows: InventoryRow[] = rawRows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    sku: r.sku ?? null,
+    unit: r.unit ?? null,
+    quantity_on_hand: Number(r.quantity_on_hand ?? 0),
+    reorder_level: Number(r.reorder_level ?? 0),
+    unit_cost: String(r.unit_cost ?? 0),
+    currency: r.currency ?? currency,
+  }));
+
+  const columns: DataTableColumn<InventoryRow>[] = [
+    {
+      key: "item",
+      header: "Item",
+      render: (r) => (
+        <div>
+          <div style={{ fontWeight: 600 }}>{r.name}</div>
+          <div className="small dim mono">{r.sku ?? ""}</div>
+        </div>
+      ),
+    },
+    {
+      key: "onHand",
+      header: "On hand",
+      align: "right",
+      render: (r) => {
+        const low = needsReorder({ quantityOnHand: r.quantity_on_hand, reorderLevel: r.reorder_level });
+        return low ? <Badge variant="danger">{fmtNumber(r.quantity_on_hand)} {r.unit ?? ""}</Badge> : `${fmtNumber(r.quantity_on_hand)} ${r.unit ?? ""}`;
+      },
+    },
+    {
+      key: "reorder",
+      header: "Reorder",
+      align: "right",
+      className: "dim",
+      render: (r) => fmtNumber(r.reorder_level),
+    },
+    {
+      key: "unitCost",
+      header: "Unit cost",
+      align: "right",
+      render: (r) => fmtMoney(r.unit_cost, r.currency),
+    },
+    {
+      key: "move",
+      header: "Move stock",
+      render: (r) => (
+        <form action={moveStock} className="row gap-1">
+          <input type="hidden" name="item_id" value={r.id} />
+          <select name="direction" className="select" style={{ width: 90, padding: "6px 8px" }} defaultValue="in"><option value="in">in</option><option value="out">out</option><option value="adjust">set</option></select>
+          <input name="quantity" className="input" style={{ width: 70, padding: "6px 8px" }} placeholder="qty" inputMode="decimal" />
+          <button className="btn ghost sm" type="submit">Apply</button>
+        </form>
+      ),
+    },
+  ];
 
   return (
     <div className="stack gap-3">
@@ -36,50 +107,32 @@ export default async function InventoryPage() {
         <div className="card stat"><div className="k">Below reorder</div><div className="v" style={{ fontSize: "1.5rem", color: reorder ? "var(--danger)" : "var(--ok)" }}>{reorder}</div></div>
       </div>
 
-      <div className="card">
-        <div className="card-title">New item</div>
-        <form action={createItem} className="row gap-1 wrap mt-2">
-          <input name="name" className="input" style={{ flex: 1, minWidth: 150 }} placeholder="Item name" required />
-          <input name="sku" className="input" style={{ width: 110 }} placeholder="SKU" />
-          <input name="unit" className="input" style={{ width: 80 }} placeholder="Unit" />
-          <input name="quantity_on_hand" className="input" style={{ width: 90 }} placeholder="Qty" inputMode="decimal" />
-          <input name="reorder_level" className="input" style={{ width: 100 }} placeholder="Reorder @" inputMode="decimal" />
-          <input name="unit_cost" className="input" style={{ width: 100 }} placeholder="Unit cost" inputMode="decimal" />
-          <button className="btn" type="submit">Add</button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader title="New item" />
+        <CardBody>
+          <form action={createItem} className="row gap-1 wrap mt-2">
+            <input name="name" className="input" style={{ flex: 1, minWidth: 150 }} placeholder="Item name" required />
+            <input name="sku" className="input" style={{ width: 110 }} placeholder="SKU" />
+            <input name="unit" className="input" style={{ width: 80 }} placeholder="Unit" />
+            <input name="quantity_on_hand" className="input" style={{ width: 90 }} placeholder="Qty" inputMode="decimal" />
+            <input name="reorder_level" className="input" style={{ width: 100 }} placeholder="Reorder @" inputMode="decimal" />
+            <input name="unit_cost" className="input" style={{ width: 100 }} placeholder="Unit cost" inputMode="decimal" />
+            <button className="btn" type="submit">Add</button>
+          </form>
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">Items ({rows.length})</div>
-        {rows.length === 0 ? <div className="empty">No inventory items yet.</div> : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead><tr><th>Item</th><th className="num">On hand</th><th className="num">Reorder</th><th className="num">Unit cost</th><th>Move stock</th></tr></thead>
-              <tbody>
-                {rows.map((r) => {
-                  const low = needsReorder({ quantityOnHand: Number(r.quantity_on_hand ?? 0), reorderLevel: Number(r.reorder_level ?? 0) });
-                  return (
-                    <tr key={r.id}>
-                      <td><div style={{ fontWeight: 600 }}>{r.name}</div><div className="small dim mono">{r.sku ?? ""}</div></td>
-                      <td className="num">{low ? <span className="badge danger">{Number(r.quantity_on_hand)} {r.unit ?? ""}</span> : `${Number(r.quantity_on_hand)} ${r.unit ?? ""}`}</td>
-                      <td className="num dim">{Number(r.reorder_level)}</td>
-                      <td className="num">{fmtMoney(r.unit_cost, r.currency)}</td>
-                      <td>
-                        <form action={moveStock} className="row gap-1">
-                          <input type="hidden" name="item_id" value={r.id} />
-                          <select name="direction" className="select" style={{ width: 90, padding: "6px 8px" }} defaultValue="in"><option value="in">in</option><option value="out">out</option><option value="adjust">set</option></select>
-                          <input name="quantity" className="input" style={{ width: 70, padding: "6px 8px" }} placeholder="qty" inputMode="decimal" />
-                          <button className="btn ghost sm" type="submit">Apply</button>
-                        </form>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title={`Items (${rows.length})`} />
+        <CardBody>
+          <DataTable
+            columns={columns}
+            rows={rows}
+            keyExtractor={(r) => r.id}
+            emptyTitle="No inventory items yet"
+          />
+        </CardBody>
+      </Card>
     </div>
   );
 }

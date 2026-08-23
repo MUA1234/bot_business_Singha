@@ -10,6 +10,8 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { counterpartyHealth } from "@/modules/crm/counterparty-compliance";
+import { Card, CardHeader, CardBody, Badge, EmptyState, DataTable, type DataTableColumn } from "@/components/ui";
+import { fmtDate } from "@/lib/format";
 
 export const metadata = { title: "Suppliers — Singha Central" };
 
@@ -31,6 +33,8 @@ interface Supplier {
   insurance_expiry: string | null;
   channel_identities: ChannelIdentity[];
 }
+
+type BadgeVariant = "default" | "ok" | "warn" | "danger" | "info" | "accent";
 
 /** Detect identities claimed by more than one active supplier in the same company. */
 function findDuplicateIdentities(suppliers: Supplier[]): Map<string, string[]> {
@@ -99,6 +103,78 @@ export default async function SuppliersPage() {
     for (const id of ids) duplicateSupplierIds.add(id);
   }
 
+  const columns: DataTableColumn<Supplier>[] = [
+    {
+      key: "name",
+      header: "Supplier",
+      render: (s) => {
+        const isDuplicate = duplicateSupplierIds.has(s.id);
+        const health = counterpartyHealth({
+          status: s.status,
+          compliance_status: s.compliance_status,
+          insurance_status: s.insurance_status,
+          insurance_expiry: s.insurance_expiry,
+        });
+        const healthBadge: BadgeVariant = health === "verified" ? "ok" : health === "blocked" ? "danger" : "warn";
+        return (
+          <div style={{ fontWeight: 600 }}>
+            {s.name}
+            {isDuplicate && <Badge variant="warn" className="ml-1">duplicate</Badge>}
+            <Badge variant={healthBadge} className="ml-1">{health}</Badge>
+          </div>
+        );
+      },
+    },
+    {
+      key: "channels",
+      header: "Channel identities",
+      className: "dim small",
+      render: (s) =>
+        s.channel_identities.length === 0 ? (
+          "—"
+        ) : (
+          <div className="stack gap-0">
+            {s.channel_identities.map((ch, idx) => (
+              <div key={idx} className="mono">{ch.channel}: {ch.identity}</div>
+            ))}
+          </div>
+        ),
+    },
+    {
+      key: "bank",
+      header: "Bank details",
+      className: "dim small",
+      render: (s) => (
+        <div className="stack gap-0">
+          {s.bank_account_number ? (
+            <>
+              <div className="mono">{s.bank_account_number}</div>
+              {s.bank_account_name && <div>{s.bank_account_name}</div>}
+            </>
+          ) : (
+            <div>—</div>
+          )}
+          <Badge>changes require approval</Badge>
+        </div>
+      ),
+    },
+    {
+      key: "compliance",
+      header: "Compliance",
+      render: (s) => <Badge>{s.compliance_status}</Badge>,
+    },
+    {
+      key: "insurance",
+      header: "Insurance",
+      render: (s) => (
+        <>
+          <Badge>{s.insurance_status}</Badge>
+          {s.insurance_expiry && <div className="dim small">expires {fmtDate(s.insurance_expiry)}</div>}
+        </>
+      ),
+    },
+  ];
+
   return (
     <div className="stack gap-3">
       <div className="row between">
@@ -116,71 +192,17 @@ export default async function SuppliersPage() {
         </div>
       )}
 
-      <div className="card">
-        <div className="card-title">Canonical suppliers</div>
-        {(suppliers ?? []).length === 0 ? (
-          <div className="empty mt-2">No suppliers yet.</div>
-        ) : (
-          <div className="table-wrap mt-2">
-            <table className="data">
-              <thead>
-                <tr><th>Supplier</th><th>Channel identities</th><th>Bank details</th><th>Compliance</th><th>Insurance</th></tr>
-              </thead>
-              <tbody>
-                {suppliers.map((s) => {
-                  const isDuplicate = duplicateSupplierIds.has(s.id);
-                  const health = counterpartyHealth({
-                    status: s.status,
-                    compliance_status: s.compliance_status,
-                    insurance_status: s.insurance_status,
-                    insurance_expiry: s.insurance_expiry,
-                  });
-                  const healthBadge = health === "verified" ? "ok" : health === "blocked" ? "danger" : "warn";
-                  return (
-                    <tr key={s.id}>
-                      <td style={{ fontWeight: 600 }}>
-                        {s.name}
-                        {isDuplicate && <span className="badge warn ml-1">duplicate</span>}
-                        <span className={`badge ${healthBadge} ml-1`}>{health}</span>
-                      </td>
-                      <td className="dim small">
-                        {s.channel_identities.length === 0 ? (
-                          "—"
-                        ) : (
-                          <div className="stack gap-0">
-                            {s.channel_identities.map((ch, idx) => (
-                              <div key={idx} className="mono">{ch.channel}: {ch.identity}</div>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                      <td className="dim small">
-                        {s.bank_account_number ? (
-                          <div className="stack gap-0">
-                            <div className="mono">{s.bank_account_number}</div>
-                            {s.bank_account_name && <div>{s.bank_account_name}</div>}
-                            <div className="badge">changes require approval</div>
-                          </div>
-                        ) : (
-                          <div className="stack gap-0">
-                            <div>—</div>
-                            <div className="badge">changes require approval</div>
-                          </div>
-                        )}
-                      </td>
-                      <td><span className="badge">{s.compliance_status}</span></td>
-                      <td>
-                        <span className="badge">{s.insurance_status}</span>
-                        {s.insurance_expiry && <div className="dim small">expires {s.insurance_expiry}</div>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title="Canonical suppliers" />
+        <CardBody>
+          <DataTable
+            columns={columns}
+            rows={suppliers}
+            keyExtractor={(s) => s.id}
+            emptyTitle="No suppliers yet"
+          />
+        </CardBody>
+      </Card>
     </div>
   );
 }
