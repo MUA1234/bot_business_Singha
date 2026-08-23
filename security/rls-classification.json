@@ -22,6 +22,7 @@
     "legal_matters": "capability", "contracts": "capability", "risks": "capability", "insurances": "capability", "employees": "capability",
     "integrations": "capability", "connectors": "capability", "integration_event_contracts": "capability", "integration_command_contracts": "capability",
     "management_directives": "capability",
+    "ai_guide_messages": "capability",
     "expense_claims": "self_service", "leave_requests": "self_service",
     "profiles": "identity", "organisation_units": "identity", "memberships": "identity",
     "membership_roles": "identity", "authority_rules": "identity", "membership_assignments": "identity",

@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, requireCapabilityStrict } from "@/lib/auth";
 import { supabaseReadClient, supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
+import { isV31FlagEnabled } from "@/config/flags";
 import { createNotification } from "@/lib/notify";
 import { uploadEvidenceFile } from "@/lib/documents";
 import { assertTransition, type TaskState } from "@/modules/work/task-lifecycle";
@@ -315,4 +316,69 @@ export async function completeTask(formData: FormData): Promise<void> {
   });
   revalidatePath("/app/operations/tasks");
   revalidatePath(`/app/operations/tasks/${id}`);
+}
+
+/**
+ * AIM-007 — add a persistent AI Guide message to a task.
+ * Gated to the `ai.guide.manage` capability and disabled unless the V3_1_AI_GUIDE
+ * flag is enabled (default OFF). Proposed next actions are stored as JSON but are
+ * proposals only; any execution flows through the normal authority/audit pipeline.
+ */
+export async function createAiGuideMessage(formData: FormData): Promise<void> {
+  if (!isV31FlagEnabled("aiGuide")) return;
+  const p = await requireCapabilityStrict("ai.guide.manage");
+
+  const task_id = String(formData.get("task_id") ?? "").trim();
+  const kind = String(formData.get("kind") ?? "next_action").trim();
+  const body = String(formData.get("body") ?? "").trim();
+  const visibility = String(formData.get("visibility") ?? "task_team").trim();
+  const audienceRefsRaw = String(formData.get("audience_refs") ?? "").trim();
+  const audience_refs = audienceRefsRaw
+    ? audienceRefsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    : [];
+  const confidenceRaw = String(formData.get("confidence") ?? "0.8").trim();
+  const confidence = Math.min(1, Math.max(0, Number(confidenceRaw) || 0));
+  const prompt_version = String(formData.get("prompt_version") ?? "1.0").trim();
+  const schema_version = String(formData.get("schema_version") ?? "1.0").trim();
+
+  const proposedRaw = String(formData.get("proposed_next_action") ?? "").trim() || null;
+  let proposed_next_action: Record<string, unknown> | null = null;
+  if (proposedRaw) {
+    try {
+      proposed_next_action = JSON.parse(proposedRaw) as Record<string, unknown>;
+    } catch {
+      proposed_next_action = null;
+    }
+  }
+
+  if (!task_id || !body) return;
+
+  const { data, error } = await supabaseWriteClient()
+    .from("ai_guide_messages")
+    .insert({
+      company_id: p.companyId,
+      task_id,
+      kind,
+      body,
+      visibility,
+      audience_refs,
+      confidence,
+      prompt_version,
+      schema_version,
+      proposed_next_action,
+      created_by: p.userId,
+    })
+    .select("id")
+    .maybeSingle();
+  if (error) return;
+
+  await writeAudit({
+    companyId: p.companyId,
+    actorId: p.userId,
+    action: "ai_guide_message.created",
+    entityType: "ai_guide_message",
+    entityId: data?.id ?? null,
+    payload: { task_id, kind, visibility },
+  });
+  revalidatePath(`/app/operations/tasks/${task_id}`);
 }

@@ -6,15 +6,17 @@
  */
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { requireProfile } from "@/lib/auth";
+import { requireProfile, resolveCapability } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import type { TaskState } from "@/modules/work/task-lifecycle";
 import { signedEvidenceUrl } from "@/lib/documents";
+import { isV31FlagEnabled } from "@/config/flags";
 import {
   addCheckIn, addEvidence, completeTask, assignTask, uploadTaskEvidence,
   submitEstimate, declineTask, startTask, logProgress, reportBlocker, unblockTask,
   submitForEvidence, requestVerification, acceptEstimate, returnForCorrection,
+  createAiGuideMessage,
 } from "../actions";
 
 export const metadata = { title: "Task — Singha Central" };
@@ -59,6 +61,26 @@ export default async function TaskDetail({ params }: { params: { id: string } })
   const canOfferComplete = status === "verification";
   const evidenceCount = (evidence ?? []).length;
   const blockedForEvidence = task.requires_evidence && evidenceCount === 0;
+
+  // AIM-007 — AI Guide panel (default-off V3_1_AI_GUIDE flag).
+  const guideEnabled = isV31FlagEnabled("aiGuide");
+  let guideMessages: any[] = [];
+  let canManageGuide = false;
+  if (guideEnabled) {
+    const { data: gm } = await db
+      .from("ai_guide_messages")
+      .select("id, kind, body, visibility, audience_refs, proposed_next_action, confidence, prompt_version, schema_version, created_at")
+      .eq("task_id", task.id)
+      .eq("company_id", p.companyId)
+      .order("created_at", { ascending: false });
+    guideMessages = gm ?? [];
+    canManageGuide = (await resolveCapability(p.userId, p.companyId, "ai.guide.manage")) === "granted";
+  }
+  const visibleGuideMessages = guideMessages.filter((m: any) =>
+    m.visibility === "task_team" ||
+    canManageGuide ||
+    (Array.isArray(m.audience_refs) && m.audience_refs.includes(p.userId))
+  );
 
   return (
     <div className="stack gap-3">
@@ -223,6 +245,64 @@ export default async function TaskDetail({ params }: { params: { id: string } })
           </div>
         </div>
       </div>
+
+      {guideEnabled && (
+        <div className="card">
+          <div className="card-title">AI Guide</div>
+          {canManageGuide && (
+            <form action={createAiGuideMessage} className="stack gap-2 mt-2">
+              <input type="hidden" name="task_id" value={task.id} />
+              <div className="row gap-1 wrap">
+                <select name="kind" className="select" defaultValue="next_action">
+                  <option value="next_action">Next action</option>
+                  <option value="clarification">Clarification</option>
+                  <option value="blocker_help">Blocker help</option>
+                  <option value="encouragement">Encouragement</option>
+                  <option value="escalation">Escalation</option>
+                  <option value="answer">Answer</option>
+                </select>
+                <select name="visibility" className="select" defaultValue="task_team">
+                  <option value="task_team">Task team</option>
+                  <option value="seniors">Seniors</option>
+                  <option value="private">Private</option>
+                </select>
+                <input name="confidence" className="input" style={{ width: 80 }} defaultValue="0.8" inputMode="decimal" placeholder="conf" />
+              </div>
+              <textarea name="body" className="textarea" placeholder="Guidance message" required style={{ minHeight: 60 }} />
+              <input name="audience_refs" className="input" placeholder="Private recipient user id(s), comma-separated" />
+              <input name="proposed_next_action" className="input" placeholder="Optional proposed next action JSON" />
+              <button className="btn ghost sm" type="submit">Add guide message</button>
+            </form>
+          )}
+          <div className="stack gap-2 mt-3">
+            {visibleGuideMessages.length === 0 && <div className="empty">No AI guide messages yet.</div>}
+            {visibleGuideMessages.map((m: any) => (
+              <div key={m.id} className="small" style={{ borderBottom: "1px solid var(--panel-border)", padding: "6px 0" }}>
+                <div className="row between">
+                  <span>
+                    <span className="badge">{m.kind.replace(/_/g, " ")}</span>
+                    <span className="badge" style={{ marginLeft: 6 }}>{m.visibility}</span>
+                    {m.confidence != null && <span className="dim" style={{ marginLeft: 6 }}>conf {m.confidence}</span>}
+                  </span>
+                  <span className="dim">{new Date(m.created_at).toLocaleDateString()}</span>
+                </div>
+                <p className="mt-1">{m.body}</p>
+                {m.proposed_next_action && (
+                  <div className="card mt-1" style={{ background: "var(--panel-bg)" }}>
+                    <div className="small muted">Proposed next action</div>
+                    <div className="small"><strong>{String(m.proposed_next_action.action ?? "—")}</strong></div>
+                    <div className="small dim">{String(m.proposed_next_action.reason ?? "")}</div>
+                    <div className="small dim">
+                      authority {String(m.proposed_next_action.requiredAuthority ?? "—")}
+                      {m.proposed_next_action.expiresAt ? ` · expires ${String(m.proposed_next_action.expiresAt)}` : ""}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
