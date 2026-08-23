@@ -10,6 +10,8 @@ import Link from "next/link";
 import { supabaseReadClient, supabaseRpcClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
 import { computeApprovalProgress, canActOnApproval, type ApprovalAction } from "@/policy/approval-progress";
+import { checkSeparationOfDuties } from "@/policy/authority";
+import { getApproverForUser } from "@/lib/access";
 import { actOnApproval } from "./actions";
 
 export const metadata = { title: "Approvals — Singha Central" };
@@ -74,7 +76,9 @@ export default async function ApprovalsPage() {
     actionsByReq.set(a.approval_request_id, list);
   }
 
-  const isApprover = p.isAdmin || p.department === "finance";
+  // GOV-005 — load the actor's membership-based authority once, then use the same
+  // separation-of-duties engine the action uses to decide whether the button is shown.
+  const actorApprover = await getApproverForUser(p.userId, p.companyId);
 
   const log = await safe<any>(() =>
     db.from("price_confirmations")
@@ -125,15 +129,24 @@ export default async function ApprovalsPage() {
                   const acts = actionsByReq.get(r.id) ?? [];
                   const progress = computeApprovalProgress(acts, r.approvals_required);
                   const ev = r.financial_event_id ? eventById.get(r.financial_event_id) : null;
+                  const actedUsers = acts.map((a) => a.actorUserId);
+                  // GOV-005: use the same SoD engine the action uses. Default required role
+                  // mirrors the policy engine fallback when no policy evaluation row exists.
+                  const sod = actorApprover
+                    ? checkSeparationOfDuties(actorApprover, ["finance_reviewer"], {
+                        submitter_user_id: r.submitted_by,
+                        approver_is_beneficiary: false,
+                        action: null,
+                      })
+                    : { allowed: false, reasons: ["no active membership"] };
                   const gate = canActOnApproval({
                     submitterUserId: r.submitted_by,
                     actorUserId: p.userId,
-                    actorIsApprover: isApprover,
-                    alreadyActedUserIds: acts.length ? [] : [], // per-user check below via already-acted set
+                    actorIsApprover: sod.allowed,
+                    alreadyActedUserIds: actedUsers,
                     status: progress.status,
                   });
-                  const actedUsers = acts.map((a) => a.actorUserId);
-                  const canAct = gate.allowed && !actedUsers.includes(p.userId) && p.userId !== r.submitted_by;
+                  const canAct = gate.allowed;
                   const badge = progress.status === "approved" ? "ok" : progress.status === "rejected" ? "danger" : "warn";
                   return (
                     <tr key={r.id}>

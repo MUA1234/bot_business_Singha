@@ -12,6 +12,8 @@
  */
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
+import type { Approver } from "@/policy/authority";
+import { role, permission, type Role, type Permission } from "@/schemas/approval-policy";
 
 export class AccessError extends Error {
   constructor(
@@ -85,6 +87,33 @@ export async function membershipHasCapability(m: Membership, capability: string)
     .eq("permission_key", capability)
     .limit(1);
   return (data?.length ?? 0) > 0;
+}
+
+/**
+ * Build an Approver view for the separation-of-duties engine from the membership model.
+ * Returns null when the user has no active membership in the company. Pure read, no side effects.
+ */
+export async function getApproverForUser(userId: string, companyId: string): Promise<Approver | null> {
+  const db = supabaseServer();
+  const { data: mems } = await db
+    .from("memberships")
+    .select("id, status, membership_roles(role_key)")
+    .eq("user_id", userId)
+    .eq("company_id", companyId);
+  const active = (mems ?? []).find((m: any) => m.status === "active");
+  if (!active) return null;
+  const allowedRoles = new Set(role.options as readonly string[]);
+  const roleKeys = ((active.membership_roles as { role_key: string }[] | null) ?? [])
+    .map((r) => r.role_key)
+    .filter((r): r is Role => allowedRoles.has(r));
+  if (roleKeys.length === 0) return { user_id: userId, roles: [], permissions: [] };
+  const allowedPerms = new Set(permission.options as readonly string[]);
+  const { data: perms } = await db
+    .from("role_permissions")
+    .select("permission_key")
+    .in("role_key", roleKeys);
+  const permissions = [...new Set((perms ?? []).map((p: any) => p.permission_key as string).filter((p: string): p is Permission => allowedPerms.has(p)))];
+  return { user_id: userId, roles: roleKeys, permissions };
 }
 
 /**
