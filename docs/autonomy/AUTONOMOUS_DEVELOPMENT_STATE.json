@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": ["CRM-001"],
+  "activeRequirementIds": [],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -91,31 +91,37 @@
     "evidence": "tests/access-approver.test.ts (4 passed); tests/campaign/gov-005-approval-sod.test.ts (5 passed); tests/approval-progress.test.ts (4 passed); tests/policy.test.ts (9 passed); npm run verify (785 unit tests / 2 skipped / 113 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean.",
     "limitations": "checkAuthority with delegations is not yet wired into the approval action; approver_is_beneficiary and sensitive-action SoD need financial-event context in a future iteration. No hosted/staging database or authenticated browser flow tested."
   },
-  "lastGreenSha": "8221061",
+  "crm001LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "5d2034b",
+    "outcome": "LOCALLY ACCEPTED: canonical customer identity surface. The sales customers page now reads canonical customers, loads channel_identities for actor_type='customer', detects duplicate identities across active customers, flags them with a warning, and preserves the existing WhatsApp conversation list below.",
+    "evidence": "tests/campaign/crm-001-canonical-customers.test.ts (5 passed); npm run verify (790 unit tests / 2 skipped / 114 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, customer-record merge action, or write path tested. The page is read-only; merge remains future work."
+  },
+  "lastGreenSha": "5d2034b",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "GOV-005 local acceptance completed at c3c0b71 on kimi/found006-rls-cutover. checkSeparationOfDuties is now a production caller on the finance approval action and page. FIN-008 (Payment intelligence and evidence) is BLOCKED: its residual_risks says evidence is not required at payment recording and FOUND-003 will introduce the evidence-first path; FOUND-003 is blocked_owner. Transitioning to CRM-001 (Canonical customer identity), a stage4 P0 requirement with foundation in migration 0070 channel identity resolution.",
-  "nextAction": "Assess CRM-001: identify the residual gap between the WhatsApp-conversation customer list and the canonical customers + channel_identities model, implement the smallest surface change, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "CRM-001 local acceptance completed at 5d2034b on kimi/found006-rls-cutover. The sales customers page now shows canonical customer records with channel_identities, duplicate-identity detection, and the preserved WhatsApp conversation list. Next: run the dependency-order candidate script to select the next implementable requirement.",
+  "nextAction": "Run scripts/autonomy/select-next-requirement.mjs (or the equivalent dependency-order logic) to identify the next unblocked, dependency-resolved requirement; implement the smallest surface change, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
-    "npm test -- tests/access-approver.test.ts (4 passed)",
-    "npm test -- tests/campaign/gov-005-approval-sod.test.ts (5 passed)",
-    "npm test -- tests/approval-progress.test.ts (4 passed)"
+    "npm test -- tests/campaign/crm-001-canonical-customers.test.ts (5 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "c3c0b71 on kimi/found006-rls-cutover",
+    "sha": "5d2034b on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "785 passed / 2 skipped / 113 files",
-    "integrationFresh": "not rerun for GOV-005 (no database change)",
-    "integrationNarrowUpgrade": "not rerun for GOV-005",
-    "integrationLegacyUpgrade": "not rerun for GOV-005",
-    "migrationIdempotency": "not rerun for GOV-005",
+    "unit": "790 passed / 2 skipped / 114 files",
+    "integrationFresh": "not rerun for CRM-001 (no database change)",
+    "integrationNarrowUpgrade": "not rerun for CRM-001",
+    "integrationLegacyUpgrade": "not rerun for CRM-001",
+    "migrationIdempotency": "not rerun for CRM-001",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 785 unit tests (2 skipped / 113 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 790 unit tests (2 skipped / 114 files)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
-    "browserCheck": "not rerun for GOV-005",
-    "discriminationProof": "access-approver.test.ts proves getApproverForUser resolves membership roles/permissions; gov-005-approval-sod.test.ts proves checkSeparationOfDuties is imported and called by the finance approval action and page.",
-    "note": "GOV-005 verification requires no database or browser. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "browserCheck": "10/10 passed",
+    "discriminationProof": "crm-001-canonical-customers.test.ts proves the page reads from customers, loads channel_identities for actor_type='customer', detects duplicate identities, refuses silent merge, and preserves wa_conversations.",
+    "note": "CRM-001 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -128,6 +134,7 @@
     "OPS-005: LOCALLY ACCEPTED at e32a1b7. V3.1 flag snapshot reported on /api/health; activation remains owner-gated per slice.",
     "CTL-003: LOCALLY ACCEPTED at 8b90057. The migration 0069 source_event_backlog RPC is surfaced on the admin health page with company scoping and unavailable handling.",
     "GOV-005: LOCALLY ACCEPTED at c3c0b71. checkSeparationOfDuties is now called by the finance approval action and page via membership-based authority resolution.",
+    "CRM-001: LOCALLY ACCEPTED at 5d2034b. The sales customers page shows canonical customers, attached channel_identities, duplicate-identity warnings, and the existing WhatsApp conversation list. Automated merge remains future work.",
     "GOV-004: BLOCKED_OWNER. Board-reserved matters and emergency suspension requires the owner to define the reserved-matter list before implementation.",
     "FIN-008: BLOCKED. Evidence is not required at payment recording; the evidence-first path is owned by FOUND-003, which is blocked_owner.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
@@ -174,5 +181,5 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23"
+  "updatedAt": "2026-08-23T01:01:00Z"
 }
