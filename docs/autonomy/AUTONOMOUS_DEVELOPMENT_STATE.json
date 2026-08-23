@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [],
+  "activeRequirementIds": ["RSK-002"],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -125,8 +125,8 @@
   },
   "lastGreenSha": "f227fef",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "PRJ-001 local acceptance completed at f227fef on kimi/found006-rls-cutover. The operations projects page now lists company-scoped projects with lifecycle status and is linked from the operations home. Next: run the dependency-order candidate script to select the next implementable requirement.",
-  "nextAction": "Run scripts/autonomy/check-status.mjs to identify the next unblocked, dependency-resolved requirement; implement the smallest surface change, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "PRJ-001 local acceptance pushed at 0bf6c7a on kimi/found006-rls-cutover. Selected RSK-002 (Contracts register with renewal dates) as the next implementable requirement: it is a stage4 P1 with no dependencies, no blocker, and an existing runtime entrypoint at src/app/app/legal/contracts/page.tsx that already lists company-scoped contracts with renewal status.",
+  "nextAction": "Assess RSK-002: add a campaign test asserting the contracts page is the runtime entrypoint, queries the contracts table, is company-scoped, and surfaces renewal dates/status. Mark locally_verified, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
     "npm test -- tests/campaign/prj-001-project-registry.test.ts (5 passed)"
   ],
@@ -208,5 +208,5 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T01:28:00Z"
+  "updatedAt": "2026-08-23T01:30:00Z"
 }
