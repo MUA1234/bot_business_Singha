@@ -1735,9 +1735,9 @@ requirements:
     phase: stage5
     priority: P2
     dependencies: [MOB-001]
-    status: absent
+    status: implementation_in_progress
     feature_flag: none
-    runtime_entrypoint: none
+    runtime_entrypoint: public/manifest.json; src/app/manifest.ts; public/sw.js
     database_evidence: none
     service_evidence: none
     ui_evidence: none
