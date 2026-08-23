@@ -227,29 +227,37 @@
     "evidence": "tests/campaign/int-001-integration-gateway.test.ts (6 passed); fresh disposable PostgreSQL 16 0001-0095 (supabase-shim); narrow upgrade 0094→0095; full integration 697 passed / 77 files; npm run verify (871 unit tests / 2 skipped / 130 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or runtime adapter signature verification/nonce-store enforcement tested. The registry captures signature/replay metadata; actual inbound/outbound adapter enforcement remains future work."
   },
-  "lastGreenSha": "4b5bbb3",
-  "latestMigration": "0095_integration_gateway.sql",
-  "lastCompletedAction": "INT-001 local acceptance completed. Added migration 0095, src/app/app/admin/integrations/page.tsx and actions.ts, updated src/app/app/admin/page.tsx, added tests/campaign/int-001-integration-gateway.test.ts, updated ORIGINAL_VISION_REQUIREMENTS.yaml, security/rls-classification.json and AUTONOMOUS_DEVELOPMENT_STATE.json.",
+  "gov001LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "336d4ac",
+    "outcome": "LOCALLY ACCEPTED: GOV-001 management directives with response obligations. Migration 0096 adds a company-scoped management_directives table with issued_to, response_required_by, status, response, acknowledged_at and closed_at; capability-gated RLS write policies (admin.directive.manage). The admin directives page issues directives to named humans, lists open/overdue/closed statuses, supports recipient acknowledgement and admin close, and the admin home links to directives.",
+    "evidence": "tests/campaign/gov-001-management-directives.test.ts (6 passed); fresh disposable PostgreSQL 16 0001-0096 (supabase-shim); narrow upgrade 0095→0096; full integration 697 passed / 77 files; npm run verify (877 unit tests / 2 skipped / 131 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, scheduled overdue escalation, or recipient notification tested. AIM-003 routing is not required for the registry surface."
+  },
+  "lastGreenSha": "336d4ac",
+  "latestMigration": "0096_management_directives.sql",
+  "lastCompletedAction": "GOV-001 local acceptance completed. Added migration 0096, src/app/app/admin/directives/page.tsx and actions.ts, updated src/app/app/admin/page.tsx, added tests/campaign/gov-001-management-directives.test.ts, updated ORIGINAL_VISION_REQUIREMENTS.yaml, security/rls-classification.json and AUTONOMOUS_DEVELOPMENT_STATE.json.",
   "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml and run node scripts/autonomy/check-status.mjs to confirm.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/int-001-integration-gateway.test.ts (6 passed)"
+    "npm test -- tests/campaign/gov-001-management-directives.test.ts (6 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "4b5bbb3 on kimi/found006-rls-cutover",
+    "sha": "336d4ac on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "871 passed / 2 skipped / 130 files",
-    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0095 (supabase-shim)",
-    "integrationNarrowUpgrade": "passed: MIGRATE_UPTO=0094 then applied 0095_integration_gateway.sql cleanly",
-    "integrationLegacyUpgrade": "not rerun for INT-001",
-    "migrationIdempotency": "migration-lint: 95 sequential, 0001-0095, no gaps or duplicates",
+    "unit": "877 passed / 2 skipped / 131 files",
+    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0096 (supabase-shim)",
+    "integrationNarrowUpgrade": "passed: MIGRATE_UPTO=0095 then applied 0096_management_directives.sql cleanly",
+    "integrationLegacyUpgrade": "not rerun for GOV-001",
+    "migrationIdempotency": "migration-lint: 96 sequential, 0001-0096, no gaps or duplicates",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 871 unit tests (2 skipped / 130 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 877 unit tests (2 skipped / 131 files)",
     "secretScan": "clean",
-    "migrationLint": "95 sequential, 0001-0095, no gaps or duplicates",
+    "migrationLint": "96 sequential, 0001-0096, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "int-001-integration-gateway.test.ts proves the integrations/connectors/integration_event_contracts/integration_command_contracts tables are created by migration 0095 with company_id FK and capability-gated RLS, and the /app/admin/integrations page is a real runtime entrypoint that lists company-scoped applications, connectors and contracts with signature/replay flags and provides audited create actions.",
-    "note": "INT-001 verification used a disposable local PostgreSQL 16 container (port 55440) with the supabase-shim. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "discriminationProof": "gov-001-management-directives.test.ts proves the management_directives table is created by migration 0096 with company_id FK, issued_to and response_required_by, and capability-gated RLS, and the /app/admin/directives page is a real runtime entrypoint that issues directives to named humans and tracks response obligations.",
+    "note": "GOV-001 verification used a disposable local PostgreSQL 16 container (port 55440) with the supabase-shim. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -281,6 +289,7 @@
     "RSK-001: LOCALLY ACCEPTED at 299b296. Migration 0093 adds a company-scoped risks table with owner, mitigation, evidence, review dates and capability-gated RLS. The legal risks page lists risks and provides an audited create action; the legal home surfaces open-risks count and review deadlines. Automatic creation of owned dated mitigation tasks remains future work.",
     "RSK-004: LOCALLY ACCEPTED at 75c1449. Migration 0094 adds a company-scoped insurances table with insurer, policy_number, cover_amount, currency, expiry_date, status and capability-gated RLS. The legal insurances page lists policies with cover/expiry/renewal status and provides an audited create action; the legal home surfaces active-policies count and renewal deadlines. Automatic creation of owned dated renewal tasks remains future work.",
     "INT-001: LOCALLY ACCEPTED at 4b5bbb3. Migration 0095 adds company-scoped integrations, connectors, integration_event_contracts and integration_command_contracts tables with signature_required and replay_protection flags and capability-gated RLS. The admin integrations page lists applications, connectors and contracts with signature/replay flags and provides audited create actions. Runtime adapter signature verification and nonce-store enforcement remain future work.",
+    "GOV-001: LOCALLY ACCEPTED at 336d4ac. Migration 0096 adds a company-scoped management_directives table with issued_to, response_required_by, status, response, acknowledged_at and closed_at and capability-gated RLS. The admin directives page issues directives to named humans, tracks open/overdue/closed statuses, supports recipient acknowledgement and admin close, and links from the admin home. Scheduled escalation and recipient notification remain future work.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
     "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
     "OF-015 (P2): sections 3 and 6 have no re-runnable schema-level end-to-end discrimination, because they are application code.",
@@ -333,9 +342,10 @@
       "fin008": 0,
       "rsk001": 0,
       "rsk004": 0,
-      "int001": 0
+      "int001": 0,
+      "gov001": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T03:45:46Z"
+  "updatedAt": "2026-08-23T03:57:37Z"
 }

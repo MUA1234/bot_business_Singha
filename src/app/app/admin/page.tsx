@@ -66,6 +66,10 @@ export default async function AdminHome() {
           <div className="card-title row gap-1"><Icon name="plug" size={17} /> Integrations</div>
           <p className="card-sub">Applications, connectors and event/command contracts.</p>
         </Link>
+        <Link href="/app/admin/directives" className="card">
+          <div className="card-title row gap-1"><Icon name="megaphone" size={17} /> Directives</div>
+          <p className="card-sub">Management directives with response obligations.</p>
+        </Link>
       </div>
     </div>
   );

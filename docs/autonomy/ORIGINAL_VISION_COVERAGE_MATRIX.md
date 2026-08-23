@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| absent | 38 |
-| locally_verified | 36 |
+| locally_verified | 37 |
+| absent | 37 |
 | specified | 5 |
 | foundation_only | 5 |
 | blocked_owner | 4 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **36** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **49** |
+| **Verified** (locally / preview / staging / production) | **37** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **48** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -46,7 +46,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | CTL | 4 | 2 | 2 |
 | FIN | 8 | 5 | 3 |
 | FOUND | 6 | 5 | 1 |
-| GOV | 6 | 1 | 5 |
+| GOV | 6 | 2 | 4 |
 | IMP | 3 | 0 | 3 |
 | INT | 1 | 1 | 0 |
 | IP | 1 | 1 | 0 |
@@ -104,7 +104,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | FOUND-004 | Deterministic company-scoped authority engine | P0 | **locally_verified** | src/management/ai-manager/pipeline.ts (planFromObservation) | 707761c | sign-off on the impact-to-level mapping, or replacement by authority_rules-driven mapping |
 | FOUND-005 | AI trust boundary — untrusted output cannot decide identity, scope or authority | P0 | **locally_verified** | src/ai/manager-observation.ts; src/ai/quotation.ts | 707761c | — |
 | FOUND-006 | Service-role and RLS read/write cutover | P0 | **locally_verified** | src/lib/supabase/read.ts (shim returns the authenticated RLS client when flags are ON, service-role when OFF) | 0e6743a | flag activation (RLS_READS/RLS_WRITES remain default-OFF pending staging UAT; the cutover is verified only when flags are explicitly enabled) |
-| GOV-001 | Management directives with response obligations | P1 | **absent** | none | none | — |
+| GOV-001 | Management directives with response obligations | P1 | **locally_verified** | src/app/app/admin/directives/page.tsx | 336d4ac | — |
 | GOV-002 | Directive acknowledgement and escalation | P1 | **absent** | none | none | — |
 | GOV-003 | Conflicting-instruction detection and resolution | P1 | **absent** | none | none | — |
 | GOV-004 | Board-reserved matters and emergency suspension | P0 | **absent** | none | none | definition of the reserved-matter list |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **49**; blocked (owner): **4**;
+mode. Incomplete and implementable: **48**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.
