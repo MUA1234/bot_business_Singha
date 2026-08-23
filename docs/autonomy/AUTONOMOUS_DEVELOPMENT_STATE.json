@@ -99,29 +99,37 @@
     "evidence": "tests/campaign/crm-001-canonical-customers.test.ts (5 passed); npm run verify (790 unit tests / 2 skipped / 114 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, customer-record merge action, or write path tested. The page is read-only; merge remains future work."
   },
-  "lastGreenSha": "5d2034b",
+  "crm002LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "5349d00",
+    "outcome": "LOCALLY ACCEPTED: canonical supplier identity surface. The procurement suppliers page now reads canonical suppliers, loads channel_identities for actor_type='supplier', detects duplicate identities across active suppliers, flags them with a warning, and shows current bank details with a maker-checker change-control badge.",
+    "evidence": "tests/campaign/crm-002-canonical-suppliers.test.ts (5 passed); tests/integration/bank-maker-checker.test.ts; npm run verify (795 unit tests / 2 skipped / 115 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, supplier-record merge action, or bank-change request UI tested. The page is read-only; merge and change-request UI remain future work."
+  },
+  "lastGreenSha": "5349d00",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "CRM-001 local acceptance completed at 5d2034b on kimi/found006-rls-cutover. The sales customers page now shows canonical customer records with channel_identities, duplicate-identity detection, and the preserved WhatsApp conversation list. Next: run the dependency-order candidate script to select the next implementable requirement.",
-  "nextAction": "Run scripts/autonomy/select-next-requirement.mjs (or the equivalent dependency-order logic) to identify the next unblocked, dependency-resolved requirement; implement the smallest surface change, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "CRM-002 local acceptance completed at 5349d00 on kimi/found006-rls-cutover. The procurement suppliers page now shows canonical supplier records with channel_identities, duplicate-identity detection, and bank-detail visibility with a maker-checker control badge. Next: run the dependency-order candidate script to select the next implementable requirement.",
+  "nextAction": "Run scripts/autonomy/check-status.mjs to identify the next unblocked, dependency-resolved requirement; implement the smallest surface change, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/crm-001-canonical-customers.test.ts (5 passed)"
+    "npm test -- tests/campaign/crm-002-canonical-suppliers.test.ts (5 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "5d2034b on kimi/found006-rls-cutover",
+    "sha": "5349d00 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "790 passed / 2 skipped / 114 files",
-    "integrationFresh": "not rerun for CRM-001 (no database change)",
-    "integrationNarrowUpgrade": "not rerun for CRM-001",
-    "integrationLegacyUpgrade": "not rerun for CRM-001",
-    "migrationIdempotency": "not rerun for CRM-001",
+    "unit": "795 passed / 2 skipped / 115 files",
+    "integrationFresh": "not rerun for CRM-002 (no database change)",
+    "integrationNarrowUpgrade": "not rerun for CRM-002",
+    "integrationLegacyUpgrade": "not rerun for CRM-002",
+    "migrationIdempotency": "not rerun for CRM-002",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 790 unit tests (2 skipped / 114 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 795 unit tests (2 skipped / 115 files)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "crm-001-canonical-customers.test.ts proves the page reads from customers, loads channel_identities for actor_type='customer', detects duplicate identities, refuses silent merge, and preserves wa_conversations.",
-    "note": "CRM-001 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "discriminationProof": "crm-002-canonical-suppliers.test.ts proves the page reads from suppliers, loads channel_identities for actor_type='supplier', detects duplicate identities, refuses silent merge, and shows bank details with a maker-checker control badge.",
+    "note": "CRM-002 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -135,6 +143,7 @@
     "CTL-003: LOCALLY ACCEPTED at 8b90057. The migration 0069 source_event_backlog RPC is surfaced on the admin health page with company scoping and unavailable handling.",
     "GOV-005: LOCALLY ACCEPTED at c3c0b71. checkSeparationOfDuties is now called by the finance approval action and page via membership-based authority resolution.",
     "CRM-001: LOCALLY ACCEPTED at 5d2034b. The sales customers page shows canonical customers, attached channel_identities, duplicate-identity warnings, and the existing WhatsApp conversation list. Automated merge remains future work.",
+    "CRM-002: LOCALLY ACCEPTED at 5349d00. The procurement suppliers page shows canonical suppliers, attached channel_identities, duplicate-identity warnings, and bank details with a maker-checker change-control badge. Automated merge and change-request UI remain future work.",
     "GOV-004: BLOCKED_OWNER. Board-reserved matters and emergency suspension requires the owner to define the reserved-matter list before implementation.",
     "FIN-008: BLOCKED. Evidence is not required at payment recording; the evidence-first path is owned by FOUND-003, which is blocked_owner.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",

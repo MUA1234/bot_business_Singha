@@ -1051,20 +1051,20 @@ requirements:
     phase: stage4
     priority: P0
     dependencies: []
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: src/app/app/procurement/suppliers
-    database_evidence: suppliers; supplier bank-change maker-checker (0045)
+    runtime_entrypoint: src/app/app/procurement/suppliers/page.tsx
+    database_evidence: suppliers; channel_identities (migration 0070); supplier bank-change maker-checker (0045)
     service_evidence: none
-    ui_evidence: procurement supplier pages
-    test_evidence: tests/integration/bank-maker-checker.test.ts
-    security_evidence: bank-detail changes require a second person
+    ui_evidence: src/app/app/procurement/suppliers/page.tsx renders canonical suppliers, attached channel_identities, duplicate warnings, and bank details with a maker-checker control badge
+    test_evidence: tests/campaign/crm-002-canonical-suppliers.test.ts (5); tests/integration/bank-maker-checker.test.ts
+    security_evidence: bank-detail changes require a second person via request_supplier_bank_change / decide_supplier_bank_change RPCs; page queries are scoped to requireDepartment("procurement") company_id
     audit_health_evidence: audit on bank change
-    last_verified_sha: 1ebaa80
-    last_verified_at: 2026-08-17
+    last_verified_sha: 5349d00
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: No channel identities and no duplicate detection.
+    residual_risks: Surface-level duplicate detection and bank-detail visibility are implemented; automated supplier-record merge and the bank-change request UI remain future work.
   - id: CRM-003
     title: Consultant and service-provider registry
     description: External providers with capabilities, service areas, capacity, prices, compliance and insurance.

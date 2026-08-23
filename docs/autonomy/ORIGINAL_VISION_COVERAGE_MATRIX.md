@@ -11,8 +11,8 @@ Generated at: 2026-08-23
 | Status | Count |
 |---|---|
 | absent | 41 |
-| locally_verified | 20 |
-| foundation_only | 18 |
+| locally_verified | 21 |
+| foundation_only | 17 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **20** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **65** |
+| **Verified** (locally / preview / staging / production) | **21** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **64** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -42,7 +42,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | AIM | 8 | 2 | 6 |
 | AST | 1 | 0 | 1 |
 | COM | 8 | 1 | 7 |
-| CRM | 5 | 1 | 4 |
+| CRM | 5 | 2 | 3 |
 | CTL | 4 | 2 | 2 |
 | FIN | 8 | 3 | 5 |
 | FOUND | 6 | 5 | 1 |
@@ -82,7 +82,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | COM-007 | Human handover, opt-out and communication preferences | P1 | **absent** | none | none | — |
 | COM-008 | Live voice (future) | P3 | **deliberately_deferred** | none | none | explicit approval before any work begins |
 | CRM-001 | Canonical customer identity | P0 | **locally_verified** | src/app/app/sales/customers/page.tsx | 5d2034b | — |
-| CRM-002 | Canonical supplier identity | P0 | **foundation_only** | src/app/app/procurement/suppliers | 1ebaa80 | — |
+| CRM-002 | Canonical supplier identity | P0 | **locally_verified** | src/app/app/procurement/suppliers/page.tsx | 5349d00 | — |
 | CRM-003 | Consultant and service-provider registry | P1 | **absent** | none | none | — |
 | CRM-004 | Counterparty performance, reliability and history | P2 | **absent** | none | none | — |
 | CRM-005 | Compliance and insurance status per counterparty | P1 | **absent** | none | none | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **65**; blocked (owner): **4**;
+mode. Incomplete and implementable: **64**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.
