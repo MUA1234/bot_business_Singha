@@ -1821,20 +1821,20 @@ requirements:
     phase: stage6
     priority: P1
     dependencies: []
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/app/admin/audit/page.tsx
-    database_evidence: audit_events
-    service_evidence: src/lib/audit.ts
-    ui_evidence: admin audit page
-    test_evidence: tests/audit-format.test.ts
-    security_evidence: append-only; admin gate
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    database_evidence: audit_events (append-only table)
+    service_evidence: src/lib/audit.ts; src/lib/audit-format.ts describeAction
+    ui_evidence: src/app/app/admin/audit/page.tsx queries audit_events company-scoped, supports an entity-type filter via ?entity=, and lists actor_type, action, entity_type/entity_id and created_at
+    test_evidence: tests/campaign/ops-002-audit-search.test.ts (5); tests/audit.test.ts; tests/audit-format.test.ts
+    security_evidence: admin gate; audit_events is append-only
+    audit_health_evidence: admin audit page surfaces privileged and AI actions
+    last_verified_sha: 18a8ea4
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: Listing exists; there is no search or filtering, and cron-created records name a company id as the actor (D-015).
+    residual_risks: Cron-created records still name a company id as the actor (D-015); full-text or multi-field search is not implemented.
   - id: OPS-003
     title: Backup, restore and rollback drills
     description: Documented and rehearsed backup, restore and migration rollback procedures.

@@ -11,8 +11,8 @@ Generated at: 2026-08-23
 | Status | Count |
 |---|---|
 | absent | 41 |
-| locally_verified | 26 |
-| foundation_only | 12 |
+| locally_verified | 27 |
+| foundation_only | 11 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **26** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **59** |
+| **Verified** (locally / preview / staging / production) | **27** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **58** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -54,7 +54,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | MEM | 1 | 0 | 1 |
 | MOB | 4 | 0 | 4 |
 | MOD | 3 | 1 | 2 |
-| OPS | 8 | 2 | 6 |
+| OPS | 8 | 3 | 5 |
 | PRJ | 5 | 1 | 4 |
 | RSK | 6 | 2 | 4 |
 | SCH | 6 | 1 | 5 |
@@ -125,7 +125,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | MOD-002 | Customer-facing model calls recorded in the cost ledger | P2 | **absent** | none | none | — |
 | MOD-003 | Provider-neutral Model Gateway and Policy Router | P1 | **locally_verified** | src/ai/model-policy-router.ts (ModelPolicyRouter/Executor/Registry); src/ai/gateway.ts AiGateway.runExtraction; src/db/consumer-store.ts loadAiTaskBudget; src/app/app/admin/model-budgets/actions.ts saveModelBudgetPolicy | dfc994b | approved provider list and credentials supplied privately; no unapproved provider may be called |
 | OPS-001 | Health, observability and error visibility | P0 | **locally_verified** | src/app/api/health/route.ts; src/app/app/admin/health/page.tsx | 707761c | — |
-| OPS-002 | Audit search | P1 | **foundation_only** | src/app/app/admin/audit/page.tsx | none | — |
+| OPS-002 | Audit search | P1 | **locally_verified** | src/app/app/admin/audit/page.tsx | 18a8ea4 | — |
 | OPS-003 | Backup, restore and rollback drills | P0 | **absent** | none | none | hosted environment access to rehearse against |
 | OPS-004 | Staging UAT and browser role testing | P0 | **blocked_owner** | none | none | staging environment plus credentials |
 | OPS-005 | Feature-flag rollout control | P1 | **locally_verified** | src/config/flags.ts; src/app/api/health/route.ts | e32a1b7 | flag activation per slice |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **59**; blocked (owner): **4**;
+mode. Incomplete and implementable: **58**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

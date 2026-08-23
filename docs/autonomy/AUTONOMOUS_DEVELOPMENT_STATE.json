@@ -75,6 +75,14 @@
     "evidence": "tests/flags.test.ts (5 passed); tests/campaign/health-route.test.ts (3 passed); npm run verify (772 unit tests / 2 skipped / 110 files); npm run lint 0 errors; npm run build clean.",
     "limitations": "No hosted/staging environment, production traffic, or flag activation. All V3.1 flags remain default-OFF."
   },
+  "ops002LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "18a8ea4",
+    "outcome": "LOCALLY ACCEPTED: OPS-002 audit search. The admin audit page queries the append-only audit_events table company-scoped, supports an entity-type filter via ?entity=, and surfaces actor_type, action, entity and timestamp.",
+    "evidence": "tests/campaign/ops-002-audit-search.test.ts (5 passed); tests/audit.test.ts; tests/audit-format.test.ts; npm run verify (825 unit tests / 2 skipped / 121 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or full-text/multi-field search tested. Cron-created records naming a company id as actor (D-015) remains."
+  },
   "ctl003LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -147,29 +155,29 @@
     "evidence": "tests/campaign/rsk-003-licences-register.test.ts (5 passed); tests/renewals.test.ts; npm run verify (815 unit tests / 2 skipped / 119 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or automatic creation of owned dated renewal tasks tested. Renewal responsibility and automatic renewal-task creation remain future work."
   },
-  "lastGreenSha": "56dcee2",
+  "lastGreenSha": "18a8ea4",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "WRK-002 local acceptance pushed at d48ac33 on kimi/found006-rls-cutover. The HR capacity page is the runtime entrypoint; historical snapshot consumption and contracted-hour modelling remain future work.",
+  "lastCompletedAction": "OPS-002 local acceptance pushed on kimi/found006-rls-cutover. The admin audit page is the runtime entrypoint for searchable audit.",
   "nextAction": "Select the next dependency-ordered implementable requirement from the original vision register and continue the implement → test → verify → commit/push loop.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/wrk-002-capacity-surface.test.ts (5 passed)"
+    "npm test -- tests/campaign/ops-002-audit-search.test.ts (5 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "56dcee2 on kimi/found006-rls-cutover",
+    "sha": "18a8ea4 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "820 passed / 2 skipped / 120 files",
-    "integrationFresh": "not rerun for WRK-002 (no database change)",
-    "integrationNarrowUpgrade": "not rerun for WRK-002",
-    "integrationLegacyUpgrade": "not rerun for WRK-002",
-    "migrationIdempotency": "not rerun for WRK-002",
+    "unit": "825 passed / 2 skipped / 121 files",
+    "integrationFresh": "not rerun for OPS-002 (no database change)",
+    "integrationNarrowUpgrade": "not rerun for OPS-002",
+    "integrationLegacyUpgrade": "not rerun for OPS-002",
+    "migrationIdempotency": "not rerun for OPS-002",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 820 unit tests (2 skipped / 120 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 825 unit tests (2 skipped / 121 files)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "wrk-002-capacity-surface.test.ts proves the page is a real runtime entrypoint under /app/hr/capacity, queries profiles/tasks scoped by company_id, uses computeCapacityDetail, and surfaces planned/actual/remaining/utilization status.",
-    "note": "WRK-002 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "discriminationProof": "ops-002-audit-search.test.ts proves the page is a real runtime entrypoint under /app/admin/audit, queries audit_events scoped by company_id, supports an entity-type filter, and surfaces actor/action/entity/timestamp.",
+    "note": "OPS-002 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -181,6 +189,7 @@
     "AIM-004: V3.1 FUTURE WORK. Schema contract exists at src/schemas/v3_1/task-intelligence-profile.ts; no runtime consumer is built per the zero-behaviour-change foundation constraint.",
     "OPS-005: LOCALLY ACCEPTED at e32a1b7. V3.1 flag snapshot reported on /api/health; activation remains owner-gated per slice.",
     "CTL-003: LOCALLY ACCEPTED at 8b90057. The migration 0069 source_event_backlog RPC is surfaced on the admin health page with company scoping and unavailable handling.",
+    "OPS-002: LOCALLY ACCEPTED at 18a8ea4. The admin audit page queries the append-only audit_events table company-scoped, supports an entity-type filter, and surfaces actor/action/entity/timestamp. Full-text search and D-015 cron actor remain future work.",
     "GOV-005: LOCALLY ACCEPTED at c3c0b71. checkSeparationOfDuties is now called by the finance approval action and page via membership-based authority resolution.",
     "CRM-001: LOCALLY ACCEPTED at 5d2034b. The sales customers page shows canonical customers, attached channel_identities, duplicate-identity warnings, and the existing WhatsApp conversation list. Automated merge remains future work.",
     "CRM-002: LOCALLY ACCEPTED at 5349d00. The procurement suppliers page shows canonical suppliers, attached channel_identities, duplicate-identity warnings, and bank details with a maker-checker change-control badge. Automated merge and change-request UI remain future work.",
@@ -233,9 +242,10 @@
       "aim-003": 0,
       "ops-005": 0,
       "rsk003": 0,
-      "wrk002": 0
+      "wrk002": 0,
+      "ops002": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T01:53:00Z"
+  "updatedAt": "2026-08-23T01:56:00Z"
 }
