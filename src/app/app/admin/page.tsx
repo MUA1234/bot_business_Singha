@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { Icon } from "@/components/Icon";
+import { Card } from "@/components/ui";
+import { fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "Admin — Singha Central" };
 
@@ -37,38 +39,52 @@ export default async function AdminHome() {
 
       <div className="grid cols-4">
         {tiles.map((t) => (
-          <Link key={t.k} href={t.href} className="card stat">
-            <div className="k">{t.k}</div>
-            <div className="v">{t.v}</div>
-            <div className="d dim">{t.d}</div>
+          <Link key={t.k} href={t.href}>
+            <Card className="stat">
+              <div className="k">{t.k}</div>
+              <div className="v">{fmtNumber(t.v)}</div>
+              <div className="d dim">{t.d}</div>
+            </Card>
           </Link>
         ))}
       </div>
 
       <div className="grid cols-3">
-        <Link href="/app/admin/employees" className="card">
-          <div className="card-title row gap-1"><Icon name="users" size={17} /> Employees</div>
-          <p className="card-sub">Create logins and assign departments.</p>
+        <Link href="/app/admin/employees">
+          <Card>
+            <div className="card-title row gap-1"><Icon name="users" size={17} /> Employees</div>
+            <p className="card-sub">Create logins and assign departments.</p>
+          </Card>
         </Link>
-        <Link href="/app/admin/departments" className="card">
-          <div className="card-title row gap-1"><Icon name="building-2" size={17} /> Departments</div>
-          <p className="card-sub">Enable or disable department dashboards.</p>
+        <Link href="/app/admin/departments">
+          <Card>
+            <div className="card-title row gap-1"><Icon name="building-2" size={17} /> Departments</div>
+            <p className="card-sub">Enable or disable department dashboards.</p>
+          </Card>
         </Link>
-        <Link href="/app/admin/catalog" className="card">
-          <div className="card-title row gap-1"><Icon name="tag" size={17} /> Products &amp; Prices</div>
-          <p className="card-sub">The prices the AI quoting engine uses.</p>
+        <Link href="/app/admin/catalog">
+          <Card>
+            <div className="card-title row gap-1"><Icon name="tag" size={17} /> Products &amp; Prices</div>
+            <p className="card-sub">The prices the AI quoting engine uses.</p>
+          </Card>
         </Link>
-        <Link href="/app/admin/outbox" className="card">
-          <div className="card-title row gap-1"><Icon name="send" size={17} /> Outbox &amp; dead letters</div>
-          <p className="card-sub">Outbound message delivery status; replay failures.</p>
+        <Link href="/app/admin/outbox">
+          <Card>
+            <div className="card-title row gap-1"><Icon name="send" size={17} /> Outbox &amp; dead letters</div>
+            <p className="card-sub">Outbound message delivery status; replay failures.</p>
+          </Card>
         </Link>
-        <Link href="/app/admin/integrations" className="card">
-          <div className="card-title row gap-1"><Icon name="plug" size={17} /> Integrations</div>
-          <p className="card-sub">Applications, connectors and event/command contracts.</p>
+        <Link href="/app/admin/integrations">
+          <Card>
+            <div className="card-title row gap-1"><Icon name="plug" size={17} /> Integrations</div>
+            <p className="card-sub">Applications, connectors and event/command contracts.</p>
+          </Card>
         </Link>
-        <Link href="/app/admin/directives" className="card">
-          <div className="card-title row gap-1"><Icon name="megaphone" size={17} /> Directives</div>
-          <p className="card-sub">Management directives with response obligations.</p>
+        <Link href="/app/admin/directives">
+          <Card>
+            <div className="card-title row gap-1"><Icon name="megaphone" size={17} /> Directives</div>
+            <p className="card-sub">Management directives with response obligations.</p>
+          </Card>
         </Link>
       </div>
     </div>

@@ -11,16 +11,33 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { decSub, fmtMoney } from "@/lib/money";
-import { summarizeCompanyPortfolio, rankPortfolioByUrgency, type PortfolioCompanyInput } from "@/modules/management/portfolio";
+import { summarizeCompanyPortfolio, rankPortfolioByUrgency, type PortfolioCompanyInput, type PortfolioCompanySummary } from "@/modules/management/portfolio";
 import { log } from "@/lib/log";
+import { DataTable, EmptyState, Card, Badge, type DataTableColumn } from "@/components/ui";
+import { fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "Portfolio — Singha Central" };
 
-function statusTone(status: string): string {
+function statusTone(status: PortfolioCompanySummary["status"]): "danger" | "warn" | "ok" {
   if (status === "critical") return "danger";
   if (status === "warn") return "warn";
   return "ok";
 }
+
+const columns: DataTableColumn<PortfolioCompanySummary>[] = [
+  { key: "company", header: "Company", render: (s) => <strong>{s.name}</strong> },
+  { key: "status", header: "Status", render: (s) => <Badge variant={statusTone(s.status)}>{s.status}</Badge> },
+  { key: "projects", header: "Projects", align: "right", render: (s) => `${fmtNumber(s.activeProjectCount)}/${fmtNumber(s.projectCount)}` },
+  { key: "openTasks", header: "Open tasks", align: "right", render: (s) => fmtNumber(s.openTasks) },
+  { key: "overdue", header: "Overdue", align: "right", render: (s) => <span style={{ color: s.overdueTasks > 0 ? "var(--danger)" : undefined }}>{fmtNumber(s.overdueTasks)}</span> },
+  { key: "cash", header: "Cash", align: "right", render: (s) => fmtMoney(s.cashOnHand, s.currency) },
+  { key: "arOverdue", header: "AR overdue", align: "right", render: (s) => <span style={{ color: s.arOverdue !== "0" ? "var(--danger)" : undefined }}>{fmtMoney(s.arOverdue, s.currency)}</span> },
+  { key: "apOverdue", header: "AP overdue", align: "right", render: (s) => fmtMoney(s.apOverdue, s.currency) },
+  { key: "risks", header: "Risks", align: "right", render: (s) => fmtNumber(s.openRisks) },
+  { key: "incidents", header: "Incidents", align: "right", render: (s) => <span style={{ color: s.openIncidents > 0 ? "var(--danger)" : undefined }}>{fmtNumber(s.openIncidents)}</span> },
+  { key: "obligations", header: "Obligations", align: "right", render: (s) => fmtNumber(s.openObligations) },
+  { key: "topIssue", header: "Top issue", render: (s) => <span className="small">{s.issues[0]?.message ?? "—"}</span> },
+];
 
 export default async function PortfolioPage() {
   const admin = await requireAdmin();
@@ -45,9 +62,13 @@ export default async function PortfolioPage() {
     return (
       <div className="stack gap-3">
         <h1>Portfolio</h1>
-        <div className="card">
-          <div className="empty">No company memberships found. Once you are added to a company, it will appear here.</div>
-        </div>
+        <Card>
+          <EmptyState
+            title="No companies"
+            description="No company memberships found. Once you are added to a company, it will appear here."
+            icon="building-2"
+          />
+        </Card>
       </div>
     );
   }
@@ -152,48 +173,16 @@ export default async function PortfolioPage() {
         <Link className="btn ghost sm" href="/app/command">← Command Centre</Link>
       </div>
 
-      {ranked.length === 0 ? (
-        <div className="card"><div className="empty">No company data available.</div></div>
-      ) : (
-        <div className="table-wrap">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Company</th>
-                <th>Status</th>
-                <th className="num">Projects</th>
-                <th className="num">Open tasks</th>
-                <th className="num">Overdue</th>
-                <th className="num">Cash</th>
-                <th className="num">AR overdue</th>
-                <th className="num">AP overdue</th>
-                <th className="num">Risks</th>
-                <th className="num">Incidents</th>
-                <th className="num">Obligations</th>
-                <th>Top issue</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ranked.map((s) => (
-                <tr key={s.companyId}>
-                  <td><strong>{s.name}</strong></td>
-                  <td><span className={`badge ${statusTone(s.status)}`}>{s.status}</span></td>
-                  <td className="num">{s.activeProjectCount}/{s.projectCount}</td>
-                  <td className="num">{s.openTasks}</td>
-                  <td className="num" style={{ color: s.overdueTasks > 0 ? "var(--danger)" : undefined }}>{s.overdueTasks}</td>
-                  <td className="num">{fmtMoney(s.cashOnHand, s.currency)}</td>
-                  <td className="num" style={{ color: s.arOverdue !== "0" ? "var(--danger)" : undefined }}>{fmtMoney(s.arOverdue, s.currency)}</td>
-                  <td className="num">{fmtMoney(s.apOverdue, s.currency)}</td>
-                  <td className="num">{s.openRisks}</td>
-                  <td className="num" style={{ color: s.openIncidents > 0 ? "var(--danger)" : undefined }}>{s.openIncidents}</td>
-                  <td className="num">{s.openObligations}</td>
-                  <td className="small">{s.issues[0]?.message ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <Card>
+        <DataTable
+          columns={columns}
+          rows={ranked}
+          keyExtractor={(s) => s.companyId}
+          emptyTitle="No company data available"
+          emptyDescription="Once portfolio data is loaded it will appear here."
+          caption="Portfolio companies ranked by attention needed"
+        />
+      </Card>
     </div>
   );
 }

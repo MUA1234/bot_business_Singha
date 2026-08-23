@@ -8,6 +8,8 @@ import { requireProfile } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { unreadCount } from "@/lib/notify";
 import { markRead, markAllRead } from "./actions";
+import { Card, CardHeader, CardBody, Button, EmptyState } from "@/components/ui";
+import { fmtDateTime } from "@/lib/format";
 
 export const metadata = { title: "Notifications — Singha Central" };
 
@@ -27,37 +29,57 @@ export default async function NotificationsPage() {
 
   return (
     <div className="stack gap-3">
-      <div className="row between">
-        <div>
-          <h1>Notifications</h1>
-          <p className="muted mt-1">{unread > 0 ? `${unread} unread` : "You're all caught up."}</p>
-        </div>
-        {unread > 0 && <form action={markAllRead}><button className="btn ghost sm" type="submit">Mark all read</button></form>}
-      </div>
-
-      <div className="card">
-        {rows.length === 0 ? (
-          <div className="empty">No notifications yet.</div>
-        ) : (
-          <div className="stack gap-1">
-            {rows.map((n) => (
-              <div key={n.id} className="row between" style={{ padding: "10px 6px", borderBottom: "1px solid var(--panel-border)", opacity: n.is_read ? 0.6 : 1 }}>
-                <div>
-                  <div style={{ fontWeight: n.is_read ? 400 : 700 }}>
-                    {!n.is_read && <span style={{ color: "var(--accent)" }}>● </span>}
-                    {n.link ? <Link href={n.link}>{n.title}</Link> : n.title}
+      <Card>
+        <CardHeader
+          title="Notifications"
+          subtitle={unread > 0 ? `${unread} unread` : "You're all caught up."}
+          action={
+            unread > 0 && (
+              <form action={markAllRead}>
+                <Button variant="ghost" size="sm" type="submit">Mark all read</Button>
+              </form>
+            )
+          }
+        />
+        <CardBody>
+          {rows.length === 0 ? (
+            <EmptyState title="No notifications yet" description="When something needs your attention, it will show up here." />
+          ) : (
+            <div className="stack gap-1">
+              {rows.map((n) => (
+                <div
+                  key={n.id}
+                  className="row"
+                  style={{
+                    padding: "10px 6px",
+                    borderBottom: "1px solid var(--panel-border)",
+                    opacity: n.is_read ? 0.6 : 1,
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: n.is_read ? 400 : 700 }}>
+                      {!n.is_read && <span style={{ color: "var(--accent)" }}>● </span>}
+                      {n.link ? <Link href={n.link}>{n.title}</Link> : n.title}
+                    </div>
+                    {n.body && <div className="small dim">{n.body}</div>}
+                    <div className="small dim">{fmtDateTime(n.created_at)}</div>
                   </div>
-                  {n.body && <div className="small dim">{n.body}</div>}
-                  <div className="small dim">{new Date(n.created_at).toLocaleString()}</div>
+                  {!n.is_read && (
+                    <form action={markRead}>
+                      <input type="hidden" name="id" value={n.id} />
+                      <Button variant="ghost" size="sm" type="submit">Read</Button>
+                    </form>
+                  )}
                 </div>
-                {!n.is_read && (
-                  <form action={markRead}><input type="hidden" name="id" value={n.id} /><button className="btn ghost sm" type="submit">Read</button></form>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }

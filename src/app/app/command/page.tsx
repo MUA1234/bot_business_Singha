@@ -27,6 +27,8 @@ import { AreaLineChart, BarChart, agingBars } from "@/components/charts";
 import { projectCash, type CashFlowItem } from "@/management/ai-manager/forecast";
 import { buildBriefing } from "@/management/ai-manager/briefing";
 import { buildCommitmentOutflows, type CommitmentOutflow } from "@/modules/finance/commitment-outflows";
+import { Card, CardHeader, CardBody, Badge, EmptyState } from "@/components/ui";
+import { fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "Command Centre — Singha Central" };
 
@@ -214,7 +216,7 @@ export default async function CommandCentrePage() {
           <h1>Command Centre</h1>
           <p className="muted mt-1">What needs attention now — ranked most urgent first.</p>
         </div>
-        <div className="row gap-1">
+        <div className="row gap-1 wrap">
           <Link className="btn ghost sm" href="/app/portfolio">Portfolio</Link>
           <Link className="btn ghost sm" href="/app/command/health">Health</Link>
           <Link className="btn ghost sm" href="/app/command/analyze">Analyse</Link>
@@ -223,108 +225,120 @@ export default async function CommandCentrePage() {
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-title">Today&apos;s briefing</div>
-        <div className="stack gap-1 mt-2">
-          {briefing.map((line, i) => (
-            <div key={i} style={{ fontSize: "0.95rem" }}>{line}</div>
-          ))}
-        </div>
-      </div>
+      <Card>
+        <CardHeader title="Today&apos;s briefing" />
+        <CardBody>
+          <div className="stack gap-1">
+            {briefing.map((line, i) => (
+              <div key={i} style={{ fontSize: "0.95rem" }}>{line}</div>
+            ))}
+          </div>
+        </CardBody>
+      </Card>
 
       <div className="grid cols-3">
-        <div className="card stat">
+        <Card className="stat">
           <div className="k">Critical</div>
-          <div className="v" style={{ color: "var(--danger)" }}>{count("critical")}</div>
-        </div>
-        <div className="card stat">
+          <div className="v" style={{ color: "var(--danger)" }}>{fmtNumber(count("critical"))}</div>
+        </Card>
+        <Card className="stat">
           <div className="k">Warnings</div>
-          <div className="v" style={{ color: "var(--warn)" }}>{count("warn")}</div>
-        </div>
-        <div className="card stat">
+          <div className="v" style={{ color: "var(--warn)" }}>{fmtNumber(count("warn"))}</div>
+        </Card>
+        <Card className="stat">
           <div className="k">Info</div>
-          <div className="v" style={{ color: "var(--info)" }}>{count("info")}</div>
-        </div>
+          <div className="v" style={{ color: "var(--info)" }}>{fmtNumber(count("info"))}</div>
+        </Card>
       </div>
 
       <div className="grid cols-2">
-        <div className="card">
-          <div className="card-title">Cash — next 90 days</div>
-          <div className="card-sub">Projected from open invoices in and bills / committed outflows out. The marked point is the trough.</div>
-          <div className="mt-2">
+        <Card>
+          <CardHeader title="Cash — next 90 days" subtitle="Projected from open invoices in and bills / committed outflows out. The marked point is the trough." />
+          <CardBody>
             <AreaLineChart
               points={fc.points.map((p) => ({ label: p.date.slice(5), value: dec(p.balance).toNumber(), display: fmt(p.balance) }))}
             />
-          </div>
-          {fc.goesNegative && (
-            <div className="small mt-1" style={{ color: "var(--danger)" }}>
-              ⚠ Projection crosses below zero — see the briefing.
-            </div>
-          )}
-        </div>
-        <div className="card">
-          <div className="card-title">Receivables vs payables — by age</div>
-          <div className="card-sub">Older overdue money escalates from mint to amber to red.</div>
-          <div className="mt-2">
+            {fc.goesNegative && (
+              <div className="small mt-1" style={{ color: "var(--danger)" }}>
+                ⚠ Projection crosses below zero — see the briefing.
+              </div>
+            )}
+          </CardBody>
+        </Card>
+        <Card>
+          <CardHeader title="Receivables vs payables — by age" subtitle="Older overdue money escalates from mint to amber to red." />
+          <CardBody>
             <div className="small dim" style={{ marginBottom: 2 }}>Receivables (owed to you)</div>
             <BarChart data={agingBars(ar.buckets, fmt)} height={120} />
             <div className="small dim" style={{ marginTop: 8, marginBottom: 2 }}>Payables (you owe)</div>
             <BarChart data={agingBars(ap.buckets, fmt)} height={120} />
-          </div>
-        </div>
+          </CardBody>
+        </Card>
       </div>
 
       <div className="grid cols-3">
-        <div className="card stat">
+        <Card className="stat">
           <div className="k">Cash on hand</div>
           <div className="v" style={{ fontSize: "1.4rem", color: "var(--info)" }}>{fmt(cashTotal)}</div>
-          <div className="d dim">{cash.accounts.length} account(s)</div>
-        </div>
-        <Link href="/app/finance/receivables" className="card stat">
-          <div className="k">Receivables outstanding</div>
-          <div className="v" style={{ fontSize: "1.4rem", color: "var(--ok)" }}>{fmt(ar.total)}</div>
-          <div className="d dim">Overdue {fmt(ar.overdue)}</div>
+          <div className="d dim">{fmtNumber(cash.accounts.length)} account(s)</div>
+        </Card>
+        <Link href="/app/finance/receivables">
+          <Card className="stat">
+            <div className="k">Receivables outstanding</div>
+            <div className="v" style={{ fontSize: "1.4rem", color: "var(--ok)" }}>{fmt(ar.total)}</div>
+            <div className="d dim">Overdue {fmt(ar.overdue)}</div>
+          </Card>
         </Link>
-        <Link href="/app/finance/receivables" className="card stat">
-          <div className="k">Payables outstanding</div>
-          <div className="v" style={{ fontSize: "1.4rem", color: "var(--warn)" }}>{fmt(ap.total)}</div>
-          <div className="d dim">Overdue {fmt(ap.overdue)}</div>
+        <Link href="/app/finance/receivables">
+          <Card className="stat">
+            <div className="k">Payables outstanding</div>
+            <div className="v" style={{ fontSize: "1.4rem", color: "var(--warn)" }}>{fmt(ap.total)}</div>
+            <div className="d dim">Overdue {fmt(ap.overdue)}</div>
+          </Card>
         </Link>
-        <Link href="/app/procurement/purchase-orders" className="card stat">
-          <div className="k">Expected commitments</div>
-          <div className="v" style={{ fontSize: "1.4rem", color: "var(--info)" }}>{fmt(commitmentTotal)}</div>
-          <div className="d dim">{commitmentOutflows.length} PO(s) / commitment(s) in forecast</div>
+        <Link href="/app/procurement/purchase-orders">
+          <Card className="stat">
+            <div className="k">Expected commitments</div>
+            <div className="v" style={{ fontSize: "1.4rem", color: "var(--info)" }}>{fmt(commitmentTotal)}</div>
+            <div className="d dim">{fmtNumber(commitmentOutflows.length)} PO(s) / commitment(s) in forecast</div>
+          </Card>
         </Link>
       </div>
 
-      <div className="card">
-        <div className="card-title">Needs attention</div>
-        {failedSources.length > 0 && (
-          <div className="row" style={{ padding: "8px 4px", color: "var(--danger)", borderBottom: "1px solid var(--panel-border)" }}>
-            ⚠ Some data sources failed to load ({failedSources.join(", ")}). Figures on this page may be
-            incomplete — this is a system problem, not a clean bill of health. It has been reported to
-            monitoring.
-          </div>
-        )}
-        {exceptions.length === 0 ? (
-          <div className="empty">
-            {failedSources.length > 0
-              ? "Exception detection is degraded because data sources failed — no \"all clear\" can be given."
-              : tasks.length === 0 && caps.length === 0
-                ? "No task or capacity data yet. Once the Phase-1/2 tables are populated, exceptions appear here."
-                : "All clear — nothing needs attention right now."}
-          </div>
-        ) : (
-          <div className="stack gap-1 mt-2">
-            {exceptions.map((e, i) => (
-              <div key={i} className="row between" style={{ padding: "8px 4px", borderBottom: "1px solid var(--panel-border)" }}>
-                <span>{e.message}</span>
-                <span className={`badge ${badgeClass(e.severity)}`}>{e.type.replace(/_/g, " ")}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title="Needs attention" />
+        <CardBody>
+          {failedSources.length > 0 && (
+            <div className="row" style={{ padding: "8px 4px", color: "var(--danger)", borderBottom: "1px solid var(--panel-border)" }}>
+              ⚠ Some data sources failed to load ({failedSources.join(", ")}). Figures on this page may be
+              incomplete — this is a system problem, not a clean bill of health. It has been reported to
+              monitoring.
+            </div>
+          )}
+          {exceptions.length === 0 ? (
+            <EmptyState
+              title={failedSources.length > 0 ? "Data degraded" : "All clear"}
+              description={
+                failedSources.length > 0
+                  ? "Exception detection is degraded because data sources failed — no \"all clear\" can be given."
+                  : tasks.length === 0 && caps.length === 0
+                    ? "No task or capacity data yet. Once the Phase-1/2 tables are populated, exceptions appear here."
+                    : "Nothing needs attention right now."
+              }
+              icon={failedSources.length > 0 ? "alert-triangle" : "check-circle-2"}
+            />
+          ) : (
+            <div className="stack gap-1 mt-2">
+              {exceptions.map((e, i) => (
+                <div key={i} className="row between" style={{ padding: "8px 4px", borderBottom: "1px solid var(--panel-border)" }}>
+                  <span>{e.message}</span>
+                  <Badge variant={badgeClass(e.severity)}>{e.type.replace(/_/g, " ")}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardBody>
+      </Card>
     </div>
   );
 }

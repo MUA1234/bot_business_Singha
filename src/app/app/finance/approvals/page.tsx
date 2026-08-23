@@ -13,6 +13,9 @@ import { computeApprovalProgress, canActOnApproval, type ApprovalAction } from "
 import { checkSeparationOfDuties } from "@/policy/authority";
 import { getApproverForUser } from "@/lib/access";
 import { actOnApproval } from "./actions";
+import { Card, CardHeader, CardBody, Button, Badge, DataTable, type DataTableColumn } from "@/components/ui";
+import { StatusBadge } from "@/components/ui/Badge";
+import { fmtDateTime } from "@/lib/format";
 
 export const metadata = { title: "Approvals — Singha Central" };
 
@@ -89,6 +92,74 @@ export default async function ApprovalsPage() {
       .limit(100) as any,
   );
 
+  const pendingColumns: DataTableColumn<any>[] = [
+    { key: "event", header: "Event", render: (r) => {
+      const ev = r.financial_event_id ? eventById.get(r.financial_event_id) : null;
+      return ev?.event_type ?? "financial event";
+    } },
+    { key: "amount", header: "Amount", align: "right", render: (r) => {
+      const ev = r.financial_event_id ? eventById.get(r.financial_event_id) : null;
+      return ev?.amount != null ? fmtMoney(ev.amount, ev.currency ?? undefined) : "—";
+    } },
+    { key: "progress", header: "Progress", render: (r) => {
+      const acts = actionsByReq.get(r.id) ?? [];
+      const progress = computeApprovalProgress(acts, r.approvals_required);
+      return `${progress.approvals}/${Math.max(1, r.approvals_required)} approvals`;
+    } },
+    { key: "status", header: "Status", render: (r) => {
+      const acts = actionsByReq.get(r.id) ?? [];
+      const progress = computeApprovalProgress(acts, r.approvals_required);
+      return <StatusBadge status={progress.status} />;
+    } },
+    { key: "action", header: "Action", render: (r) => {
+      const acts = actionsByReq.get(r.id) ?? [];
+      const progress = computeApprovalProgress(acts, r.approvals_required);
+      const actedUsers = acts.map((a) => a.actorUserId);
+      const sod = actorApprover
+        ? checkSeparationOfDuties(actorApprover, ["finance_reviewer"], {
+            submitter_user_id: r.submitted_by,
+            approver_is_beneficiary: false,
+            action: null,
+          })
+        : { allowed: false, reasons: ["no active membership"] };
+      const gate = canActOnApproval({
+        submitterUserId: r.submitted_by,
+        actorUserId: p.userId,
+        actorIsApprover: sod.allowed,
+        alreadyActedUserIds: actedUsers,
+        status: progress.status,
+      });
+      return gate.allowed ? (
+        <div className="row gap-1 wrap">
+          <form action={actOnApproval}>
+            <input type="hidden" name="request_id" value={r.id} />
+            <input type="hidden" name="decision" value="approve" />
+            <Button size="sm" type="submit">Approve</Button>
+          </form>
+          <form action={actOnApproval}>
+            <input type="hidden" name="request_id" value={r.id} />
+            <input type="hidden" name="decision" value="reject" />
+            <Button variant="danger" size="sm" type="submit">Reject</Button>
+          </form>
+        </div>
+      ) : (
+        <span className="small dim">{progress.status === "pending" ? "—" : progress.status}</span>
+      );
+    } },
+  ];
+
+  const logColumns: DataTableColumn<any>[] = [
+    { key: "item", header: "Item", render: (r) => <span style={{ fontWeight: 600 }}>{r.description}</span> },
+    { key: "decision", header: "Decision", render: (r) =>
+      r.status === "resolved" ? <Badge variant="ok">Confirmed</Badge> : <Badge>Dismissed</Badge>,
+    },
+    { key: "price", header: "Confirmed price", render: (r) =>
+      r.resolved_price != null ? fmtMoney(r.resolved_price, r.currency) : "—",
+    },
+    { key: "dept", header: "Dept", render: (r) => <Badge>{r.department}</Badge> },
+    { key: "when", header: "When", render: (r) => <span className="dim small">{fmtDateTime(r.resolved_at)}</span> },
+  ];
+
   return (
     <div className="stack gap-3">
       <div>
@@ -116,94 +187,31 @@ export default async function ApprovalsPage() {
         </div>
       )}
 
-      <div className="card">
-        <div className="card-title">Pending approvals</div>
-        {requests.length === 0 ? (
-          <div className="empty">No approval requests.</div>
-        ) : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead><tr><th>Event</th><th className="num">Amount</th><th>Progress</th><th>Status</th><th>Action</th></tr></thead>
-              <tbody>
-                {requests.map((r) => {
-                  const acts = actionsByReq.get(r.id) ?? [];
-                  const progress = computeApprovalProgress(acts, r.approvals_required);
-                  const ev = r.financial_event_id ? eventById.get(r.financial_event_id) : null;
-                  const actedUsers = acts.map((a) => a.actorUserId);
-                  // GOV-005: use the same SoD engine the action uses. Default required role
-                  // mirrors the policy engine fallback when no policy evaluation row exists.
-                  const sod = actorApprover
-                    ? checkSeparationOfDuties(actorApprover, ["finance_reviewer"], {
-                        submitter_user_id: r.submitted_by,
-                        approver_is_beneficiary: false,
-                        action: null,
-                      })
-                    : { allowed: false, reasons: ["no active membership"] };
-                  const gate = canActOnApproval({
-                    submitterUserId: r.submitted_by,
-                    actorUserId: p.userId,
-                    actorIsApprover: sod.allowed,
-                    alreadyActedUserIds: actedUsers,
-                    status: progress.status,
-                  });
-                  const canAct = gate.allowed;
-                  const badge = progress.status === "approved" ? "ok" : progress.status === "rejected" ? "danger" : "warn";
-                  return (
-                    <tr key={r.id}>
-                      <td>{ev?.event_type ?? "financial event"}</td>
-                      <td className="num">{ev?.amount != null ? fmtMoney(ev.amount, ev.currency ?? undefined) : "—"}</td>
-                      <td className="dim small">{progress.approvals}/{Math.max(1, r.approvals_required)} approvals</td>
-                      <td><span className={`badge ${badge}`}>{progress.status}</span></td>
-                      <td>
-                        {canAct ? (
-                          <div className="row gap-1">
-                            <form action={actOnApproval}>
-                              <input type="hidden" name="request_id" value={r.id} />
-                              <input type="hidden" name="decision" value="approve" />
-                              <button className="btn sm" type="submit">Approve</button>
-                            </form>
-                            <form action={actOnApproval}>
-                              <input type="hidden" name="request_id" value={r.id} />
-                              <input type="hidden" name="decision" value="reject" />
-                              <button className="btn ghost sm danger" type="submit">Reject</button>
-                            </form>
-                          </div>
-                        ) : (
-                          <span className="small dim">{progress.status === "pending" ? "—" : progress.status}</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title="Pending approvals" />
+        <CardBody>
+          <DataTable
+            columns={pendingColumns}
+            rows={requests}
+            keyExtractor={(r) => r.id}
+            emptyTitle="No approval requests"
+            emptyDescription="There are no pending requests waiting for your decision."
+          />
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">Price-confirmation decisions</div>
-        {log.length === 0 ? (
-          <div className="empty">No decisions recorded yet.</div>
-        ) : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead><tr><th>Item</th><th>Decision</th><th>Confirmed price</th><th>Dept</th><th>When</th></tr></thead>
-              <tbody>
-                {log.map((r: any) => (
-                  <tr key={r.id}>
-                    <td style={{ fontWeight: 600 }}>{r.description}</td>
-                    <td>{r.status === "resolved" ? <span className="badge ok">Confirmed</span> : <span className="badge">Dismissed</span>}</td>
-                    <td>{r.resolved_price != null ? fmtMoney(r.resolved_price, r.currency) : "—"}</td>
-                    <td><span className="badge">{r.department}</span></td>
-                    <td className="dim small">{r.resolved_at ? new Date(r.resolved_at).toLocaleString() : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title="Price-confirmation decisions" />
+        <CardBody>
+          <DataTable
+            columns={logColumns}
+            rows={log}
+            keyExtractor={(r) => r.id}
+            emptyTitle="No decisions recorded yet"
+            emptyDescription="Resolved or dismissed price confirmations will appear here."
+          />
+        </CardBody>
+      </Card>
     </div>
   );
 }
