@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 50 |
-| absent | 28 |
+| locally_verified | 51 |
+| absent | 27 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **50** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **35** |
+| **Verified** (locally / preview / staging / production) | **51** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **34** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -44,7 +44,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | COM | 8 | 2 | 6 |
 | CRM | 5 | 4 | 1 |
 | CTL | 4 | 2 | 2 |
-| FIN | 8 | 7 | 1 |
+| FIN | 8 | 8 | 0 |
 | FOUND | 6 | 5 | 1 |
 | GOV | 6 | 5 | 1 |
 | IMP | 3 | 0 | 3 |
@@ -96,7 +96,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | FIN-004 | Commitments and expected payments | P1 | **locally_verified** | src/app/app/command/page.tsx | d938bb202b3458745be137b71cafbc1a7e6a64c7 | — |
 | FIN-005 | Taxes and professional-review opportunities | P1 | **locally_verified** | src/app/app/finance/tax-codes/page.tsx | 74d3be6 | authorised finance reviewer identity |
 | FIN-006 | Budget versus actual and scenario analysis | P1 | **locally_verified** | src/app/app/finance/budgets/page.tsx and src/app/app/finance/budgets/[id]/page.tsx | d514bf1242cc4fba4fcd464c8aec1f47958a2b4d | — |
-| FIN-007 | Funding requirements and investments | P2 | **absent** | none | none | — |
+| FIN-007 | Funding requirements and investments | P2 | **locally_verified** | src/app/app/finance/funding/page.tsx | ae3ce17 | — |
 | FIN-008 | Payment intelligence and evidence | P0 | **locally_verified** | src/app/app/finance/reconciliation/page.tsx | 0a1737a | — |
 | FOUND-001 | Durable inbound processing with leases, bounded retry and dead-letter | P0 | **locally_verified** | src/app/api/cron/inbound-sweeper/route.ts | 707761c | hosted migration application |
 | FOUND-002 | Worker fairness by eligibility rather than ordering | P0 | **locally_verified** | src/app/api/cron/inbound-sweeper/route.ts | 707761c | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **35**; blocked (owner): **4**;
+mode. Incomplete and implementable: **34**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

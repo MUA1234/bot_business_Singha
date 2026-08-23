@@ -1,27 +1,23 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [
-    "FIN-007"
-  ],
+  "activeRequirementIds": [],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "0c4768a",
-    "outcome": "LOCALLY ACCEPTED: COM-007 Human handover, opt-out and communication preferences. Migration 0104 adds a company-scoped communication_preferences table with opt_out, handover_to, handover_at, handover_reason and capability-gated RLS. Pure helpers in src/modules/comms/preferences.ts determine opt-out/handover state; src/lib/comms/preferences.ts normalizes identities and persists preferences. Server actions in src/app/app/messages/actions.ts gate opt-out/handover/clear to customer.manage and write audit events. The outbound enqueue path returns \"opted_out\" instead of enqueuing; the inbound dispatch path records manual_review for opted-out or handed-over identities.",
+    "testedSha": "ae3ce17",
+    "outcome": "LOCALLY ACCEPTED: FIN-007 Funding requirements and investments. Migration 0105 adds company-scoped funding_requirements and investments tables with capability-gated RLS. The /app/finance/funding page derives a funding gap from the 90-day cash forecast, lists funding requirements and investments, and provides gated create/status/dispose actions.",
     "container": "disposable local PostgreSQL 16 (port 55441) with supabase-shim",
     "corrections": [
-      "Added src/db/migrations/0104_communication_preferences.sql with company-scoped communication_preferences table, capability-gated RLS, and updated_at trigger.",
-      "Added src/modules/comms/preferences.ts with pure helpers isOptedOut, isHandedOver, canSendAutomated, canHandleAutomatically.",
-      "Added src/lib/comms/preferences.ts service with getCommunicationPreference, setOptOut, setHandover, clearHandover (normalizes WhatsApp identities to digits).",
-      "Added src/app/app/messages/actions.ts server actions setIdentityOptOut, handoverToHuman, clearHumanHandover gated to customer.manage and audited.",
-      "Wired src/lib/outbox-enqueue.ts to check opt-out before enqueue_outbox_row and return \"opted_out\".",
-      "Wired src/lib/inbound/dispatch-receipt.ts to check opt-out/handover after company resolution and record manual_review.",
-      "Added tests/comms-preferences.test.ts (4 passed), tests/campaign/com-007-communication-preferences.test.ts (6 passed), updated tests/campaign/dispatch-receipt.test.ts with COM-007 cases (12 passed) and tests/outbox-enqueue.test.ts with preference mocking (5 passed).",
-      "Updated security/rls-classification.json to classify communication_preferences as capability.",
-      "Added src/lib/comms/preferences.ts to scripts/allowlists/supabase-admin-system.json.",
-      "Fresh disposable PostgreSQL 16 0001-0104 and narrow upgrade 0103→0104 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on.",
-      "npm run verify (1048 unit tests / 2 skipped / 149 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed."
+      "Added src/db/migrations/0105_funding_requirements_and_investments.sql with funding_requirements and investments tables, finance.funding.manage capability, capability-gated RLS, and updated_at triggers.",
+      "Added src/modules/finance/funding.ts with pure deterministic helpers computeFundingGap and computeInvestmentEconomics.",
+      "Added src/app/app/finance/funding/page.tsx that computes a 90-day cash forecast, derives the funding gap, lists requirements/investments, and provides create/status/dispose forms.",
+      "Added src/app/app/finance/funding/actions.ts with createFundingRequirement, updateFundingRequirementStatus, createInvestment and disposeInvestment, all gated to finance department/admin and audited.",
+      "Linked /app/finance/funding from src/app/app/finance/page.tsx.",
+      "Added funding_requirements and investments to security/rls-classification.json as capability.",
+      "Added tests/funding-requirements.test.ts (6 passed) and tests/campaign/fin-007-funding-requirements.test.ts (10 passed).",
+      "Fresh disposable PostgreSQL 16 0001-0105 and narrow upgrade 0104→0105 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on.",
+      "npm run verify (1064 unit tests / 2 skipped / 151 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (after one transient ECONNRESET retry)."
     ]
   },
   "currentBranch": "kimi/found006-rls-cutover",
@@ -283,26 +279,29 @@
     "evidence": "tests/campaign/gov-002-directive-escalation.test.ts (15 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression); tests/campaign/cron-auth.test.ts (9 passed regression); fresh disposable PostgreSQL 16 0001-0099 full migration; narrow upgrade 0098→0099; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (916 unit tests / 2 skipped / 136 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
   },
-  "lastGreenSha": "0c4768a",
-  "latestMigration": "0104_communication_preferences.sql",
-  "lastCompletedAction": "Selected FIN-007 Funding requirements and investments as the next dependency-ordered implementable requirement (absent; deps FIN-003 and FIN-006 both locally_verified; stage4 P2). Previous P0/P1 candidates (AIM-003, GOV-004, WRK-005, COM-003, IMP-001) are blocked by owner gates or unverified dependencies.",
-  "nextAction": "Add funding_requirements and investments tables, compute funding gap from cash forecast, and surface the investment register on the finance page.",
-  "lastTargetedTests": [],
+  "lastGreenSha": "ae3ce17",
+  "latestMigration": "0105_funding_requirements_and_investments.sql",
+  "lastCompletedAction": "Implemented and locally accepted FIN-007 Funding requirements and investments.",
+  "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml.",
+  "lastTargetedTests": [
+    "tests/funding-requirements.test.ts (6 passed)",
+    "tests/campaign/fin-007-funding-requirements.test.ts (10 passed)"
+  ],
   "lastFullGateResults": {
-    "sha": "0c4768a on kimi/found006-rls-cutover",
+    "sha": "ae3ce17 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "1048 passed / 2 skipped / 149 files",
-    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0104 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
-    "integrationNarrowUpgrade": "passed: 0103→0104",
+    "unit": "1064 passed / 2 skipped / 151 files",
+    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0105 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
+    "integrationNarrowUpgrade": "passed: 0104→0105",
     "integrationLegacyUpgrade": "not run for this package (foundation branch; previous requirements covered legacy upgrades)",
-    "migrationIdempotency": "migration-lint 0001-0104 sequential, no gaps or duplicates",
+    "migrationIdempotency": "migration-lint 0001-0105 sequential, no gaps or duplicates",
     "build": "clean",
     "verify": "passed: secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests",
     "secretScan": "no tracked secrets found",
-    "migrationLint": "104 migrations, sequential 0001–0104, no gaps or duplicates",
-    "browserCheck": "10/10 passed",
-    "discriminationProof": "com-007-communication-preferences.test.ts proves preference helpers and server actions respect opt-out/handover; dispatch-receipt.test.ts proves inbound messages are blocked; outbox-enqueue.test.ts proves outbound enqueue returns opted_out.",
+    "migrationLint": "105 migrations, sequential 0001–0105, no gaps or duplicates",
+    "browserCheck": "10/10 passed (after one transient ECONNRESET retry)",
+    "discriminationProof": "fin-007-funding-requirements.test.ts proves the migration, pure helpers, page entrypoint, server actions, and finance-home link exist and surface the right concepts.",
     "note": "No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent during this acceptance pass."
   },
   "openFindings": [
@@ -355,7 +354,8 @@
     "OF-010: task_duplicate_suggestions has no producer",
     "OF-011: runQuotationTurn takes no CostLedger, so the highest-volume model call produces no ai_runs row",
     "OF-012: RLS_READS/RLS_WRITES are OFF, so the app reads through the RLS-bypassing service-role client",
-    "COM-007: LOCALLY ACCEPTED at 0c4768a. Migration 0104 adds company-scoped communication_preferences with capability-gated RLS. Outbound enqueue returns opted_out; inbound dispatch records manual_review. Server actions are customer.manage-gated and audited. A read-only UI surface exists via /app/messages actions; a dedicated preferences panel remains future work."
+    "COM-007: LOCALLY ACCEPTED at 0c4768a. Migration 0104 adds company-scoped communication_preferences with capability-gated RLS. Outbound enqueue returns opted_out; inbound dispatch records manual_review. Server actions are customer.manage-gated and audited. A read-only UI surface exists via /app/messages actions; a dedicated preferences panel remains future work.",
+    "FIN-007: LOCALLY ACCEPTED at ae3ce17. Migration 0105 adds funding_requirements and investments tables with capability-gated RLS. The /app/finance/funding page derives a funding gap from the 90-day cash forecast and provides create/status/dispose actions. Forecast inputs remain invoice/bill/commitment only; payroll and recurring obligations are not modelled."
   ],
   "ownerGates": [
     "PR merges (#22, #23, #24) — none merged",
@@ -406,11 +406,12 @@
       "crm005": 0,
       "sch002": 0,
       "sch004": 0,
-      "com007": 0
+      "com007": 0,
+      "fin007": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T09:41:31.800Z",
+  "updatedAt": "2026-08-23T09:54:30.984Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -474,5 +475,13 @@
     "outcome": "LOCALLY ACCEPTED: COM-007 Human handover, opt-out and communication preferences. Migration 0104 adds a company-scoped communication_preferences table with opt_out, handover_to, handover_at, handover_reason and capability-gated RLS. Pure helpers in src/modules/comms/preferences.ts determine opt-out/handover state; src/lib/comms/preferences.ts normalizes identities and persists preferences. Server actions in src/app/app/messages/actions.ts gate opt-out/handover/clear to customer.manage and write audit events. The outbound enqueue path returns \"opted_out\" instead of enqueuing; the inbound dispatch path records manual_review for opted-out or handed-over identities.",
     "evidence": "Added src/db/migrations/0104_communication_preferences.sql with company-scoped communication_preferences table, capability-gated RLS, and updated_at trigger. Added src/modules/comms/preferences.ts with pure helpers isOptedOut, isHandedOver, canSendAutomated, canHandleAutomatically. Added src/lib/comms/preferences.ts service with getCommunicationPreference, setOptOut, setHandover, clearHandover (normalizes WhatsApp identities to digits). Added src/app/app/messages/actions.ts server actions setIdentityOptOut, handoverToHuman, clearHumanHandover gated to customer.manage and audited. Wired src/lib/outbox-enqueue.ts to check opt-out before enqueue_outbox_row and return \"opted_out\". Wired src/lib/inbound/dispatch-receipt.ts to check opt-out/handover after company resolution and record manual_review. Added tests/comms-preferences.test.ts (4 passed), tests/campaign/com-007-communication-preferences.test.ts (6 passed), updated tests/campaign/dispatch-receipt.test.ts with COM-007 cases (12 passed) and tests/outbox-enqueue.test.ts with preference mocking (5 passed). Updated security/rls-classification.json to classify communication_preferences as capability. Added src/lib/comms/preferences.ts to scripts/allowlists/supabase-admin-system.json. Fresh disposable PostgreSQL 16 0001-0104 and narrow upgrade 0103→0104 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1048 unit tests / 2 skipped / 149 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, live WhatsApp provider, real data, real messages, or production traffic tested. The preferences UI is exposed only through server actions; a dedicated panel remains future work."
+  },
+  "fin007LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "ae3ce17",
+    "outcome": "LOCALLY ACCEPTED: FIN-007 Funding requirements and investments. Migration 0105 adds company-scoped funding_requirements and investments tables with capability-gated RLS. The /app/finance/funding page derives a funding gap from the 90-day cash forecast, lists funding requirements and investments, and provides gated create/status/dispose actions.",
+    "evidence": "Added src/db/migrations/0105_funding_requirements_and_investments.sql with funding_requirements and investments tables, finance.funding.manage capability, capability-gated RLS, and updated_at triggers. Added src/modules/finance/funding.ts with pure deterministic helpers computeFundingGap and computeInvestmentEconomics. Added src/app/app/finance/funding/page.tsx that computes a 90-day cash forecast, derives the funding gap, lists requirements/investments, and provides create/status/dispose forms. Added src/app/app/finance/funding/actions.ts with createFundingRequirement, updateFundingRequirementStatus, createInvestment and disposeInvestment, all gated to finance department/admin and audited. Linked /app/finance/funding from src/app/app/finance/page.tsx. Added funding_requirements and investments to security/rls-classification.json as capability. Added tests/funding-requirements.test.ts (6 passed) and tests/campaign/fin-007-funding-requirements.test.ts (10 passed). Fresh disposable PostgreSQL 16 0001-0105 and narrow upgrade 0104→0105 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1064 unit tests / 2 skipped / 151 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (after one transient ECONNRESET retry).",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, live procurement workflow, or real investment disposition tested. Forecast inputs exclude payroll and recurring obligations."
   }
 }
