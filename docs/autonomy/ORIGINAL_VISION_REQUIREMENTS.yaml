@@ -1477,20 +1477,20 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: [FOUND-001, OPS-001]
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/app/admin/health/page.tsx
     database_evidence: source_events; message_outbox; ai_runs; source_event_backlog RPC
     service_evidence: src/management/ai-manager/health.ts; alerts.ts
     ui_evidence: admin health page
-    test_evidence: tests/health.test.ts; tests/health-signals.test.ts
-    security_evidence: admin gate; company-scoped counts
+    test_evidence: tests/health.test.ts; tests/health-signals.test.ts; tests/campaign/admin-health-backlog.test.ts
+    security_evidence: admin gate; company-scoped counts; source_event_backlog is service-only and called with the admin's company_id
     audit_health_evidence: classifyHealth and buildAlerts
-    last_verified_sha: 1ebaa80
-    last_verified_at: 2026-08-17
+    last_verified_sha: 8b90057
+    last_verified_at: 2026-08-22
     owner_gate: none
     blocker: none
-    residual_risks: The 0069 backlog RPC is not yet surfaced on this page; AI cost excludes customer-facing calls (MOD-002).
+    residual_risks: AI cost excludes customer-facing calls (MOD-002).
   - id: CTL-004
     title: Explainable business-health score
     description: A composite health indicator whose components and weights are inspectable.
