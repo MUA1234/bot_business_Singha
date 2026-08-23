@@ -89,7 +89,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 |---|---|
 | src/ai/gateway.ts:189 | `null` |
 | src/ai/manager-observation.ts:129 | `null` |
-| src/ai/quotation.ts:153 | `null` |
+| src/ai/quotation.ts:209 | `null` |
 | src/app/api/cron/daily-digest/route.ts:22 | `0` |
 | src/app/api/exports/[kind]/route.ts:28 | `error-discarding destructure` |
 | src/app/api/exports/[kind]/route.ts:40 | `error-discarding destructure` |

@@ -12,7 +12,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { MODEL_ROUTES, type AiRunRecord, type CompletionTransport, type CostLedger } from "./gateway";
+import { MODEL_ROUTES, type AiRunRecord, type CompletionTransport, type CompletionResponse, type CostLedger } from "./gateway";
 import type { ModelPolicyExecutor } from "./model-policy-router";
 import { wrapUntrusted } from "./prompts";
 
@@ -76,6 +76,7 @@ export interface QuotationTurnInput {
 export async function runQuotationTurn(
   transport: CompletionTransport,
   input: QuotationTurnInput,
+  ledger: CostLedger,
 ): Promise<{ ok: true; turn: QuotationTurn } | { ok: false; reason: string }> {
   const { model, maxTokens } = MODEL_ROUTES.quotation;
 
@@ -92,15 +93,49 @@ export async function runQuotationTurn(
     `Reply to the customer's latest WhatsApp message. Return JSON only.\n\n` +
     wrapUntrusted(input.message, fenceId);
 
+  const baseRun: Omit<AiRunRecord, "validation_ok" | "confidence_overall"> = {
+    ai_run_id: `ai_${randomUUID()}`,
+    route: "quotation",
+    model,
+    prompt_version: QUOTATION_PROMPT_VERSION,
+    input_tokens: 0,
+    output_tokens: 0,
+    cost_usd: "0",
+    correlation_id: `quotation:${input.message.slice(0, 40)}`,
+    latency_ms: 0,
+  };
+
+  const startedAt = Date.now();
   let text: string;
+  let resp: CompletionResponse;
   try {
-    const resp = await transport.complete({ model, system: SYSTEM_PROMPT, user, maxTokens });
+    resp = await transport.complete({ model, system: SYSTEM_PROMPT, user, maxTokens });
     text = resp.text;
   } catch (e) {
+    const run: AiRunRecord = {
+      ...baseRun,
+      latency_ms: Date.now() - startedAt,
+      validation_ok: false,
+      confidence_overall: null,
+    };
+    await ledger.record(run);
     return { ok: false, reason: `transport_error: ${(e as Error).message}` };
   }
 
   const parsed = QuotationTurnSchema.safeParse(safeJson(text));
+  const run: AiRunRecord = {
+    ...baseRun,
+    input_tokens: resp.usage.input_tokens,
+    output_tokens: resp.usage.output_tokens,
+    cost_usd: resp.cost_usd,
+    latency_ms: Date.now() - startedAt,
+    validation_ok: parsed.success,
+    confidence_overall: null,
+  };
+  if (!parsed.success) {
+    run.validation_issues = parsed.error.issues.map((issue) => issue.message);
+  }
+  await ledger.record(run);
   if (!parsed.success) return { ok: false, reason: `validation_failed: ${parsed.error.message}` };
   return { ok: true, turn: parsed.data };
 }
@@ -119,12 +154,33 @@ export async function runPolicyRoutedQuotationTurn(
     `Trusted context (safe JSON): ${JSON.stringify(context)}\n\n` +
     `Reply to the customer's latest WhatsApp message. Return JSON only.\n\n` +
     wrapUntrusted(input.message, fenceId);
+  const startedAt = Date.now();
   const execution = await executor.execute({
     logicalRequestId: input.logicalRequestId,
     selection: { companyId: input.companyId, task: "quotation", budgetRemainingUsd: input.budgetRemainingUsd },
     completion: { system: SYSTEM_PROMPT, user, maxTokens: MODEL_ROUTES.quotation.maxTokens },
   });
-  if (!execution.ok) return { ok: false, reason: execution.reason };
+  if (!execution.ok) {
+    // MOD-002: a policy rejection is still a customer-facing AI attempt and must be visible in
+    // the cost ledger. Record a zero-cost failed run so spend and failure rates stay complete.
+    const run: AiRunRecord = {
+      ai_run_id: `ai_${randomUUID()}`,
+      route: "quotation",
+      model: "unselected",
+      prompt_version: QUOTATION_PROMPT_VERSION,
+      input_tokens: 0,
+      output_tokens: 0,
+      cost_usd: "0",
+      validation_ok: false,
+      validation_issues: [`policy_rejection: ${execution.reason}`],
+      confidence_overall: null,
+      correlation_id: input.logicalRequestId,
+      company_id: input.companyId,
+      latency_ms: Date.now() - startedAt,
+    };
+    await ledger.record(run);
+    return { ok: false, reason: execution.reason };
+  }
 
   const parsed = QuotationTurnSchema.safeParse(safeJson(execution.response.text));
   const run: AiRunRecord = {

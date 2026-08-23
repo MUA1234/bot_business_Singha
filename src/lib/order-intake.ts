@@ -10,11 +10,12 @@
  *
  * Idempotent on the provider message id (a redelivered webhook is a no-op).
  */
+import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { makeOpenAiTransport } from "@/ai/openai-transport";
 import { MODEL_ROUTES } from "@/ai/gateway";
 import { ModelPolicyExecutor, ModelPolicyRouter, ModelProviderRegistry } from "@/ai/model-policy-router";
-import { runPolicyRoutedQuotationTurn } from "@/ai/quotation";
+import { runPolicyRoutedQuotationTurn, QUOTATION_PROMPT_VERSION } from "@/ai/quotation";
 import { loadAiTaskBudget, makeSupabaseCostLedger, makeSupabaseModelAttemptTelemetry } from "@/db/consumer-store";
 import { withPendingFooter } from "@/lib/whatsapp";
 import { enqueueOutbox } from "@/lib/outbox-enqueue";
@@ -138,6 +139,7 @@ export async function handleCustomerMessage(
     new ModelPolicyRouter(registry.candidates()),
     makeSupabaseModelAttemptTelemetry(db),
   );
+  const costLedger = makeSupabaseCostLedger(db);
   const turn = budgetRemainingUsd == null
     ? await (async () => {
       await executor.recordRejection({
@@ -145,6 +147,23 @@ export async function handleCustomerMessage(
         companyId,
         task: "quotation",
         reason: "budget_exceeded",
+      });
+      // MOD-002: the budget-exceeded path is still a customer-facing AI decision and must be
+      // recorded in ai_runs so spend and failure rates are complete.
+      await costLedger.record({
+        ai_run_id: `ai_${randomUUID()}`,
+        route: "quotation",
+        model: "unselected",
+        prompt_version: QUOTATION_PROMPT_VERSION,
+        input_tokens: 0,
+        output_tokens: 0,
+        cost_usd: "0",
+        validation_ok: false,
+        validation_issues: ["policy_rejection: budget_exceeded"],
+        confidence_overall: null,
+        correlation_id: `quotation:${inboundId}`,
+        company_id: companyId,
+        latency_ms: 0,
       });
       return { ok: false as const, reason: "budget_exceeded" };
     })()
@@ -155,7 +174,7 @@ export async function handleCustomerMessage(
     companyId,
     logicalRequestId: `quotation:${inboundId}`,
     budgetRemainingUsd,
-  }, makeSupabaseCostLedger(db));
+  }, costLedger);
 
   let reply: string;
   const awaitingAlready = status === "awaiting_price";

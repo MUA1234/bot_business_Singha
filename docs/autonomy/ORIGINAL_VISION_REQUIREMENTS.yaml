@@ -449,20 +449,20 @@ requirements:
     phase: stage6
     priority: P2
     dependencies: []
-    status: absent
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: ai_runs exists
-    service_evidence: src/ai/quotation.ts takes no ledger
+    runtime_entrypoint: src/lib/order-intake.ts handleCustomerMessage drives runPolicyRoutedQuotationTurn with makeSupabaseCostLedger(db); src/ai/quotation.ts runQuotationTurn now requires a CostLedger
+    database_evidence: ai_runs table (migrations 0003/0027); ai_model_attempts and ai_model_budget_policies (migrations 0091/0092)
+    service_evidence: src/ai/quotation.ts runQuotationTurn and runPolicyRoutedQuotationTurn record every run (success, validation failure, transport failure, policy rejection) to the supplied CostLedger; src/lib/order-intake.ts records the budget-exceeded path to makeSupabaseCostLedger(db)
     ui_evidence: src/app/app/admin/health/page.tsx AI cost figure
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    test_evidence: tests/campaign/mod-002-quotation-ledger.test.ts (5); tests/campaign/ai-trust-boundary.test.ts customer-facing cases; tests/integration/mod003-model-gateway.test.ts
+    security_evidence: ai_runs writes are service-role only in production; ledger is injected so tests can observe without touching the database
+    audit_health_evidence: ai_runs row includes route/model/prompt_version/tokens/cost/validation/confidence/correlation_id/company_id; failure paths record validation_issues
+    last_verified_sha: TBD
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: The highest-volume model call in the system is invisible to observability.
+    residual_risks: AI cost figure on the admin health page now includes customer-facing runs when they occur.
 
   - id: MOD-003
     title: Provider-neutral Model Gateway and Policy Router
