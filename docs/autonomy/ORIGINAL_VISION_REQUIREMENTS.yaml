@@ -688,20 +688,20 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: [WRK-001]
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: src/app/app/hr/staff
-    database_evidence: employees skills columns
-    service_evidence: none
-    ui_evidence: src/app/app/hr/staff
-    test_evidence: none
-    security_evidence: HR gate
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/app/hr/staff/page.tsx; src/app/app/hr/staff/[id]/page.tsx
+    database_evidence: profiles.skills array
+    service_evidence: src/app/app/hr/staff/actions.ts updateEmployeeDetails
+    ui_evidence: src/app/app/hr/staff/page.tsx lists employees with skills; src/app/app/hr/staff/[id]/page.tsx displays skill count and an editable skills field
+    test_evidence: tests/campaign/wrk-003-skills-surface.test.ts (5)
+    security_evidence: HR department gate; detail query is scoped by requireDepartment("hr") company_id
+    audit_health_evidence: employee details update is audited via server action
+    last_verified_sha: 1b494e6
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: Skills are stored and displayed; no expiry logic and no consumer for assignment.
+    residual_risks: Skills are stored and displayed; certification expiry, renewal-task creation and assignment consumption remain future work.
   - id: WRK-004
     title: Strengths, development needs and coaching
     description: Per-person strengths and development needs derived from outcomes, with private coaching separated from manager-visible guidance.

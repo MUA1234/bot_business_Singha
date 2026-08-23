@@ -11,8 +11,8 @@ Generated at: 2026-08-23
 | Status | Count |
 |---|---|
 | absent | 41 |
-| locally_verified | 28 |
-| foundation_only | 10 |
+| locally_verified | 29 |
+| foundation_only | 9 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **28** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **57** |
+| **Verified** (locally / preview / staging / production) | **29** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **56** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -58,7 +58,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | PRJ | 5 | 2 | 3 |
 | RSK | 6 | 2 | 4 |
 | SCH | 6 | 1 | 5 |
-| WRK | 5 | 2 | 3 |
+| WRK | 5 | 3 | 2 |
 
 ## Requirements
 
@@ -151,7 +151,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | SCH-006 | Overdue evidence enforcement | P1 | **locally_verified** | src/app/app/operations/tasks/actions.ts | 707761c | — |
 | WRK-001 | Attendance, availability, leave, sickness and travel | P1 | **locally_verified** | src/app/app/hr/leave/page.tsx | af81ed8 | — |
 | WRK-002 | Current and future workload with historical capacity | P1 | **locally_verified** | src/app/app/hr/capacity/page.tsx | 56dcee2 | — |
-| WRK-003 | Skills, certifications and expiry | P1 | **foundation_only** | src/app/app/hr/staff | none | — |
+| WRK-003 | Skills, certifications and expiry | P1 | **locally_verified** | src/app/app/hr/staff/page.tsx; src/app/app/hr/staff/[id]/page.tsx | 1b494e6 | — |
 | WRK-004 | Strengths, development needs and coaching | P2 | **absent** | none | none | privacy review of private-versus-manager-visible coaching |
 | WRK-005 | Fair assignment and internal/external team formation | P1 | **absent** | none | none | flag activation |
 
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **57**; blocked (owner): **4**;
+mode. Incomplete and implementable: **56**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

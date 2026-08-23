@@ -131,6 +131,14 @@
     "evidence": "tests/campaign/wrk-002-capacity-surface.test.ts (5 passed); tests/capacity.test.ts; tests/capacity-detail.test.ts; npm run verify (820 unit tests / 2 skipped / 120 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or historical capacity_snapshots consumption tested. Utilisation still uses hardcoded 40/4 weekly hours rather than contracted hours per person."
   },
+  "wrk003LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "1b494e6",
+    "outcome": "LOCALLY ACCEPTED: WRK-003 skills surface. The HR staff directory and employee record display and allow editing of employee skills, scoped to the company.",
+    "evidence": "tests/campaign/wrk-003-skills-surface.test.ts (5 passed); npm run verify (835 unit tests / 2 skipped / 123 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, certification expiry, renewal-task creation or assignment consumption tested. Those remain future work."
+  },
   "prj001LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -163,29 +171,29 @@
     "evidence": "tests/campaign/rsk-003-licences-register.test.ts (5 passed); tests/renewals.test.ts; npm run verify (815 unit tests / 2 skipped / 119 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or automatic creation of owned dated renewal tasks tested. Renewal responsibility and automatic renewal-task creation remain future work."
   },
-  "lastGreenSha": "e759c10",
+  "lastGreenSha": "1b494e6",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "PRJ-002 local acceptance pushed on kimi/found006-rls-cutover. The admin objectives page is the runtime entrypoint for objectives and progress grading.",
+  "lastCompletedAction": "WRK-003 local acceptance pushed on kimi/found006-rls-cutover. The HR staff list and employee record are the runtime entrypoints for skills display and editing.",
   "nextAction": "Select the next dependency-ordered implementable requirement from the original vision register and continue the implement → test → verify → commit/push loop.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/prj-002-objectives-surface.test.ts (5 passed)"
+    "npm test -- tests/campaign/wrk-003-skills-surface.test.ts (5 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "e759c10 on kimi/found006-rls-cutover",
+    "sha": "1b494e6 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "830 passed / 2 skipped / 122 files",
-    "integrationFresh": "not rerun for PRJ-002 (no database change)",
-    "integrationNarrowUpgrade": "not rerun for PRJ-002",
-    "integrationLegacyUpgrade": "not rerun for PRJ-002",
-    "migrationIdempotency": "not rerun for PRJ-002",
+    "unit": "835 passed / 2 skipped / 123 files",
+    "integrationFresh": "not rerun for WRK-003 (no database change)",
+    "integrationNarrowUpgrade": "not rerun for WRK-003",
+    "integrationLegacyUpgrade": "not rerun for WRK-003",
+    "migrationIdempotency": "not rerun for WRK-003",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 830 unit tests (2 skipped / 122 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 835 unit tests (2 skipped / 123 files)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "prj-002-objectives-surface.test.ts proves the page is a real runtime entrypoint under /app/admin/objectives, queries objectives scoped by company_id, uses assessObjective, and surfaces title/metric/target/current/status with create/update actions.",
-    "note": "PRJ-002 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "discriminationProof": "wrk-003-skills-surface.test.ts proves the staff list and employee record are real runtime entrypoints under /app/hr/staff, query profiles scoped by company_id, surface skills, link between list and detail, and allow skills editing.",
+    "note": "WRK-003 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -203,6 +211,7 @@
     "CRM-002: LOCALLY ACCEPTED at 5349d00. The procurement suppliers page shows canonical suppliers, attached channel_identities, duplicate-identity warnings, and bank details with a maker-checker change-control badge. Automated merge and change-request UI remain future work.",
     "WRK-001: LOCALLY ACCEPTED at af81ed8. The HR leave page lists company-scoped leave_requests joined with profiles and shows remaining annual leave per person. Attendance, travel, sickness, working-hours modelling and assignment consumption remain future work.",
     "WRK-002: LOCALLY ACCEPTED at 56dcee2. The HR capacity page lists active employees, reads assigned tasks, and surfaces planned/actual/remaining hours and utilization status. Historical snapshot consumption and contracted-hour modelling remain future work.",
+    "WRK-003: LOCALLY ACCEPTED at 1b494e6. The HR staff list and employee record display and allow editing of employee skills, scoped by company_id. Certification expiry, renewal-task creation and assignment consumption remain future work.",
     "PRJ-001: LOCALLY ACCEPTED at f227fef. The operations projects page lists company-scoped projects with lifecycle status and links from the operations home. Milestones, stage gates and project precedent reuse remain future work.",
     "PRJ-002: LOCALLY ACCEPTED at e759c10. The admin objectives page lists company-scoped objectives, grades progress with assessObjective and supports create/update progress actions. Milestones, dependencies, stage gates and project linkage remain future work.",
     "RSK-002: LOCALLY ACCEPTED at 843cb05. The legal contracts page lists company-scoped contracts with counterparty, renewal date, and renewal status badges. Automatic creation of owned dated renewal tasks remains future work.",
@@ -253,9 +262,10 @@
       "rsk003": 0,
       "wrk002": 0,
       "ops002": 0,
-      "prj002": 0
+      "prj002": 0,
+      "wrk003": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T01:59:50Z"
+  "updatedAt": "2026-08-23T02:03:50Z"
 }
