@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [],
+  "activeRequirementIds": ["MEM-001"],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -253,8 +253,8 @@
   },
   "lastGreenSha": "079a459",
   "latestMigration": "0097_ai_guide_messages.sql",
-  "lastCompletedAction": "GOV-006 local acceptance completed. Extended src/app/app/admin/audit/page.tsx with a governance-event filter, added tests/campaign/gov-006-governance-audit.test.ts, and updated ORIGINAL_VISION_REQUIREMENTS.yaml and AUTONOMOUS_DEVELOPMENT_STATE.json.",
-  "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml and run node scripts/autonomy/check-status.mjs to confirm.",
+  "lastCompletedAction": "Selected MEM-001 as the active requirement. FOUND-003 inbound chain is locally verified, so an organizational-memory surface that retrieves prior cases, tasks and customer history with provenance is now implementable.",
+  "nextAction": "Implement MEM-001: add /app/command/memory page that lists company-scoped prior cases, tasks, customers and channel identities with provenance, link from the Command Centre, add campaign test, update requirement register and AUTONOMOUS_DEVELOPMENT_STATE.json, then run focused + full acceptance gates.",
   "lastTargetedTests": [
     "npm test -- tests/campaign/gov-006-governance-audit.test.ts (4 passed)"
   ],
@@ -365,5 +365,5 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T05:04:21Z"
+  "updatedAt": "2026-08-23T05:10:33Z"
 }
