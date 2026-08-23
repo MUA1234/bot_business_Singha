@@ -539,20 +539,20 @@ requirements:
     phase: stage3
     priority: P1
     dependencies: [GOV-001, SCH-004]
-    status: absent
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/api/cron/directive-escalation/route.ts
+    database_evidence: src/db/migrations/0099_directive_escalation.sql
+    service_evidence: src/modules/governance/directive-escalation.ts
+    ui_evidence: src/app/app/admin/directives/page.tsx
+    test_evidence: tests/campaign/gov-002-directive-escalation.test.ts
+    security_evidence: CRON_SECRET fail-closed auth mirrors follow-ups route; escalation_chain recipients validated to same company in createDirective; RLS refreshed so only the current escalated_to (or original recipient or capability holder) can update.
+    audit_health_evidence: Cron writes management_directive.escalated / management_directive.overdue audit events via writeAudit; manual escalateDirective writes management_directive.escalated.
+    last_verified_sha: e6a99e40e8db991db65370c684819c3cb41cbcfd
+    last_verified_at: 2026-08-23T06:27:40Z
     owner_gate: none
     blocker: none
-    residual_risks: none
+    residual_risks: No hosted/staging database, authenticated browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit).
   - id: GOV-003
     title: Conflicting-instruction detection and resolution
     description: Two contradictory instructions about the same object are detected, surfaced, and resolved by a human with a recorded reason.

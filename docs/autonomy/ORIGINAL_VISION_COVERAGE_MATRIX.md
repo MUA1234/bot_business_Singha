@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 41 |
-| absent | 35 |
+| locally_verified | 42 |
+| absent | 34 |
 | specified | 5 |
 | blocked_owner | 4 |
 | foundation_only | 3 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **41** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **44** |
+| **Verified** (locally / preview / staging / production) | **42** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **43** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -46,7 +46,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | CTL | 4 | 2 | 2 |
 | FIN | 8 | 5 | 3 |
 | FOUND | 6 | 5 | 1 |
-| GOV | 6 | 4 | 2 |
+| GOV | 6 | 5 | 1 |
 | IMP | 3 | 0 | 3 |
 | INT | 1 | 1 | 0 |
 | IP | 1 | 1 | 0 |
@@ -105,7 +105,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | FOUND-005 | AI trust boundary — untrusted output cannot decide identity, scope or authority | P0 | **locally_verified** | src/ai/manager-observation.ts; src/ai/quotation.ts | 707761c | — |
 | FOUND-006 | Service-role and RLS read/write cutover | P0 | **locally_verified** | src/lib/supabase/read.ts (shim returns the authenticated RLS client when flags are ON, service-role when OFF) | 0e6743a | flag activation (RLS_READS/RLS_WRITES remain default-OFF pending staging UAT; the cutover is verified only when flags are explicitly enabled) |
 | GOV-001 | Management directives with response obligations | P1 | **locally_verified** | src/app/app/admin/directives/page.tsx | 336d4ac | — |
-| GOV-002 | Directive acknowledgement and escalation | P1 | **absent** | none | none | — |
+| GOV-002 | Directive acknowledgement and escalation | P1 | **locally_verified** | src/app/api/cron/directive-escalation/route.ts | e6a99e40e8db991db65370c684819c3cb41cbcfd | — |
 | GOV-003 | Conflicting-instruction detection and resolution | P1 | **locally_verified** | src/app/app/admin/directives/page.tsx | 81e6d35430d85eafdfb0b88aefa8b404c4544a2b | — |
 | GOV-004 | Board-reserved matters and emergency suspension | P0 | **absent** | none | none | definition of the reserved-matter list |
 | GOV-005 | Human override, appeal and separation of duties | P0 | **locally_verified** | src/app/app/finance/approvals/actions.ts; src/app/app/finance/approvals/page.tsx | c3c0b71 | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **44**; blocked (owner): **4**;
+mode. Incomplete and implementable: **43**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

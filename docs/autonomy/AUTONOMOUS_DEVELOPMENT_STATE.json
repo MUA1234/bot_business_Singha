@@ -1,17 +1,16 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": ["GOV-002"],
+  "activeRequirementIds": [],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "81e6d35430d85eafdfb0b88aefa8b404c4544a2b",
-    "outcome": "LOCALLY ACCEPTED: GOV-003 conflicting-instruction detection and resolution. Migration 0098 extends management_directives with target_type/target_id/action and adds management_directive_conflicts with automatic detection, capability-gated RLS and an updated_at trigger. The directives page includes target/action inputs and an open-conflicts section with resolution forms; resolveDirectiveConflict records the reason and writes a management_directive_conflict.resolved audit event.",
+    "testedSha": "e6a99e40e8db991db65370c684819c3cb41cbcfd",
+    "outcome": "LOCALLY ACCEPTED: GOV-002 directive acknowledgement and escalation. Migration 0099 extends management_directives with escalation_chain, escalated_to, escalation_level, escalated_at and escalation_reason; the CRON_SECRET-gated /api/cron/directive-escalation route advances overdue unacknowledged directives up the chain or to overdue and writes append-only audit events.",
     "container": "disposable local PostgreSQL 16 (port 55440) with supabase-shim",
     "corrections": [
-      "Added management_directive_conflicts table to security/rls-classification.json as capability.",
-      "Added detect_management_directive_conflicts() to OWNER_ONLY allowlist and revoked EXECUTE from all API roles in migration 0098.",
-      "Fresh disposable PostgreSQL 16 full migration 0001-0098; narrow upgrade 0097→0098; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on."
+      "Added src/app/api/cron/directive-escalation/route.ts to scripts/allowlists/supabase-admin-system.json to satisfy completion-inventory --check.",
+      "Fresh disposable PostgreSQL 16 0001-0099; narrow upgrade 0098→0099; full integration 697 passed / 77 files; verify/build/browser-check all passed."
     ]
   },
   "currentBranch": "kimi/found006-rls-cutover",
@@ -279,31 +278,39 @@
     "evidence": "tests/campaign/gov-003-conflicting-directives.test.ts (8 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); fresh disposable PostgreSQL 16 0001-0098 full migration; narrow upgrade 0097→0098; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests 898 passed / 2 skipped / 135 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live manager-vs-manager scenario tested."
   },
-  "lastGreenSha": "81e6d35430d85eafdfb0b88aefa8b404c4544a2b",
-  "latestMigration": "0098_conflicting_directive_resolution.sql",
-  "lastCompletedAction": "Selected GOV-002 directive acknowledgement and escalation as the next dependency-ordered implementable requirement on kimi/found006-rls-cutover.",
-  "nextAction": "Implement GOV-002: extend management_directives with acknowledgement tracking and escalation chain, add cron or trigger-driven escalation for unacknowledged/overdue directives, update the directives page/actions, add campaign tests, and run acceptance gates.",
+  "gov002LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "e6a99e40e8db991db65370c684819c3cb41cbcfd",
+    "outcome": "LOCALLY ACCEPTED: GOV-002 directive acknowledgement and escalation. Migration 0099 extends management_directives with escalation_chain, escalated_to, escalation_level, escalated_at and escalation_reason; updates the status check to include 'escalated'; refreshes RLS so the current escalated_to can see and update the directive. The pure evaluateDirectiveEscalation helper is called by the CRON_SECRET-gated /api/cron/directive-escalation route, which advances overdue unacknowledged directives one step up the chain or transitions them to overdue and writes append-only audit events. The admin directives page includes an escalation-chain multi-select and escalation/overdue badges; actions.ts validates chain recipients against the same company, allows the current escalated_to to acknowledge, and adds manual escalateDirective.",
+    "evidence": "tests/campaign/gov-002-directive-escalation.test.ts (15 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression); tests/campaign/cron-auth.test.ts (9 passed regression); fresh disposable PostgreSQL 16 0001-0099 full migration; narrow upgrade 0098→0099; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (916 unit tests / 2 skipped / 136 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
+  },
+  "lastGreenSha": "e6a99e40e8db991db65370c684819c3cb41cbcfd",
+  "latestMigration": "0099_directive_escalation.sql",
+  "lastCompletedAction": "GOV-002 locally accepted on kimi/found006-rls-cutover: full acceptance gates passed; SHA placeholders replaced; requirement register and state updated.",
+  "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml and continue the autonomous completion pass.",
   "lastTargetedTests": [
-    "tests/campaign/gov-003-conflicting-directives.test.ts (8 passed)",
+    "tests/campaign/gov-002-directive-escalation.test.ts (15 passed)",
     "tests/campaign/gov-001-management-directives.test.ts (6 passed regression)",
-    "tests/integration/rls-matrix-coverage.test.ts (2 passed)",
-    "tests/integration/secure-definer-grants.test.ts (9 passed)"
+    "tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression)",
+    "tests/campaign/cron-auth.test.ts (9 passed regression)"
   ],
   "lastFullGateResults": {
-    "sha": "81e6d35430d85eafdfb0b88aefa8b404c4544a2b on kimi/found006-rls-cutover",
+    "sha": "e6a99e40e8db991db65370c684819c3cb41cbcfd on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "898 passed / 2 skipped / 135 files",
-    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0098 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
-    "integrationNarrowUpgrade": "passed: 0097→0098",
+    "unit": "916 passed / 2 skipped / 136 files",
+    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0099 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
+    "integrationNarrowUpgrade": "passed: 0098→0099",
     "integrationLegacyUpgrade": "not run for this package (foundation branch; previous requirements covered legacy upgrades)",
-    "migrationIdempotency": "migration-lint 0001-0098 sequential, no gaps or duplicates",
+    "migrationIdempotency": "migration-lint 0001-0099 sequential, no gaps or duplicates",
     "build": "clean",
     "verify": "passed: secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests",
     "secretScan": "no tracked secrets found",
-    "migrationLint": "98 migrations, sequential 0001–0098, no gaps or duplicates",
+    "migrationLint": "99 migrations, sequential 0001–0099, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "gov-003-conflicting-directives.test.ts proves migration 0098 exists and extends management_directives with target/action columns plus a management_directive_conflicts table with detection trigger and RLS; the directives page exposes a conflicts section and target/action inputs; resolveDirectiveConflict writes a management_directive_conflict.resolved audit event. rls-matrix-coverage and secure-definer-grants integration tests confirm the new table/function are classified.",
+    "discriminationProof": "gov-002-directive-escalation.test.ts proves migration 0099 extends management_directives with escalation columns, the evaluateDirectiveEscalation helper advances overdue directives up a chain or to overdue, and the CRON-gated route writes management_directive.escalated / management_directive.overdue audit events. GOV-001/GOV-003 regressions confirm existing directive behaviour is preserved.",
     "note": "No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent during this acceptance pass."
   },
   "openFindings": [
@@ -340,6 +347,7 @@
     "AIM-007: LOCALLY ACCEPTED at d5a3f70. Migration 0097 adds a company- and task-scoped ai_guide_messages table with kind, body, visibility, audience_refs, proposed_next_action, confidence and visibility-aware RLS. The task detail page lists guide messages and, behind the default-OFF V3_1_AI_GUIDE flag, lets an ai.guide.manage capability holder add coaching/next-action guidance. Automatic persistence of pipeline suggestedActions, Ask-AI interactive coaching and task-role-based senior visibility remain future work.",
     "GOV-006: LOCALLY ACCEPTED at 079a459. The admin audit page at /app/admin/audit reads the append-only audit_events table company-scoped and provides a Governance filter that scopes results to governance entity types (management_directive, approval_request, policy_evaluation, delegation, authority_rule). Reserved-matter decisions and escalations are not yet produced by GOV-004/GOV-002; the filter captures the entity types that will carry those events once built.",
     "GOV-003: LOCALLY ACCEPTED at 81e6d35430d85eafdfb0b88aefa8b404c4544a2b. Migration 0098 extends management_directives with target_type/target_id/action and adds management_directive_conflicts with automatic detection, capability-gated RLS and an updated_at trigger. The directives page includes target/action inputs and an open-conflicts section with resolution forms; resolveDirectiveConflict records the reason and writes a management_directive_conflict.resolved audit event. Fresh + narrow-upgrade migrations, full integration (697/77), verify, lint, build and browser-check passed.",
+    "GOV-002: LOCALLY ACCEPTED at e6a99e40e8db991db65370c684819c3cb41cbcfd. Migration 0099 extends management_directives with escalation_chain, escalated_to, escalation_level, escalated_at and escalation_reason; the CRON_SECRET-gated /api/cron/directive-escalation route advances overdue unacknowledged directives up the chain or to overdue and writes append-only audit events. Full acceptance gates passed. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
     "MEM-001: LOCALLY ACCEPTED at 82b6ce9. The /app/command/memory page reads company-scoped management_cases, tasks, customers and channel_identities with provenance labels (case:/task:/customer:) and is linked from the Command Centre. No new migration is required. Future analysis producers will consume this data deterministically.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
     "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
@@ -398,5 +406,5 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T06:05:45Z"
+  "updatedAt": "2026-08-23T06:27:40Z"
 }
