@@ -54,8 +54,11 @@ export default async function OperationsHome() {
   return (
     <div className="stack gap-3">
       <div className="row between">
-        <div><h1>Operations</h1><p className="muted mt-1">Fulfilment, tasks and delivery.</p></div>
-        <Link className="btn sm" href="/app/operations/tasks">Tasks →</Link>
+        <div><h1>Operations</h1><p className="muted mt-1">Fulfilment, tasks, projects and delivery.</p></div>
+        <div className="row gap-1">
+          <Link className="btn ghost sm" href="/app/operations/projects">Projects</Link>
+          <Link className="btn sm" href="/app/operations/tasks">Tasks →</Link>
+        </div>
       </div>
       <div className="grid cols-4">
         {tiles.map((t) => (
