@@ -1628,20 +1628,20 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: []
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/app/legal/licences/page.tsx
-    database_evidence: licences
+    database_evidence: licences (migration 0012)
     service_evidence: src/management/ai-manager/renewals.ts
-    ui_evidence: legal licences page
-    test_evidence: tests/renewals.test.ts
-    security_evidence: legal gate
+    ui_evidence: src/app/app/legal/licences/page.tsx lists company-scoped licences/permits with authority, number, expiry date, and renewal status badges
+    test_evidence: tests/campaign/rsk-003-licences-register.test.ts (5); tests/renewals.test.ts
+    security_evidence: legal gate; page queries are scoped to requireDepartment("legal") company_id
     audit_health_evidence: legal overview
-    last_verified_sha: 1ebaa80
-    last_verified_at: 2026-08-17
+    last_verified_sha: e99cb94
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: Same as RSK-002 — visibility without ownership.
+    residual_risks: Same as RSK-002 — visibility without ownership. Renewal responsibility and automatic renewal-task creation remain future work.
   - id: RSK-004
     title: Insurance register and renewals
     description: Insurance policies with cover, expiry and renewal tasks.
