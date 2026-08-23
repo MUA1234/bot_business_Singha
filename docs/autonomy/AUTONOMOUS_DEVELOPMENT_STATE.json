@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [],
+  "activeRequirementIds": ["SCH-003"],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -280,8 +280,8 @@
   },
   "lastGreenSha": "d0e08db70c2d5d7b32c98e29377d7373efbc1422",
   "latestMigration": "0107_project_risks_decisions_scenarios.sql",
-  "lastCompletedAction": "Implemented and locally accepted PRJ-004 Project risks, decisions and scenario comparison.",
-  "nextAction": "Select and implement the next dependency-ordered P2 requirement. Candidates with all dependencies verified: SCH-003 (scheduling/capacity), CTL-002 (central control dashboard), CTL-004 (alerting and health thresholds), MOB-002 (mobile task view).",
+  "lastCompletedAction": "Selected SCH-003 Leave and workload-aware scheduling as the next dependency-ordered requirement.",
+  "nextAction": "Implement SCH-003: add pure availability/workload helpers, update the follow-ups cron route to skip assignees on approved leave and respect workload, add tests, and run acceptance gates.",
   "lastTargetedTests": [
     "tests/project-risks-decisions-scenarios.test.ts (14 passed)",
     "tests/campaign/prj-004-project-risks-decisions-scenarios.test.ts (12 passed)"
@@ -416,7 +416,7 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T11:00:00.000Z",
+  "updatedAt": "2026-08-23T11:10:00.000Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
