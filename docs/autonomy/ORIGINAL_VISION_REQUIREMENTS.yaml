@@ -1158,20 +1158,20 @@ requirements:
     phase: stage3
     priority: P1
     dependencies: [AIM-003]
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/api/cron/follow-ups/route.ts
-    database_evidence: tasks due_date; message_outbox
-    service_evidence: src/modules/work/follow-up.ts
+    database_evidence: tasks due_date; message_outbox; task_assignments; memberships
+    service_evidence: src/modules/work/follow-up.ts; src/lib/outbox-enqueue.ts; src/lib/audit.ts
     ui_evidence: none
-    test_evidence: tests/follow-up.test.ts
-    security_evidence: CRON_SECRET gate; outbox enqueue only
-    audit_health_evidence: enqueued counts
-    last_verified_sha: 1ebaa80
-    last_verified_at: 2026-08-17
+    test_evidence: tests/campaign/sch-002-follow-ups-surface.test.ts; tests/campaign/cron-auth.test.ts; tests/follow-up.test.ts
+    security_evidence: CRON_SECRET gate (fail-closed timingSafeEqual); outbox enqueue only; no customer-facing sends; audit event on enqueue
+    audit_health_evidence: follow_up.enqueued / follow_up.escalated audit events with task count, enqueued count and date
+    last_verified_sha: 9ed08e12ecb08e1c1832aa0f8e38273e9005b936
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: Selects only tasks with an assignee, so every AI-created task is excluded; no branch for the captured state.
+    residual_risks: The route resolves assignees through task_assignments → memberships → profiles, so manually assigned tasks are reached; AI-created tasks still need a human assignment (WRK-005 unbuilt) before they become reachable. The escalation branch targets company admins generically, not a defined per-task chain (SCH-004).
   - id: SCH-003
     title: Leave and workload-aware scheduling
     description: Follow-ups and assignments respect availability and current load.
