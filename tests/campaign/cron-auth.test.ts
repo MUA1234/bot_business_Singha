@@ -11,6 +11,7 @@ const ROUTES = [
   ["dispatch drain", () => import("@/app/api/cron/dispatch-drain/route")],
   ["inbound sweeper", () => import("@/app/api/cron/inbound-sweeper/route")],
   ["directive escalation", () => import("@/app/api/cron/directive-escalation/route")],
+  ["follow-ups", () => import("@/app/api/cron/follow-ups/route")],
 ] as const;
 
 const req = (auth?: string) =>

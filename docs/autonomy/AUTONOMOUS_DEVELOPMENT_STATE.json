@@ -1,7 +1,9 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [],
+  "activeRequirementIds": [
+    "SCH-002"
+  ],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -278,8 +280,8 @@
   },
   "lastGreenSha": "7b939f10297cb122056c7a9400e879019f7668be",
   "latestMigration": "0102_counterparty_compliance.sql",
-  "lastCompletedAction": "Accepted CRM-005 compliance and insurance status per counterparty as locally verified on kimi/found006-rls-cutover at 7b939f10297cb122056c7a9400e879019f7668be.",
-  "nextAction": "Select the next dependency-ordered implementable requirement and continue the autonomous pass.",
+  "lastCompletedAction": "Selected SCH-002 SLAs, 24/48-hour follow-ups and reminders as next dependency-ordered implementable requirement (foundation_only; runtime_entrypoint and follow-up module already exist).",
+  "nextAction": "Harden the follow-ups cron route to use task_assignments instead of the non-existent tasks.assigned_to, add campaign test, and run acceptance gates.",
   "lastTargetedTests": [
     "tests/campaign/crm-005-counterparty-compliance.test.ts (9 passed)",
     "tests/counterparty-compliance.test.ts (14 passed)"
@@ -400,7 +402,7 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T08:32:00Z",
+  "updatedAt": "2026-08-23T08:33:00Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
