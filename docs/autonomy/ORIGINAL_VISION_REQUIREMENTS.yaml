@@ -560,20 +560,20 @@ requirements:
     phase: stage3
     priority: P1
     dependencies: [MEM-001]
-    status: absent
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/app/admin/directives/page.tsx
+    database_evidence: Migration 0098 extends management_directives with nullable target_type/target_id/action and adds management_directive_conflicts table with status/resolution/resolved_by, a unique pair index, an updated_at trigger, company-isolated SELECT RLS, capability-gated write RLS, and an AFTER INSERT OR UPDATE trigger that detects contradictory active directives and auto-resolves stale conflicts.
+    service_evidence: src/app/app/admin/directives/actions.ts createDirective accepts optional target/action and resolveDirectiveConflict updates the conflict row, writes a management_directive_conflict.resolved audit event, and revalidates the page.
+    ui_evidence: src/app/app/admin/directives/page.tsx adds target_type/target_id/action inputs to the new-directive form and surfaces an open-conflicts section with the two directive titles, target, actions and a resolution reason form.
+    test_evidence: tests/campaign/gov-003-conflicting-directives.test.ts (8)
+    security_evidence: Company-scoped reads via has_company_access; writes gated by admin.directive.manage capability; trigger runs as SECURITY DEFINER with pinned search_path; server actions require admin and verify company_id before resolving.
+    audit_health_evidence: management_directive_conflict.resolved audit event; trigger-driven auto-resolution preserves the existing conflict row and records an automatic resolution reason.
+    last_verified_sha: 81e6d35430d85eafdfb0b88aefa8b404c4544a2b
+    last_verified_at: 2026-08-23T06:04:38Z
     owner_gate: none
     blocker: none
-    residual_risks: Campaign scenario AMB-02 exists for this and is currently untestable — no conflict-detection layer.
+    residual_risks: No live manager-vs-manager campaign scenario has been exercised; only static file and migration-shape coverage plus typecheck/focused test verification.
   - id: GOV-004
     title: Board-reserved matters and emergency suspension
     description: A defined class of matters is reserved to the owner/board; an emergency suspension can halt automated activity immediately.

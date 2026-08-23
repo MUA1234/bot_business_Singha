@@ -1,7 +1,19 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": ["GOV-003"],
+  "activeRequirementIds": [],
+  "lastLocalAcceptanceAttempt": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "81e6d35430d85eafdfb0b88aefa8b404c4544a2b",
+    "outcome": "LOCALLY ACCEPTED: GOV-003 conflicting-instruction detection and resolution. Migration 0098 extends management_directives with target_type/target_id/action and adds management_directive_conflicts with automatic detection, capability-gated RLS and an updated_at trigger. The directives page includes target/action inputs and an open-conflicts section with resolution forms; resolveDirectiveConflict records the reason and writes a management_directive_conflict.resolved audit event.",
+    "container": "disposable local PostgreSQL 16 (port 55440) with supabase-shim",
+    "corrections": [
+      "Added management_directive_conflicts table to security/rls-classification.json as capability.",
+      "Added detect_management_directive_conflicts() to OWNER_ONLY allowlist and revoked EXECUTE from all API roles in migration 0098.",
+      "Fresh disposable PostgreSQL 16 full migration 0001-0098; narrow upgrade 0097→0098; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on."
+    ]
+  },
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -259,29 +271,40 @@
     "evidence": "tests/campaign/mem-001-organizational-memory.test.ts (4 passed); fresh disposable PostgreSQL 16 0001-0097 (supabase-shim); full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (890 unit tests / 2 skipped / 134 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or write path tested. The surface is read-only; future analysis producers will consume this data deterministically."
   },
-  "lastGreenSha": "82b6ce9",
-  "latestMigration": "0097_ai_guide_messages.sql",
-  "lastCompletedAction": "Selected GOV-003 as the active requirement. MEM-001 is locally verified, so a conflicting-instruction detection and resolution surface built on management_directives is now implementable.",
-  "nextAction": "Implement GOV-003: extend management_directives with target_type/target_id/action, add a conflict-detection boundary that surfaces pairs of contradictory active directives, provide an admin resolution action with recorded reason, add campaign test, update requirement register and AUTONOMOUS_DEVELOPMENT_STATE.json, then run focused + full acceptance gates.",
+  "gov003LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "81e6d35430d85eafdfb0b88aefa8b404c4544a2b",
+    "outcome": "LOCALLY ACCEPTED: GOV-003 conflicting-instruction detection and resolution. Migration 0098 extends management_directives with target_type/target_id/action and adds management_directive_conflicts with automatic detection, capability-gated RLS and an updated_at trigger. The directives page includes target/action inputs and an open-conflicts section with resolution forms. The resolveDirectiveConflict action records the reason and writes a management_directive_conflict.resolved audit event.",
+    "evidence": "tests/campaign/gov-003-conflicting-directives.test.ts (8 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); fresh disposable PostgreSQL 16 0001-0098 full migration; narrow upgrade 0097→0098; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests 898 passed / 2 skipped / 135 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live manager-vs-manager scenario tested."
+  },
+  "lastGreenSha": "81e6d35430d85eafdfb0b88aefa8b404c4544a2b",
+  "latestMigration": "0098_conflicting_directive_resolution.sql",
+  "lastCompletedAction": "GOV-003 locally accepted on kimi/found006-rls-cutover: full acceptance gates passed; SHA placeholders replaced; requirement register and state updated.",
+  "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml and continue the autonomous completion pass.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/mem-001-organizational-memory.test.ts (4 passed)"
+    "tests/campaign/gov-003-conflicting-directives.test.ts (8 passed)",
+    "tests/campaign/gov-001-management-directives.test.ts (6 passed regression)",
+    "tests/integration/rls-matrix-coverage.test.ts (2 passed)",
+    "tests/integration/secure-definer-grants.test.ts (9 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "82b6ce9 on kimi/found006-rls-cutover",
+    "sha": "81e6d35430d85eafdfb0b88aefa8b404c4544a2b on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "890 passed / 2 skipped / 134 files",
-    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0097 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
-    "integrationNarrowUpgrade": "not applicable (no new migration)",
-    "integrationLegacyUpgrade": "not rerun for MEM-001",
-    "migrationIdempotency": "migration-lint: 97 sequential, 0001-0097, no gaps or duplicates",
-    "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 890 unit tests (2 skipped / 134 files)",
-    "secretScan": "clean",
-    "migrationLint": "97 sequential, 0001-0097, no gaps or duplicates",
+    "unit": "898 passed / 2 skipped / 135 files",
+    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0098 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
+    "integrationNarrowUpgrade": "passed: 0097→0098",
+    "integrationLegacyUpgrade": "not run for this package (foundation branch; previous requirements covered legacy upgrades)",
+    "migrationIdempotency": "migration-lint 0001-0098 sequential, no gaps or duplicates",
+    "build": "clean",
+    "verify": "passed: secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests",
+    "secretScan": "no tracked secrets found",
+    "migrationLint": "98 migrations, sequential 0001–0098, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "mem-001-organizational-memory.test.ts proves /app/command/memory is a real runtime entrypoint gated by requireAdmin, reads management_cases/tasks/customers/channel_identities scoped by company_id, shows case:/task:/customer: provenance, and is linked from the Command Centre.",
-    "note": "MEM-001 verification used a disposable local PostgreSQL 16 container (port 55440) with the supabase-shim. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "discriminationProof": "gov-003-conflicting-directives.test.ts proves migration 0098 exists and extends management_directives with target/action columns plus a management_directive_conflicts table with detection trigger and RLS; the directives page exposes a conflicts section and target/action inputs; resolveDirectiveConflict writes a management_directive_conflict.resolved audit event. rls-matrix-coverage and secure-definer-grants integration tests confirm the new table/function are classified.",
+    "note": "No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent during this acceptance pass."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -316,6 +339,7 @@
     "GOV-001: LOCALLY ACCEPTED at 336d4ac. Migration 0096 adds a company-scoped management_directives table with issued_to, response_required_by, status, response, acknowledged_at and closed_at and capability-gated RLS. The admin directives page issues directives to named humans, tracks open/overdue/closed statuses, supports recipient acknowledgement and admin close, and links from the admin home. Scheduled escalation and recipient notification remain future work.",
     "AIM-007: LOCALLY ACCEPTED at d5a3f70. Migration 0097 adds a company- and task-scoped ai_guide_messages table with kind, body, visibility, audience_refs, proposed_next_action, confidence and visibility-aware RLS. The task detail page lists guide messages and, behind the default-OFF V3_1_AI_GUIDE flag, lets an ai.guide.manage capability holder add coaching/next-action guidance. Automatic persistence of pipeline suggestedActions, Ask-AI interactive coaching and task-role-based senior visibility remain future work.",
     "GOV-006: LOCALLY ACCEPTED at 079a459. The admin audit page at /app/admin/audit reads the append-only audit_events table company-scoped and provides a Governance filter that scopes results to governance entity types (management_directive, approval_request, policy_evaluation, delegation, authority_rule). Reserved-matter decisions and escalations are not yet produced by GOV-004/GOV-002; the filter captures the entity types that will carry those events once built.",
+    "GOV-003: LOCALLY ACCEPTED at 81e6d35430d85eafdfb0b88aefa8b404c4544a2b. Migration 0098 extends management_directives with target_type/target_id/action and adds management_directive_conflicts with automatic detection, capability-gated RLS and an updated_at trigger. The directives page includes target/action inputs and an open-conflicts section with resolution forms; resolveDirectiveConflict records the reason and writes a management_directive_conflict.resolved audit event. Fresh + narrow-upgrade migrations, full integration (697/77), verify, lint, build and browser-check passed.",
     "MEM-001: LOCALLY ACCEPTED at 82b6ce9. The /app/command/memory page reads company-scoped management_cases, tasks, customers and channel_identities with provenance labels (case:/task:/customer:) and is linked from the Command Centre. No new migration is required. Future analysis producers will consume this data deterministically.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
     "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
@@ -374,5 +398,5 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T05:41:42Z"
+  "updatedAt": "2026-08-23T06:04:38Z"
 }
