@@ -8,12 +8,13 @@
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-22",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "4d2ee97",
-    "outcome": "LOCALLY ACCEPTED: IP-001 public-repository IP boundary. The classified manifest and automated check enforce the public-repository boundary: no server-only modules reach client components, no tracked private keys, no proprietary paths, and public system prompts are reviewed against the manifest. npm run verify passes; unit tests include the IP-boundary check.",
+    "testedSha": "e32a1b7",
+    "outcome": "LOCALLY ACCEPTED: OPS-005 feature-flag rollout control. The V3.1 flag registry is readable at runtime via v31FlagSnapshot(), and /api/health now reports the snapshot so an operator can see which capability flags are enabled. All flags remain default-OFF; activation is still owner-gated per slice.",
     "container": "n/a — no database required",
     "corrections": [
-      "Added tests/autonomy/ip-boundary.test.ts exercising check-ip-boundary.mjs in normal and --quiet modes.",
-      "Updated IP-001 requirement entry with test_evidence, security_evidence, audit_health_evidence, last_verified_sha and locally_verified status."
+      "Added v31FlagSnapshot() to /api/health response body.",
+      "Added tests/campaign/health-route.test.ts verifying auth gating and flag snapshot reporting.",
+      "Updated OPS-005 requirement entry to locally_verified with test_evidence and last_verified_sha."
     ]
   },
   "mod003LocalAcceptance": {
@@ -64,30 +65,38 @@
     "evidence": "src/schemas/v3_1/task-intelligence-profile.ts defines the contract; tests/v3_1-contracts.test.ts validates the schema.",
     "limitation": "V3.1 feature flag V3_1_TASK_DETECTION remains default-OFF and AIM-004 remains specified until the V3.1 slice is approved and implemented."
   },
-  "lastGreenSha": "4d2ee97",
+  "ops005LocalAcceptance": {
+    "date": "2026-08-22",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "e32a1b7",
+    "outcome": "LOCALLY ACCEPTED: feature-flag rollout control. V3.1 flags are readable at runtime and reported on the CRON_SECRET-gated /api/health endpoint.",
+    "evidence": "tests/flags.test.ts (5 passed); tests/campaign/health-route.test.ts (3 passed); npm run verify (772 unit tests / 2 skipped / 110 files); npm run lint 0 errors; npm run build clean.",
+    "limitations": "No hosted/staging environment, production traffic, or flag activation. All V3.1 flags remain default-OFF."
+  },
+  "lastGreenSha": "e32a1b7",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "AIM-004 assessment completed on kimi/found006-rls-cutover. AIM-004 is a V3.1 future requirement whose schema contract exists but has no runtime consumer; building it now would be ahead of the approved work package. Transitioning to OPS-005 (Feature-flag rollout control), a dependency-free foundation_only requirement with a small, well-defined gap: /api/health does not yet report the V3.1 flag snapshot.",
-  "nextAction": "Implement OPS-005: surface the V3.1 flag snapshot on /api/health, add or extend tests to verify the snapshot is reported, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "OPS-005 local acceptance completed at e32a1b7 on kimi/found006-rls-cutover. /api/health now reports the V3.1 flag snapshot; tests/flags.test.ts and tests/campaign/health-route.test.ts pass; npm run verify, lint and build all pass. Next: select the next dependency-ordered implementable requirement from the register.",
+  "nextAction": "Scan the requirement register for the next dependency-ordered implementable requirement (no unmet dependencies, not blocked_owner/blocked_external/deliberately_deferred, not a V3.1 future slice that would violate the zero-behaviour-change foundation constraint). Assess it, implement or verify it, run focused tests and npm run verify, update the requirement entry and state file, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
-    "DATABASE_URL=postgresql://postgres:postgres@localhost:55440/singha_test npm run test:integration -- tests/integration/task-routing.test.ts tests/integration/routing-provenance.test.ts tests/integration/routing-and-mapping-corrections.test.ts (46 passed / 3 files)",
-    "npm test -- tests/campaign/capture-routing.test.ts tests/campaign/analyze-ui-truthfulness.test.ts tests/campaign/ui-rendered-truthfulness.test.ts (24 passed / 3 files)"
+    "npm test -- tests/flags.test.ts (5 passed)",
+    "npm test -- tests/campaign/health-route.test.ts (3 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "4d2ee97 on kimi/found006-rls-cutover",
+    "sha": "e32a1b7 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "769 passed / 2 skipped / 109 files",
-    "integrationFresh": "46 passed / 3 files for AIM-003 focused tests on disposable PostgreSQL 16 after fresh 0001-0092 with supabase-shim",
-    "integrationNarrowUpgrade": "not rerun for AIM-003",
-    "integrationLegacyUpgrade": "not rerun for AIM-003",
-    "migrationIdempotency": "not rerun for AIM-003",
+    "unit": "772 passed / 2 skipped / 110 files",
+    "integrationFresh": "not rerun for OPS-005 (no database change)",
+    "integrationNarrowUpgrade": "not rerun for OPS-005",
+    "integrationLegacyUpgrade": "not rerun for OPS-005",
+    "migrationIdempotency": "not rerun for OPS-005",
     "build": "compiled cleanly",
-    "verify": "passed after IP-001: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 769 unit tests (2 skipped)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 772 unit tests (2 skipped)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
-    "browserCheck": "not rerun for AIM-003",
-    "discriminationProof": "routing-provenance.test.ts pins that provenance comes from WHICH function is called, not a caller assertion; task-routing.test.ts pins company-scoped assignee validation.",
-    "note": "AIM-003 verification ran on DISPOSABLE LOCAL PostgreSQL 16 containers. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "browserCheck": "not rerun for OPS-005",
+    "discriminationProof": "health-route.test.ts proves the CRON_SECRET-gated /api/health returns the V3.1 flag snapshot; flags.test.ts proves every flag is default-OFF and turns on only for exact 'on'.",
+    "note": "OPS-005 verification requires no database or browser. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -97,6 +106,7 @@
     "OF-018: RESOLVED by migration 0090 and locally accepted at 5109bc0. The two inbound-review RPCs now authorize solely by their exact service_role EXECUTE grants; direct service sessions remain valid without or despite claim text, while anon/authenticated remain denied.",
     "AIM-003: IMPLEMENTATION COMPLETE but remains implementation_in_progress pending owner acceptance of R1 per the requirement register. Focused tests pass; OF-007 is fixed by migrations 0078/0082.",
     "AIM-004: V3.1 FUTURE WORK. Schema contract exists at src/schemas/v3_1/task-intelligence-profile.ts; no runtime consumer is built per the zero-behaviour-change foundation constraint.",
+    "OPS-005: LOCALLY ACCEPTED at e32a1b7. V3.1 flag snapshot reported on /api/health; activation remains owner-gated per slice.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
     "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
     "OF-015 (P2): sections 3 and 6 have no re-runnable schema-level end-to-end discrimination, because they are application code.",
@@ -136,7 +146,8 @@
       "of-018": 0,
       "mod-003": 0,
       "ip-001": 0,
-      "aim-003": 0
+      "aim-003": 0,
+      "ops-005": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },

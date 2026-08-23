@@ -1893,7 +1893,7 @@ requirements:
     test_evidence: tests/flags.test.ts; tests/campaign/health-route.test.ts
     security_evidence: default OFF; owner-gated activation; health endpoint is CRON_SECRET-gated
     audit_health_evidence: flag snapshot visible on /api/health
-    last_verified_sha: PENDING_SHA
+    last_verified_sha: e32a1b7
     last_verified_at: 2026-08-22
     owner_gate: flag activation per slice
     blocker: none

@@ -4,7 +4,7 @@
 > A status is only as good as the evidence columns beside it; the audit refuses a completion status
 > with empty evidence.
 
-Generated at: 2026-08-22
+Generated at: 2026-08-23
 
 ## Totals
 
@@ -128,7 +128,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | OPS-002 | Audit search | P1 | **foundation_only** | src/app/app/admin/audit/page.tsx | none | — |
 | OPS-003 | Backup, restore and rollback drills | P0 | **absent** | none | none | hosted environment access to rehearse against |
 | OPS-004 | Staging UAT and browser role testing | P0 | **blocked_owner** | none | none | staging environment plus credentials |
-| OPS-005 | Feature-flag rollout control | P1 | **locally_verified** | src/config/flags.ts; src/app/api/health/route.ts | PENDING_SHA | flag activation per slice |
+| OPS-005 | Feature-flag rollout control | P1 | **locally_verified** | src/config/flags.ts; src/app/api/health/route.ts | e32a1b7 | flag activation per slice |
 | OPS-006 | Model and provider configuration with cost monitoring | P1 | **foundation_only** | src/ai/gateway.ts MODEL_ROUTES | none | provider selection and credentials |
 | OPS-007 | Incident response and business continuity | P1 | **absent** | none | none | — |
 | OPS-008 | Monitored production pilot | P0 | **blocked_owner** | none | none | owner approval of merge, hosted migration, flags and promotion |
