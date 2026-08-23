@@ -129,6 +129,7 @@ export default async function FinanceHome() {
       </div>
 
       <div className="grid cols-3">
+        <Link href="/app/finance/budgets" className="card"><div className="card-title row gap-1"><Icon name="pie-chart" size={17} /> Budgets vs actual</div><p className="card-sub">Build budgets and compare them to journal activity and scenarios.</p></Link>
         <Link href="/app/finance/invoices" className="card"><div className="card-title row gap-1"><Icon name="file-text" size={17} /> Invoices</div><p className="card-sub">Billing documents from quotations.</p></Link>
         <Link href="/app/finance/price-requests" className="card"><div className="card-title row gap-1"><Icon name="help-circle" size={17} /> Price Confirmations</div><p className="card-sub">Confirm prices routed to finance.</p></Link>
         <Link href="/app/finance/exports" className="card"><div className="card-title row gap-1"><Icon name="table" size={17} /> Excel Exports</div><p className="card-sub">Download logs as Excel-compatible CSV.</p></Link>
