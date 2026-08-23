@@ -1007,20 +1007,20 @@ requirements:
     phase: stage4
     priority: P0
     dependencies: []
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/app/finance/reconciliation/page.tsx
-    database_evidence: payments; bank_transactions; settlement RPCs
-    service_evidence: src/modules/finance/reconciliation.ts; src/accounting
-    ui_evidence: reconciliation page; supplier-bill settlement
-    test_evidence: tests/integration/settlement.test.ts; tests/bank-import.test.ts
-    security_evidence: settlement via authenticated RPC with idempotency; bank-detail maker-checker (0045)
-    audit_health_evidence: audit events on settlement
-    last_verified_sha: 1ebaa80
-    last_verified_at: 2026-08-17
+    database_evidence: payments; receipts; bank_transactions; bank_accounts; reconciliation_matches
+    service_evidence: src/modules/finance/reconcile.ts (deterministic exact-decimal matcher); src/modules/finance/reconcile-validate.ts (server-side match validation); src/app/app/finance/reconciliation/actions.ts (importBankTransactions, confirmMatch)
+    ui_evidence: reconciliation page renders unmatched transactions, suggested matches with confidence badges, and a confirm form
+    test_evidence: tests/campaign/fin-008-payment-intelligence-surface.test.ts (5); tests/integration/settlement.test.ts; tests/bank-import.test.ts
+    security_evidence: finance-department gate via requireDepartment; bank account and target ownership re-validated server-side; match validated before insert
+    audit_health_evidence: bank.imported and bank.matched audit events
+    last_verified_sha: 0a1737a
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: Evidence is not required at the point of payment recording; FOUND-003 will introduce the evidence-first path.
+    residual_risks: Evidence is not required at the point of payment recording; FOUND-003 will introduce the evidence-first path. Recording a payment against a bill remains a separate settlement RPC; this requirement is verified for the reconciliation/matching surface.
 
   # ── CRM — customers, suppliers, providers ───────────────────────────────────────────────────
   - id: CRM-001

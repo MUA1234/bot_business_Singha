@@ -11,9 +11,9 @@ Generated at: 2026-08-23
 | Status | Count |
 |---|---|
 | absent | 41 |
-| locally_verified | 32 |
-| foundation_only | 6 |
+| locally_verified | 33 |
 | specified | 5 |
+| foundation_only | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
 | deliberately_deferred | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **32** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **53** |
+| **Verified** (locally / preview / staging / production) | **33** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **52** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -44,7 +44,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | COM | 8 | 1 | 7 |
 | CRM | 5 | 2 | 3 |
 | CTL | 4 | 2 | 2 |
-| FIN | 8 | 4 | 4 |
+| FIN | 8 | 5 | 3 |
 | FOUND | 6 | 5 | 1 |
 | GOV | 6 | 1 | 5 |
 | IMP | 3 | 0 | 3 |
@@ -97,7 +97,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | FIN-005 | Taxes and professional-review opportunities | P1 | **locally_verified** | src/app/app/finance/tax-codes/page.tsx | 74d3be6 | authorised finance reviewer identity |
 | FIN-006 | Budget versus actual and scenario analysis | P1 | **absent** | none | none | — |
 | FIN-007 | Funding requirements and investments | P2 | **absent** | none | none | — |
-| FIN-008 | Payment intelligence and evidence | P0 | **foundation_only** | src/app/app/finance/reconciliation/page.tsx | 1ebaa80 | — |
+| FIN-008 | Payment intelligence and evidence | P0 | **locally_verified** | src/app/app/finance/reconciliation/page.tsx | 0a1737a | — |
 | FOUND-001 | Durable inbound processing with leases, bounded retry and dead-letter | P0 | **locally_verified** | src/app/api/cron/inbound-sweeper/route.ts | 707761c | hosted migration application |
 | FOUND-002 | Worker fairness by eligibility rather than ordering | P0 | **locally_verified** | src/app/api/cron/inbound-sweeper/route.ts | 707761c | — |
 | FOUND-003 | Production-reachable staff and finance intake | P0 | **blocked_owner** | src/app/api/webhooks/whatsapp/route.ts and src/inngest/functions.ts (both dispatch through src/lib/inbound/dispatch.ts via the shared src/lib/inbound/production-deps.ts) | 1fd50b2 | a model provider credential for finance classification; mapping each receiving WhatsApp number to its company in channel_accounts; granting operations.inbound.review to the people who should work the queue; hosted migration application |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **53**; blocked (owner): **4**;
+mode. Incomplete and implementable: **52**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

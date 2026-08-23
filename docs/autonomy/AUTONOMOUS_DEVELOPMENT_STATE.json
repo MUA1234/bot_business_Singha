@@ -195,29 +195,37 @@
     "evidence": "tests/campaign/sch-001-ai-monitor-surface.test.ts (5 passed); tests/integration/ai-case-atomic.test.ts; npm run verify (850 unit tests / 2 skipped / 126 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live provider call tested. Duplicate prevention depends on AIM-002 (verified); routing depends on AIM-003 (owner-gated). Email discovery remains a 501 stub."
   },
-  "lastGreenSha": "dbb208f",
+  "fin008LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "0a1737a",
+    "outcome": "LOCALLY ACCEPTED: FIN-008 payment intelligence and reconciliation surface. The finance reconciliation page at /app/finance/reconciliation is a real runtime entrypoint gated to the finance department, reads company-scoped bank transactions/payments/receipts, uses a deterministic exact-decimal matcher (suggestMatches), and provides server-validated import and confirm-match actions that write reconciliation_matches and audit events.",
+    "evidence": "tests/campaign/fin-008-payment-intelligence-surface.test.ts (5 passed); tests/reconcile.test.ts; tests/reconcile-validate.test.ts; tests/bank-import.test.ts; tests/integration/settlement.test.ts; npm run verify (855 unit tests / 2 skipped / 127 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or evidence-required-at-payment path tested. The evidence-first payment path is owned by FOUND-003 (blocked_owner). Recording a payment against a supplier bill uses the separate settlement RPC."
+  },
+  "lastGreenSha": "0a1737a",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "SCH-001 local acceptance completed and pushed. Added tests/campaign/sch-001-ai-monitor-surface.test.ts, updated ORIGINAL_VISION_REQUIREMENTS.yaml and AUTONOMOUS_DEVELOPMENT_STATE.json.",
+  "lastCompletedAction": "FIN-008 local acceptance completed and pushed. Added tests/campaign/fin-008-payment-intelligence-surface.test.ts, updated ORIGINAL_VISION_REQUIREMENTS.yaml and AUTONOMOUS_DEVELOPMENT_STATE.json.",
   "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml and run node scripts/autonomy/check-status.mjs to confirm.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/sch-001-ai-monitor-surface.test.ts (5 passed)"
+    "npm test -- tests/campaign/fin-008-payment-intelligence-surface.test.ts (5 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "dbb208f on kimi/found006-rls-cutover",
+    "sha": "0a1737a on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "850 passed / 2 skipped / 126 files",
-    "integrationFresh": "not rerun for SCH-001 (no database change)",
-    "integrationNarrowUpgrade": "not rerun for SCH-001",
-    "integrationLegacyUpgrade": "not rerun for SCH-001",
-    "migrationIdempotency": "not rerun for SCH-001",
+    "unit": "855 passed / 2 skipped / 127 files",
+    "integrationFresh": "not rerun for FIN-008 (no database change)",
+    "integrationNarrowUpgrade": "not rerun for FIN-008",
+    "integrationLegacyUpgrade": "not rerun for FIN-008",
+    "migrationIdempotency": "not rerun for FIN-008",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 850 unit tests (2 skipped / 126 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 855 unit tests (2 skipped / 127 files)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "sch-001-ai-monitor-surface.test.ts proves the cron route is a real runtime entrypoint under /api/cron/ai-monitor, is CRON_SECRET-gated with timingSafeEqual, reads wa_conversations by last_inbound_at/ai_analyzed_at, calls analyzeConversationThread with BATCH=15, updates ai_analyzed_at and writes a monitor.analyzed audit event.",
-    "note": "SCH-001 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "discriminationProof": "fin-008-payment-intelligence-surface.test.ts proves the reconciliation page is a real runtime entrypoint under /app/finance/reconciliation, queries bank_transactions/payments/receipts scoped by company_id, uses a deterministic exact-decimal matcher, and provides server-validated import/confirm-match actions that write reconciliation_matches and bank.imported/bank.matched audit events.",
+    "note": "FIN-008 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -244,7 +252,8 @@
     "GOV-004: BLOCKED_OWNER. Board-reserved matters and emergency suspension requires the owner to define the reserved-matter list before implementation.",
     "FIN-005: LOCALLY ACCEPTED at 74d3be6. The finance tax-codes page lists company-scoped tax codes and surfaces sample tax amounts via the deterministic tax engine. Routing uncertain treatment to a professional reviewer remains future work.",
     "SCH-001: LOCALLY ACCEPTED at dbb208f. The AI monitor cron route is CRON_SECRET-gated, reads WhatsApp conversations with new inbound activity, calls analyzeConversationThread with BATCH=15, updates ai_analyzed_at and writes a monitor.analyzed audit event. Live provider, email discovery and AIM-003 routing remain future work.",
-    "FIN-008: BLOCKED. Evidence is not required at payment recording; the evidence-first path is owned by FOUND-003, which is blocked_owner.",
+    "FIN-008: LOCALLY ACCEPTED at 0a1737a. The finance reconciliation page reads company-scoped bank transactions, payments and receipts; uses a deterministic exact-decimal matcher; and provides server-validated import/confirm-match actions with audit events. The evidence-required-at-payment path remains owner-gated through FOUND-003.",
+    "FIN-008 evidence-at-payment: BLOCKED_OWNER. The evidence-first payment path is owned by FOUND-003, which requires hosted migration, channel account mapping, and operations.inbound.review grants.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
     "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
     "OF-015 (P2): sections 3 and 6 have no re-runnable schema-level end-to-end discrimination, because they are application code.",
@@ -293,9 +302,10 @@
       "wrk003": 0,
       "mob001": 0,
       "fin005": 0,
-      "sch001": 0
+      "sch001": 0,
+      "fin008": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T02:41:00Z"
+  "updatedAt": "2026-08-23T02:47:00Z"
 }
