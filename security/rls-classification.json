@@ -20,6 +20,7 @@
     "drivers": "capability", "fuel_logs": "capability", "maintenance_records": "capability", "licences": "capability",
     "vehicles": "capability", "vehicle_documents": "capability", "trips": "capability",
     "tasks": "capability", "task_assignments": "capability", "task_dependencies": "capability",
+    "project_risks": "capability", "project_decisions": "capability", "project_scenarios": "capability",
     "task_check_ins": "capability", "task_evidence": "capability",
     "legal_matters": "capability", "contracts": "capability", "risks": "capability", "insurances": "capability", "incidents": "capability", "employees": "capability",
     "integrations": "capability", "connectors": "capability", "integration_event_contracts": "capability", "integration_command_contracts": "capability",

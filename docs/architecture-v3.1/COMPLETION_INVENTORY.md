@@ -31,7 +31,7 @@
 
 Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 
-## 2. money-as-Number suspects — 14 line(s) (Phase-1A triage list)
+## 2. money-as-Number suspects — 15 line(s) (Phase-1A triage list)
 
 | file:line | code |
 |---|---|
@@ -42,6 +42,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/finance/tax-codes/page.tsx:50 | `<td className="num dim">{fmtMoney(taxAmount("1000", Number(r.rate), "LKR"))}</td>` |
 | src/app/app/fleet/vehicles/[id]/page.tsx:83 | `<span>{Number(f.litres ?? 0)} L @ {Number(f.odometer ?? 0)} km</span><span className="dim">{fmtMoney` |
 | src/app/app/legal/insurances/actions.ts:31 | `cover_amount: cover_amount ? Number(cover_amount) : null,` |
+| src/app/app/operations/projects/actions.ts:257 | `if (Number.isNaN(Number(bestCaseTotal)) \|\| Number.isNaN(Number(expectedTotal)) \|\| Number.isNaN(Numbe` |
 | src/app/app/procurement/inventory/page.tsx:26 | `const items: StockItem[] = rows.map((r) => ({ name: r.name, quantityOnHand: Number(r.quantity_on_han` |
 | src/app/app/procurement/purchase-orders/actions.ts:80 | `const total = decSum(rows.map((l: any) => dec(l.unit_price).times(Math.max(0, Math.trunc(Number(l.qu` |
 | src/app/app/sales/opportunities/page.tsx:30 | `const summary = summarizePipeline(rows.map((r): Opportunity => ({ amount: String(r.amount ?? "0"), p` |
@@ -142,7 +143,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/marketing/audiences/page.tsx:15 | `0` |
 | src/app/app/marketing/page.tsx:13 | `0` |
 | src/app/app/me/page.tsx:19 | `[]` |
-| src/app/app/operations/projects/[id]/page.tsx:25 | `[]` |
+| src/app/app/operations/projects/[id]/page.tsx:28 | `[]` |
 | src/app/app/operations/tasks/actions.ts:164 | `error-discarding destructure` |
 | src/app/app/operations/tasks/page.tsx:31 | `error-discarding destructure` |
 | src/app/app/procurement/page.tsx:14 | `0` |
