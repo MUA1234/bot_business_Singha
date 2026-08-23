@@ -337,20 +337,20 @@ requirements:
     phase: stage2
     priority: P1
     dependencies: [FOUND-003]
-    status: absent
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/app/command/memory/page.tsx
+    database_evidence: management_cases, tasks, customers and channel_identities tables with company_id scoping (no new migration required)
+    service_evidence: supabaseReadClient RLS-aware reads scoped by admin.company_id
+    ui_evidence: src/app/app/command/memory/page.tsx lists prior cases, tasks, customers and channel identities with case:/task:/customer: provenance labels; src/app/app/command/page.tsx links to /app/command/memory
+    test_evidence: tests/campaign/mem-001-organizational-memory.test.ts (4 passed); full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on
+    security_evidence: page gated by requireAdmin; all queries scoped by company_id and read through supabaseReadClient (RLS-enforced when flags are ON); channel identity identifiers surfaced read-only under the customer they belong to
+    audit_health_evidence: source entity ids are rendered as provenance labels so a human (and a future analysis producer) knows where each memory item came from
+    last_verified_sha: 82b6ce9
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: Every analysis is stateless and thread-local today.
+    residual_risks: The memory surface is read-only; future analysis producers will consume this data through deterministic contracts rather than free text. No policy/case content retrieval is wired yet.
 
   - id: INT-001
     title: Integration Gateway and connector registry
