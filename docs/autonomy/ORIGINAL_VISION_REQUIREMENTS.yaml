@@ -602,20 +602,20 @@ requirements:
     phase: stage3
     priority: P0
     dependencies: [FOUND-004]
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: approval_actions; approval_requests
-    service_evidence: src/policy/authority.ts checkSeparationOfDuties (NO production caller)
-    ui_evidence: none
-    test_evidence: tests/approval-progress.test.ts (pure logic only)
-    security_evidence: SoD logic exists and is tested but is not wired to a runtime path
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/app/finance/approvals/actions.ts; src/app/app/finance/approvals/page.tsx
+    database_evidence: approval_actions; approval_requests; memberships; membership_roles; role_permissions; policy_evaluations
+    service_evidence: src/policy/authority.ts checkSeparationOfDuties; src/lib/access.ts getApproverForUser
+    ui_evidence: finance approvals page renders action buttons only when SoD engine allows
+    test_evidence: tests/approval-progress.test.ts; tests/access-approver.test.ts; tests/campaign/gov-005-approval-sod.test.ts
+    security_evidence: SoD enforced by membership roles/permissions; submitter cannot approve; required roles derived from policy evaluation
+    audit_health_evidence: approval action audited via writeAudit
+    last_verified_sha: c3c0b71
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: checkSeparationOfDuties and checkAuthority are dead code in production.
+    residual_risks: checkAuthority with delegations is available but not yet wired into the approval action; approver_is_beneficiary and sensitive-action SoD need financial-event context in a future iteration.
   - id: GOV-006
     title: Governance audit trail
     description: Every directive, acknowledgement, escalation, override and reserved-matter decision is audited and searchable.
