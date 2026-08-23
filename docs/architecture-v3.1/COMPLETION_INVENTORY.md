@@ -144,7 +144,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/marketing/page.tsx:13 | `0` |
 | src/app/app/me/page.tsx:19 | `[]` |
 | src/app/app/operations/projects/[id]/page.tsx:28 | `[]` |
-| src/app/app/operations/tasks/actions.ts:164 | `error-discarding destructure` |
+| src/app/app/operations/tasks/actions.ts:190 | `error-discarding destructure` |
 | src/app/app/operations/tasks/page.tsx:31 | `error-discarding destructure` |
 | src/app/app/procurement/page.tsx:14 | `0` |
 | src/app/app/procurement/page.tsx:17 | `[]` |

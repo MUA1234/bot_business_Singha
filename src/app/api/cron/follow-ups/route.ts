@@ -5,6 +5,11 @@
  * approved template (estimate request / overdue reminder / verification request /
  * escalation) into the outbox. The drain worker (`/api/cron/outbox`) delivers them.
  *
+ * SCH-003: the loop is leave and workload-aware. Assignees on approved leave are
+ * skipped, and when several assignees are reachable the least-loaded available
+ * person is reminded first. Escalation targets on leave are skipped and the chain
+ * advances to the next available person.
+ *
  * Secured by CRON_SECRET (fail-closed). It ONLY enqueues approved internal reminders —
  * never a customer commitment, never an execution. The daily dedupe bucket in the
  * idempotency key caps each reminder to once per task per assignee per day (no spam).
@@ -13,6 +18,7 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { evaluateFollowUp, selectEscalationTarget, type FollowUpAction } from "@/modules/work/follow-up";
+import { evaluateAvailability, rankAvailableCandidates, type AvailabilityResult } from "@/modules/work/availability";
 import { InternalTemplates, type BuiltMessage } from "@/lib/whatsapp-templates";
 import { enqueueOutbox } from "@/lib/outbox-enqueue";
 import { writeAudit } from "@/lib/audit";
@@ -53,6 +59,17 @@ interface Membership {
 interface TaskAssignment {
   task_id: string;
   membership_id: string;
+}
+
+interface LeaveRow {
+  profile_id: string;
+  start_date: string;
+  end_date: string;
+}
+
+interface WorkloadRow {
+  user_id: string;
+  estimate_hours: number | null;
 }
 
 function parseChain(chain: unknown): string[] {
@@ -100,17 +117,36 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   const taskIds = (tasks ?? []).map((t: Task) => t.id);
+  const userIds = new Set<string>((profiles ?? []).map((p: Profile) => p.id));
 
-  const [{ data: assignments, error: assignmentsError }, { data: memberships, error: membershipsError }] = await Promise.all([
+  const [
+    { data: assignments, error: assignmentsError },
+    { data: memberships, error: membershipsError },
+    { data: leaveRows, error: leaveError },
+    { data: workloadRows, error: workloadError },
+  ] = await Promise.all([
     db.from("task_assignments").select("task_id, membership_id").in("task_id", taskIds),
     db.from("memberships").select("id, user_id").eq("status", "active"),
+    db
+      .from("leave_requests")
+      .select("profile_id, start_date, end_date")
+      .eq("status", "approved")
+      .lte("start_date", today())
+      .gte("end_date", today()),
+    db
+      .from("task_assignments")
+      .select("memberships!inner(user_id), tasks!inner(estimate_hours)")
+      .not("tasks.status", "in", "(completed,cancelled)")
+      .eq("memberships.status", "active"),
   ]);
 
-  if (assignmentsError || membershipsError) {
-    log("error", "follow-ups assignment read failed", {
+  if (assignmentsError || membershipsError || leaveError || workloadError) {
+    log("error", "follow-ups assignment/availability read failed", {
       event: "follow_up.assignment_read_failed",
       assignmentsError: assignmentsError?.message,
       membershipsError: membershipsError?.message,
+      leaveError: leaveError?.message,
+      workloadError: workloadError?.message,
     });
     return NextResponse.json({ ok: false, error: "assignment read failed" }, { status: 500 });
   }
@@ -131,11 +167,30 @@ export async function GET(req: Request): Promise<Response> {
     assigneesByTask.set(a.task_id, list);
   }
 
+  // Approved leave ranges by user.
+  const leaveByUser = new Map<string, { start: string; end: string }[]>();
+  for (const r of (leaveRows ?? []) as LeaveRow[]) {
+    if (!userIds.has(r.profile_id)) continue;
+    const list = leaveByUser.get(r.profile_id) ?? [];
+    list.push({ start: r.start_date, end: r.end_date });
+    leaveByUser.set(r.profile_id, list);
+  }
+
+  // Workload (active assigned estimated hours) by user.
+  const workloadByUser = new Map<string, number>();
+  for (const row of (workloadRows ?? []) as any[]) {
+    const userId = row.memberships?.user_id ?? row.user_id;
+    const hours = row.tasks?.estimate_hours ?? row.estimate_hours ?? 0;
+    if (!userId) continue;
+    workloadByUser.set(userId, (workloadByUser.get(userId) ?? 0) + (Number(hours) || 0));
+  }
+
   const day = today();
   const now = new Date().toISOString();
   let enqueued = 0;
   let remindedTasks = 0;
   let escalatedTasks = 0;
+  let skippedLeave = 0;
 
   const buildFor = (action: FollowUpAction, name: string, task: { title: string; dueDate: string | null }): BuiltMessage => {
     if (action === "estimate_request") return InternalTemplates.estimateRequest(name, task);
@@ -166,6 +221,18 @@ export async function GET(req: Request): Promise<Response> {
     if (res === "enqueued") enqueued++;
   };
 
+  const availabilityFor = (userId: string): AvailabilityResult => {
+    const capacity = {
+      totalHours: 40,
+      netCapacityHours: 40,
+      allocatedHours: workloadByUser.get(userId) ?? 0,
+      availableHours: 40 - (workloadByUser.get(userId) ?? 0),
+      utilizationPct: 0,
+      status: "healthy" as const,
+    };
+    return evaluateAvailability({ profileId: userId, approvedLeave: leaveByUser.get(userId) ?? [], capacity }, day);
+  };
+
   const updates: { id: string; patch: Record<string, unknown> }[] = [];
 
   for (const t of tasks ?? []) {
@@ -182,7 +249,26 @@ export async function GET(req: Request): Promise<Response> {
 
     if (decision.action === "escalation") {
       escalatedTasks++;
-      const { targetId, nextLevel, reason } = selectEscalationTarget(chain, t.escalation_level ?? 0);
+      // Advance past any on-leave chain members without persisting intermediate levels.
+      let level = t.escalation_level ?? 0;
+      let targetId: string | null = null;
+      let nextLevel = level;
+      let reason = "chain_exhausted";
+      const safeChain = chain.filter((c) => typeof c === "string" && c.length > 0);
+      while (level < safeChain.length) {
+        const candidate = safeChain[level];
+        if (!candidate) break;
+        const avail = availabilityFor(candidate);
+        if (avail.available) {
+          targetId = candidate;
+          nextLevel = level + 1;
+          reason = `escalation_step_${nextLevel}`;
+          break;
+        }
+        skippedLeave++;
+        level++;
+      }
+
       const targetProfile = targetId ? profileById.get(targetId) : null;
 
       if (targetProfile) {
@@ -191,8 +277,13 @@ export async function GET(req: Request): Promise<Response> {
           await send(t.company_id, t.id, "escalation", targetProfile.id, phone, targetProfile.full_name ?? targetProfile.username ?? "there", task);
         }
       } else {
-        // Chain exhausted or undefined — fall back to company admins (reason: "chain_exhausted").
-        for (const admin of adminsByCompany.get(t.company_id) ?? []) {
+        // Chain exhausted or all targets on leave — fall back to available company admins.
+        const availableAdmins = rankAvailableCandidates(
+          (adminsByCompany.get(t.company_id) ?? []).map((a) => availabilityFor(a.id)),
+        );
+        for (const adminAvail of availableAdmins) {
+          const admin = profileById.get(adminAvail.profileId);
+          if (!admin) continue;
           const phone = cleanPhone(admin.phone);
           if (phone) {
             await send(t.company_id, t.id, "escalation", admin.id, phone, admin.full_name ?? admin.username ?? "there", task);
@@ -214,8 +305,13 @@ export async function GET(req: Request): Promise<Response> {
     } else {
       remindedTasks++;
       const userIds = assigneesByTask.get(t.id) ?? [];
-      for (const userId of userIds) {
-        const profile = profileById.get(userId);
+      const candidates = rankAvailableCandidates(userIds.map((id) => availabilityFor(id)));
+      for (const avail of candidates) {
+        if (!avail.available) {
+          skippedLeave++;
+          continue;
+        }
+        const profile = profileById.get(avail.profileId);
         if (!profile) continue;
         const phone = cleanPhone(profile.phone);
         if (phone) {
@@ -223,14 +319,20 @@ export async function GET(req: Request): Promise<Response> {
         }
       }
       // If the task is currently escalated but a non-escalation reminder is due,
-      // keep it escalated and notify the current escalated owner as well (recovery).
+      // keep it escalated and notify the current escalated owner as well (recovery),
+      // provided they are not on leave.
       if (t.status === "escalated" && t.escalated_to) {
-        const escalatedProfile = profileById.get(t.escalated_to);
-        if (escalatedProfile) {
-          const phone = cleanPhone(escalatedProfile.phone);
-          if (phone) {
-            await send(t.company_id, t.id, decision.action, escalatedProfile.id, phone, escalatedProfile.full_name ?? escalatedProfile.username ?? "there", task);
+        const escalatedAvail = availabilityFor(t.escalated_to);
+        if (escalatedAvail.available) {
+          const escalatedProfile = profileById.get(t.escalated_to);
+          if (escalatedProfile) {
+            const phone = cleanPhone(escalatedProfile.phone);
+            if (phone) {
+              await send(t.company_id, t.id, decision.action, escalatedProfile.id, phone, escalatedProfile.full_name ?? escalatedProfile.username ?? "there", task);
+            }
           }
+        } else {
+          skippedLeave++;
         }
       }
       updates.push({ id: t.id, patch: { last_reminder_at: now } });
@@ -245,7 +347,7 @@ export async function GET(req: Request): Promise<Response> {
     }
   }
 
-  if (enqueued > 0) {
+  if (enqueued > 0 || skippedLeave > 0) {
     const action = escalatedTasks > 0 && remindedTasks === 0 ? "follow_up.escalated" : "follow_up.enqueued";
     await writeAudit({
       companyId: null,
@@ -253,9 +355,9 @@ export async function GET(req: Request): Promise<Response> {
       actorType: "system",
       action,
       entityType: "task",
-      payload: { tasks: (tasks ?? []).length, enqueued, remindedTasks, escalatedTasks, date: day },
+      payload: { tasks: (tasks ?? []).length, enqueued, remindedTasks, escalatedTasks, skippedLeave, date: day },
     });
   }
 
-  return NextResponse.json({ ok: true, tasks: (tasks ?? []).length, enqueued });
+  return NextResponse.json({ ok: true, tasks: (tasks ?? []).length, enqueued, skippedLeave });
 }

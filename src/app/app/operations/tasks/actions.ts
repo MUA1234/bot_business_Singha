@@ -13,6 +13,7 @@ import type { TaskAction } from "@/modules/identity/can-act-on-task";
 import { applyWorkflowAction, type WorkflowAction } from "@/modules/work/task-progress";
 import { enqueueOutbox } from "@/lib/outbox-enqueue";
 import { InternalTemplates } from "@/lib/whatsapp-templates";
+import { isOnLeave } from "@/modules/work/availability";
 
 /** Operations staff or an admin may manage tasks (create/assign/verify). */
 async function requireOps() {
@@ -118,7 +119,32 @@ export async function assignTask(formData: FormData): Promise<void> {
     if (assignee) {
       // Assignee must be an employee of the same company.
       const { data: emp } = await supabaseReadClient().from("profiles").select("id").eq("id", assignee).eq("company_id", p.companyId).maybeSingle();
-      patch.assigned_to = emp ? assignee : null;
+      if (!emp) {
+        patch.assigned_to = null;
+      } else {
+        // SCH-003: do not assign work to someone on approved leave.
+        const today = new Date().toISOString().slice(0, 10);
+        const { data: leave } = await supabaseReadClient()
+          .from("leave_requests")
+          .select("start_date, end_date")
+          .eq("profile_id", assignee)
+          .eq("status", "approved")
+          .lte("start_date", today)
+          .gte("end_date", today)
+          .maybeSingle();
+        if (leave && isOnLeave(today, [{ start: leave.start_date, end: leave.end_date }])) {
+          await writeAudit({
+            companyId: p.companyId,
+            actorId: p.userId,
+            action: "task.assignment_refused_leave",
+            entityType: "task",
+            entityId: id,
+            payload: { assignee, start_date: leave.start_date, end_date: leave.end_date },
+          });
+          return;
+        }
+        patch.assigned_to = assignee;
+      }
     } else {
       patch.assigned_to = null;
     }
