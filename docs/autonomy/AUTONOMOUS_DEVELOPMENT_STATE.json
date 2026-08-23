@@ -1,7 +1,9 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [],
+  "activeRequirementIds": [
+    "INT-001"
+  ],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -221,8 +223,8 @@
   },
   "lastGreenSha": "75c1449",
   "latestMigration": "0094_insurance_register.sql",
-  "lastCompletedAction": "RSK-004 local acceptance completed. Added migration 0094, src/app/app/legal/insurances/page.tsx and actions.ts, updated src/app/app/legal/page.tsx, added tests/campaign/rsk-004-insurance-register.test.ts, updated ORIGINAL_VISION_REQUIREMENTS.yaml, security/rls-classification.json and AUTONOMOUS_DEVELOPMENT_STATE.json.",
-  "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml and run node scripts/autonomy/check-status.mjs to confirm.",
+  "lastCompletedAction": "Selected INT-001 (Integration Gateway and connector registry) as the next dependency-ordered implementable requirement; dependency FOUND-001 is locally verified.",
+  "nextAction": "Implement INT-001: add integration gateway registry schema/migration, admin surface, connector contracts, signature/replay-protection foundation and campaign tests.",
   "lastTargetedTests": [
     "npm test -- tests/campaign/rsk-004-insurance-register.test.ts (5 passed)"
   ],
@@ -327,5 +329,5 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T03:22:52Z"
+  "updatedAt": "2026-08-23T03:30:00Z"
 }
