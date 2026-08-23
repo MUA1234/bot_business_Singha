@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
-  "activePhase": "stage4-finance",
-  "activeRequirementIds": ["FIN-008"],
+  "activePhase": "stage4-crm",
+  "activeRequirementIds": ["CRM-001"],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -93,8 +93,8 @@
   },
   "lastGreenSha": "8221061",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "GOV-005 local acceptance completed at c3c0b71 on kimi/found006-rls-cutover. checkSeparationOfDuties is now a production caller on the finance approval action and page. Transitioning to FIN-008 (Payment intelligence and evidence), a stage4 P0 requirement whose residual_risks identifies that evidence is not required at the point of payment recording.",
-  "nextAction": "Assess FIN-008: identify where payments are recorded, determine the smallest change that requires evidence before payment recording, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "GOV-005 local acceptance completed at c3c0b71 on kimi/found006-rls-cutover. checkSeparationOfDuties is now a production caller on the finance approval action and page. FIN-008 (Payment intelligence and evidence) is BLOCKED: its residual_risks says evidence is not required at payment recording and FOUND-003 will introduce the evidence-first path; FOUND-003 is blocked_owner. Transitioning to CRM-001 (Canonical customer identity), a stage4 P0 requirement with foundation in migration 0070 channel identity resolution.",
+  "nextAction": "Assess CRM-001: identify the residual gap between the WhatsApp-conversation customer list and the canonical customers + channel_identities model, implement the smallest surface change, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
     "npm test -- tests/access-approver.test.ts (4 passed)",
     "npm test -- tests/campaign/gov-005-approval-sod.test.ts (5 passed)",
@@ -129,6 +129,7 @@
     "CTL-003: LOCALLY ACCEPTED at 8b90057. The migration 0069 source_event_backlog RPC is surfaced on the admin health page with company scoping and unavailable handling.",
     "GOV-005: LOCALLY ACCEPTED at c3c0b71. checkSeparationOfDuties is now called by the finance approval action and page via membership-based authority resolution.",
     "GOV-004: BLOCKED_OWNER. Board-reserved matters and emergency suspension requires the owner to define the reserved-matter list before implementation.",
+    "FIN-008: BLOCKED. Evidence is not required at payment recording; the evidence-first path is owned by FOUND-003, which is blocked_owner.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
     "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
     "OF-015 (P2): sections 3 and 6 have no re-runnable schema-level end-to-end discrimination, because they are application code.",
