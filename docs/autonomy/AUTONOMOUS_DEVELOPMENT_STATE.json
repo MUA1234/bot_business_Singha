@@ -1,23 +1,22 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": ["MOD-002"],
+  "activeRequirementIds": [],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "4e40880",
-    "outcome": "LOCALLY ACCEPTED: RSK-005 Incidents and statutory obligations. Migration 0106 adds a company-scoped incidents table and extends obligations with evidence and obligation_type. The /app/legal/incidents and /app/legal/obligations pages provide company-scoped create/status forms, linked from the legal home.",
+    "testedSha": "7826fa8",
+    "outcome": "LOCALLY ACCEPTED: MOD-002 Customer-facing model calls recorded in cost ledger. runQuotationRun now requires a CostLedger and records every run (success, validation failure, transport failure, policy rejection). runPolicyRoutedQuotationTurn records through the policy executor. handleCustomerMessage records the budget-exceeded path to makeSupabaseCostLedger(db).",
     "container": "disposable local PostgreSQL 16 (port 55441) with supabase-shim",
     "corrections": [
-      "Added src/db/migrations/0106_incidents_and_statutory_obligations.sql with incidents table, obligations evidence/type extension, legal.compliance.manage capability, capability-gated RLS, and updated_at triggers.",
-      "Added src/modules/legal/incidents.ts with pure deterministic incident helpers.",
-      "Added src/app/app/legal/incidents/page.tsx and actions.ts for incident create/status.",
-      "Added src/app/app/legal/obligations/page.tsx and actions.ts for obligation create/status (contractual + statutory).",
-      "Updated src/app/app/legal/page.tsx to show open incidents and link to both pages.",
-      "Added incidents to security/rls-classification.json as capability.",
-      "Added tests/incidents.test.ts (3 passed) and tests/campaign/rsk-005-incidents-and-obligations.test.ts (10 passed).",
-      "Fresh disposable PostgreSQL 16 0001-0106 and narrow upgrade 0105→0106 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on.",
-      "npm run verify (1077 unit tests / 2 skipped / 153 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed."
+      "Updated src/ai/quotation.ts so runQuotationTurn accepts a required CostLedger and records AiRunRecord for success, validation failure and transport failure.",
+      "Updated runPolicyRoutedQuotationTurn to record a zero-cost failed run on policy rejection (budget_exceeded/no_healthy_provider) so the ledger stays complete.",
+      "Updated src/lib/order-intake.ts to create one CostLedger instance and record the budget-exceeded path to ai_runs via makeSupabaseCostLedger(db).",
+      "Updated tests/campaign/ai-trust-boundary.test.ts to pass a ledger to runQuotationTurn and assert customer-facing runs are recorded.",
+      "Added tests/campaign/mod-002-quotation-ledger.test.ts (5 passed) covering runQuotationTurn success/failure/transport and runPolicyRoutedQuotationTurn success/rejection recording.",
+      "No new migration required; existing ai_runs table (migrations 0003/0027) and model-gateway tables (0091/0092) already support the rows.",
+      "Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on on disposable PostgreSQL 16.",
+      "npm run verify (1082 unit tests / 2 skipped / 154 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed."
     ]
   },
   "currentBranch": "kimi/found006-rls-cutover",
@@ -279,29 +278,29 @@
     "evidence": "tests/campaign/gov-002-directive-escalation.test.ts (15 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression); tests/campaign/cron-auth.test.ts (9 passed regression); fresh disposable PostgreSQL 16 0001-0099 full migration; narrow upgrade 0098→0099; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (916 unit tests / 2 skipped / 136 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
   },
-  "lastGreenSha": "4e40880",
+  "lastGreenSha": "7826fa8",
   "latestMigration": "0106_incidents_and_statutory_obligations.sql",
-  "lastCompletedAction": "Implemented and locally accepted RSK-005 Incidents and statutory obligations.",
-  "nextAction": "Implement MOD-002: make runQuotationTurn accept a CostLedger, ensure every customer-facing call produces an ai_runs row, add adversarial coverage, and run acceptance gates.",
+  "lastCompletedAction": "Implemented and locally accepted MOD-002 Customer-facing model calls recorded in cost ledger.",
+  "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml.",
   "lastTargetedTests": [
-    "tests/incidents.test.ts (3 passed)",
-    "tests/campaign/rsk-005-incidents-and-obligations.test.ts (10 passed)"
+    "tests/campaign/mod-002-quotation-ledger.test.ts (5 passed)",
+    "tests/campaign/ai-trust-boundary.test.ts (19 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "4e40880 on kimi/found006-rls-cutover",
+    "sha": "7826fa8 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "1077 passed / 2 skipped / 153 files",
+    "unit": "1082 passed / 2 skipped / 154 files",
     "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0106 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
-    "integrationNarrowUpgrade": "passed: 0105→0106",
-    "integrationLegacyUpgrade": "not run for this package (foundation branch; previous requirements covered legacy upgrades)",
+    "integrationNarrowUpgrade": "not required: no new migration",
+    "integrationLegacyUpgrade": "not run for this package (no schema change)",
     "migrationIdempotency": "migration-lint 0001-0106 sequential, no gaps or duplicates",
     "build": "clean",
     "verify": "passed: secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests",
     "secretScan": "no tracked secrets found",
     "migrationLint": "106 migrations, sequential 0001–0106, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "rsk-005-incidents-and-obligations.test.ts proves the migration, pure helpers, page entrypoints, server actions, legal-home links and RLS classification exist and surface incidents + statutory obligations.",
+    "discriminationProof": "mod-002-quotation-ledger.test.ts proves runQuotationTurn and runPolicyRoutedQuotationTurn record every customer-facing attempt to a CostLedger, including success, validation failure, transport failure and policy rejection.",
     "note": "No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent during this acceptance pass."
   },
   "openFindings": [
@@ -352,7 +351,8 @@
     "OF-008: nothing proposes an assignee (WRK-002/WRK-005 unbuilt), and there is no queue UI for needs_routing work",
     "OF-009: the occurrence window is a UTC date, so an unresolved follow-up on an active thread is recreated once per day",
     "OF-010: task_duplicate_suggestions has no producer",
-    "OF-011: runQuotationTurn takes no CostLedger, so the highest-volume model call produces no ai_runs row",
+    "MOD-002: LOCALLY ACCEPTED at 7826fa8. runQuotationTurn now requires a CostLedger and records every run; runPolicyRoutedQuotationTurn records policy rejections; handleCustomerMessage records the budget-exceeded path.",
+    "OF-011: CLOSED by MOD-002 at 7826fa8. runQuotationTurn now takes a CostLedger and the highest-volume model call produces an ai_runs row.",
     "OF-012: RLS_READS/RLS_WRITES are OFF, so the app reads through the RLS-bypassing service-role client",
     "COM-007: LOCALLY ACCEPTED at 0c4768a. Migration 0104 adds company-scoped communication_preferences with capability-gated RLS. Outbound enqueue returns opted_out; inbound dispatch records manual_review. Server actions are customer.manage-gated and audited. A read-only UI surface exists via /app/messages actions; a dedicated preferences panel remains future work.",
     "FIN-007: LOCALLY ACCEPTED at ae3ce17. Migration 0105 adds funding_requirements and investments tables with capability-gated RLS. The /app/finance/funding page derives a funding gap from the 90-day cash forecast and provides create/status/dispose actions. Forecast inputs remain invoice/bill/commitment only; payroll and recurring obligations are not modelled.",
@@ -409,7 +409,8 @@
       "sch004": 0,
       "com007": 0,
       "fin007": 0,
-      "rsk005": 0
+      "rsk005": 0,
+      "mod002": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },

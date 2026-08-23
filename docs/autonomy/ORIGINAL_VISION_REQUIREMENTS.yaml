@@ -458,7 +458,7 @@ requirements:
     test_evidence: tests/campaign/mod-002-quotation-ledger.test.ts (5); tests/campaign/ai-trust-boundary.test.ts customer-facing cases; tests/integration/mod003-model-gateway.test.ts
     security_evidence: ai_runs writes are service-role only in production; ledger is injected so tests can observe without touching the database
     audit_health_evidence: ai_runs row includes route/model/prompt_version/tokens/cost/validation/confidence/correlation_id/company_id; failure paths record validation_issues
-    last_verified_sha: TBD
+    last_verified_sha: 7826fa8
     last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
