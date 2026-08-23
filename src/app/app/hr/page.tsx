@@ -30,7 +30,7 @@ export default async function HrHome() {
 
   const tiles = [
     { k: "Active staff", v: staff, href: "/app/hr/staff" },
-    { k: "Pending leave", v: pendingLeave, href: "/app/hr/staff", danger: pendingLeave > 0 },
+    { k: "Pending leave", v: pendingLeave, href: "/app/hr/leave", danger: pendingLeave > 0 },
     { k: "Overloaded", v: overloaded, href: "/app/hr/capacity", danger: overloaded > 0 },
   ];
 
