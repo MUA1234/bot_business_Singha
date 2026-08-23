@@ -1,7 +1,9 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [],
+  "activeRequirementIds": [
+    "RSK-005"
+  ],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -281,12 +283,9 @@
   },
   "lastGreenSha": "ae3ce17",
   "latestMigration": "0105_funding_requirements_and_investments.sql",
-  "lastCompletedAction": "Implemented and locally accepted FIN-007 Funding requirements and investments.",
-  "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml.",
-  "lastTargetedTests": [
-    "tests/funding-requirements.test.ts (6 passed)",
-    "tests/campaign/fin-007-funding-requirements.test.ts (10 passed)"
-  ],
+  "lastCompletedAction": "Selected RSK-005 Incidents and statutory obligations as the next dependency-ordered implementable requirement (absent; dep RSK-001 locally_verified; stage4 P1).",
+  "nextAction": "Add incident log and statutory obligations register tables, pages, actions and tests.",
+  "lastTargetedTests": [],
   "lastFullGateResults": {
     "sha": "ae3ce17 on kimi/found006-rls-cutover",
     "typecheck": "clean",
@@ -411,7 +410,7 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T09:54:30.984Z",
+  "updatedAt": "2026-08-23T09:57:37.311Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
