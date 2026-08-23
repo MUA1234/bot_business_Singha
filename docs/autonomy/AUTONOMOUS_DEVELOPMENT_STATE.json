@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [],
+  "activeRequirementIds": ["WRK-001"],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -109,8 +109,8 @@
   },
   "lastGreenSha": "5349d00",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "CRM-002 local acceptance completed at 5349d00 on kimi/found006-rls-cutover. The procurement suppliers page now shows canonical supplier records with channel_identities, duplicate-identity detection, and bank-detail visibility with a maker-checker control badge. Next: run the dependency-order candidate script to select the next implementable requirement.",
-  "nextAction": "Run scripts/autonomy/check-status.mjs to identify the next unblocked, dependency-resolved requirement; implement the smallest surface change, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "CRM-002 local acceptance pushed at d7005ff on kimi/found006-rls-cutover. Selected WRK-001 (Attendance, availability, leave, sickness and travel) as the next implementable requirement: it is a stage4 P1 with no dependencies, no blocker, and a foundation in the leave_requests table / src/modules/workforce/leave.ts.",
+  "nextAction": "Assess WRK-001: create the src/app/app/hr/leave runtime entrypoint that lists leave requests, exposes remaining leave per person using src/modules/workforce/leave.ts, and keeps the scope to leave only (attendance/travel/working-hours remain future work). Add/update tests, mark locally_verified, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
     "npm test -- tests/campaign/crm-002-canonical-suppliers.test.ts (5 passed)"
   ],
@@ -190,5 +190,5 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T01:01:00Z"
+  "updatedAt": "2026-08-23T01:13:00Z"
 }
