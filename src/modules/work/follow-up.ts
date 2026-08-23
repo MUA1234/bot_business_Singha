@@ -38,6 +38,12 @@ export interface FollowUpResult {
   reason: string;
 }
 
+export interface EscalationTarget {
+  targetId: string | null;
+  nextLevel: number;
+  reason: string;
+}
+
 const TERMINAL: ReadonlySet<TaskState> = new Set<TaskState>(["completed", "cancelled"]);
 
 const hoursBetween = (a: number, b: number) => Math.abs(a - b) / 3_600_000;
@@ -83,4 +89,23 @@ export function evaluateFollowUp(
     default:
       return none(`no follow-up for state ${task.status}`);
   }
+}
+
+/**
+ * Advance one step along a defined escalation chain.
+ * Returns the next target, the level to persist, and a reason string.
+ * A null target with reason "chain_exhausted" means the caller should fall back
+ * to a generic manager/admin notification.
+ */
+export function selectEscalationTarget(chain: string[], currentLevel: number): EscalationTarget {
+  const safeChain = chain.filter((c) => typeof c === "string" && c.length > 0);
+  const candidateLevel = Math.max(0, currentLevel) + 1;
+  if (candidateLevel > safeChain.length) {
+    return { targetId: null, nextLevel: safeChain.length, reason: "chain_exhausted" };
+  }
+  const targetId = safeChain[candidateLevel - 1] ?? null;
+  if (!targetId) {
+    return { targetId: null, nextLevel: safeChain.length, reason: "chain_exhausted" };
+  }
+  return { targetId, nextLevel: candidateLevel, reason: `escalation_step_${candidateLevel}` };
 }

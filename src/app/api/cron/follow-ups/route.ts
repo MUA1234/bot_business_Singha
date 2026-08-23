@@ -12,7 +12,7 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { evaluateFollowUp, type FollowUpAction } from "@/modules/work/follow-up";
+import { evaluateFollowUp, selectEscalationTarget, type FollowUpAction } from "@/modules/work/follow-up";
 import { InternalTemplates, type BuiltMessage } from "@/lib/whatsapp-templates";
 import { enqueueOutbox } from "@/lib/outbox-enqueue";
 import { writeAudit } from "@/lib/audit";
@@ -39,6 +39,10 @@ interface Task {
   status: string;
   due_date: string | null;
   updated_at: string;
+  last_reminder_at: string | null;
+  escalation_chain: string[] | null;
+  escalation_level: number;
+  escalated_to: string | null;
 }
 
 interface Membership {
@@ -49,6 +53,11 @@ interface Membership {
 interface TaskAssignment {
   task_id: string;
   membership_id: string;
+}
+
+function parseChain(chain: unknown): string[] {
+  if (Array.isArray(chain)) return chain.filter((c): c is string => typeof c === "string");
+  return [];
 }
 
 export async function GET(req: Request): Promise<Response> {
@@ -70,7 +79,9 @@ export async function GET(req: Request): Promise<Response> {
     db.from("profiles").select("id, company_id, phone, full_name, username, is_admin").eq("is_active", true),
     db
       .from("tasks")
-      .select("id, company_id, title, status, due_date, updated_at")
+      .select(
+        "id, company_id, title, status, due_date, updated_at, last_reminder_at, escalation_chain, escalation_level, escalated_to",
+      )
       .not("status", "in", "(completed,cancelled)")
       .limit(1000),
   ]);
@@ -121,6 +132,7 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   const day = today();
+  const now = new Date().toISOString();
   let enqueued = 0;
   let remindedTasks = 0;
   let escalatedTasks = 0;
@@ -154,25 +166,51 @@ export async function GET(req: Request): Promise<Response> {
     if (res === "enqueued") enqueued++;
   };
 
+  const updates: { id: string; patch: Record<string, unknown> }[] = [];
+
   for (const t of tasks ?? []) {
     const decision = evaluateFollowUp({
       status: t.status,
       dueDate: t.due_date,
       lastActivityAt: t.updated_at,
-      lastReminderAt: null,
+      lastReminderAt: t.last_reminder_at,
     });
     if (!decision.due || !decision.action) continue;
 
     const task = { title: t.title, dueDate: t.due_date };
+    const chain = parseChain(t.escalation_chain);
 
     if (decision.action === "escalation") {
       escalatedTasks++;
-      for (const admin of adminsByCompany.get(t.company_id) ?? []) {
-        const phone = cleanPhone(admin.phone);
+      const { targetId, nextLevel, reason } = selectEscalationTarget(chain, t.escalation_level ?? 0);
+      const targetProfile = targetId ? profileById.get(targetId) : null;
+
+      if (targetProfile) {
+        const phone = cleanPhone(targetProfile.phone);
         if (phone) {
-          await send(t.company_id, t.id, "escalation", admin.id, phone, admin.full_name ?? admin.username ?? "there", task);
+          await send(t.company_id, t.id, "escalation", targetProfile.id, phone, targetProfile.full_name ?? targetProfile.username ?? "there", task);
+        }
+      } else {
+        // Chain exhausted or undefined — fall back to company admins (reason: "chain_exhausted").
+        for (const admin of adminsByCompany.get(t.company_id) ?? []) {
+          const phone = cleanPhone(admin.phone);
+          if (phone) {
+            await send(t.company_id, t.id, "escalation", admin.id, phone, admin.full_name ?? admin.username ?? "there", task);
+          }
         }
       }
+
+      updates.push({
+        id: t.id,
+        patch: {
+          status: "escalated",
+          escalation_level: nextLevel,
+          escalated_to: targetId,
+          escalated_at: now,
+          escalation_reason: reason,
+          last_reminder_at: now,
+        },
+      });
     } else {
       remindedTasks++;
       const userIds = assigneesByTask.get(t.id) ?? [];
@@ -184,6 +222,26 @@ export async function GET(req: Request): Promise<Response> {
           await send(t.company_id, t.id, decision.action, profile.id, phone, profile.full_name ?? profile.username ?? "there", task);
         }
       }
+      // If the task is currently escalated but a non-escalation reminder is due,
+      // keep it escalated and notify the current escalated owner as well (recovery).
+      if (t.status === "escalated" && t.escalated_to) {
+        const escalatedProfile = profileById.get(t.escalated_to);
+        if (escalatedProfile) {
+          const phone = cleanPhone(escalatedProfile.phone);
+          if (phone) {
+            await send(t.company_id, t.id, decision.action, escalatedProfile.id, phone, escalatedProfile.full_name ?? escalatedProfile.username ?? "there", task);
+          }
+        }
+      }
+      updates.push({ id: t.id, patch: { last_reminder_at: now } });
+    }
+  }
+
+  // Persist reminder/escalation state so the next sweep can advance the chain.
+  for (const u of updates) {
+    const { error } = await db.from("tasks").update(u.patch).eq("id", u.id);
+    if (error) {
+      log("error", "follow-ups task update failed", { event: "follow_up.update_failed", taskId: u.id, error: error.message });
     }
   }
 

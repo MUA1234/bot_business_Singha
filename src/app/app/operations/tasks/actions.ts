@@ -205,6 +205,51 @@ export async function addEvidence(formData: FormData): Promise<void> {
   revalidatePath(`/app/operations/tasks/${id}`);
 }
 
+/** Set or replace the ordered escalation chain for a task (SCH-004). */
+export async function setTaskEscalationChain(formData: FormData): Promise<void> {
+  const p = await requireOps();
+  const id = String(formData.get("task_id") ?? "");
+  if (!id) return;
+  const task = await taskInCompany(id, p.companyId);
+  if (!task) return;
+
+  const raw = String(formData.get("escalation_chain") ?? "").trim();
+  const chain: string[] = raw
+    ? raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : [];
+
+  // Validate every user id belongs to the same company and is active.
+  if (chain.length > 0) {
+    const { data: validProfiles } = await supabaseReadClient()
+      .from("profiles")
+      .select("id")
+      .in("id", chain)
+      .eq("company_id", p.companyId)
+      .eq("is_active", true);
+    const valid = new Set((validProfiles ?? []).map((r) => r.id));
+    const filtered = chain.filter((id) => valid.has(id));
+    if (filtered.length !== chain.length) return; // reject silently on tampered input
+  }
+
+  await supabaseWriteClient()
+    .from("tasks")
+    .update({ escalation_chain: chain, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("company_id", p.companyId);
+  await writeAudit({
+    companyId: p.companyId,
+    actorId: p.userId,
+    action: "task.escalation_chain_set",
+    entityType: "task",
+    entityId: id,
+    payload: { chain },
+  });
+  revalidatePath(`/app/operations/tasks/${id}`);
+}
+
 /** Upload a file as document evidence for a task. */
 export async function uploadTaskEvidence(formData: FormData): Promise<void> {
   const id = String(formData.get("task_id") ?? "");
