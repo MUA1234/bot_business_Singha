@@ -11,8 +11,8 @@ Generated at: 2026-08-23
 | Status | Count |
 |---|---|
 | absent | 41 |
-| foundation_only | 20 |
-| locally_verified | 18 |
+| locally_verified | 19 |
+| foundation_only | 19 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **18** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **67** |
+| **Verified** (locally / preview / staging / production) | **19** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **66** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -46,7 +46,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | CTL | 4 | 2 | 2 |
 | FIN | 8 | 3 | 5 |
 | FOUND | 6 | 5 | 1 |
-| GOV | 6 | 0 | 6 |
+| GOV | 6 | 1 | 5 |
 | IMP | 3 | 0 | 3 |
 | INT | 1 | 0 | 1 |
 | IP | 1 | 1 | 0 |
@@ -108,7 +108,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | GOV-002 | Directive acknowledgement and escalation | P1 | **absent** | none | none | — |
 | GOV-003 | Conflicting-instruction detection and resolution | P1 | **absent** | none | none | — |
 | GOV-004 | Board-reserved matters and emergency suspension | P0 | **absent** | none | none | definition of the reserved-matter list |
-| GOV-005 | Human override, appeal and separation of duties | P0 | **foundation_only** | none | none | — |
+| GOV-005 | Human override, appeal and separation of duties | P0 | **locally_verified** | src/app/app/finance/approvals/actions.ts; src/app/app/finance/approvals/page.tsx | c3c0b71 | — |
 | GOV-006 | Governance audit trail | P1 | **foundation_only** | src/app/app/admin/audit/page.tsx | none | — |
 | IMP-001 | Outcome recording against recommendations | P1 | **absent** | none | none | — |
 | IMP-002 | Staff feedback and lessons learned | P2 | **absent** | none | none | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **67**; blocked (owner): **4**;
+mode. Incomplete and implementable: **66**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.
