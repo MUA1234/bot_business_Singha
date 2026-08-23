@@ -1735,17 +1735,17 @@ requirements:
     phase: stage5
     priority: P2
     dependencies: [MOB-001]
-    status: implementation_in_progress
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: public/manifest.json; src/app/manifest.ts; public/sw.js
+    runtime_entrypoint: public/manifest.webmanifest; src/app/manifest.ts; public/sw.js
     database_evidence: none
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
+    service_evidence: public/sw.js
+    ui_evidence: src/components/ServiceWorkerRegistration.tsx registers the service worker from the root layout
+    test_evidence: tests/pwa.test.ts (6); tests/campaign/mob-002-pwa.test.ts (7)
+    security_evidence: Service worker is same-origin only; writes (POST/PUT/DELETE/PATCH) pass through to the network and are never cached or replayed; offline API reads return a safe 503 retryable response
     audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    last_verified_sha: 7c3942b56c6898f26dcef2ec3545619b0b8476c0
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
     residual_risks: Offline write behaviour must never fabricate a durable record — the same truthfulness rule as delivery.

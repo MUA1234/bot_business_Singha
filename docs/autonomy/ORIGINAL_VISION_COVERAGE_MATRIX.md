@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 58 |
-| absent | 20 |
+| locally_verified | 59 |
+| absent | 19 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **58** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **27** |
+| **Verified** (locally / preview / staging / production) | **59** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **26** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -52,7 +52,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | IP | 1 | 1 | 0 |
 | LNG | 1 | 0 | 1 |
 | MEM | 1 | 1 | 0 |
-| MOB | 4 | 1 | 3 |
+| MOB | 4 | 2 | 2 |
 | MOD | 3 | 2 | 1 |
 | OPS | 8 | 3 | 5 |
 | PRJ | 5 | 5 | 0 |
@@ -89,7 +89,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | CTL-001 | Exception-led operational overview | P0 | **locally_verified** | src/app/app/command/page.tsx | 707761c | — |
 | CTL-002 | Cross-company portfolio overview | P2 | **locally_verified** | src/app/app/portfolio/page.tsx | 76e98a8 | — |
 | CTL-003 | Integration and AI/model health on the control surface | P1 | **locally_verified** | src/app/app/admin/health/page.tsx | 8b90057 | — |
-| CTL-004 | Explainable business-health score | P2 | **locally_verified** | src/app/app/command/health/page.tsx | 53b5bfb242963b993ae955d51d97b2f217e2f016 | — |
+| CTL-004 | Explainable business-health score | P2 | **locally_verified** | src/app/app/command/health/page.tsx | 9bc49cc62fd0a5ec1c2a506e7c4982bf9028af31 | — |
 | FIN-001 | Bank and cash position | P0 | **locally_verified** | src/app/app/command/page.tsx; src/app/app/finance/accounts/page.tsx | 707761c | — |
 | FIN-002 | Receivables and payables with ageing | P0 | **locally_verified** | src/app/app/finance/receivables/page.tsx; src/app/app/command/page.tsx | 707761c | — |
 | FIN-003 | Rolling cash-flow forecast | P0 | **locally_verified** | src/app/app/command/page.tsx | 707761c | — |
@@ -118,7 +118,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | LNG-001 | Multilingual English / Sinhala / Tamil | P2 | **specified** | none | none | approval of the specification before implementation |
 | MEM-001 | Organizational memory and evidence provenance | P1 | **locally_verified** | src/app/app/command/memory/page.tsx | 82b6ce9 | — |
 | MOB-001 | Responsive mobile experience | P1 | **locally_verified** | src/app/layout.tsx; src/app/globals.css | 046991c | — |
-| MOB-002 | Progressive web app with offline-safe behaviour | P2 | **absent** | none | none | — |
+| MOB-002 | Progressive web app with offline-safe behaviour | P2 | **locally_verified** | public/manifest.webmanifest; src/app/manifest.ts; public/sw.js | 7c3942b56c6898f26dcef2ec3545619b0b8476c0 | — |
 | MOB-003 | Versioned mobile APIs and push-notification readiness | P2 | **absent** | none | none | — |
 | MOB-004 | Accessibility and Sinhala/Tamil rendering | P1 | **absent** | none | none | — |
 | MOD-001 | Live-model evaluation path | P1 | **blocked_owner** | tests/campaign/live-eval.test.ts (evaluation-only; no production path) | 079fbb8 | ANTHROPIC_API_KEY supplied privately via local/staging secret configuration |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **27**; blocked (owner): **4**;
+mode. Incomplete and implementable: **26**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

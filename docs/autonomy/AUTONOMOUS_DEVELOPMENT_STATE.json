@@ -1,20 +1,22 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": ["MOB-002"],
+  "activeRequirementIds": [],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "9bc49cc62fd0a5ec1c2a506e7c4982bf9028af31",
-    "outcome": "LOCALLY ACCEPTED: CTL-004 Explainable business-health score. The /app/command/health page computes a composite 0-100 health score from company-scoped cash, AR/AP, task, capacity, risk, incident and obligation signals using deterministic pure helpers with inspectable weights, and renders the score, status, component breakdown with weights/contributions, and underlying signals.",
+    "testedSha": "e5c7a3932f63a7801e2822976a0cc99fbe2bc2ca",
+    "outcome": "LOCALLY ACCEPTED: MOB-002 Progressive web app with offline-safe behaviour. The app now serves a manifest, registers a same-origin service worker, caches the static shell for offline opening, and returns a safe 503 retryable response for API reads when offline. Writes are never cached or replayed.",
     "container": "disposable local PostgreSQL 16 (port 55441) with supabase-shim",
     "corrections": [
-      "Confirmed src/modules/management/health-score.ts exports computeHealthScore, healthScoreWeights and healthScoreStatusTone with transparent WEIGHTS and per-component scores/contributions.",
-      "Updated src/app/app/command/health/page.tsx to load company-scoped tasks, capacity_snapshots, customer_invoices, supplier_bills, bank_accounts, cash_accounts, payments, purchase_orders, commitments, risks, incidents and obligations; compute the health score; and render score, status, Score breakdown table with issues, and key signals.",
-      "Confirmed tests/health-score.test.ts (11 passed) and tests/campaign/ctl-004-health-score.test.ts (6 passed).",
-      "No new migration required; reuses existing tables.",
+      "Added src/app/manifest.ts exporting installable PWA fields (name, short_name, start_url, display, icons, theme/background colors).",
+      "Added public/sw.js with install/activate/fetch handlers that cache the shell, cache static assets, serve navigation cache-first, and serve API/data reads network-first with a safe offline fallback.",
+      "Added src/components/ServiceWorkerRegistration.tsx to register /sw.js client-side and included it in src/app/layout.tsx.",
+      "Added public/brand/icon.svg for the manifest icon.",
+      "Added tests/pwa.test.ts (6 passed) and tests/campaign/mob-002-pwa.test.ts (7 passed).",
+      "No new migration required.",
       "Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on.",
-      "npm run verify (1178 unit tests / 2 skipped / 164 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed."
+      "npm run verify (1191 unit tests / 2 skipped / 166 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed."
     ]
   },
   "currentBranch": "kimi/found006-rls-cutover",
@@ -276,19 +278,19 @@
     "evidence": "tests/campaign/gov-002-directive-escalation.test.ts (15 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression); tests/campaign/cron-auth.test.ts (9 passed regression); fresh disposable PostgreSQL 16 0001-0099 full migration; narrow upgrade 0098→0099; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (916 unit tests / 2 skipped / 136 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
   },
-  "lastGreenSha": "9bc49cc62fd0a5ec1c2a506e7c4982bf9028af31",
+  "lastGreenSha": "e5c7a3932f63a7801e2822976a0cc99fbe2bc2ca",
   "latestMigration": "0107_project_risks_decisions_scenarios.sql",
-  "lastCompletedAction": "Selected MOB-002 Progressive web app with offline-safe behaviour as the next dependency-ordered requirement.",
-  "nextAction": "Implement MOB-002: add a web app manifest, service worker for offline-safe behaviour, and tests proving installability and graceful degradation on poor networks.",
+  "lastCompletedAction": "Locally accepted MOB-002 Progressive web app with offline-safe behaviour on kimi/found006-rls-cutover.",
+  "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml and continue.",
   "lastTargetedTests": [
-    "tests/health-score.test.ts (11 passed)",
-    "tests/campaign/ctl-004-health-score.test.ts (6 passed)"
+    "tests/pwa.test.ts (6 passed)",
+    "tests/campaign/mob-002-pwa.test.ts (7 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "53b5bfb242963b993ae955d51d97b2f217e2f016 on kimi/found006-rls-cutover",
+    "sha": "e5c7a3932f63a7801e2822976a0cc99fbe2bc2ca on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "1178 passed / 2 skipped / 164 files",
+    "unit": "1191 passed / 2 skipped / 166 files",
     "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0107 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
     "integrationNarrowUpgrade": "not run for this package (no new migration)",
     "integrationLegacyUpgrade": "not run for this package (no legacy baseline change)",
@@ -298,7 +300,7 @@
     "secretScan": "no tracked secrets found",
     "migrationLint": "107 migrations, sequential 0001–0107, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "tests/campaign/ctl-004-health-score.test.ts proves the health page imports computeHealthScore and healthScoreStatusTone, loads all required signals, and renders the score, status, Score breakdown table and issues.",
+    "discriminationProof": "tests/campaign/mob-002-pwa.test.ts proves the manifest, service worker lifecycle, shell caching, write pass-through, and safe offline API response are present and wired from the layout.",
     "note": "No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent during this acceptance pass."
   },
   "openFindings": [
@@ -319,6 +321,7 @@
     "WRK-002: LOCALLY ACCEPTED at 56dcee2. The HR capacity page lists active employees, reads assigned tasks, and surfaces planned/actual/remaining hours and utilization status. Historical snapshot consumption and contracted-hour modelling remain future work.",
     "WRK-003: LOCALLY ACCEPTED at 1b494e6. The HR staff list and employee record display and allow editing of employee skills, scoped by company_id. Certification expiry, renewal-task creation and assignment consumption remain future work.",
     "MOB-001: LOCALLY ACCEPTED at 046991c. The root layout and global stylesheet provide a responsive mobile foundation: viewport=device-width/initialScale=1/viewportFit=cover, 100dvh, safe-area insets, overflow-x hidden, text-size-adjust, and collapsing grid breakpoints. Real-device/role-based mobile UAT remains future work.",
+    "MOB-002: LOCALLY ACCEPTED at e5c7a39. The app serves a PWA manifest, registers a same-origin service worker from the root layout, caches the shell for offline opening, and returns a safe 503 retryable response for offline API reads. Writes are never cached or replayed.",
     "PRJ-001: LOCALLY ACCEPTED at f227fef. The operations projects page lists company-scoped projects with lifecycle status and links from the operations home. Milestones, stage gates and project precedent reuse remain future work.",
     "PRJ-002: LOCALLY ACCEPTED at e759c10. The admin objectives page lists company-scoped objectives, grades progress with assessObjective and supports create/update progress actions. Milestones, dependencies, stage gates and project linkage remain future work.",
     "RSK-002: LOCALLY ACCEPTED at 843cb05. The legal contracts page lists company-scoped contracts with counterparty, renewal date, and renewal status badges. Automatic creation of owned dated renewal tasks remains future work.",
