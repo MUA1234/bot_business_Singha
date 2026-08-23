@@ -774,20 +774,20 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: [PRJ-001]
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/app/admin/objectives/page.tsx
     database_evidence: objectives
-    service_evidence: src/management/ai-manager/objective-status.ts
-    ui_evidence: src/app/app/admin/objectives/page.tsx
-    test_evidence: tests/objective-status.test.ts
-    security_evidence: admin gate
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    service_evidence: src/management/ai-manager/objective-status.ts assessObjective
+    ui_evidence: src/app/app/admin/objectives/page.tsx lists company-scoped objectives, grades progress vs target/current/period using assessObjective, and supports create/update progress actions
+    test_evidence: tests/campaign/prj-002-objectives-surface.test.ts (5); tests/objective-status.test.ts
+    security_evidence: admin gate; page queries are scoped to requireAdmin company_id
+    audit_health_evidence: admin objectives page
+    last_verified_sha: e759c10
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: Objectives exist standalone; no milestones, dependencies or stage gates, and no link to projects.
+    residual_risks: Objectives exist standalone; milestones, dependencies, stage gates and link to projects remain future work.
   - id: PRJ-003
     title: Project budgets, forecasts and resource requirements
     description: Budget versus actual per project with forecast and the people/assets a project requires.

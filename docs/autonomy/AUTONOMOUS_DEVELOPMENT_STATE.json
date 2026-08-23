@@ -139,6 +139,14 @@
     "evidence": "tests/campaign/prj-001-project-registry.test.ts (5 passed); npm run verify (805 unit tests / 2 skipped / 117 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, project creation/edit UI, milestones, stage gates, or project reuse as precedent tested. The page is read-only; those remain future work."
   },
+  "prj002LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "e759c10",
+    "outcome": "LOCALLY ACCEPTED: PRJ-002 objectives surface. The admin objectives page lists company-scoped objectives, grades progress with the deterministic objective-status engine, and supports create/update progress actions.",
+    "evidence": "tests/campaign/prj-002-objectives-surface.test.ts (5 passed); tests/objective-status.test.ts; npm run verify (830 unit tests / 2 skipped / 122 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, milestones, dependencies, stage gates or project linkage tested. Those remain future work."
+  },
   "rsk002LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -155,29 +163,29 @@
     "evidence": "tests/campaign/rsk-003-licences-register.test.ts (5 passed); tests/renewals.test.ts; npm run verify (815 unit tests / 2 skipped / 119 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or automatic creation of owned dated renewal tasks tested. Renewal responsibility and automatic renewal-task creation remain future work."
   },
-  "lastGreenSha": "18a8ea4",
+  "lastGreenSha": "e759c10",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "OPS-002 local acceptance pushed on kimi/found006-rls-cutover. The admin audit page is the runtime entrypoint for searchable audit.",
+  "lastCompletedAction": "PRJ-002 local acceptance pushed on kimi/found006-rls-cutover. The admin objectives page is the runtime entrypoint for objectives and progress grading.",
   "nextAction": "Select the next dependency-ordered implementable requirement from the original vision register and continue the implement → test → verify → commit/push loop.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/ops-002-audit-search.test.ts (5 passed)"
+    "npm test -- tests/campaign/prj-002-objectives-surface.test.ts (5 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "18a8ea4 on kimi/found006-rls-cutover",
+    "sha": "e759c10 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "825 passed / 2 skipped / 121 files",
-    "integrationFresh": "not rerun for OPS-002 (no database change)",
-    "integrationNarrowUpgrade": "not rerun for OPS-002",
-    "integrationLegacyUpgrade": "not rerun for OPS-002",
-    "migrationIdempotency": "not rerun for OPS-002",
+    "unit": "830 passed / 2 skipped / 122 files",
+    "integrationFresh": "not rerun for PRJ-002 (no database change)",
+    "integrationNarrowUpgrade": "not rerun for PRJ-002",
+    "integrationLegacyUpgrade": "not rerun for PRJ-002",
+    "migrationIdempotency": "not rerun for PRJ-002",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 825 unit tests (2 skipped / 121 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 830 unit tests (2 skipped / 122 files)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "ops-002-audit-search.test.ts proves the page is a real runtime entrypoint under /app/admin/audit, queries audit_events scoped by company_id, supports an entity-type filter, and surfaces actor/action/entity/timestamp.",
-    "note": "OPS-002 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "discriminationProof": "prj-002-objectives-surface.test.ts proves the page is a real runtime entrypoint under /app/admin/objectives, queries objectives scoped by company_id, uses assessObjective, and surfaces title/metric/target/current/status with create/update actions.",
+    "note": "PRJ-002 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -196,6 +204,7 @@
     "WRK-001: LOCALLY ACCEPTED at af81ed8. The HR leave page lists company-scoped leave_requests joined with profiles and shows remaining annual leave per person. Attendance, travel, sickness, working-hours modelling and assignment consumption remain future work.",
     "WRK-002: LOCALLY ACCEPTED at 56dcee2. The HR capacity page lists active employees, reads assigned tasks, and surfaces planned/actual/remaining hours and utilization status. Historical snapshot consumption and contracted-hour modelling remain future work.",
     "PRJ-001: LOCALLY ACCEPTED at f227fef. The operations projects page lists company-scoped projects with lifecycle status and links from the operations home. Milestones, stage gates and project precedent reuse remain future work.",
+    "PRJ-002: LOCALLY ACCEPTED at e759c10. The admin objectives page lists company-scoped objectives, grades progress with assessObjective and supports create/update progress actions. Milestones, dependencies, stage gates and project linkage remain future work.",
     "RSK-002: LOCALLY ACCEPTED at 843cb05. The legal contracts page lists company-scoped contracts with counterparty, renewal date, and renewal status badges. Automatic creation of owned dated renewal tasks remains future work.",
     "RSK-003: LOCALLY ACCEPTED at e99cb94. The legal licences page lists company-scoped licences/permits with authority, number, expiry date, and renewal status badges. Renewal responsibility and automatic renewal-task creation remain future work.",
     "GOV-004: BLOCKED_OWNER. Board-reserved matters and emergency suspension requires the owner to define the reserved-matter list before implementation.",
@@ -243,9 +252,10 @@
       "ops-005": 0,
       "rsk003": 0,
       "wrk002": 0,
-      "ops002": 0
+      "ops002": 0,
+      "prj002": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T01:56:00Z"
+  "updatedAt": "2026-08-23T01:59:50Z"
 }
