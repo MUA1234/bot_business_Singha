@@ -62,6 +62,10 @@ export default async function AdminHome() {
           <div className="card-title row gap-1"><Icon name="send" size={17} /> Outbox &amp; dead letters</div>
           <p className="card-sub">Outbound message delivery status; replay failures.</p>
         </Link>
+        <Link href="/app/admin/integrations" className="card">
+          <div className="card-title row gap-1"><Icon name="plug" size={17} /> Integrations</div>
+          <p className="card-sub">Applications, connectors and event/command contracts.</p>
+        </Link>
       </div>
     </div>
   );

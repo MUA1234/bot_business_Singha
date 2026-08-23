@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| absent | 39 |
-| locally_verified | 35 |
+| absent | 38 |
+| locally_verified | 36 |
 | specified | 5 |
 | foundation_only | 5 |
 | blocked_owner | 4 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **35** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **50** |
+| **Verified** (locally / preview / staging / production) | **36** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **49** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -48,7 +48,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | FOUND | 6 | 5 | 1 |
 | GOV | 6 | 1 | 5 |
 | IMP | 3 | 0 | 3 |
-| INT | 1 | 0 | 1 |
+| INT | 1 | 1 | 0 |
 | IP | 1 | 1 | 0 |
 | LNG | 1 | 0 | 1 |
 | MEM | 1 | 0 | 1 |
@@ -113,7 +113,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | IMP-001 | Outcome recording against recommendations | P1 | **absent** | none | none | — |
 | IMP-002 | Staff feedback and lessons learned | P2 | **absent** | none | none | — |
 | IMP-003 | Versioned playbooks and prompt/evaluation improvement with human approval | P1 | **absent** | none | none | private repository/package decision for proprietary playbooks |
-| INT-001 | Integration Gateway and connector registry | P1 | **absent** | none | none | — |
+| INT-001 | Integration Gateway and connector registry | P1 | **locally_verified** | src/app/app/admin/integrations/page.tsx | 4b5bbb3 | — |
 | IP-001 | Public-repository IP boundary | P1 | **locally_verified** | scripts/autonomy/check-ip-boundary.mjs | c72b2fe | decision on a private repository or package for proprietary prompts and evaluation data |
 | LNG-001 | Multilingual English / Sinhala / Tamil | P2 | **specified** | none | none | approval of the specification before implementation |
 | MEM-001 | Organizational memory and evidence provenance | P1 | **absent** | none | none | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **50**; blocked (owner): **4**;
+mode. Incomplete and implementable: **49**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

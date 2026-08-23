@@ -359,20 +359,20 @@ requirements:
     phase: stage2
     priority: P1
     dependencies: [FOUND-001]
-    status: absent
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/app/admin/integrations/page.tsx
+    database_evidence: integrations, connectors, integration_event_contracts and integration_command_contracts tables (migration 0095) with company_id, signature_required, replay_protection and capability-gated RLS
+    service_evidence: src/app/app/admin/integrations/actions.ts createIntegration/createConnector/createEventContract/createCommandContract
+    ui_evidence: src/app/app/admin/integrations/page.tsx lists company-scoped applications, connectors and contracts with signature/replay flags; src/app/app/admin/page.tsx links to integrations
+    test_evidence: tests/campaign/int-001-integration-gateway.test.ts (6)
+    security_evidence: admin department gate; page and action queries scoped by company_id; RLS capability-isolation on reads and writes
+    audit_health_evidence: integration.created, connector.created, integration_event_contract.created and integration_command_contract.created audit events
+    last_verified_sha: 4b5bbb3
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: Only the WhatsApp webhook exists; email is a 501 stub.
+    residual_risks: Signature verification and nonce-store enforcement are data-model and registry only; the actual runtime inbound/outbound adapter enforcement remains future work. Only the WhatsApp webhook exists today; email is a 501 stub.
 
   # ── AST / LNG — specified programs, not started ─────────────────────────────────────────────
   - id: AST-001
