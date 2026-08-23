@@ -21,11 +21,12 @@ export default async function ProcurementHome() {
   const p = await requireDepartment("procurement");
   const db = supabaseReadClient();
 
-  const [openPRs, openPOs, openRFQs, suppliers, items] = await Promise.all([
+  const [openPRs, openPOs, openRFQs, suppliers, serviceProviders, items] = await Promise.all([
     count(() => db.from("purchase_requests").select("id", { count: "exact", head: true }).eq("company_id", p.companyId).not("status", "in", "(closed,rejected)") as any),
     count(() => db.from("purchase_orders").select("id", { count: "exact", head: true }).eq("company_id", p.companyId).not("status", "in", "(received,closed,cancelled)") as any),
     count(() => db.from("rfqs").select("id", { count: "exact", head: true }).eq("company_id", p.companyId).eq("status", "open") as any),
     count(() => db.from("suppliers").select("id", { count: "exact", head: true }).eq("company_id", p.companyId) as any),
+    count(() => db.from("service_providers").select("id", { count: "exact", head: true }).eq("company_id", p.companyId) as any),
     rows<any>(() => db.from("inventory_items").select("quantity_on_hand, reorder_level").eq("company_id", p.companyId) as any),
   ]);
   const reorder = reorderList(items.map((i) => ({ quantityOnHand: Number(i.quantity_on_hand ?? 0), reorderLevel: Number(i.reorder_level ?? 0) }))).length;
@@ -36,6 +37,7 @@ export default async function ProcurementHome() {
     { k: "Open RFQs", v: openRFQs, href: "/app/procurement/rfqs" },
     { k: "Below reorder", v: reorder, href: "/app/procurement/inventory", danger: reorder > 0 },
     { k: "Suppliers", v: suppliers, href: "/app/procurement/suppliers" },
+    { k: "Service providers", v: serviceProviders, href: "/app/procurement/service-providers" },
   ];
 
   return (

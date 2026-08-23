@@ -82,7 +82,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 
 - src/app/api/webhooks/email/route.ts
 
-## 7. Error-masking suspects (catch → empty return) — 74 (Phase-1C triage list)
+## 7. Error-masking suspects (catch → empty return) — 76 (Phase-1C triage list)
 
 | file:line | returns |
 |---|---|
@@ -147,6 +147,8 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/procurement/purchase-orders/page.tsx:18 | `error-discarding destructure` |
 | src/app/app/procurement/purchase-requests/page.tsx:27 | `error-discarding destructure` |
 | src/app/app/procurement/rfqs/actions.ts:16 | `error-discarding destructure` |
+| src/app/app/procurement/service-providers/actions.ts:44 | `error-discarding destructure` |
+| src/app/app/procurement/service-providers/page.tsx:21 | `error-discarding destructure` |
 | src/app/app/sales/accounts/page.tsx:18 | `[]` |
 | src/app/app/sales/leads/page.tsx:24 | `error-discarding destructure` |
 | src/db/consumer-store.ts:124 | `error-discarding destructure` |

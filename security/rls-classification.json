@@ -13,6 +13,7 @@
     "receipts": "capability", "credit_notes": "capability", "refunds": "capability",
     "employee_advances": "capability", "reimbursements": "capability", "loans": "capability", "loan_schedules": "capability",
     "purchase_requests": "capability", "purchase_orders": "capability", "po_lines": "capability",
+    "service_providers": "capability",
     "goods_receipts": "capability", "rfqs": "capability", "supplier_quotations": "capability",
     "inventory_items": "capability", "stock_movements": "capability",
     "drivers": "capability", "fuel_logs": "capability", "maintenance_records": "capability", "licences": "capability",
