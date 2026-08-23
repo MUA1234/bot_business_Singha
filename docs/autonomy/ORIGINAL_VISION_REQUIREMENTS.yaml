@@ -1670,20 +1670,20 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: [RSK-001]
-    status: absent
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/app/legal/incidents/page.tsx; src/app/app/legal/obligations/page.tsx
+    database_evidence: src/db/migrations/0106_incidents_and_statutory_obligations.sql (incidents table; obligations extended with evidence and obligation_type)
+    service_evidence: src/modules/legal/incidents.ts
+    ui_evidence: /app/legal/incidents and /app/legal/obligations pages with create/status forms; linked from /app/legal
+    test_evidence: tests/incidents.test.ts; tests/campaign/rsk-005-incidents-and-obligations.test.ts
+    security_evidence: RLS policies on incidents and obligations scoped to legal.compliance.manage; incidents classified as capability in security/rls-classification.json
+    audit_health_evidence: incident.created, incident.status_updated, obligation.created, obligation.status_updated audit actions
+    last_verified_sha: 4e40880
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: none
+    residual_risks: Obligations share the existing obligations table with contractual obligations; the obligation_type column distinguishes statutory entries.
   - id: RSK-006
     title: Sri Lankan-context advisory sources and human legal review
     description: Jurisdiction-specific guidance surfaced as advisory only, with uncertain matters routed to a human legal reviewer.

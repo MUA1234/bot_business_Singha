@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 51 |
-| absent | 27 |
+| locally_verified | 52 |
+| absent | 26 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **51** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **34** |
+| **Verified** (locally / preview / staging / production) | **52** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **33** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -56,7 +56,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | MOD | 3 | 1 | 2 |
 | OPS | 8 | 3 | 5 |
 | PRJ | 5 | 3 | 2 |
-| RSK | 6 | 4 | 2 |
+| RSK | 6 | 5 | 1 |
 | SCH | 6 | 4 | 2 |
 | WRK | 5 | 3 | 2 |
 
@@ -141,7 +141,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | RSK-002 | Contracts register with renewal dates | P1 | **locally_verified** | src/app/app/legal/contracts/page.tsx | 843cb05 | — |
 | RSK-003 | Licences and permits with expiry | P1 | **locally_verified** | src/app/app/legal/licences/page.tsx | e99cb94 | — |
 | RSK-004 | Insurance register and renewals | P1 | **locally_verified** | src/app/app/legal/insurances/page.tsx | 4b535a8 | — |
-| RSK-005 | Incidents and statutory obligations | P1 | **absent** | none | none | — |
+| RSK-005 | Incidents and statutory obligations | P1 | **locally_verified** | src/app/app/legal/incidents/page.tsx; src/app/app/legal/obligations/page.tsx | 4e40880 | — |
 | RSK-006 | Sri Lankan-context advisory sources and human legal review | P1 | **absent** | none | none | identification of authorised legal reviewer and approved sources |
 | SCH-001 | Continuous task discovery | P1 | **locally_verified** | src/app/api/cron/ai-monitor/route.ts | dbb208f | — |
 | SCH-002 | SLAs, 24/48-hour follow-ups and reminders | P1 | **locally_verified** | src/app/api/cron/follow-ups/route.ts | 9ed08e12ecb08e1c1832aa0f8e38273e9005b936 | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **34**; blocked (owner): **4**;
+mode. Incomplete and implementable: **33**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.
