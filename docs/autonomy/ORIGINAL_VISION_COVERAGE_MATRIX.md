@@ -11,8 +11,8 @@ Generated at: 2026-08-23
 | Status | Count |
 |---|---|
 | absent | 41 |
-| locally_verified | 31 |
-| foundation_only | 7 |
+| locally_verified | 32 |
+| foundation_only | 6 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **31** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **54** |
+| **Verified** (locally / preview / staging / production) | **32** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **53** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -57,7 +57,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | OPS | 8 | 3 | 5 |
 | PRJ | 5 | 2 | 3 |
 | RSK | 6 | 2 | 4 |
-| SCH | 6 | 1 | 5 |
+| SCH | 6 | 2 | 4 |
 | WRK | 5 | 3 | 2 |
 
 ## Requirements
@@ -143,7 +143,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | RSK-004 | Insurance register and renewals | P1 | **absent** | none | none | — |
 | RSK-005 | Incidents and statutory obligations | P1 | **absent** | none | none | — |
 | RSK-006 | Sri Lankan-context advisory sources and human legal review | P1 | **absent** | none | none | identification of authorised legal reviewer and approved sources |
-| SCH-001 | Continuous task discovery | P1 | **foundation_only** | src/app/api/cron/ai-monitor/route.ts | 1ebaa80 | — |
+| SCH-001 | Continuous task discovery | P1 | **locally_verified** | src/app/api/cron/ai-monitor/route.ts | dbb208f | — |
 | SCH-002 | SLAs, 24/48-hour follow-ups and reminders | P1 | **foundation_only** | src/app/api/cron/follow-ups/route.ts | 1ebaa80 | — |
 | SCH-003 | Leave and workload-aware scheduling | P2 | **absent** | none | none | — |
 | SCH-004 | Escalation and missed-response recovery | P1 | **foundation_only** | src/app/api/cron/follow-ups/route.ts | none | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **54**; blocked (owner): **4**;
+mode. Incomplete and implementable: **53**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

@@ -1137,20 +1137,20 @@ requirements:
     phase: stage3
     priority: P1
     dependencies: [AIM-002]
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/api/cron/ai-monitor/route.ts
     database_evidence: wa_conversations.ai_analyzed_at
     service_evidence: src/management/ai-manager/analyze-conversation.ts
-    ui_evidence: src/app/app/command/cases/page.tsx
-    test_evidence: tests/integration/ai-case-atomic.test.ts
-    security_evidence: CRON_SECRET gate; service-only persistence
+    ui_evidence: src/app/app/command/cases/page.tsx surfaces management cases produced by the monitor
+    test_evidence: tests/campaign/sch-001-ai-monitor-surface.test.ts (5); tests/integration/ai-case-atomic.test.ts
+    security_evidence: CRON_SECRET gate via timingSafeEqual (fail-closed); service-only persistence; bounded BATCH=15
     audit_health_evidence: monitor.analyzed audit events
-    last_verified_sha: 1ebaa80
-    last_verified_at: 2026-08-17
+    last_verified_sha: dbb208f
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: Discovery works but produces duplicates (AIM-002) and routes to nobody (AIM-003).
+    residual_risks: Discovery works for WhatsApp conversations; duplicate prevention depends on AIM-002 (verified) and routing depends on AIM-003 (owner-gated). Email is a 501 stub.
   - id: SCH-002
     title: SLAs, 24/48-hour follow-ups and reminders
     description: Time-based follow-up rules with reminders to the responsible person.
