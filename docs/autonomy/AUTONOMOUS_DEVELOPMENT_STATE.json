@@ -1,22 +1,22 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": ["MOB-003"],
+  "activeRequirementIds": [],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "7c3942b56c6898f26dcef2ec3545619b0b8476c0",
-    "outcome": "LOCALLY ACCEPTED: MOB-002 Progressive web app with offline-safe behaviour. The app now serves a manifest, registers a same-origin service worker, caches the static shell for offline opening, and returns a safe 503 retryable response for API reads when offline. Writes are never cached or replayed.",
+    "testedSha": "b55f054c5ff8beda9b8791ad7334889e97a24fb9",
+    "outcome": "LOCALLY ACCEPTED: MOB-003 Versioned mobile APIs and push-notification readiness. The app serves stable v1 endpoints for mobile health, config, VAPID public key and push subscription registration; persists subscriptions in a company/user-scoped RLS table; and never sends or fabricates push messages.",
     "container": "disposable local PostgreSQL 16 (port 55441) with supabase-shim",
     "corrections": [
-      "Added src/app/manifest.ts exporting installable PWA fields (name, short_name, start_url, display, icons, theme/background colors).",
-      "Added public/sw.js with install/activate/fetch handlers that cache the shell, cache static assets, serve navigation cache-first, and serve API/data reads network-first with a safe offline fallback.",
-      "Added src/components/ServiceWorkerRegistration.tsx to register /sw.js client-side and included it in src/app/layout.tsx.",
-      "Added public/brand/icon.svg for the manifest icon.",
-      "Added tests/pwa.test.ts (6 passed) and tests/campaign/mob-002-pwa.test.ts (7 passed).",
-      "No new migration required.",
+      "Added src/app/api/v1/mobile/health, config, vapid-public-key and push-subscription routes with stable response shapes.",
+      "Added src/lib/mobile/api.ts and src/lib/mobile/push.ts for typed v1 contracts and Zod-validated subscription bodies.",
+      "Added migration 0108_push_subscriptions.sql with company/user-scoped table, user-only RLS policies and updated_at trigger.",
+      "Classified push_subscriptions as self_service in security/rls-classification.json and added the push-subscription route to scripts/allowlists/supabase-admin-system.json.",
+      "Added tests/mobile-api.test.ts (7 passed) and tests/campaign/mob-003-mobile-api.test.ts (7 passed).",
+      "Fresh full migration 0001-0108 on disposable PostgreSQL 16; narrow upgrade 0107->0108 on existing DB.",
       "Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on.",
-      "npm run verify (1191 unit tests / 2 skipped / 166 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed."
+      "npm run verify (1208 unit tests / 2 skipped / 168 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (after robust-fetch retry for transient ECONNRESET)."
     ]
   },
   "currentBranch": "kimi/found006-rls-cutover",
@@ -278,29 +278,29 @@
     "evidence": "tests/campaign/gov-002-directive-escalation.test.ts (15 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression); tests/campaign/cron-auth.test.ts (9 passed regression); fresh disposable PostgreSQL 16 0001-0099 full migration; narrow upgrade 0098→0099; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (916 unit tests / 2 skipped / 136 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
   },
-  "lastGreenSha": "7c3942b56c6898f26dcef2ec3545619b0b8476c0",
-  "latestMigration": "0107_project_risks_decisions_scenarios.sql",
-  "lastCompletedAction": "Selected MOB-003 Versioned mobile APIs and push-notification readiness as the next dependency-ordered requirement.",
-  "nextAction": "Implement MOB-003: add stable versioned API endpoints for a mobile client and the groundwork for push notifications.",
+  "lastGreenSha": "b55f054c5ff8beda9b8791ad7334889e97a24fb9",
+  "latestMigration": "0108_push_subscriptions.sql",
+  "lastCompletedAction": "Completed MOB-003 acceptance and register update. No unblocked implementable requirements remain.",
+  "nextAction": "Stop: only blocked_owner, deliberately_deferred, or dependency-blocked requirements remain in the register. Resume when an owner gate is cleared or a dependency becomes verified.",
   "lastTargetedTests": [
-    "tests/pwa.test.ts (6 passed)",
-    "tests/campaign/mob-002-pwa.test.ts (7 passed)"
+    "tests/mobile-api.test.ts (7 passed)",
+    "tests/campaign/mob-003-mobile-api.test.ts (7 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "e5c7a3932f63a7801e2822976a0cc99fbe2bc2ca on kimi/found006-rls-cutover",
+    "sha": "b55f054c5ff8beda9b8791ad7334889e97a24fb9 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "1191 passed / 2 skipped / 166 files",
-    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0107 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
-    "integrationNarrowUpgrade": "not run for this package (no new migration)",
+    "unit": "1208 passed / 2 skipped / 168 files",
+    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0108 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
+    "integrationNarrowUpgrade": "0107→0108 upgrade applied cleanly on disposable PostgreSQL 16",
     "integrationLegacyUpgrade": "not run for this package (no legacy baseline change)",
-    "migrationIdempotency": "migration-lint 0001-0107 sequential, no gaps or duplicates",
+    "migrationIdempotency": "migration-lint 0001-0108 sequential, no gaps or duplicates",
     "build": "clean",
     "verify": "passed: secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests",
     "secretScan": "no tracked secrets found",
-    "migrationLint": "107 migrations, sequential 0001–0107, no gaps or duplicates",
-    "browserCheck": "10/10 passed",
-    "discriminationProof": "tests/campaign/mob-002-pwa.test.ts proves the manifest, service worker lifecycle, shell caching, write pass-through, and safe offline API response are present and wired from the layout.",
+    "migrationLint": "108 migrations, sequential 0001–0108, no gaps or duplicates",
+    "browserCheck": "10/10 passed (after robustFetch retry for transient ECONNRESET)",
+    "discriminationProof": "tests/campaign/mob-003-mobile-api.test.ts proves the v1 mobile health/config/VAPID/push-subscription endpoints, company-scoped RLS persistence, and that no message is sent or fabricated.",
     "note": "No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent during this acceptance pass."
   },
   "openFindings": [
@@ -322,6 +322,7 @@
     "WRK-003: LOCALLY ACCEPTED at 1b494e6. The HR staff list and employee record display and allow editing of employee skills, scoped by company_id. Certification expiry, renewal-task creation and assignment consumption remain future work.",
     "MOB-001: LOCALLY ACCEPTED at 046991c. The root layout and global stylesheet provide a responsive mobile foundation: viewport=device-width/initialScale=1/viewportFit=cover, 100dvh, safe-area insets, overflow-x hidden, text-size-adjust, and collapsing grid breakpoints. Real-device/role-based mobile UAT remains future work.",
     "MOB-002: LOCALLY ACCEPTED at 7c3942b56c6898f26dcef2ec3545619b0b8476c0. The app serves a PWA manifest, registers a same-origin service worker from the root layout, caches the shell for offline opening, and returns a safe 503 retryable response for offline API reads. Writes are never cached or replayed.",
+    "MOB-003: LOCALLY ACCEPTED at b55f054c5ff8beda9b8791ad7334889e97a24fb9. Stable v1 mobile endpoints for health, config, VAPID public key and push-subscription registration; company/user-scoped push_subscriptions table with RLS; never sends or fabricates push messages.",
     "PRJ-001: LOCALLY ACCEPTED at f227fef. The operations projects page lists company-scoped projects with lifecycle status and links from the operations home. Milestones, stage gates and project precedent reuse remain future work.",
     "PRJ-002: LOCALLY ACCEPTED at e759c10. The admin objectives page lists company-scoped objectives, grades progress with assessObjective and supports create/update progress actions. Milestones, dependencies, stage gates and project linkage remain future work.",
     "RSK-002: LOCALLY ACCEPTED at 843cb05. The legal contracts page lists company-scoped contracts with counterparty, renewal date, and renewal status badges. Automatic creation of owned dated renewal tasks remains future work.",
@@ -422,7 +423,7 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T21:47:00.000Z",
+  "updatedAt": "2026-08-23T22:00:00.000Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",

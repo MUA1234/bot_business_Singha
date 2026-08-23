@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 59 |
-| absent | 19 |
+| locally_verified | 60 |
+| absent | 18 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **59** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **26** |
+| **Verified** (locally / preview / staging / production) | **60** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **25** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -52,7 +52,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | IP | 1 | 1 | 0 |
 | LNG | 1 | 0 | 1 |
 | MEM | 1 | 1 | 0 |
-| MOB | 4 | 2 | 2 |
+| MOB | 4 | 3 | 1 |
 | MOD | 3 | 2 | 1 |
 | OPS | 8 | 3 | 5 |
 | PRJ | 5 | 5 | 0 |
@@ -119,7 +119,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | MEM-001 | Organizational memory and evidence provenance | P1 | **locally_verified** | src/app/app/command/memory/page.tsx | 82b6ce9 | — |
 | MOB-001 | Responsive mobile experience | P1 | **locally_verified** | src/app/layout.tsx; src/app/globals.css | 046991c | — |
 | MOB-002 | Progressive web app with offline-safe behaviour | P2 | **locally_verified** | public/manifest.webmanifest; src/app/manifest.ts; public/sw.js | 7c3942b56c6898f26dcef2ec3545619b0b8476c0 | — |
-| MOB-003 | Versioned mobile APIs and push-notification readiness | P2 | **absent** | none | none | — |
+| MOB-003 | Versioned mobile APIs and push-notification readiness | P2 | **locally_verified** | src/app/api/v1/mobile/health/route.ts; src/app/api/v1/mobile/config/route.ts; src/app/api/v1/mobile/vapid-public-key/route.ts; src/app/api/v1/mobile/push-subscription/route.ts | b55f054c5ff8beda9b8791ad7334889e97a24fb9 | — |
 | MOB-004 | Accessibility and Sinhala/Tamil rendering | P1 | **absent** | none | none | — |
 | MOD-001 | Live-model evaluation path | P1 | **blocked_owner** | tests/campaign/live-eval.test.ts (evaluation-only; no production path) | 079fbb8 | ANTHROPIC_API_KEY supplied privately via local/staging secret configuration |
 | MOD-002 | Customer-facing model calls recorded in the cost ledger | P2 | **locally_verified** | src/lib/order-intake.ts handleCustomerMessage drives runPolicyRoutedQuotationTurn with makeSupabaseCostLedger(db); src/ai/quotation.ts runQuotationTurn now requires a CostLedger | 7826fa8 | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **26**; blocked (owner): **4**;
+mode. Incomplete and implementable: **25**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

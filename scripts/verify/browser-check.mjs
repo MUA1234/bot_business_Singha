@@ -103,6 +103,19 @@ const check = (name, ok, detail = "") => {
   console.log(`${ok ? "✅" : "❌"} ${name}${detail ? ` — ${detail}` : ""}`);
 };
 
+async function robustFetch(url, options, retries = 3, delayMs = 500) {
+  let lastError;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fetch(url, options);
+    } catch (error) {
+      lastError = error;
+      if (i < retries - 1) await sleep(delayMs);
+    }
+  }
+  throw lastError;
+}
+
 try {
   if (!(await waitForServer())) {
     console.error("❌ browser-check: the server did not start\n" + serverLog.slice(-2000));
@@ -133,9 +146,9 @@ try {
   // 4. The scheduled routes refuse an unauthenticated caller rather than running. A drain that
   //    anyone could trigger is a denial-of-service surface and a way to burn the attempt budget.
   for (const path of ["/api/cron/dispatch-drain", "/api/cron/inbound-sweeper"]) {
-    const res = await fetch(`${BASE}${path}`);
+    const res = await robustFetch(`${BASE}${path}`);
     check(`${path} refuses an unauthenticated caller`, res.status === 401, `status ${res.status}`);
-    const wrong = await fetch(`${BASE}${path}`, { headers: { authorization: "Bearer bc-wrong" } });
+    const wrong = await robustFetch(`${BASE}${path}`, { headers: { authorization: "Bearer bc-wrong" } });
     check(`${path} refuses a WRONG secret`, wrong.status === 401, `status ${wrong.status}`);
   }
 

@@ -1756,20 +1756,20 @@ requirements:
     phase: stage5
     priority: P2
     dependencies: [MOB-002, INT-001]
-    status: implementation_in_progress
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: src/app/api/v1/mobile/health/route.ts; src/app/api/v1/mobile/push/subscribe/route.ts; src/app/api/v1/mobile/notifications/route.ts
-    database_evidence: none
-    service_evidence: none
+    runtime_entrypoint: src/app/api/v1/mobile/health/route.ts; src/app/api/v1/mobile/config/route.ts; src/app/api/v1/mobile/vapid-public-key/route.ts; src/app/api/v1/mobile/push-subscription/route.ts
+    database_evidence: src/db/migrations/0108_push_subscriptions.sql
+    service_evidence: src/lib/mobile/api.ts; src/lib/mobile/push.ts; public/sw.js
     ui_evidence: none
-    test_evidence: none
-    security_evidence: none
+    test_evidence: tests/mobile-api.test.ts (7); tests/campaign/mob-003-mobile-api.test.ts (7)
+    security_evidence: Push-subscription route authenticates via Supabase session cookies, resolves active company membership, stores only endpoint/crypto keys, never sends or fabricates messages; service worker same-origin and write-pass-through
     audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    last_verified_sha: b55f054c5ff8beda9b8791ad7334889e97a24fb9
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: none
+    residual_risks: Actual push delivery and VAPID private key configuration remain owner-gated.
   - id: MOB-004
     title: Accessibility and Sinhala/Tamil rendering
     description: Accessible markup and labels, with fonts and line metrics that render Sinhala and Tamil correctly.
