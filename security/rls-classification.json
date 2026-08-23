@@ -8,6 +8,7 @@
     "commitments": "capability", "obligations": "capability", "recurring_obligations": "capability",
     "budgets": "capability", "budget_lines": "capability", "forecasts": "capability",
     "forecast_lines": "capability", "forecast_scenarios": "capability",
+    "funding_requirements": "capability", "investments": "capability",
     "customer_invoices": "capability", "customer_invoice_lines": "capability", "customers": "capability",
     "supplier_bills": "capability", "supplier_bill_lines": "capability", "suppliers": "capability",
     "receipts": "capability", "credit_notes": "capability", "refunds": "capability",

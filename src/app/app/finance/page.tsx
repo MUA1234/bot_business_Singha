@@ -133,6 +133,7 @@ export default async function FinanceHome() {
         <Link href="/app/finance/invoices" className="card"><div className="card-title row gap-1"><Icon name="file-text" size={17} /> Invoices</div><p className="card-sub">Billing documents from quotations.</p></Link>
         <Link href="/app/finance/price-requests" className="card"><div className="card-title row gap-1"><Icon name="help-circle" size={17} /> Price Confirmations</div><p className="card-sub">Confirm prices routed to finance.</p></Link>
         <Link href="/app/finance/exports" className="card"><div className="card-title row gap-1"><Icon name="table" size={17} /> Excel Exports</div><p className="card-sub">Download logs as Excel-compatible CSV.</p></Link>
+        <Link href="/app/finance/funding" className="card"><div className="card-title row gap-1"><Icon name="target" size={17} /> Funding & investments</div><p className="card-sub">Funding gap from the forecast and the investment register.</p></Link>
       </div>
     </div>
   );
