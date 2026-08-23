@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [],
+  "activeRequirementIds": ["PRJ-001"],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -117,8 +117,8 @@
   },
   "lastGreenSha": "af81ed8",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "WRK-001 local acceptance completed at af81ed8 on kimi/found006-rls-cutover. The HR leave page now lists company-scoped leave requests joined with profiles and shows remaining annual leave per person. Next: run the dependency-order candidate script to select the next implementable requirement.",
-  "nextAction": "Run scripts/autonomy/check-status.mjs to identify the next unblocked, dependency-resolved requirement; implement the smallest surface change, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "WRK-001 local acceptance pushed at c5e66a1 on kimi/found006-rls-cutover. Selected PRJ-001 (Reusable project registry with lifecycle states) as the next implementable requirement: it is a stage4 P1 with no dependencies, no blocker, and a foundation in the projects table.",
+  "nextAction": "Assess PRJ-001: create the src/app/app/operations/projects runtime entrypoint that lists company-scoped projects with lifecycle status, and link it from the operations home. Add/update tests, mark locally_verified, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
     "npm test -- tests/campaign/wrk-001-leave-surface.test.ts (5 passed)"
   ],
@@ -199,5 +199,5 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T01:18:00Z"
+  "updatedAt": "2026-08-23T01:23:00Z"
 }
