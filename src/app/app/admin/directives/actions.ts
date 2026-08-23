@@ -20,6 +20,22 @@ function parseAction(value: string | null): DirectiveAction | null {
   return null;
 }
 
+function parseUuidList(formData: FormData, key: string): string[] {
+  const values = formData.getAll(key).map((v) => String(v ?? "").trim()).filter(Boolean);
+  return [...new Set(values)];
+}
+
+async function validateEscalationChain(companyId: string, chain: string[]): Promise<boolean> {
+  if (chain.length === 0) return true;
+  const { data: profiles, error } = await supabaseWriteClient()
+    .from("profiles")
+    .select("id")
+    .in("id", chain)
+    .eq("company_id", companyId);
+  if (error) return false;
+  return (profiles ?? []).length === chain.length;
+}
+
 export async function createDirective(formData: FormData): Promise<void> {
   const p = await requireAdminDirective();
   const title = String(formData.get("title") ?? "").trim();
@@ -31,9 +47,14 @@ export async function createDirective(formData: FormData): Promise<void> {
   const target_type = String(formData.get("target_type") ?? "").trim() || null;
   const target_id = String(formData.get("target_id") ?? "").trim() || null;
   const action = parseAction(String(formData.get("action") ?? "").trim() || null);
+  const escalationChain = parseUuidList(formData, "escalation_chain");
 
   // If an action was supplied it must be in the canonical set; fail closed.
   if (String(formData.get("action") ?? "").trim() && !action) return;
+
+  // Escalation chain recipients must all exist in the same company.
+  const chainValid = await validateEscalationChain(p.companyId, escalationChain);
+  if (!chainValid) return;
 
   const insert: Record<string, unknown> = {
     company_id: p.companyId,
@@ -43,6 +64,7 @@ export async function createDirective(formData: FormData): Promise<void> {
     issued_to,
     response_required_by,
     status: "issued",
+    escalation_chain: escalationChain,
   };
   if (target_type) insert.target_type = target_type;
   if (target_id) insert.target_id = target_id;
@@ -61,7 +83,7 @@ export async function createDirective(formData: FormData): Promise<void> {
     action: "management_directive.created",
     entityType: "management_directive",
     entityId: data?.id ?? null,
-    payload: { title, issued_to, target_type, target_id, action },
+    payload: { title, issued_to, target_type, target_id, action, escalation_chain: escalationChain },
   });
   revalidatePath("/app/admin/directives");
 }
@@ -72,6 +94,16 @@ export async function acknowledgeDirective(formData: FormData): Promise<void> {
   const response = String(formData.get("response") ?? "").trim() || null;
   if (!id) return;
 
+  // The original recipient or the current escalated_to may acknowledge.
+  const { data: directive, error: readError } = await supabaseWriteClient()
+    .from("management_directives")
+    .select("company_id, issued_to, escalated_to")
+    .eq("id", id)
+    .maybeSingle();
+  if (readError || !directive) return;
+  if (directive.company_id !== p.companyId) return;
+  if (directive.issued_to !== p.userId && directive.escalated_to !== p.userId) return;
+
   const { error } = await supabaseWriteClient()
     .from("management_directives")
     .update({
@@ -79,8 +111,7 @@ export async function acknowledgeDirective(formData: FormData): Promise<void> {
       response,
       acknowledged_at: new Date().toISOString(),
     })
-    .eq("id", id)
-    .eq("issued_to", p.userId);
+    .eq("id", id);
   if (error) return;
   await writeAudit({
     companyId: p.companyId,
@@ -111,6 +142,48 @@ export async function closeDirective(formData: FormData): Promise<void> {
     entityType: "management_directive",
     entityId: id,
     payload: {},
+  });
+  revalidatePath("/app/admin/directives");
+}
+
+export async function escalateDirective(formData: FormData): Promise<void> {
+  const p = await requireAdminDirective();
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return;
+
+  const { data: directive, error: readError } = await supabaseWriteClient()
+    .from("management_directives")
+    .select("company_id, escalation_chain, escalation_level")
+    .eq("id", id)
+    .maybeSingle();
+  if (readError || !directive || directive.company_id !== p.companyId) return;
+
+  const chain = Array.isArray(directive.escalation_chain) ? (directive.escalation_chain as string[]) : [];
+  const currentLevel = Number(directive.escalation_level ?? 0);
+  if (currentLevel >= chain.length) return;
+
+  const nextLevel = currentLevel + 1;
+  const escalatedTo = chain[nextLevel - 1] ?? null;
+  const { error } = await supabaseWriteClient()
+    .from("management_directives")
+    .update({
+      status: "escalated",
+      escalation_level: nextLevel,
+      escalated_to: escalatedTo,
+      escalated_at: new Date().toISOString(),
+      escalation_reason: `Manually escalated by admin`,
+    })
+    .eq("id", id)
+    .eq("company_id", p.companyId);
+  if (error) return;
+
+  await writeAudit({
+    companyId: p.companyId,
+    actorId: p.userId,
+    action: "management_directive.escalated",
+    entityType: "management_directive",
+    entityId: id,
+    payload: { level: nextLevel, escalated_to: escalatedTo, reason: "manual" },
   });
   revalidatePath("/app/admin/directives");
 }

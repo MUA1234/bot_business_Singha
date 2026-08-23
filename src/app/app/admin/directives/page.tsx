@@ -6,7 +6,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
-import { createDirective, acknowledgeDirective, closeDirective, resolveDirectiveConflict } from "./actions";
+import { createDirective, acknowledgeDirective, closeDirective, escalateDirective, resolveDirectiveConflict } from "./actions";
 
 export const metadata = { title: "Directives — Singha Central" };
 
@@ -22,7 +22,7 @@ export default async function DirectivesPage() {
   try {
     directives = (await supabaseReadClient()
       .from("management_directives")
-      .select("id, title, body, issued_by, issued_to, response_required_by, status, response, acknowledged_at, target_type, target_id, action")
+      .select("id, title, body, issued_by, issued_to, response_required_by, status, response, acknowledged_at, target_type, target_id, action, escalation_chain, escalated_to, escalation_level, escalated_at, escalation_reason")
       .eq("company_id", admin.companyId)
       .order("response_required_by", { ascending: true })
       .limit(200)).data ?? [];
@@ -92,6 +92,12 @@ export default async function DirectivesPage() {
               {DIRECTIVE_ACTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
+          <div className="row gap-1 wrap">
+            <select name="escalation_chain" className="input" style={{ minWidth: 240 }} multiple size={Math.min(4, people.length || 1)}>
+              <option value="" disabled>Escalation chain (optional, Ctrl/Cmd-select)…</option>
+              {people.map((p) => <option key={p.id} value={p.id}>{p.full_name ?? p.username}</option>)}
+            </select>
+          </div>
           <button className="btn" type="submit">Issue directive</button>
         </form>
       </div>
@@ -143,28 +149,44 @@ export default async function DirectivesPage() {
         ) : (
           <div className="table-wrap mt-3">
             <table className="data">
-              <thead><tr><th>Title</th><th>Recipient</th><th>Due</th><th>Status</th><th>Response</th><th></th></tr></thead>
+              <thead><tr><th>Title</th><th>Recipient</th><th>Due</th><th>Status</th><th>Escalation</th><th>Response</th><th></th></tr></thead>
               <tbody>
                 {directives.map((d) => {
-                  const isOverdue = d.status === "issued" && d.response_required_by < now;
+                  const isOverdue = (d.status === "issued" || d.status === "escalated") && d.response_required_by < now;
+                  const displayStatus = isOverdue ? "overdue" : d.status;
+                  const canAcknowledge = d.status !== "acknowledged" && d.status !== "closed" && (d.issued_to === admin.userId || d.escalated_to === admin.userId);
+                  const chain = Array.isArray(d.escalation_chain) ? (d.escalation_chain as string[]) : [];
+                  const canEscalate = chain.length > 0 && (d.status === "issued" || d.status === "escalated") && Number(d.escalation_level ?? 0) < chain.length;
                   return (
                     <tr key={d.id}>
                       <td style={{ fontWeight: 600 }}>{d.title}</td>
                       <td className="dim small">{personName(d.issued_to)}</td>
                       <td><span className={`badge ${isOverdue ? "danger" : ""}`}>{d.response_required_by?.replace("T", " ").slice(0, 16) ?? "—"}</span></td>
-                      <td><span className="badge">{isOverdue ? "overdue" : d.status}</span></td>
+                      <td><span className={`badge ${isOverdue ? "danger" : ""}`}>{displayStatus}</span></td>
+                      <td className="dim small">
+                        {d.status === "escalated" && (
+                          <span>L{d.escalation_level ?? 1} → {personName(d.escalated_to)}</span>
+                        )}
+                        {isOverdue && d.status !== "escalated" && <span>overdue</span>}
+                        {!isOverdue && d.status !== "escalated" && <span>—</span>}
+                      </td>
                       <td className="dim small">{d.response ?? "—"}</td>
                       <td>
-                        {d.status === "issued" && (
-                          <form action={closeDirective}><input type="hidden" name="id" value={d.id} /><button className="btn ghost sm" type="submit">Close</button></form>
-                        )}
-                        {d.status === "issued" && d.issued_to === admin.userId && (
-                          <form action={acknowledgeDirective} className="stack gap-1">
-                            <input type="hidden" name="id" value={d.id} />
-                            <input name="response" className="input sm" placeholder="Response" />
-                            <button className="btn sm" type="submit">Acknowledge</button>
-                          </form>
-                        )}
+                        <div className="row gap-1 wrap">
+                          {d.status !== "acknowledged" && d.status !== "closed" && (
+                            <form action={closeDirective}><input type="hidden" name="id" value={d.id} /><button className="btn ghost sm" type="submit">Close</button></form>
+                          )}
+                          {canEscalate && (
+                            <form action={escalateDirective}><input type="hidden" name="id" value={d.id} /><button className="btn ghost sm" type="submit">Escalate</button></form>
+                          )}
+                          {canAcknowledge && (
+                            <form action={acknowledgeDirective} className="stack gap-1">
+                              <input type="hidden" name="id" value={d.id} />
+                              <input name="response" className="input sm" placeholder="Response" />
+                              <button className="btn sm" type="submit">Acknowledge</button>
+                            </form>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

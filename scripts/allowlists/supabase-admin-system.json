@@ -1,6 +1,7 @@
 [
   "src/app/api/cron/ai-monitor/route.ts",
   "src/app/api/cron/daily-digest/route.ts",
+  "src/app/api/cron/directive-escalation/route.ts",
   "src/app/api/cron/dispatch-drain/route.ts",
   "src/app/api/cron/follow-ups/route.ts",
   "src/app/api/cron/inbound-sweeper/route.ts",
