@@ -10,9 +10,19 @@ import { describeAction } from "@/lib/audit-format";
 
 export const metadata = { title: "Audit Log — Singha Central" };
 
-export default async function AuditPage({ searchParams }: { searchParams: { entity?: string } }) {
+/** GOV-006 — entity types that record governance decisions and obligations. */
+const GOVERNANCE_ENTITY_TYPES = [
+  "management_directive",
+  "approval_request",
+  "policy_evaluation",
+  "delegation",
+  "authority_rule",
+];
+
+export default async function AuditPage({ searchParams }: { searchParams: { entity?: string; governance?: string } }) {
   const admin = await requireAdmin();
   const entity = (searchParams.entity ?? "").trim();
+  const governance = searchParams.governance === "1" || searchParams.governance === "true";
 
   let rows: any[] = [];
   try {
@@ -22,6 +32,7 @@ export default async function AuditPage({ searchParams }: { searchParams: { enti
       .order("created_at", { ascending: false })
       .limit(300);
     if (entity) q = q.eq("entity_type", entity);
+    if (governance) q = q.in("entity_type", GOVERNANCE_ENTITY_TYPES);
     rows = (await q).data ?? [];
   } catch {
     rows = [];
@@ -43,14 +54,13 @@ export default async function AuditPage({ searchParams }: { searchParams: { enti
         </div>
       </div>
 
-      {entities.length > 0 && (
-        <div className="row gap-1 wrap small">
-          <Link className={`btn ghost sm ${!entity ? "" : ""}`} href="/app/admin/audit">All</Link>
-          {entities.map((e) => (
-            <Link key={e} className="btn ghost sm" href={`/app/admin/audit?entity=${encodeURIComponent(e)}`}>{e}</Link>
-          ))}
-        </div>
-      )}
+      <div className="row gap-1 wrap small">
+        <Link className="btn ghost sm" href="/app/admin/audit">All</Link>
+        <Link className={`btn ghost sm ${governance ? "active" : ""}`} href="/app/admin/audit?governance=1">Governance</Link>
+        {entities.map((e) => (
+          <Link key={e} className="btn ghost sm" href={`/app/admin/audit?entity=${encodeURIComponent(e)}`}>{e}</Link>
+        ))}
+      </div>
 
       <div className="card">
         {rows.length === 0 ? (
