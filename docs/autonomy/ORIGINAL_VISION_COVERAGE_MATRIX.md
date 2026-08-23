@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| absent | 41 |
-| locally_verified | 33 |
+| absent | 40 |
+| locally_verified | 34 |
 | specified | 5 |
 | foundation_only | 5 |
 | blocked_owner | 4 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **33** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **52** |
+| **Verified** (locally / preview / staging / production) | **34** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **51** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -56,7 +56,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | MOD | 3 | 1 | 2 |
 | OPS | 8 | 3 | 5 |
 | PRJ | 5 | 2 | 3 |
-| RSK | 6 | 2 | 4 |
+| RSK | 6 | 3 | 3 |
 | SCH | 6 | 2 | 4 |
 | WRK | 5 | 3 | 2 |
 
@@ -137,7 +137,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | PRJ-003 | Project budgets, forecasts and resource requirements | P1 | **absent** | none | none | — |
 | PRJ-004 | Project risks, decisions and scenario comparison | P2 | **absent** | none | none | — |
 | PRJ-005 | Portfolio prioritisation | P2 | **absent** | none | none | — |
-| RSK-001 | Risk register with owner, evidence and due dates | P1 | **absent** | none | none | — |
+| RSK-001 | Risk register with owner, evidence and due dates | P1 | **locally_verified** | src/app/app/legal/risks/page.tsx | 299b296 | — |
 | RSK-002 | Contracts register with renewal dates | P1 | **locally_verified** | src/app/app/legal/contracts/page.tsx | 843cb05 | — |
 | RSK-003 | Licences and permits with expiry | P1 | **locally_verified** | src/app/app/legal/licences/page.tsx | e99cb94 | — |
 | RSK-004 | Insurance register and renewals | P1 | **absent** | none | none | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **52**; blocked (owner): **4**;
+mode. Incomplete and implementable: **51**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

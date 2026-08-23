@@ -19,7 +19,7 @@
     "vehicles": "capability", "vehicle_documents": "capability", "trips": "capability",
     "tasks": "capability", "task_assignments": "capability", "task_dependencies": "capability",
     "task_check_ins": "capability", "task_evidence": "capability",
-    "legal_matters": "capability", "contracts": "capability", "employees": "capability",
+    "legal_matters": "capability", "contracts": "capability", "risks": "capability", "employees": "capability",
     "expense_claims": "self_service", "leave_requests": "self_service",
     "profiles": "identity", "organisation_units": "identity", "memberships": "identity",
     "membership_roles": "identity", "authority_rules": "identity", "membership_assignments": "identity",

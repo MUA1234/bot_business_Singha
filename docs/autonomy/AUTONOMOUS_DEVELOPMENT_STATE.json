@@ -203,29 +203,37 @@
     "evidence": "tests/campaign/fin-008-payment-intelligence-surface.test.ts (5 passed); tests/reconcile.test.ts; tests/reconcile-validate.test.ts; tests/bank-import.test.ts; tests/integration/settlement.test.ts; npm run verify (855 unit tests / 2 skipped / 127 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or evidence-required-at-payment path tested. The evidence-first payment path is owned by FOUND-003 (blocked_owner). Recording a payment against a supplier bill uses the separate settlement RPC."
   },
-  "lastGreenSha": "0a1737a",
+  "rsk001LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "299b296",
+    "outcome": "LOCALLY ACCEPTED: RSK-001 risk register. Migration 0093 adds a company-scoped risks table with owner, mitigation, evidence, review dates and status; capability-gated RLS write policies (legal.risk.manage); and an updated_at trigger with canonical search_path. The legal risks page lists risks and provides an audited create action; the legal home links to risks and surfaces open-risks count and review deadlines.",
+    "evidence": "tests/campaign/rsk-001-risk-register.test.ts (5 passed); fresh disposable PostgreSQL 16 0001-0093 (supabase-shim); narrow upgrade 0092→0093; full integration 697 passed / 77 files; npm run verify (860 unit tests / 2 skipped / 128 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed (after one transient ECONNRESET retry).",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or automatic creation of owned dated mitigation tasks tested. Risk review dates feed the legal overview but do not yet create tasks."
+  },
+  "lastGreenSha": "299b296",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "FIN-008 local acceptance completed and pushed. Added tests/campaign/fin-008-payment-intelligence-surface.test.ts, updated ORIGINAL_VISION_REQUIREMENTS.yaml and AUTONOMOUS_DEVELOPMENT_STATE.json.",
+  "lastCompletedAction": "RSK-001 local acceptance completed and pushed. Added migration 0093, src/app/app/legal/risks/*, updated src/app/app/legal/page.tsx, added tests/campaign/rsk-001-risk-register.test.ts, updated ORIGINAL_VISION_REQUIREMENTS.yaml, security/rls-classification.json and AUTONOMOUS_DEVELOPMENT_STATE.json.",
   "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml and run node scripts/autonomy/check-status.mjs to confirm.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/fin-008-payment-intelligence-surface.test.ts (5 passed)"
+    "npm test -- tests/campaign/rsk-001-risk-register.test.ts (5 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "0a1737a on kimi/found006-rls-cutover",
+    "sha": "299b296 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "855 passed / 2 skipped / 127 files",
-    "integrationFresh": "not rerun for FIN-008 (no database change)",
-    "integrationNarrowUpgrade": "not rerun for FIN-008",
-    "integrationLegacyUpgrade": "not rerun for FIN-008",
-    "migrationIdempotency": "not rerun for FIN-008",
+    "unit": "860 passed / 2 skipped / 128 files",
+    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0093 (supabase-shim)",
+    "integrationNarrowUpgrade": "passed: MIGRATE_UPTO=0092 then applied 0093_risk_register.sql cleanly",
+    "integrationLegacyUpgrade": "not rerun for RSK-001",
+    "migrationIdempotency": "migration-lint: 93 sequential, 0001-0093, no gaps or duplicates",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 855 unit tests (2 skipped / 127 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 860 unit tests (2 skipped / 128 files)",
     "secretScan": "clean",
-    "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
-    "browserCheck": "10/10 passed",
-    "discriminationProof": "fin-008-payment-intelligence-surface.test.ts proves the reconciliation page is a real runtime entrypoint under /app/finance/reconciliation, queries bank_transactions/payments/receipts scoped by company_id, uses a deterministic exact-decimal matcher, and provides server-validated import/confirm-match actions that write reconciliation_matches and bank.imported/bank.matched audit events.",
-    "note": "FIN-008 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "migrationLint": "93 sequential, 0001-0093, no gaps or duplicates",
+    "browserCheck": "10/10 passed (after one transient ECONNRESET retry)",
+    "discriminationProof": "rsk-001-risk-register.test.ts proves the risks table is created by migration 0093 with company_id FK and capability-gated RLS, and the /app/legal/risks page is a real runtime entrypoint that lists company-scoped risks with owner/mitigation/evidence/review dates and provides an audited create action.",
+    "note": "RSK-001 verification used a disposable local PostgreSQL 16 container (port 55440) with the supabase-shim. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -254,6 +262,7 @@
     "SCH-001: LOCALLY ACCEPTED at dbb208f. The AI monitor cron route is CRON_SECRET-gated, reads WhatsApp conversations with new inbound activity, calls analyzeConversationThread with BATCH=15, updates ai_analyzed_at and writes a monitor.analyzed audit event. Live provider, email discovery and AIM-003 routing remain future work.",
     "FIN-008: LOCALLY ACCEPTED at 0a1737a. The finance reconciliation page reads company-scoped bank transactions, payments and receipts; uses a deterministic exact-decimal matcher; and provides server-validated import/confirm-match actions with audit events. The evidence-required-at-payment path remains owner-gated through FOUND-003.",
     "FIN-008 evidence-at-payment: BLOCKED_OWNER. The evidence-first payment path is owned by FOUND-003, which requires hosted migration, channel account mapping, and operations.inbound.review grants.",
+    "RSK-001: LOCALLY ACCEPTED at 299b296. Migration 0093 adds a company-scoped risks table with owner, mitigation, evidence, review dates and capability-gated RLS. The legal risks page lists risks and provides an audited create action; the legal home surfaces open-risks count and review deadlines. Automatic creation of owned dated mitigation tasks remains future work.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
     "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
     "OF-015 (P2): sections 3 and 6 have no re-runnable schema-level end-to-end discrimination, because they are application code.",
@@ -303,9 +312,10 @@
       "mob001": 0,
       "fin005": 0,
       "sch001": 0,
-      "fin008": 0
+      "fin008": 0,
+      "rsk001": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T02:47:00Z"
+  "updatedAt": "2026-08-23T03:05:00Z"
 }
