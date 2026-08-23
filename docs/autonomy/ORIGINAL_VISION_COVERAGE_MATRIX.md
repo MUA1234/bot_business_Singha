@@ -11,8 +11,8 @@ Generated at: 2026-08-23
 | Status | Count |
 |---|---|
 | absent | 41 |
-| locally_verified | 21 |
-| foundation_only | 17 |
+| locally_verified | 22 |
+| foundation_only | 16 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **21** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **64** |
+| **Verified** (locally / preview / staging / production) | **22** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **63** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -58,7 +58,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | PRJ | 5 | 0 | 5 |
 | RSK | 6 | 0 | 6 |
 | SCH | 6 | 1 | 5 |
-| WRK | 5 | 0 | 5 |
+| WRK | 5 | 1 | 4 |
 
 ## Requirements
 
@@ -149,7 +149,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | SCH-004 | Escalation and missed-response recovery | P1 | **foundation_only** | src/app/api/cron/follow-ups/route.ts | none | — |
 | SCH-005 | Handovers and meeting-action extraction | P2 | **absent** | none | none | — |
 | SCH-006 | Overdue evidence enforcement | P1 | **locally_verified** | src/app/app/operations/tasks/actions.ts | 707761c | — |
-| WRK-001 | Attendance, availability, leave, sickness and travel | P1 | **foundation_only** | src/app/app/hr/leave | none | — |
+| WRK-001 | Attendance, availability, leave, sickness and travel | P1 | **locally_verified** | src/app/app/hr/leave/page.tsx | af81ed8 | — |
 | WRK-002 | Current and future workload with historical capacity | P1 | **foundation_only** | src/app/app/hr/capacity/page.tsx | none | — |
 | WRK-003 | Skills, certifications and expiry | P1 | **foundation_only** | src/app/app/hr/staff | none | — |
 | WRK-004 | Strengths, development needs and coaching | P2 | **absent** | none | none | privacy review of private-versus-manager-visible coaching |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **64**; blocked (owner): **4**;
+mode. Incomplete and implementable: **63**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": ["WRK-001"],
+  "activeRequirementIds": [],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -107,29 +107,37 @@
     "evidence": "tests/campaign/crm-002-canonical-suppliers.test.ts (5 passed); tests/integration/bank-maker-checker.test.ts; npm run verify (795 unit tests / 2 skipped / 115 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, supplier-record merge action, or bank-change request UI tested. The page is read-only; merge and change-request UI remain future work."
   },
-  "lastGreenSha": "5349d00",
+  "wrk001LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "af81ed8",
+    "outcome": "LOCALLY ACCEPTED: WRK-001 leave surface. The HR leave page now lists company-scoped leave_requests joined with profiles, shows leave status and decided-at metadata, and computes remaining annual leave per person using the deterministic src/modules/workforce/leave.ts module.",
+    "evidence": "tests/campaign/wrk-001-leave-surface.test.ts (5 passed); tests/leave.test.ts; npm run verify (800 unit tests / 2 skipped / 116 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, leave request submission/approval UI, attendance, travel, sickness, or working-hours modelling tested. The page is read-only; those remain future work."
+  },
+  "lastGreenSha": "af81ed8",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "CRM-002 local acceptance pushed at d7005ff on kimi/found006-rls-cutover. Selected WRK-001 (Attendance, availability, leave, sickness and travel) as the next implementable requirement: it is a stage4 P1 with no dependencies, no blocker, and a foundation in the leave_requests table / src/modules/workforce/leave.ts.",
-  "nextAction": "Assess WRK-001: create the src/app/app/hr/leave runtime entrypoint that lists leave requests, exposes remaining leave per person using src/modules/workforce/leave.ts, and keeps the scope to leave only (attendance/travel/working-hours remain future work). Add/update tests, mark locally_verified, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "WRK-001 local acceptance completed at af81ed8 on kimi/found006-rls-cutover. The HR leave page now lists company-scoped leave requests joined with profiles and shows remaining annual leave per person. Next: run the dependency-order candidate script to select the next implementable requirement.",
+  "nextAction": "Run scripts/autonomy/check-status.mjs to identify the next unblocked, dependency-resolved requirement; implement the smallest surface change, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/crm-002-canonical-suppliers.test.ts (5 passed)"
+    "npm test -- tests/campaign/wrk-001-leave-surface.test.ts (5 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "5349d00 on kimi/found006-rls-cutover",
+    "sha": "af81ed8 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "795 passed / 2 skipped / 115 files",
-    "integrationFresh": "not rerun for CRM-002 (no database change)",
-    "integrationNarrowUpgrade": "not rerun for CRM-002",
-    "integrationLegacyUpgrade": "not rerun for CRM-002",
-    "migrationIdempotency": "not rerun for CRM-002",
+    "unit": "800 passed / 2 skipped / 116 files",
+    "integrationFresh": "not rerun for WRK-001 (no database change)",
+    "integrationNarrowUpgrade": "not rerun for WRK-001",
+    "integrationLegacyUpgrade": "not rerun for WRK-001",
+    "migrationIdempotency": "not rerun for WRK-001",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 795 unit tests (2 skipped / 115 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 800 unit tests (2 skipped / 116 files)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "crm-002-canonical-suppliers.test.ts proves the page reads from suppliers, loads channel_identities for actor_type='supplier', detects duplicate identities, refuses silent merge, and shows bank details with a maker-checker control badge.",
-    "note": "CRM-002 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "discriminationProof": "wrk-001-leave-surface.test.ts proves the page is a real runtime entrypoint, queries leave_requests joined to profiles, uses src/modules/workforce/leave.ts for remaining leave, and links from the HR home.",
+    "note": "WRK-001 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -144,6 +152,7 @@
     "GOV-005: LOCALLY ACCEPTED at c3c0b71. checkSeparationOfDuties is now called by the finance approval action and page via membership-based authority resolution.",
     "CRM-001: LOCALLY ACCEPTED at 5d2034b. The sales customers page shows canonical customers, attached channel_identities, duplicate-identity warnings, and the existing WhatsApp conversation list. Automated merge remains future work.",
     "CRM-002: LOCALLY ACCEPTED at 5349d00. The procurement suppliers page shows canonical suppliers, attached channel_identities, duplicate-identity warnings, and bank details with a maker-checker change-control badge. Automated merge and change-request UI remain future work.",
+    "WRK-001: LOCALLY ACCEPTED at af81ed8. The HR leave page lists company-scoped leave_requests joined with profiles and shows remaining annual leave per person. Attendance, travel, sickness, working-hours modelling and assignment consumption remain future work.",
     "GOV-004: BLOCKED_OWNER. Board-reserved matters and emergency suspension requires the owner to define the reserved-matter list before implementation.",
     "FIN-008: BLOCKED. Evidence is not required at payment recording; the evidence-first path is owned by FOUND-003, which is blocked_owner.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
@@ -190,5 +199,5 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T01:13:00Z"
+  "updatedAt": "2026-08-23T01:18:00Z"
 }

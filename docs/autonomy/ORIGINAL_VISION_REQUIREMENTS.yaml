@@ -646,20 +646,20 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: []
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: src/app/app/hr/leave
-    database_evidence: leave_requests
-    service_evidence: src/modules/workforce
-    ui_evidence: src/app/app/hr/leave
-    test_evidence: tests/leave.test.ts
-    security_evidence: department-gated HR surfaces
+    runtime_entrypoint: src/app/app/hr/leave/page.tsx
+    database_evidence: leave_requests (migration 0017)
+    service_evidence: src/modules/workforce/leave.ts
+    ui_evidence: src/app/app/hr/leave/page.tsx lists leave requests joined to profiles and shows remaining entitlement per person
+    test_evidence: tests/campaign/wrk-001-leave-surface.test.ts (5); tests/leave.test.ts
+    security_evidence: department-gated HR surfaces; page queries are scoped to requireDepartment("hr") company_id
     audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    last_verified_sha: af81ed8
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: Leave exists; attendance, travel and working-hours modelling do not, and nothing consumes availability for assignment.
+    residual_risks: Leave requests and remaining entitlement are surfaced; attendance, travel, sickness and working-hours modelling do not exist, and nothing consumes availability for assignment.
   - id: WRK-002
     title: Current and future workload with historical capacity
     description: Capacity snapshots per person per week with planned versus actual versus remaining effort.
