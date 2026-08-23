@@ -1391,17 +1391,17 @@ requirements:
     phase: stage5
     priority: P1
     dependencies: [COM-001]
-    status: absent
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/lib/comms/preferences.ts; src/app/app/messages/actions.ts; src/lib/outbox-enqueue.ts; src/lib/inbound/dispatch-receipt.ts
+    database_evidence: src/db/migrations/0104_communication_preferences.sql
+    service_evidence: src/modules/comms/preferences.ts; src/lib/comms/preferences.ts
+    ui_evidence: /app/messages server actions (setIdentityOptOut, handoverToHuman, clearHumanHandover)
+    test_evidence: tests/comms-preferences.test.ts; tests/campaign/com-007-communication-preferences.test.ts; tests/campaign/dispatch-receipt.test.ts; tests/outbox-enqueue.test.ts
+    security_evidence: RLS policies on communication_preferences scoped to customer.manage or operations.manage; supabaseAdmin() confined to scripts/allowlists/supabase-admin-system.json
+    audit_health_evidence: opt-out, handover and handover-clear actions write communication_preference.* audit events; inbound opt-out/handover logs inbound.opted_out/inbound.human_handover
+    last_verified_sha: 0c4768a
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
     residual_risks: Opt-out is a compliance obligation, not a nicety — treat as P1 with RSK-006.

@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 49 |
-| absent | 29 |
+| locally_verified | 50 |
+| absent | 28 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **49** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **36** |
+| **Verified** (locally / preview / staging / production) | **50** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **35** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -41,7 +41,7 @@ operating-mode claim that depends on it. Blocked is not done.
 |---|---|---|---|
 | AIM | 8 | 3 | 5 |
 | AST | 1 | 0 | 1 |
-| COM | 8 | 1 | 7 |
+| COM | 8 | 2 | 6 |
 | CRM | 5 | 4 | 1 |
 | CTL | 4 | 2 | 2 |
 | FIN | 8 | 7 | 1 |
@@ -79,7 +79,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | COM-004 | Email intake and send | P2 | **absent** | src/app/api/webhooks/email/route.ts returns 501 | none | email provider selection and credentials |
 | COM-005 | Calendar and meeting events | P2 | **absent** | none | none | connector approval |
 | COM-006 | Approved data connectors (Google Sheets and similar) | P2 | **absent** | none | none | connector approval and credentials |
-| COM-007 | Human handover, opt-out and communication preferences | P1 | **absent** | none | none | — |
+| COM-007 | Human handover, opt-out and communication preferences | P1 | **locally_verified** | src/lib/comms/preferences.ts; src/app/app/messages/actions.ts; src/lib/outbox-enqueue.ts; src/lib/inbound/dispatch-receipt.ts | 0c4768a | — |
 | COM-008 | Live voice (future) | P3 | **deliberately_deferred** | none | none | explicit approval before any work begins |
 | CRM-001 | Canonical customer identity | P0 | **locally_verified** | src/app/app/sales/customers/page.tsx | 5d2034b | — |
 | CRM-002 | Canonical supplier identity | P0 | **locally_verified** | src/app/app/procurement/suppliers/page.tsx | 5349d00 | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **36**; blocked (owner): **4**;
+mode. Incomplete and implementable: **35**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.
