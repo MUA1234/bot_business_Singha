@@ -277,29 +277,29 @@
     "evidence": "tests/campaign/gov-002-directive-escalation.test.ts (15 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression); tests/campaign/cron-auth.test.ts (9 passed regression); fresh disposable PostgreSQL 16 0001-0099 full migration; narrow upgrade 0098→0099; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (916 unit tests / 2 skipped / 136 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
   },
-  "lastGreenSha": "d0e08db70c2d5d7b32c98e29377d7373efbc1422",
+  "lastGreenSha": "429100d36c3bd216fb2597518c36b1d5573a1c9e",
   "latestMigration": "0107_project_risks_decisions_scenarios.sql",
-  "lastCompletedAction": "Selected SCH-003 Leave and workload-aware scheduling as the next dependency-ordered requirement.",
-  "nextAction": "Implement SCH-003: add pure availability/workload helpers, update the follow-ups cron route to skip assignees on approved leave and respect workload, add tests, and run acceptance gates.",
+  "lastCompletedAction": "Accepted SCH-003 Leave and workload-aware scheduling.",
+  "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml.",
   "lastTargetedTests": [
-    "tests/project-risks-decisions-scenarios.test.ts (14 passed)",
-    "tests/campaign/prj-004-project-risks-decisions-scenarios.test.ts (12 passed)"
+    "tests/availability.test.ts (10 passed)",
+    "tests/campaign/sch-003-leave-workload-aware-scheduling.test.ts (11 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "d0e08db70c2d5d7b32c98e29377d7373efbc1422 on kimi/found006-rls-cutover",
+    "sha": "429100d36c3bd216fb2597518c36b1d5573a1c9e on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "1108 passed / 2 skipped / 156 files",
+    "unit": "1129 passed / 2 skipped / 158 files",
     "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0107 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
-    "integrationNarrowUpgrade": "0106→0107 upgrade applied cleanly on disposable PostgreSQL 16",
+    "integrationNarrowUpgrade": "not run for this package (no new migration)",
     "integrationLegacyUpgrade": "not run for this package (no legacy baseline change)",
     "migrationIdempotency": "migration-lint 0001-0107 sequential, no gaps or duplicates",
     "build": "clean",
     "verify": "passed: secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests",
     "secretScan": "no tracked secrets found",
     "migrationLint": "107 migrations, sequential 0001–0107, no gaps or duplicates",
-    "browserCheck": "10/10 passed (succeeded on second attempt after transient ECONNRESET)",
-    "discriminationProof": "prj-004-project-risks-decisions-scenarios.test.ts proves project_risks, project_decisions and project_scenarios are company-scoped, capability-gated and audited; the narrow upgrade 0106→0107 proves the migration is backward-compatible.",
+    "browserCheck": "10/10 passed",
+    "discriminationProof": "tests/campaign/sch-003-leave-workload-aware-scheduling.test.ts proves the follow-ups route reads approved leave and active task estimates, skips on-leave assignees, ranks by workload, advances the escalation chain, and that assignTask refuses assignment to someone on leave.",
     "note": "No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent during this acceptance pass."
   },
   "openFindings": [
@@ -356,7 +356,8 @@
     "COM-007: LOCALLY ACCEPTED at 0c4768a. Migration 0104 adds company-scoped communication_preferences with capability-gated RLS. Outbound enqueue returns opted_out; inbound dispatch records manual_review. Server actions are customer.manage-gated and audited. A read-only UI surface exists via /app/messages actions; a dedicated preferences panel remains future work.",
     "FIN-007: LOCALLY ACCEPTED at ae3ce17. Migration 0105 adds funding_requirements and investments tables with capability-gated RLS. The /app/finance/funding page derives a funding gap from the 90-day cash forecast and provides create/status/dispose actions. Forecast inputs remain invoice/bill/commitment only; payroll and recurring obligations are not modelled.",
     "RSK-005: LOCALLY ACCEPTED at 4e40880. Migration 0106 adds incidents table and extends obligations with evidence/obligation_type. /app/legal/incidents and /app/legal/obligations pages provide create/status forms. Capability-gated RLS via legal.compliance.manage.",
-    "PRJ-004: LOCALLY ACCEPTED at d0e08db70c2d5d7b32c98e29377d7373efbc1422. Migration 0107 adds company-scoped project_risks, project_decisions and project_scenarios with operations.project.manage capability and capability-gated RLS. The project detail page surfaces risk exposure, decision status and scenario comparison with gated, audited actions."
+    "PRJ-004: LOCALLY ACCEPTED at d0e08db70c2d5d7b32c98e29377d7373efbc1422. Migration 0107 adds company-scoped project_risks, project_decisions and project_scenarios with operations.project.manage capability and capability-gated RLS. The project detail page surfaces risk exposure, decision status and scenario comparison with gated, audited actions.",
+    "SCH-003: LOCALLY ACCEPTED at 429100d36c3bd216fb2597518c36b1d5573a1c9e. The follow-ups cron route is leave and workload-aware: it skips assignees on approved leave, ranks reachable assignees by free hours, advances past on-leave escalation targets, and falls back to available admins. assignTask refuses to assign work to someone on approved leave."
   ],
   "ownerGates": [
     "PR merges (#22, #23, #24) — none merged",
@@ -411,11 +412,12 @@
       "fin007": 0,
       "rsk005": 0,
       "mod002": 0,
-      "prj004": 0
+      "prj004": 0,
+      "sch003": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T11:10:00.000Z",
+  "updatedAt": "2026-08-23T21:05:00.000Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -503,5 +505,13 @@
     "outcome": "LOCALLY ACCEPTED: PRJ-004 Project risks, decisions and scenario comparison. Migration 0107 adds company-scoped project_risks, project_decisions and project_scenarios tables with operations.project.manage capability, capability-gated RLS and updated_at triggers. Pure deterministic modules compute risk exposure, decision status and scenario comparison. The project detail page surfaces risks, decisions and scenario comparison with gated create/status/choose actions.",
     "evidence": "Added src/db/migrations/0107_project_risks_decisions_scenarios.sql with project_risks, project_decisions and project_scenarios tables. Added src/modules/project/risks.ts, src/modules/project/decisions.ts and src/modules/project/scenarios.ts with exact-decimal pure helpers. Updated src/app/app/operations/projects/[id]/page.tsx to surface risks, decisions and scenario comparison with forms. Updated src/app/app/operations/projects/actions.ts with createProjectRisk, updateProjectRiskStatus, createProjectDecision, decideProjectDecision, createProjectScenario and chooseProjectScenario, all gated to operations.project.manage and audited. Updated security/rls-classification.json to classify the three new tables as capability. Added tests/project-risks-decisions-scenarios.test.ts (14 passed) and tests/campaign/prj-004-project-risks-decisions-scenarios.test.ts (12 passed). Fresh disposable PostgreSQL 16 0001-0107 and narrow upgrade 0106→0107 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1108 unit tests / 2 skipped / 156 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (succeeded on second attempt after transient ECONNRESET).",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live project workflow tested. Project write RLS policies remain app-layer/service-role while flags are OFF."
+  },
+  "sch003LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "429100d36c3bd216fb2597518c36b1d5573a1c9e",
+    "outcome": "LOCALLY ACCEPTED: SCH-003 Leave and workload-aware scheduling. The CRON_SECRET-gated /api/cron/follow-ups route reads approved leave_requests and active task assignment estimates, builds per-user availability, skips assignees on approved leave, ranks reachable assignees by free hours, advances past on-leave escalation targets, and falls back to available company admins. The assignTask action refuses to assign a task to someone on approved leave and writes a task.assignment_refused_leave audit event. Pure availability helpers in src/modules/work/availability.ts are deterministic and unit tested.",
+    "evidence": "Added src/modules/work/availability.ts with isOnLeave, evaluateAvailability, rankAvailableCandidates, selectBestAvailable and buildAvailabilityInputs. Updated src/app/api/cron/follow-ups/route.ts to load approved leave and workload, skip on-leave assignees, rank by workload, advance escalation chain, and report skippedLeave. Updated src/app/app/operations/tasks/actions.ts assignTask to refuse assignment to on-leave profiles. Added tests/availability.test.ts (10 passed) and tests/campaign/sch-003-leave-workload-aware-scheduling.test.ts (11 passed). No new migration required; reuses existing leave_requests (0017), employee_profiles (0010/0025) and task_assignments (0024/0025) tables. Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1129 unit tests / 2 skipped / 158 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Workload uses assignment-level estimates; historical capacity_snapshots are not consumed. Automatic assignment selection (autoAssign) is not exposed in the UI."
   }
 }

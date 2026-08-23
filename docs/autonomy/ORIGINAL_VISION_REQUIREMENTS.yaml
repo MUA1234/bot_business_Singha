@@ -1179,20 +1179,20 @@ requirements:
     phase: stage4
     priority: P2
     dependencies: [SCH-002, WRK-001, WRK-002]
-    status: absent
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/api/cron/follow-ups/route.ts
+    database_evidence: Existing leave_requests (0017), profiles (0010/0025) and task_assignments (0024/0025) tables.
+    service_evidence: src/modules/work/availability.ts; src/app/api/cron/follow-ups/route.ts; src/app/app/operations/tasks/actions.ts
+    ui_evidence: Task assignment continues through the existing task detail form; the cron route enforces availability automatically.
+    test_evidence: tests/availability.test.ts; tests/campaign/sch-003-leave-workload-aware-scheduling.test.ts
+    security_evidence: CRON_SECRET fail-closed timingSafeEqual gate; company-scoped leave/task reads; assignment refused on approved leave with audit event.
+    audit_health_evidence: follow_up.enqueued/follow_up.escalated audit payload includes skippedLeave; task.assignment_refused_leave audit action.
+    last_verified_sha: 429100d36c3bd216fb2597518c36b1d5573a1c9e
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: none
+    residual_risks: Workload uses assignment-level estimates; historical capacity_snapshots are not consumed. Automatic assignment selection is not exposed in the UI.
   - id: SCH-004
     title: Escalation and missed-response recovery
     description: An unanswered follow-up escalates to a defined next person, and a missed response is recovered rather than dropped.

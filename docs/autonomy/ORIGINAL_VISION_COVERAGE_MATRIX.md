@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 54 |
-| absent | 24 |
+| locally_verified | 55 |
+| absent | 23 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **54** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **31** |
+| **Verified** (locally / preview / staging / production) | **55** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **30** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -57,7 +57,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | OPS | 8 | 3 | 5 |
 | PRJ | 5 | 4 | 1 |
 | RSK | 6 | 5 | 1 |
-| SCH | 6 | 4 | 2 |
+| SCH | 6 | 5 | 1 |
 | WRK | 5 | 3 | 2 |
 
 ## Requirements
@@ -145,7 +145,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | RSK-006 | Sri Lankan-context advisory sources and human legal review | P1 | **absent** | none | none | identification of authorised legal reviewer and approved sources |
 | SCH-001 | Continuous task discovery | P1 | **locally_verified** | src/app/api/cron/ai-monitor/route.ts | dbb208f | — |
 | SCH-002 | SLAs, 24/48-hour follow-ups and reminders | P1 | **locally_verified** | src/app/api/cron/follow-ups/route.ts | 9ed08e12ecb08e1c1832aa0f8e38273e9005b936 | — |
-| SCH-003 | Leave and workload-aware scheduling | P2 | **absent** | none | none | — |
+| SCH-003 | Leave and workload-aware scheduling | P2 | **locally_verified** | src/app/api/cron/follow-ups/route.ts | 429100d36c3bd216fb2597518c36b1d5573a1c9e | — |
 | SCH-004 | Escalation and missed-response recovery | P1 | **locally_verified** | src/app/api/cron/follow-ups/route.ts | 52547a2c68d622807d641134dc597e114fe5d028 | — |
 | SCH-005 | Handovers and meeting-action extraction | P2 | **absent** | none | none | — |
 | SCH-006 | Overdue evidence enforcement | P1 | **locally_verified** | src/app/app/operations/tasks/actions.ts | 707761c | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **31**; blocked (owner): **4**;
+mode. Incomplete and implementable: **30**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.
