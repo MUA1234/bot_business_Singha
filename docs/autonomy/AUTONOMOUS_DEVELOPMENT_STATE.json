@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [],
+  "activeRequirementIds": ["PRJ-005"],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -279,8 +279,8 @@
   },
   "lastGreenSha": "76e98a8fe6620d578221be85f4798c78e147aa67",
   "latestMigration": "0107_project_risks_decisions_scenarios.sql",
-  "lastCompletedAction": "Accepted CTL-002 Cross-company portfolio overview.",
-  "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml.",
+  "lastCompletedAction": "Selected PRJ-005 Portfolio prioritisation as the next dependency-ordered requirement.",
+  "nextAction": "Implement PRJ-005: add deterministic project prioritisation scoring that ranks projects by value, risk, capacity and dependency, with a UI surface and tests.",
   "lastTargetedTests": [
     "tests/portfolio.test.ts (8 passed)",
     "tests/campaign/ctl-002-cross-company-portfolio.test.ts (9 passed)"
@@ -419,7 +419,7 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T21:30:00.000Z",
+  "updatedAt": "2026-08-23T21:32:00.000Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
