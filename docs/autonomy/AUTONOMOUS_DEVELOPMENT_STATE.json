@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
-  "activePhase": "stage6-operations",
-  "activeRequirementIds": ["OPS-005"],
+  "activePhase": "stage4-control-surfaces",
+  "activeRequirementIds": ["CTL-003"],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -75,8 +75,8 @@
   },
   "lastGreenSha": "e32a1b7",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "OPS-005 local acceptance completed at e32a1b7 on kimi/found006-rls-cutover. /api/health now reports the V3.1 flag snapshot; tests/flags.test.ts and tests/campaign/health-route.test.ts pass; npm run verify, lint and build all pass. Next: select the next dependency-ordered implementable requirement from the register.",
-  "nextAction": "Scan the requirement register for the next dependency-ordered implementable requirement (no unmet dependencies, not blocked_owner/blocked_external/deliberately_deferred, not a V3.1 future slice that would violate the zero-behaviour-change foundation constraint). Assess it, implement or verify it, run focused tests and npm run verify, update the requirement entry and state file, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "OPS-005 local acceptance completed at e32a1b7 on kimi/found006-rls-cutover. /api/health now reports the V3.1 flag snapshot. Transitioning to CTL-003 (Integration and AI/model health on the control surface), a stage4 P1 requirement whose residual_risks identifies that the 0069 source_event_backlog RPC is not yet surfaced on the admin health page.",
+  "nextAction": "Implement CTL-003: surface the source_event_backlog RPC on src/app/app/admin/health/page.tsx, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
     "npm test -- tests/flags.test.ts (5 passed)",
     "npm test -- tests/campaign/health-route.test.ts (3 passed)"
