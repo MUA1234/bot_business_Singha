@@ -11,8 +11,8 @@ Generated at: 2026-08-23
 | Status | Count |
 |---|---|
 | absent | 41 |
-| locally_verified | 29 |
-| foundation_only | 9 |
+| locally_verified | 30 |
+| foundation_only | 8 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **29** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **56** |
+| **Verified** (locally / preview / staging / production) | **30** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **55** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -52,7 +52,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | IP | 1 | 1 | 0 |
 | LNG | 1 | 0 | 1 |
 | MEM | 1 | 0 | 1 |
-| MOB | 4 | 0 | 4 |
+| MOB | 4 | 1 | 3 |
 | MOD | 3 | 1 | 2 |
 | OPS | 8 | 3 | 5 |
 | PRJ | 5 | 2 | 3 |
@@ -117,7 +117,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | IP-001 | Public-repository IP boundary | P1 | **locally_verified** | scripts/autonomy/check-ip-boundary.mjs | c72b2fe | decision on a private repository or package for proprietary prompts and evaluation data |
 | LNG-001 | Multilingual English / Sinhala / Tamil | P2 | **specified** | none | none | approval of the specification before implementation |
 | MEM-001 | Organizational memory and evidence provenance | P1 | **absent** | none | none | — |
-| MOB-001 | Responsive mobile experience | P1 | **foundation_only** | src/app/globals.css; src/app/layout.tsx | none | — |
+| MOB-001 | Responsive mobile experience | P1 | **locally_verified** | src/app/layout.tsx; src/app/globals.css | 046991c | — |
 | MOB-002 | Progressive web app with offline-safe behaviour | P2 | **absent** | none | none | — |
 | MOB-003 | Versioned mobile APIs and push-notification readiness | P2 | **absent** | none | none | — |
 | MOB-004 | Accessibility and Sinhala/Tamil rendering | P1 | **absent** | none | none | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **56**; blocked (owner): **4**;
+mode. Incomplete and implementable: **55**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

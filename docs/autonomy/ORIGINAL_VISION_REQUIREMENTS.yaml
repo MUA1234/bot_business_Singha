@@ -1714,20 +1714,20 @@ requirements:
     phase: stage5
     priority: P1
     dependencies: []
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: src/app/globals.css; src/app/layout.tsx
+    runtime_entrypoint: src/app/layout.tsx; src/app/globals.css
     database_evidence: none
     service_evidence: none
-    ui_evidence: responsive grid/flex layouts, safe-area insets, viewport-fit cover
-    test_evidence: none
+    ui_evidence: layout.tsx exports viewport=device-width/initialScale=1/viewportFit=cover; globals.css uses 100dvh, safe-area env() insets, overflow-x hidden, text-size-adjust, and responsive grid breakpoints that collapse cols-2/3/4 to 1fr on narrow screens
+    test_evidence: tests/campaign/mob-001-responsive-surface.test.ts (5)
     security_evidence: none
     audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    last_verified_sha: 046991c
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: Responsive CSS exists but no mobile-viewport test or role-based mobile UAT has been run.
+    residual_risks: Real-device/role-based mobile UAT has not been run; this verifies the responsive foundation only.
   - id: MOB-002
     title: Progressive web app with offline-safe behaviour
     description: Installable PWA with a manifest, service worker and safe behaviour on a poor connection.

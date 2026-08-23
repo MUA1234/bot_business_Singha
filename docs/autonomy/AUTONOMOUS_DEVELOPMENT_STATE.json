@@ -171,29 +171,37 @@
     "evidence": "tests/campaign/rsk-003-licences-register.test.ts (5 passed); tests/renewals.test.ts; npm run verify (815 unit tests / 2 skipped / 119 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or automatic creation of owned dated renewal tasks tested. Renewal responsibility and automatic renewal-task creation remain future work."
   },
-  "lastGreenSha": "1b494e6",
+  "mob001LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "046991c",
+    "outcome": "LOCALLY ACCEPTED: MOB-001 responsive mobile foundation. The root layout exports a mobile-ready viewport (device-width, initialScale=1, viewportFit=cover) and globals.css uses dynamic viewport height, safe-area insets, overflow-x hidden, text-size-adjust, and responsive grid breakpoints that collapse columns on narrow screens.",
+    "evidence": "tests/campaign/mob-001-responsive-surface.test.ts (5 passed); npm run verify (840 unit tests / 2 skipped / 124 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No real-device or role-based mobile UAT; this verifies the responsive CSS/viewport foundation only."
+  },
+  "lastGreenSha": "046991c",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "WRK-003 local acceptance pushed on kimi/found006-rls-cutover. The HR staff list and employee record are the runtime entrypoints for skills display and editing.",
+  "lastCompletedAction": "MOB-001 local acceptance pushed on kimi/found006-rls-cutover. The root layout and global stylesheet are the runtime entrypoints for the responsive mobile foundation.",
   "nextAction": "Select the next dependency-ordered implementable requirement from the original vision register and continue the implement → test → verify → commit/push loop.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/wrk-003-skills-surface.test.ts (5 passed)"
+    "npm test -- tests/campaign/mob-001-responsive-surface.test.ts (5 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "1b494e6 on kimi/found006-rls-cutover",
+    "sha": "046991c on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "835 passed / 2 skipped / 123 files",
-    "integrationFresh": "not rerun for WRK-003 (no database change)",
-    "integrationNarrowUpgrade": "not rerun for WRK-003",
-    "integrationLegacyUpgrade": "not rerun for WRK-003",
-    "migrationIdempotency": "not rerun for WRK-003",
+    "unit": "840 passed / 2 skipped / 124 files",
+    "integrationFresh": "not rerun for MOB-001 (no database change)",
+    "integrationNarrowUpgrade": "not rerun for MOB-001",
+    "integrationLegacyUpgrade": "not rerun for MOB-001",
+    "migrationIdempotency": "not rerun for MOB-001",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 835 unit tests (2 skipped / 123 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 840 unit tests (2 skipped / 124 files)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "wrk-003-skills-surface.test.ts proves the staff list and employee record are real runtime entrypoints under /app/hr/staff, query profiles scoped by company_id, surface skills, link between list and detail, and allow skills editing.",
-    "note": "WRK-003 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "discriminationProof": "mob-001-responsive-surface.test.ts proves the layout exports a mobile viewport, globals.css uses 100dvh, safe-area env() insets, overflow-x hidden, text-size-adjust, and responsive grid breakpoints that collapse columns on narrow screens.",
+    "note": "MOB-001 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -212,6 +220,7 @@
     "WRK-001: LOCALLY ACCEPTED at af81ed8. The HR leave page lists company-scoped leave_requests joined with profiles and shows remaining annual leave per person. Attendance, travel, sickness, working-hours modelling and assignment consumption remain future work.",
     "WRK-002: LOCALLY ACCEPTED at 56dcee2. The HR capacity page lists active employees, reads assigned tasks, and surfaces planned/actual/remaining hours and utilization status. Historical snapshot consumption and contracted-hour modelling remain future work.",
     "WRK-003: LOCALLY ACCEPTED at 1b494e6. The HR staff list and employee record display and allow editing of employee skills, scoped by company_id. Certification expiry, renewal-task creation and assignment consumption remain future work.",
+    "MOB-001: LOCALLY ACCEPTED at 046991c. The root layout and global stylesheet provide a responsive mobile foundation: viewport=device-width/initialScale=1/viewportFit=cover, 100dvh, safe-area insets, overflow-x hidden, text-size-adjust, and collapsing grid breakpoints. Real-device/role-based mobile UAT remains future work.",
     "PRJ-001: LOCALLY ACCEPTED at f227fef. The operations projects page lists company-scoped projects with lifecycle status and links from the operations home. Milestones, stage gates and project precedent reuse remain future work.",
     "PRJ-002: LOCALLY ACCEPTED at e759c10. The admin objectives page lists company-scoped objectives, grades progress with assessObjective and supports create/update progress actions. Milestones, dependencies, stage gates and project linkage remain future work.",
     "RSK-002: LOCALLY ACCEPTED at 843cb05. The legal contracts page lists company-scoped contracts with counterparty, renewal date, and renewal status badges. Automatic creation of owned dated renewal tasks remains future work.",
@@ -263,9 +272,10 @@
       "wrk002": 0,
       "ops002": 0,
       "prj002": 0,
-      "wrk003": 0
+      "wrk003": 0,
+      "mob001": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T02:03:50Z"
+  "updatedAt": "2026-08-23T02:10:00Z"
 }
