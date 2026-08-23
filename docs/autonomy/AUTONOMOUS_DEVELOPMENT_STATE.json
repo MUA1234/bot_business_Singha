@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [],
+  "activeRequirementIds": ["CTL-002"],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -279,8 +279,8 @@
   },
   "lastGreenSha": "429100d36c3bd216fb2597518c36b1d5573a1c9e",
   "latestMigration": "0107_project_risks_decisions_scenarios.sql",
-  "lastCompletedAction": "Accepted SCH-003 Leave and workload-aware scheduling.",
-  "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml.",
+  "lastCompletedAction": "Selected CTL-002 Cross-company portfolio overview as the next dependency-ordered requirement.",
+  "nextAction": "Implement CTL-002: add a cross-company portfolio overview page that aggregates company-scoped health signals for every company the admin belongs to, with pure aggregation helpers and tests.",
   "lastTargetedTests": [
     "tests/availability.test.ts (10 passed)",
     "tests/campaign/sch-003-leave-workload-aware-scheduling.test.ts (11 passed)"
@@ -417,7 +417,7 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T21:05:00.000Z",
+  "updatedAt": "2026-08-23T21:25:00.000Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
