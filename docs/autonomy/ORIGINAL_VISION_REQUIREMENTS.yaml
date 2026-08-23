@@ -623,20 +623,20 @@ requirements:
     phase: stage3
     priority: P1
     dependencies: [GOV-001]
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/app/admin/audit/page.tsx
-    database_evidence: audit_events
-    service_evidence: src/lib/audit.ts
-    ui_evidence: src/app/app/admin/audit/page.tsx
-    test_evidence: tests/audit-format.test.ts
-    security_evidence: append-only audit of privileged and AI actions
-    audit_health_evidence: audit page
-    last_verified_sha: none
-    last_verified_at: none
+    database_evidence: append-only audit_events table scoped by company_id
+    service_evidence: src/lib/audit.ts writeAudit; src/app/app/admin/audit/page.tsx governance filter
+    ui_evidence: src/app/app/admin/audit/page.tsx lists company-scoped audit events and provides a Governance filter for directives, approvals, policy evaluations, delegations and authority rules
+    test_evidence: tests/campaign/gov-006-governance-audit.test.ts (4); tests/audit-format.test.ts
+    security_evidence: admin gate; company-scoped read; governance filter is read-only and cannot mutate the audit trail
+    audit_health_evidence: audit page surfaces governance actions (management_directive.*, approval.*, etc.)
+    last_verified_sha: 079a459
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: Audit exists generally; governance-specific events do not because GOV-001..005 do not.
+    residual_risks: Reserved-matter decisions and escalations are not yet produced by GOV-004/GOV-002; the governance filter captures the entity types that will carry those events once built.
 
   # ── WRK — workforce intelligence ────────────────────────────────────────────────────────────
   - id: WRK-001

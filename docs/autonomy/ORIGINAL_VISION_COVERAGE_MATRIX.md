@@ -10,11 +10,11 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 38 |
+| locally_verified | 39 |
 | absent | 37 |
 | specified | 5 |
 | blocked_owner | 4 |
-| foundation_only | 4 |
+| foundation_only | 3 |
 | implementation_in_progress | 1 |
 | deliberately_deferred | 1 |
 
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **38** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **47** |
+| **Verified** (locally / preview / staging / production) | **39** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **46** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -46,7 +46,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | CTL | 4 | 2 | 2 |
 | FIN | 8 | 5 | 3 |
 | FOUND | 6 | 5 | 1 |
-| GOV | 6 | 2 | 4 |
+| GOV | 6 | 3 | 3 |
 | IMP | 3 | 0 | 3 |
 | INT | 1 | 1 | 0 |
 | IP | 1 | 1 | 0 |
@@ -109,7 +109,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | GOV-003 | Conflicting-instruction detection and resolution | P1 | **absent** | none | none | — |
 | GOV-004 | Board-reserved matters and emergency suspension | P0 | **absent** | none | none | definition of the reserved-matter list |
 | GOV-005 | Human override, appeal and separation of duties | P0 | **locally_verified** | src/app/app/finance/approvals/actions.ts; src/app/app/finance/approvals/page.tsx | c3c0b71 | — |
-| GOV-006 | Governance audit trail | P1 | **foundation_only** | src/app/app/admin/audit/page.tsx | none | — |
+| GOV-006 | Governance audit trail | P1 | **locally_verified** | src/app/app/admin/audit/page.tsx | 079a459 | — |
 | IMP-001 | Outcome recording against recommendations | P1 | **absent** | none | none | — |
 | IMP-002 | Staff feedback and lessons learned | P2 | **absent** | none | none | — |
 | IMP-003 | Versioned playbooks and prompt/evaluation improvement with human approval | P1 | **absent** | none | none | private repository/package decision for proprietary playbooks |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **47**; blocked (owner): **4**;
+mode. Incomplete and implementable: **46**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.
