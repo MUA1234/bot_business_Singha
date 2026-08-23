@@ -1507,7 +1507,7 @@ requirements:
     test_evidence: tests/health-score.test.ts (11); tests/campaign/ctl-004-health-score.test.ts (6)
     security_evidence: requireAdmin-gated page; all queries company-scoped via company_id; read-only; no money movement
     audit_health_evidence: command.query_failed telemetry when a data source fails; degraded banner instead of false all-clear
-    last_verified_sha: 53b5bfb242963b993ae955d51d97b2f217e2f016
+    last_verified_sha: 9bc49cc62fd0a5ec1c2a506e7c4982bf9028af31
     last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
