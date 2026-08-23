@@ -1456,17 +1456,17 @@ requirements:
     phase: stage4
     priority: P2
     dependencies: [CTL-001, FOUND-006]
-    status: absent
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/app/portfolio/page.tsx
+    database_evidence: existing companies, memberships, projects, tasks, risks, incidents, obligations, bank_accounts, cash_accounts, payments, customer_invoices and supplier_bills
+    service_evidence: src/modules/management/portfolio.ts
+    ui_evidence: /app/portfolio page renders a ranked table of per-company signals and links from the Command Centre
+    test_evidence: tests/portfolio.test.ts; tests/campaign/ctl-002-cross-company-portfolio.test.ts
+    security_evidence: requireAdmin gate; active memberships resolve the exact company_id list; all queries are scoped to that list; aggregation is deterministic and uses exact-decimal helpers
+    audit_health_evidence: structured log events portfolio.membership_read_failed and portfolio.company_read_failed on query errors
+    last_verified_sha: 76e98a8
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
     residual_risks: Must be built on explicit multi-membership, never by relaxing company scoping.

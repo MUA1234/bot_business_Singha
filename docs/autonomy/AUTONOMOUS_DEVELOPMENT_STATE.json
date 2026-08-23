@@ -1,21 +1,21 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": ["CTL-002"],
+  "activeRequirementIds": [],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "429100d36c3bd216fb2597518c36b1d5573a1c9e",
-    "outcome": "LOCALLY ACCEPTED: SCH-003 Leave and workload-aware scheduling. The follow-ups cron route reads approved leave_requests and active task estimates, skips assignees on approved leave, ranks reachable assignees by current free hours, advances past on-leave escalation targets, and falls back to available company admins. The assignTask action refuses to assign a task to someone on approved leave and writes a task.assignment_refused_leave audit event. Pure helpers in src/modules/work/availability.ts (isOnLeave, evaluateAvailability, rankAvailableCandidates, selectBestAvailable) are deterministic and tested.",
+    "testedSha": "76e98a8fe6620d578221be85f4798c78e147aa67",
+    "outcome": "LOCALLY ACCEPTED: CTL-002 Cross-company portfolio overview. The /app/portfolio page resolves the admin's active memberships, queries only those companies, and surfaces a ranked table of project, task, cash, overdue AR/AP, risk, incident and obligation signals. Aggregation is deterministic and uses existing exact-decimal finance helpers. Company isolation is preserved by membership gating.",
     "container": "disposable local PostgreSQL 16 (port 55441) with supabase-shim",
     "corrections": [
-      "Added src/modules/work/availability.ts with pure deterministic availability helpers.",
-      "Updated src/app/api/cron/follow-ups/route.ts to load approved leave_requests and active task assignment estimates, build per-user availability, skip on-leave assignees, rank by workload, advance escalation chain past on-leave targets, and report skippedLeave in the cron response and audit payload.",
-      "Updated src/app/app/operations/tasks/actions.ts assignTask to refuse assignment to a profile on approved leave and write task.assignment_refused_leave.",
-      "Added tests/availability.test.ts (10 passed) and tests/campaign/sch-003-leave-workload-aware-scheduling.test.ts (11 passed).",
-      "No new migration required; reuses existing leave_requests (0017), employee_profiles (0010/0025) and task_assignments (0024/0025) tables.",
+      "Added src/modules/management/portfolio.ts with pure deterministic summarizeCompanyPortfolio and rankPortfolioByUrgency helpers.",
+      "Added src/app/app/portfolio/page.tsx gated to requireAdmin; resolves active memberships, queries only those companies, aggregates per-company signals, and renders a ranked table.",
+      "Linked /app/portfolio from the Command Centre header.",
+      "Added tests/portfolio.test.ts (8 passed) and tests/campaign/ctl-002-cross-company-portfolio.test.ts (9 passed).",
+      "No new migration required; reuses existing companies, memberships, projects, tasks, risks, incidents, obligations, bank/cash accounts, payments, customer_invoices and supplier_bills tables.",
       "Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on.",
-      "npm run verify (1129 unit tests / 2 skipped / 158 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed."
+      "npm run verify (1146 unit tests / 2 skipped / 160 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (after one transient ECONNRESET retry)."
     ]
   },
   "currentBranch": "kimi/found006-rls-cutover",
@@ -277,19 +277,19 @@
     "evidence": "tests/campaign/gov-002-directive-escalation.test.ts (15 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression); tests/campaign/cron-auth.test.ts (9 passed regression); fresh disposable PostgreSQL 16 0001-0099 full migration; narrow upgrade 0098→0099; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (916 unit tests / 2 skipped / 136 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
   },
-  "lastGreenSha": "429100d36c3bd216fb2597518c36b1d5573a1c9e",
+  "lastGreenSha": "76e98a8fe6620d578221be85f4798c78e147aa67",
   "latestMigration": "0107_project_risks_decisions_scenarios.sql",
-  "lastCompletedAction": "Selected CTL-002 Cross-company portfolio overview as the next dependency-ordered requirement.",
-  "nextAction": "Implement CTL-002: add a cross-company portfolio overview page that aggregates company-scoped health signals for every company the admin belongs to, with pure aggregation helpers and tests.",
+  "lastCompletedAction": "Accepted CTL-002 Cross-company portfolio overview.",
+  "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml.",
   "lastTargetedTests": [
-    "tests/availability.test.ts (10 passed)",
-    "tests/campaign/sch-003-leave-workload-aware-scheduling.test.ts (11 passed)"
+    "tests/portfolio.test.ts (8 passed)",
+    "tests/campaign/ctl-002-cross-company-portfolio.test.ts (9 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "429100d36c3bd216fb2597518c36b1d5573a1c9e on kimi/found006-rls-cutover",
+    "sha": "76e98a8fe6620d578221be85f4798c78e147aa67 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "1129 passed / 2 skipped / 158 files",
+    "unit": "1146 passed / 2 skipped / 160 files",
     "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0107 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
     "integrationNarrowUpgrade": "not run for this package (no new migration)",
     "integrationLegacyUpgrade": "not run for this package (no legacy baseline change)",
@@ -298,8 +298,8 @@
     "verify": "passed: secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests",
     "secretScan": "no tracked secrets found",
     "migrationLint": "107 migrations, sequential 0001–0107, no gaps or duplicates",
-    "browserCheck": "10/10 passed",
-    "discriminationProof": "tests/campaign/sch-003-leave-workload-aware-scheduling.test.ts proves the follow-ups route reads approved leave and active task estimates, skips on-leave assignees, ranks by workload, advances the escalation chain, and that assignTask refuses assignment to someone on leave.",
+    "browserCheck": "10/10 passed (succeeded on second attempt after transient ECONNRESET)",
+    "discriminationProof": "tests/campaign/ctl-002-cross-company-portfolio.test.ts proves /app/portfolio is gated to admin, resolves active memberships, queries only those companies, uses pure deterministic helpers, and links from the Command Centre.",
     "note": "No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent during this acceptance pass."
   },
   "openFindings": [
@@ -357,7 +357,8 @@
     "FIN-007: LOCALLY ACCEPTED at ae3ce17. Migration 0105 adds funding_requirements and investments tables with capability-gated RLS. The /app/finance/funding page derives a funding gap from the 90-day cash forecast and provides create/status/dispose actions. Forecast inputs remain invoice/bill/commitment only; payroll and recurring obligations are not modelled.",
     "RSK-005: LOCALLY ACCEPTED at 4e40880. Migration 0106 adds incidents table and extends obligations with evidence/obligation_type. /app/legal/incidents and /app/legal/obligations pages provide create/status forms. Capability-gated RLS via legal.compliance.manage.",
     "PRJ-004: LOCALLY ACCEPTED at d0e08db70c2d5d7b32c98e29377d7373efbc1422. Migration 0107 adds company-scoped project_risks, project_decisions and project_scenarios with operations.project.manage capability and capability-gated RLS. The project detail page surfaces risk exposure, decision status and scenario comparison with gated, audited actions.",
-    "SCH-003: LOCALLY ACCEPTED at 429100d36c3bd216fb2597518c36b1d5573a1c9e. The follow-ups cron route is leave and workload-aware: it skips assignees on approved leave, ranks reachable assignees by free hours, advances past on-leave escalation targets, and falls back to available admins. assignTask refuses to assign work to someone on approved leave."
+    "SCH-003: LOCALLY ACCEPTED at 429100d36c3bd216fb2597518c36b1d5573a1c9e. The follow-ups cron route is leave and workload-aware: it skips assignees on approved leave, ranks reachable assignees by free hours, advances past on-leave escalation targets, and falls back to available admins. assignTask refuses to assign work to someone on approved leave.",
+    "CTL-002: LOCALLY ACCEPTED at 76e98a8fe6620d578221be85f4798c78e147aa67. The /app/portfolio page gives an admin with multiple companies a ranked cross-company overview of projects, tasks, cash, overdue AR/AP, risks, incidents and obligations. Company isolation is preserved by querying only companies the user has an active membership in. No new migration required."
   ],
   "ownerGates": [
     "PR merges (#22, #23, #24) — none merged",
@@ -413,7 +414,8 @@
       "rsk005": 0,
       "mod002": 0,
       "prj004": 0,
-      "sch003": 0
+      "sch003": 0,
+      "ctl002": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },

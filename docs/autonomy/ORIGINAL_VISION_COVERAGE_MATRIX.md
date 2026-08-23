@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 55 |
-| absent | 23 |
+| locally_verified | 56 |
+| absent | 22 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **55** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **30** |
+| **Verified** (locally / preview / staging / production) | **56** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **29** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -43,7 +43,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | AST | 1 | 0 | 1 |
 | COM | 8 | 2 | 6 |
 | CRM | 5 | 4 | 1 |
-| CTL | 4 | 2 | 2 |
+| CTL | 4 | 3 | 1 |
 | FIN | 8 | 8 | 0 |
 | FOUND | 6 | 5 | 1 |
 | GOV | 6 | 5 | 1 |
@@ -87,7 +87,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | CRM-004 | Counterparty performance, reliability and history | P2 | **absent** | none | none | — |
 | CRM-005 | Compliance and insurance status per counterparty | P1 | **locally_verified** | src/app/app/procurement/purchase-orders/actions.ts (createPurchaseOrder gates blocked suppliers) | 7b939f10297cb122056c7a9400e879019f7668be | — |
 | CTL-001 | Exception-led operational overview | P0 | **locally_verified** | src/app/app/command/page.tsx | 707761c | — |
-| CTL-002 | Cross-company portfolio overview | P2 | **absent** | none | none | — |
+| CTL-002 | Cross-company portfolio overview | P2 | **locally_verified** | src/app/app/portfolio/page.tsx | 76e98a8 | — |
 | CTL-003 | Integration and AI/model health on the control surface | P1 | **locally_verified** | src/app/app/admin/health/page.tsx | 8b90057 | — |
 | CTL-004 | Explainable business-health score | P2 | **absent** | none | none | — |
 | FIN-001 | Bank and cash position | P0 | **locally_verified** | src/app/app/command/page.tsx; src/app/app/finance/accounts/page.tsx | 707761c | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **30**; blocked (owner): **4**;
+mode. Incomplete and implementable: **29**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.
