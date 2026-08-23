@@ -1,20 +1,21 @@
 {
   "program": "Singha Central Original Vision Completion",
-  "activePhase": "stage4-control-surfaces",
-  "activeRequirementIds": ["CTL-003"],
+  "activePhase": "stage3-governance",
+  "activeRequirementIds": ["GOV-005"],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
   "lastLocalAcceptanceAttempt": {
-    "date": "2026-08-22",
+    "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "e32a1b7",
-    "outcome": "LOCALLY ACCEPTED: OPS-005 feature-flag rollout control. The V3.1 flag registry is readable at runtime via v31FlagSnapshot(), and /api/health now reports the snapshot so an operator can see which capability flags are enabled. All flags remain default-OFF; activation is still owner-gated per slice.",
+    "testedSha": "8b90057",
+    "outcome": "LOCALLY ACCEPTED: CTL-003 integration/AI-model health on the control surface. The migration 0069 source_event_backlog RPC is surfaced on src/app/app/admin/health/page.tsx with company-scoped service-role calls and probeCount/unavailability handling.",
     "container": "n/a — no database required",
     "corrections": [
-      "Added v31FlagSnapshot() to /api/health response body.",
-      "Added tests/campaign/health-route.test.ts verifying auth gating and flag snapshot reporting.",
-      "Updated OPS-005 requirement entry to locally_verified with test_evidence and last_verified_sha."
+      "Added probeBacklog helper calling source_event_backlog(p_company) via supabaseAdmin.",
+      "Rendered pending, processing, retry wait, expired lease, dead letter and oldest pending tiles in a Source-event backlog card.",
+      "Added tests/campaign/admin-health-backlog.test.ts proving the RPC call, rendered columns, unavailable handling and danger highlighting.",
+      "Updated CTL-003 requirement entry to locally_verified with test_evidence and last_verified_sha."
     ]
   },
   "mod003LocalAcceptance": {
@@ -73,30 +74,39 @@
     "evidence": "tests/flags.test.ts (5 passed); tests/campaign/health-route.test.ts (3 passed); npm run verify (772 unit tests / 2 skipped / 110 files); npm run lint 0 errors; npm run build clean.",
     "limitations": "No hosted/staging environment, production traffic, or flag activation. All V3.1 flags remain default-OFF."
   },
-  "lastGreenSha": "e32a1b7",
+  "ctl003LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "8b90057",
+    "outcome": "LOCALLY ACCEPTED: the migration 0069 source_event_backlog RPC is surfaced on the admin health page. The page renders pending, processing, retry wait, expired lease, dead letter and oldest pending at, using the probeCount/unavailable contract so a read failure never masks as 0.",
+    "evidence": "tests/campaign/admin-health-backlog.test.ts (4 passed); tests/health.test.ts (3 passed); tests/health-signals.test.ts (7 passed); tests/campaign/health-route.test.ts (3 passed); npm run verify (776 unit tests / 2 skipped / 111 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, production traffic, or live provider. AI cost still excludes customer-facing calls (MOD-002 residual)."
+  },
+  "lastGreenSha": "4c484ef",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "OPS-005 local acceptance completed at e32a1b7 on kimi/found006-rls-cutover. /api/health now reports the V3.1 flag snapshot. Transitioning to CTL-003 (Integration and AI/model health on the control surface), a stage4 P1 requirement whose residual_risks identifies that the 0069 source_event_backlog RPC is not yet surfaced on the admin health page.",
-  "nextAction": "Implement CTL-003: surface the source_event_backlog RPC on src/app/app/admin/health/page.tsx, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "CTL-003 local acceptance completed at 8b90057 on kimi/found006-rls-cutover. The admin health page now surfaces the migration 0069 source_event_backlog RPC. Transitioning to GOV-005 (Human override, appeal and separation of duties), a stage3 P0 requirement whose residual_risks identifies that checkSeparationOfDuties and checkAuthority are dead code in production.",
+  "nextAction": "Assess GOV-005: identify where approval actions should invoke checkSeparationOfDuties/checkAuthority, wire the logic into a runtime path, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
-    "npm test -- tests/flags.test.ts (5 passed)",
-    "npm test -- tests/campaign/health-route.test.ts (3 passed)"
+    "npm test -- tests/campaign/admin-health-backlog.test.ts (4 passed)",
+    "npm test -- tests/health.test.ts (3 passed)",
+    "npm test -- tests/health-signals.test.ts (7 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "e32a1b7 on kimi/found006-rls-cutover",
+    "sha": "8b90057 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "772 passed / 2 skipped / 110 files",
-    "integrationFresh": "not rerun for OPS-005 (no database change)",
-    "integrationNarrowUpgrade": "not rerun for OPS-005",
-    "integrationLegacyUpgrade": "not rerun for OPS-005",
-    "migrationIdempotency": "not rerun for OPS-005",
+    "unit": "776 passed / 2 skipped / 111 files",
+    "integrationFresh": "not rerun for CTL-003 (no database change)",
+    "integrationNarrowUpgrade": "not rerun for CTL-003",
+    "integrationLegacyUpgrade": "not rerun for CTL-003",
+    "migrationIdempotency": "not rerun for CTL-003",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 772 unit tests (2 skipped)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 776 unit tests (2 skipped / 111 files)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
-    "browserCheck": "not rerun for OPS-005",
-    "discriminationProof": "health-route.test.ts proves the CRON_SECRET-gated /api/health returns the V3.1 flag snapshot; flags.test.ts proves every flag is default-OFF and turns on only for exact 'on'.",
-    "note": "OPS-005 verification requires no database or browser. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "browserCheck": "not rerun for CTL-003",
+    "discriminationProof": "admin-health-backlog.test.ts proves the admin health page calls source_event_backlog(p_company) and renders every backlog column with unavailable handling; health.test.ts proves classifyHealth distinguishes ok/warn/critical.",
+    "note": "CTL-003 verification requires no database or browser. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -107,6 +117,7 @@
     "AIM-003: IMPLEMENTATION COMPLETE but remains implementation_in_progress pending owner acceptance of R1 per the requirement register. Focused tests pass; OF-007 is fixed by migrations 0078/0082.",
     "AIM-004: V3.1 FUTURE WORK. Schema contract exists at src/schemas/v3_1/task-intelligence-profile.ts; no runtime consumer is built per the zero-behaviour-change foundation constraint.",
     "OPS-005: LOCALLY ACCEPTED at e32a1b7. V3.1 flag snapshot reported on /api/health; activation remains owner-gated per slice.",
+    "CTL-003: LOCALLY ACCEPTED at 8b90057. The migration 0069 source_event_backlog RPC is surfaced on the admin health page with company scoping and unavailable handling.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
     "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
     "OF-015 (P2): sections 3 and 6 have no re-runnable schema-level end-to-end discrimination, because they are application code.",
@@ -151,5 +162,5 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-22"
+  "updatedAt": "2026-08-23"
 }
