@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 57 |
-| absent | 21 |
+| locally_verified | 58 |
+| absent | 20 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **57** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **28** |
+| **Verified** (locally / preview / staging / production) | **58** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **27** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -43,7 +43,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | AST | 1 | 0 | 1 |
 | COM | 8 | 2 | 6 |
 | CRM | 5 | 4 | 1 |
-| CTL | 4 | 3 | 1 |
+| CTL | 4 | 4 | 0 |
 | FIN | 8 | 8 | 0 |
 | FOUND | 6 | 5 | 1 |
 | GOV | 6 | 5 | 1 |
@@ -89,7 +89,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | CTL-001 | Exception-led operational overview | P0 | **locally_verified** | src/app/app/command/page.tsx | 707761c | — |
 | CTL-002 | Cross-company portfolio overview | P2 | **locally_verified** | src/app/app/portfolio/page.tsx | 76e98a8 | — |
 | CTL-003 | Integration and AI/model health on the control surface | P1 | **locally_verified** | src/app/app/admin/health/page.tsx | 8b90057 | — |
-| CTL-004 | Explainable business-health score | P2 | **absent** | none | none | — |
+| CTL-004 | Explainable business-health score | P2 | **locally_verified** | src/app/app/command/health/page.tsx | 53b5bfb242963b993ae955d51d97b2f217e2f016 | — |
 | FIN-001 | Bank and cash position | P0 | **locally_verified** | src/app/app/command/page.tsx; src/app/app/finance/accounts/page.tsx | 707761c | — |
 | FIN-002 | Receivables and payables with ageing | P0 | **locally_verified** | src/app/app/finance/receivables/page.tsx; src/app/app/command/page.tsx | 707761c | — |
 | FIN-003 | Rolling cash-flow forecast | P0 | **locally_verified** | src/app/app/command/page.tsx | 707761c | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **28**; blocked (owner): **4**;
+mode. Incomplete and implementable: **27**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

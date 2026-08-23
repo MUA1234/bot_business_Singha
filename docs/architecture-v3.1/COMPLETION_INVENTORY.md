@@ -31,12 +31,13 @@
 
 Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 
-## 2. money-as-Number suspects — 15 line(s) (Phase-1A triage list)
+## 2. money-as-Number suspects — 17 line(s) (Phase-1A triage list)
 
 | file:line | code |
 |---|---|
 | src/ai/anthropic-transport.ts:62 | `const maxTokens = Math.min(req.maxTokens, EVAL_LIMITS.maxOutputTokens);` |
 | src/app/api/health/route.ts:120 | `imbalancedJournals: Number(row.imbalanced_journals ?? 0),` |
+| src/app/app/command/health/page.tsx:198 | `totalPeople: Math.max(1, caps.length),` |
 | src/app/app/finance/customer-invoices/[id]/page.tsx:55 | `<tr key={i}><td>{l.description}</td><td className="num">{Number(l.quantity)}</td><td className="num"` |
 | src/app/app/finance/supplier-bills/[id]/page.tsx:56 | `<tr key={i}><td>{l.description}</td><td className="num">{Number(l.quantity)}</td><td className="num"` |
 | src/app/app/finance/tax-codes/page.tsx:50 | `<td className="num dim">{fmtMoney(taxAmount("1000", Number(r.rate), "LKR"))}</td>` |
@@ -48,6 +49,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/sales/opportunities/page.tsx:30 | `const summary = summarizePipeline(rows.map((r): Opportunity => ({ amount: String(r.amount ?? "0"), p` |
 | src/lib/money.ts:189 | `* `Number(v).toLocaleString()` — the latter both floats the amount and hides its currency scale.` |
 | src/modules/finance/reconcile.ts:66 | `reason: `${best.c.kind} of equal amount, ${Math.round(best.days)}d apart`,` |
+| src/modules/management/health-score.ts:62 | `return clamp(60 + 40 * Math.min(1, amount.div(1_000_000).toNumber()));` |
 | src/modules/procurement/three-way-match.ts:30 | `const amtTol = Math.max(input.amountTolerancePct ?? 0, 0);` |
 | src/schemas/common.ts:15 | `// Number("1e-400") would have collapsed such an amount to 0 and rejected a valid tiny value,` |
 

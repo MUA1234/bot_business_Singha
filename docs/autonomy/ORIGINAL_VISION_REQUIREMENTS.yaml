@@ -1498,17 +1498,17 @@ requirements:
     phase: stage4
     priority: P2
     dependencies: [CTL-001, FIN-003, WRK-002]
-    status: implementation_in_progress
+    status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/app/command/health/page.tsx
     database_evidence: none
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    service_evidence: src/modules/management/health-score.ts
+    ui_evidence: src/app/app/command/health/page.tsx renders the composite score, status, inspectable component breakdown with weights and contributions, and underlying signals
+    test_evidence: tests/health-score.test.ts (11); tests/campaign/ctl-004-health-score.test.ts (6)
+    security_evidence: requireAdmin-gated page; all queries company-scoped via company_id; read-only; no money movement
+    audit_health_evidence: command.query_failed telemetry when a data source fails; degraded banner instead of false all-clear
+    last_verified_sha: 53b5bfb242963b993ae955d51d97b2f217e2f016
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
     residual_risks: Weights are proprietary — see IP-001 before committing any.
