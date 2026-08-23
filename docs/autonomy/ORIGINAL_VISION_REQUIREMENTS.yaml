@@ -923,7 +923,7 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: [FIN-003]
-    status: implementation_in_progress
+    status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/app/command/page.tsx
     database_evidence: src/db/migrations/0100_commitment_expected_payments.sql adds expected_payment_date to purchase_orders; commitments.expected_settlement_date reused
@@ -932,7 +932,7 @@ requirements:
     test_evidence: tests/campaign/fin-004-commitments-forecast.test.ts; tests/forecast.test.ts commitment-trough case
     security_evidence: company-scoped reads via Supabase RLS; exact decimal helper
     audit_health_evidence: purchase_order.expected_payment_date.updated audit action
-    last_verified_sha: FIN004SHA
+    last_verified_sha: d938bb202b3458745be137b71cafbc1a7e6a64c7
     last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none

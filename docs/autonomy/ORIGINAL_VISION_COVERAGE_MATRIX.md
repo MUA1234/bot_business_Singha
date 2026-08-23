@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 42 |
-| absent | 34 |
+| locally_verified | 43 |
+| absent | 33 |
 | specified | 5 |
 | blocked_owner | 4 |
 | foundation_only | 3 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **42** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **43** |
+| **Verified** (locally / preview / staging / production) | **43** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **42** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -44,7 +44,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | COM | 8 | 1 | 7 |
 | CRM | 5 | 2 | 3 |
 | CTL | 4 | 2 | 2 |
-| FIN | 8 | 5 | 3 |
+| FIN | 8 | 6 | 2 |
 | FOUND | 6 | 5 | 1 |
 | GOV | 6 | 5 | 1 |
 | IMP | 3 | 0 | 3 |
@@ -93,7 +93,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | FIN-001 | Bank and cash position | P0 | **locally_verified** | src/app/app/command/page.tsx; src/app/app/finance/accounts/page.tsx | 707761c | — |
 | FIN-002 | Receivables and payables with ageing | P0 | **locally_verified** | src/app/app/finance/receivables/page.tsx; src/app/app/command/page.tsx | 707761c | — |
 | FIN-003 | Rolling cash-flow forecast | P0 | **locally_verified** | src/app/app/command/page.tsx | 707761c | — |
-| FIN-004 | Commitments and expected payments | P1 | **absent** | none | none | — |
+| FIN-004 | Commitments and expected payments | P1 | **locally_verified** | src/app/app/command/page.tsx | d938bb202b3458745be137b71cafbc1a7e6a64c7 | — |
 | FIN-005 | Taxes and professional-review opportunities | P1 | **locally_verified** | src/app/app/finance/tax-codes/page.tsx | 74d3be6 | authorised finance reviewer identity |
 | FIN-006 | Budget versus actual and scenario analysis | P1 | **absent** | none | none | — |
 | FIN-007 | Funding requirements and investments | P2 | **absent** | none | none | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **43**; blocked (owner): **4**;
+mode. Incomplete and implementable: **42**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

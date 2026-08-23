@@ -1,35 +1,22 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": ["FIN-004"],
+  "activeRequirementIds": [],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "e6a99e40e8db991db65370c684819c3cb41cbcfd",
-    "outcome": "LOCALLY ACCEPTED: GOV-002 directive acknowledgement and escalation. Migration 0099 extends management_directives with escalation_chain, escalated_to, escalation_level, escalated_at and escalation_reason; the CRON_SECRET-gated /api/cron/directive-escalation route advances overdue unacknowledged directives up the chain or to overdue and writes append-only audit events.",
+    "testedSha": "d938bb202b3458745be137b71cafbc1a7e6a64c7",
+    "outcome": "LOCALLY ACCEPTED: FIN-004 commitments and expected payments. Migration 0100 adds expected_payment_date to purchase_orders with a company/status/date index; src/modules/finance/commitment-outflows.ts turns open, dated, same-currency POs and commitments into deterministic expected outflows; the Command Centre cash forecast consumes them and surfaces an \"Expected commitments\" stat; the PO list/detail show the date and allow procurement to update it with an audit event.",
     "container": "disposable local PostgreSQL 16 (port 55440) with supabase-shim",
     "corrections": [
-      "Added src/app/api/cron/directive-escalation/route.ts to scripts/allowlists/supabase-admin-system.json to satisfy completion-inventory --check.",
-      "Fresh disposable PostgreSQL 16 0001-0099; narrow upgrade 0098→0099; full integration 697 passed / 77 files; verify/build/browser-check all passed."
+      "Added tests/campaign/fin-004-commitments-forecast.test.ts (11 passed) and refreshed tests/forecast.test.ts commitment-trough case (4 passed).",
+      "Fresh disposable PostgreSQL 16 0001-0100; narrow upgrade 0099→0100; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on.",
+      "npm run verify (928 unit tests / 2 skipped / 137 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (after one transient ECONNRESET retry)."
     ]
   },
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
-  "lastLocalAcceptanceAttempt": {
-    "date": "2026-08-23",
-    "branch": "kimi/found006-rls-cutover",
-    "testedSha": "82b6ce9",
-    "outcome": "LOCALLY ACCEPTED: MEM-001 organizational memory surface. The /app/command/memory page lists company-scoped prior cases, tasks, customers and channel identities with provenance labels; it is linked from the Command Centre.",
-    "container": "disposable local PostgreSQL 16 (port 55440) with supabase-shim",
-    "corrections": [
-      "Added src/app/app/command/memory/page.tsx with typed safeSelect helper and company-scoped reads.",
-      "Linked /app/command/memory from src/app/app/command/page.tsx.",
-      "Added tests/campaign/mem-001-organizational-memory.test.ts.",
-      "Updated MEM-001 requirement entry to locally_verified with test_evidence and last_verified_sha.",
-      "Fixed PromiseLike/catch type errors by using an awaited try/catch safeSelect helper."
-    ]
-  },
   "mod003LocalAcceptance": {
     "date": "2026-08-22",
     "branch": "kimi/mod003-model-gateway",
@@ -286,31 +273,29 @@
     "evidence": "tests/campaign/gov-002-directive-escalation.test.ts (15 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression); tests/campaign/cron-auth.test.ts (9 passed regression); fresh disposable PostgreSQL 16 0001-0099 full migration; narrow upgrade 0098→0099; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (916 unit tests / 2 skipped / 136 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
   },
-  "lastGreenSha": "e6a99e40e8db991db65370c684819c3cb41cbcfd",
+  "lastGreenSha": "d938bb202b3458745be137b71cafbc1a7e6a64c7",
   "latestMigration": "0100_commitment_expected_payments.sql",
-  "lastCompletedAction": "Implemented FIN-004 commitments and expected payments on kimi/found006-rls-cutover. Migration 0100 adds expected_payment_date to purchase_orders; src/modules/finance/commitment-outflows.ts feeds POs and commitments into the Command Centre cash forecast; PO list/detail surfaces and allow updating the expected payment date; campaign and unit tests added.",
-  "nextAction": "Run acceptance gates (typecheck, migration-lint, unit + targeted campaign tests, integration on disposable DB up to 0100) and await owner/local acceptance before selecting the next requirement.",
+  "lastCompletedAction": "Accepted FIN-004 commitments and expected payments as locally verified on kimi/found006-rls-cutover at d938bb202b3458745be137b71cafbc1a7e6a64c7.",
+  "nextAction": "Select the next dependency-ordered implementable requirement and continue the autonomous pass.",
   "lastTargetedTests": [
-    "tests/campaign/gov-002-directive-escalation.test.ts (15 passed)",
-    "tests/campaign/gov-001-management-directives.test.ts (6 passed regression)",
-    "tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression)",
-    "tests/campaign/cron-auth.test.ts (9 passed regression)"
+    "tests/campaign/fin-004-commitments-forecast.test.ts (11 passed)",
+    "tests/forecast.test.ts (4 passed, including commitment-trough case)"
   ],
   "lastFullGateResults": {
-    "sha": "e6a99e40e8db991db65370c684819c3cb41cbcfd on kimi/found006-rls-cutover",
+    "sha": "d938bb202b3458745be137b71cafbc1a7e6a64c7 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "916 passed / 2 skipped / 136 files",
-    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0099 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
-    "integrationNarrowUpgrade": "passed: 0098→0099",
+    "unit": "928 passed / 2 skipped / 137 files",
+    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0100 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
+    "integrationNarrowUpgrade": "passed: 0099→0100",
     "integrationLegacyUpgrade": "not run for this package (foundation branch; previous requirements covered legacy upgrades)",
-    "migrationIdempotency": "migration-lint 0001-0099 sequential, no gaps or duplicates",
+    "migrationIdempotency": "migration-lint 0001-0100 sequential, no gaps or duplicates",
     "build": "clean",
     "verify": "passed: secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests",
     "secretScan": "no tracked secrets found",
-    "migrationLint": "99 migrations, sequential 0001–0099, no gaps or duplicates",
-    "browserCheck": "10/10 passed",
-    "discriminationProof": "gov-002-directive-escalation.test.ts proves migration 0099 extends management_directives with escalation columns, the evaluateDirectiveEscalation helper advances overdue directives up a chain or to overdue, and the CRON-gated route writes management_directive.escalated / management_directive.overdue audit events. GOV-001/GOV-003 regressions confirm existing directive behaviour is preserved.",
+    "migrationLint": "100 migrations, sequential 0001–0100, no gaps or duplicates",
+    "browserCheck": "10/10 passed (after one transient ECONNRESET retry)",
+    "discriminationProof": "fin-004-commitments-forecast.test.ts proves migration 0100 adds expected_payment_date to purchase_orders, commitment-outflows produces deterministic expected outflows from open dated same-currency POs and commitments, and the Command Centre forecast surfaces an \"Expected commitments\" stat. forecast.test.ts regression confirms existing forecast behaviour is preserved.",
     "note": "No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent during this acceptance pass."
   },
   "openFindings": [
@@ -348,7 +333,7 @@
     "GOV-006: LOCALLY ACCEPTED at 079a459. The admin audit page at /app/admin/audit reads the append-only audit_events table company-scoped and provides a Governance filter that scopes results to governance entity types (management_directive, approval_request, policy_evaluation, delegation, authority_rule). Reserved-matter decisions and escalations are not yet produced by GOV-004/GOV-002; the filter captures the entity types that will carry those events once built.",
     "GOV-003: LOCALLY ACCEPTED at 81e6d35430d85eafdfb0b88aefa8b404c4544a2b. Migration 0098 extends management_directives with target_type/target_id/action and adds management_directive_conflicts with automatic detection, capability-gated RLS and an updated_at trigger. The directives page includes target/action inputs and an open-conflicts section with resolution forms; resolveDirectiveConflict records the reason and writes a management_directive_conflict.resolved audit event. Fresh + narrow-upgrade migrations, full integration (697/77), verify, lint, build and browser-check passed.",
     "GOV-002: LOCALLY ACCEPTED at e6a99e40e8db991db65370c684819c3cb41cbcfd. Migration 0099 extends management_directives with escalation_chain, escalated_to, escalation_level, escalated_at and escalation_reason; the CRON_SECRET-gated /api/cron/directive-escalation route advances overdue unacknowledged directives up the chain or to overdue and writes append-only audit events. Full acceptance gates passed. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit).",
-    "FIN-004: IMPLEMENTATION IN PROGRESS at FIN004SHA. Migration 0100 adds expected_payment_date to purchase_orders with a company/status/date index; src/modules/finance/commitment-outflows.ts turns open, dated, same-currency POs and commitments into deterministic expected outflows; the Command Centre forecast consumes them and surfaces an 'Expected commitments' stat; the PO list/detail show the date and allow procurement to update it with an audit event. Awaiting acceptance gates and review.",
+    "FIN-004: LOCALLY ACCEPTED at d938bb202b3458745be137b71cafbc1a7e6a64c7. Migration 0100 adds expected_payment_date to purchase_orders with a company/status/date index; src/modules/finance/commitment-outflows.ts turns open, dated, same-currency POs and commitments into deterministic expected outflows; the Command Centre forecast consumes them and surfaces an \"Expected commitments\" stat; the PO list/detail show the date and allow procurement to update it with an audit event. Recurring obligations and payroll remain outside the forecast.",
     "MEM-001: LOCALLY ACCEPTED at 82b6ce9. The /app/command/memory page reads company-scoped management_cases, tasks, customers and channel_identities with provenance labels (case:/task:/customer:) and is linked from the Command Centre. No new migration is required. Future analysis producers will consume this data deterministically.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
     "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
@@ -403,9 +388,18 @@
       "rsk001": 0,
       "rsk004": 0,
       "int001": 0,
-      "gov001": 0
+      "gov001": 0,
+      "fin004": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T06:35:13Z"
+  "updatedAt": "2026-08-23T06:53:32Z",
+  "fin004LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "d938bb202b3458745be137b71cafbc1a7e6a64c7",
+    "outcome": "LOCALLY ACCEPTED: FIN-004 commitments and expected payments. Migration 0100 adds expected_payment_date to purchase_orders with a company/status/date index; src/modules/finance/commitment-outflows.ts turns open, dated, same-currency POs and commitments into deterministic expected outflows; the Command Centre cash forecast consumes them and surfaces an \"Expected commitments\" stat; the PO list/detail show the date and allow procurement to update it with an audit event.",
+    "evidence": "Added tests/campaign/fin-004-commitments-forecast.test.ts (11 passed) and refreshed tests/forecast.test.ts commitment-trough case (4 passed). Fresh disposable PostgreSQL 16 0001-0100; narrow upgrade 0099→0100; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (928 unit tests / 2 skipped / 137 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (after one transient ECONNRESET retry).",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live procurement workflow tested. Recurring obligations and payroll remain outside the forecast."
+  }
 }
