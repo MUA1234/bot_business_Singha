@@ -9,7 +9,7 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
-import { addPoLine, recordLineReceipt } from "../actions";
+import { addPoLine, recordLineReceipt, updateExpectedPaymentDate } from "../actions";
 import { ThreeWayCheck } from "./ThreeWayCheck";
 
 export const metadata = { title: "Purchase Order — Singha Central" };
@@ -20,7 +20,7 @@ export default async function PurchaseOrderDetail({ params }: { params: { id: st
 
   const { data: po } = await db
     .from("purchase_orders")
-    .select("id, po_number, total_amount, currency, status")
+    .select("id, po_number, total_amount, currency, status, expected_payment_date")
     .eq("id", params.id)
     .eq("company_id", p.companyId)
     .maybeSingle();
@@ -97,6 +97,22 @@ export default async function PurchaseOrderDetail({ params }: { params: { id: st
         <div className="mt-2">
           <ThreeWayCheck currency={po.currency} poQuantity={poQty} poAmount={String(po.total_amount ?? 0)} receivedQuantity={receivedQty} />
         </div>
+      </div>
+
+      <div className="card">
+        <div className="card-title">Expected payment date</div>
+        <p className="card-sub mt-1">When this PO is expected to be paid. Used in the Command Centre cash forecast.</p>
+        <form action={updateExpectedPaymentDate} className="row gap-1 wrap mt-2">
+          <input type="hidden" name="po_id" value={po.id} />
+          <input
+            type="date"
+            name="expected_payment_date"
+            className="input"
+            defaultValue={po.expected_payment_date ?? ""}
+            style={{ width: 180 }}
+          />
+          <button className="btn ghost sm" type="submit">Update</button>
+        </form>
       </div>
     </div>
   );

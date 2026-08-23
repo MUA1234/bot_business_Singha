@@ -86,3 +86,33 @@ export async function recordLineReceipt(formData: FormData): Promise<void> {
   await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "goods.received", entityType: "purchase_order", entityId: poId, payload: { lineId, received } });
   revalidatePath(`/app/procurement/purchase-orders/${poId}`);
 }
+
+export async function updateExpectedPaymentDate(formData: FormData): Promise<void> {
+  const p = await requireProc();
+  const poId = String(formData.get("po_id") ?? "");
+  if (!(await poInCompany(poId, p.companyId))) return;
+
+  const raw = String(formData.get("expected_payment_date") ?? "").trim();
+  const expectedPaymentDate = raw === "" ? null : raw;
+  // Reject obvious malformed dates before touching the DB.
+  if (expectedPaymentDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(expectedPaymentDate)) return;
+
+  const { error } = await supabaseWriteClient()
+    .from("purchase_orders")
+    .update({ expected_payment_date: expectedPaymentDate })
+    .eq("id", poId)
+    .eq("company_id", p.companyId);
+  if (error) return;
+
+  await writeAudit({
+    companyId: p.companyId,
+    actorId: p.userId,
+    action: "purchase_order.expected_payment_date.updated",
+    entityType: "purchase_order",
+    entityId: poId,
+    payload: { expected_payment_date: expectedPaymentDate },
+  });
+  revalidatePath(`/app/procurement/purchase-orders/${poId}`);
+  revalidatePath("/app/procurement/purchase-orders");
+  revalidatePath("/app/command");
+}

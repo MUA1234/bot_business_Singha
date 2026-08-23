@@ -26,6 +26,7 @@ import { log } from "@/lib/log";
 import { AreaLineChart, BarChart, agingBars } from "@/components/charts";
 import { projectCash, type CashFlowItem } from "@/management/ai-manager/forecast";
 import { buildBriefing } from "@/management/ai-manager/briefing";
+import { buildCommitmentOutflows, type CommitmentOutflow } from "@/modules/finance/commitment-outflows";
 
 export const metadata = { title: "Command Centre — Singha Central" };
 
@@ -95,7 +96,23 @@ export default async function CommandCentrePage() {
       .not("status", "in", "(paid,cancelled)") as any,
   "supplier_bills");
 
-  const currency = invoices[0]?.currency ?? bills[0]?.currency ?? "LKR";
+  const purchaseOrders = await safeSelect<any>(() =>
+    db
+      .from("purchase_orders")
+      .select("id, po_number, total_amount, currency, status, expected_payment_date")
+      .eq("company_id", admin.companyId)
+      .not("status", "in", "(closed,cancelled)") as any,
+  "purchase_orders");
+
+  const commitments = await safeSelect<any>(() =>
+    db
+      .from("commitments")
+      .select("id, description, amount, currency, status, expected_settlement_date")
+      .eq("company_id", admin.companyId)
+      .in("status", ["open", "partially_settled"]) as any,
+  "commitments");
+
+  const currency = invoices[0]?.currency ?? bills[0]?.currency ?? purchaseOrders[0]?.currency ?? commitments[0]?.currency ?? "LKR";
   // Outstanding = total − settled, EXACT (Decimal) — these amounts drive aging buckets, the
   // overdue exceptions below, and the cash forecast; a float subtraction drifts on both large
   // and fractional amounts.
@@ -159,13 +176,24 @@ export default async function CommandCentrePage() {
   const count = (s: Exception["severity"]) => exceptions.filter((e) => e.severity === s).length;
   const badgeClass = (s: Exception["severity"]) => (s === "critical" ? "danger" : s === "warn" ? "warn" : "info");
 
-  // 90-day cash forecast from open invoices (in) and bills (out), for the briefing.
+  // 90-day cash forecast from open invoices (in), bills (out) and committed outflows.
   const t = () => now.toISOString().slice(0, 10);
+  const commitmentOutflows: CommitmentOutflow[] = buildCommitmentOutflows({
+    purchaseOrders,
+    commitments,
+    currency,
+    now,
+    horizonDays: 90,
+  });
+  const commitmentTotal = commitmentOutflows.reduce((s, c) => s.plus(dec(c.amount)), dec("0")).toFixed();
   const fc = projectCash({
     currency,
     openingCash: cashTotal,
     inflows: invoices.map((r): CashFlowItem => ({ date: r.due_date ?? t(), amount: decSub(r.total_amount, r.amount_settled).toFixed() })).filter((i) => decGtZero(i.amount)),
-    outflows: bills.map((r): CashFlowItem => ({ date: r.due_date ?? t(), amount: decSub(r.total_amount, r.amount_settled).toFixed() })).filter((o) => decGtZero(o.amount)),
+    outflows: [
+      ...bills.map((r): CashFlowItem => ({ date: r.due_date ?? t(), amount: decSub(r.total_amount, r.amount_settled).toFixed() })).filter((o) => decGtZero(o.amount)),
+      ...commitmentOutflows.map((c): CashFlowItem => ({ date: c.date, amount: c.amount })),
+    ],
     horizonDays: 90,
   });
   const briefing = buildBriefing({
@@ -220,7 +248,7 @@ export default async function CommandCentrePage() {
       <div className="grid cols-2">
         <div className="card">
           <div className="card-title">Cash — next 90 days</div>
-          <div className="card-sub">Projected from open invoices in and bills out. The marked point is the trough.</div>
+          <div className="card-sub">Projected from open invoices in and bills / committed outflows out. The marked point is the trough.</div>
           <div className="mt-2">
             <AreaLineChart
               points={fc.points.map((p) => ({ label: p.date.slice(5), value: dec(p.balance).toNumber(), display: fmt(p.balance) }))}
@@ -259,6 +287,11 @@ export default async function CommandCentrePage() {
           <div className="k">Payables outstanding</div>
           <div className="v" style={{ fontSize: "1.4rem", color: "var(--warn)" }}>{fmt(ap.total)}</div>
           <div className="d dim">Overdue {fmt(ap.overdue)}</div>
+        </Link>
+        <Link href="/app/procurement/purchase-orders" className="card stat">
+          <div className="k">Expected commitments</div>
+          <div className="v" style={{ fontSize: "1.4rem", color: "var(--info)" }}>{fmt(commitmentTotal)}</div>
+          <div className="d dim">{commitmentOutflows.length} PO(s) / commitment(s) in forecast</div>
         </Link>
       </div>
 
