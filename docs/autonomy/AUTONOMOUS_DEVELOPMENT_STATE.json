@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": ["RSK-002"],
+  "activeRequirementIds": [],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -123,29 +123,37 @@
     "evidence": "tests/campaign/prj-001-project-registry.test.ts (5 passed); npm run verify (805 unit tests / 2 skipped / 117 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, project creation/edit UI, milestones, stage gates, or project reuse as precedent tested. The page is read-only; those remain future work."
   },
-  "lastGreenSha": "f227fef",
+  "rsk002LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "843cb05",
+    "outcome": "LOCALLY ACCEPTED: RSK-002 contracts register with renewal dates. The legal contracts page lists company-scoped contracts with counterparty, renewal date, and renewal status (expired/due_soon/upcoming) badges.",
+    "evidence": "tests/campaign/rsk-002-contracts-register.test.ts (5 passed); tests/renewals.test.ts; npm run verify (810 unit tests / 2 skipped / 118 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or automatic creation of owned dated renewal tasks tested. Renewal-task creation remains future work."
+  },
+  "lastGreenSha": "843cb05",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "PRJ-001 local acceptance pushed at 0bf6c7a on kimi/found006-rls-cutover. Selected RSK-002 (Contracts register with renewal dates) as the next implementable requirement: it is a stage4 P1 with no dependencies, no blocker, and an existing runtime entrypoint at src/app/app/legal/contracts/page.tsx that already lists company-scoped contracts with renewal status.",
-  "nextAction": "Assess RSK-002: add a campaign test asserting the contracts page is the runtime entrypoint, queries the contracts table, is company-scoped, and surfaces renewal dates/status. Mark locally_verified, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "RSK-002 local acceptance completed at 843cb05 on kimi/found006-rls-cutover. The legal contracts page lists company-scoped contracts with counterparty, renewal date, and renewal status badges. Next: run the dependency-order candidate script to select the next implementable requirement.",
+  "nextAction": "Run scripts/autonomy/check-status.mjs to identify the next unblocked, dependency-resolved requirement; implement the smallest surface change, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/prj-001-project-registry.test.ts (5 passed)"
+    "npm test -- tests/campaign/rsk-002-contracts-register.test.ts (5 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "f227fef on kimi/found006-rls-cutover",
+    "sha": "843cb05 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "805 passed / 2 skipped / 117 files",
-    "integrationFresh": "not rerun for PRJ-001 (no database change)",
-    "integrationNarrowUpgrade": "not rerun for PRJ-001",
-    "integrationLegacyUpgrade": "not rerun for PRJ-001",
-    "migrationIdempotency": "not rerun for PRJ-001",
+    "unit": "810 passed / 2 skipped / 118 files",
+    "integrationFresh": "not rerun for RSK-002 (no database change)",
+    "integrationNarrowUpgrade": "not rerun for RSK-002",
+    "integrationLegacyUpgrade": "not rerun for RSK-002",
+    "migrationIdempotency": "not rerun for RSK-002",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 805 unit tests (2 skipped / 117 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 810 unit tests (2 skipped / 118 files)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "prj-001-project-registry.test.ts proves the page is a real runtime entrypoint under /app/operations/projects, queries the projects table, is company-scoped, renders lifecycle status, and links from the operations home.",
-    "note": "PRJ-001 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "discriminationProof": "rsk-002-contracts-register.test.ts proves the page is a real runtime entrypoint under /app/legal/contracts, queries the contracts table, is company-scoped, and surfaces renewal dates and status.",
+    "note": "RSK-002 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -162,6 +170,7 @@
     "CRM-002: LOCALLY ACCEPTED at 5349d00. The procurement suppliers page shows canonical suppliers, attached channel_identities, duplicate-identity warnings, and bank details with a maker-checker change-control badge. Automated merge and change-request UI remain future work.",
     "WRK-001: LOCALLY ACCEPTED at af81ed8. The HR leave page lists company-scoped leave_requests joined with profiles and shows remaining annual leave per person. Attendance, travel, sickness, working-hours modelling and assignment consumption remain future work.",
     "PRJ-001: LOCALLY ACCEPTED at f227fef. The operations projects page lists company-scoped projects with lifecycle status and links from the operations home. Milestones, stage gates and project precedent reuse remain future work.",
+    "RSK-002: LOCALLY ACCEPTED at 843cb05. The legal contracts page lists company-scoped contracts with counterparty, renewal date, and renewal status badges. Automatic creation of owned dated renewal tasks remains future work.",
     "GOV-004: BLOCKED_OWNER. Board-reserved matters and emergency suspension requires the owner to define the reserved-matter list before implementation.",
     "FIN-008: BLOCKED. Evidence is not required at payment recording; the evidence-first path is owned by FOUND-003, which is blocked_owner.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
@@ -208,5 +217,5 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T01:30:00Z"
+  "updatedAt": "2026-08-23T01:33:00Z"
 }

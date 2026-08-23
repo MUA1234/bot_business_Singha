@@ -11,8 +11,8 @@ Generated at: 2026-08-23
 | Status | Count |
 |---|---|
 | absent | 41 |
-| locally_verified | 23 |
-| foundation_only | 15 |
+| locally_verified | 24 |
+| foundation_only | 14 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **23** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **62** |
+| **Verified** (locally / preview / staging / production) | **24** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **61** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -56,7 +56,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | MOD | 3 | 1 | 2 |
 | OPS | 8 | 2 | 6 |
 | PRJ | 5 | 1 | 4 |
-| RSK | 6 | 0 | 6 |
+| RSK | 6 | 1 | 5 |
 | SCH | 6 | 1 | 5 |
 | WRK | 5 | 1 | 4 |
 
@@ -138,7 +138,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | PRJ-004 | Project risks, decisions and scenario comparison | P2 | **absent** | none | none | — |
 | PRJ-005 | Portfolio prioritisation | P2 | **absent** | none | none | — |
 | RSK-001 | Risk register with owner, evidence and due dates | P1 | **absent** | none | none | — |
-| RSK-002 | Contracts register with renewal dates | P1 | **foundation_only** | src/app/app/legal/contracts/page.tsx | 1ebaa80 | — |
+| RSK-002 | Contracts register with renewal dates | P1 | **locally_verified** | src/app/app/legal/contracts/page.tsx | 843cb05 | — |
 | RSK-003 | Licences and permits with expiry | P1 | **foundation_only** | src/app/app/legal/licences/page.tsx | 1ebaa80 | — |
 | RSK-004 | Insurance register and renewals | P1 | **absent** | none | none | — |
 | RSK-005 | Incidents and statutory obligations | P1 | **absent** | none | none | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **62**; blocked (owner): **4**;
+mode. Incomplete and implementable: **61**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

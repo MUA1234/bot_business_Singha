@@ -1607,17 +1607,17 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: []
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/app/legal/contracts/page.tsx
-    database_evidence: contracts
+    database_evidence: contracts (migration 0012)
     service_evidence: src/management/ai-manager/renewals.ts
-    ui_evidence: legal contracts pages
-    test_evidence: tests/renewals.test.ts
-    security_evidence: legal department gate
+    ui_evidence: src/app/app/legal/contracts/page.tsx lists company-scoped contracts with counterparty, renewal date, and renewal status badges
+    test_evidence: tests/campaign/rsk-002-contracts-register.test.ts (5); tests/renewals.test.ts
+    security_evidence: legal department gate; page queries are scoped to requireDepartment("legal") company_id
     audit_health_evidence: legal overview flags due/expired
-    last_verified_sha: 1ebaa80
-    last_verified_at: 2026-08-17
+    last_verified_sha: 843cb05
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
     residual_risks: Renewals are displayed but do not create owned, dated tasks.
