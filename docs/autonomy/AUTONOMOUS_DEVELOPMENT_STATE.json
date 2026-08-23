@@ -278,10 +278,10 @@
     "evidence": "tests/campaign/gov-002-directive-escalation.test.ts (15 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression); tests/campaign/cron-auth.test.ts (9 passed regression); fresh disposable PostgreSQL 16 0001-0099 full migration; narrow upgrade 0098→0099; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (916 unit tests / 2 skipped / 136 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
   },
-  "lastGreenSha": "a2e59c3",
+  "lastGreenSha": "07dfad8",
   "latestMigration": "0108_push_subscriptions.sql",
-  "lastCompletedAction": "Completed MOB-003 acceptance, register correction and coverage-matrix regeneration. No unblocked implementable requirements remain.",
-  "nextAction": "Stop: only blocked_owner, deliberately_deferred, or dependency-blocked requirements remain in the register. Resume when an owner gate is cleared or a dependency becomes verified.",
+  "lastCompletedAction": "Completed MOB-003 acceptance, register correction, coverage-matrix regeneration and owner-gate/staging handoff document. No unblocked implementable requirements remain.",
+  "nextAction": "Stop: only blocked_owner, deliberately_deferred, or dependency-blocked requirements remain. Resume when an owner gate is cleared or a dependency becomes verified. See docs/autonomy/OWNER_GATE_AND_STAGING_HANDOFF.md for the handoff at head 07dfad8.",
   "lastTargetedTests": [
     "tests/mobile-api.test.ts (7 passed)",
     "tests/campaign/mob-003-mobile-api.test.ts (10 passed)"
@@ -423,7 +423,7 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T23:15:00.000Z",
+  "updatedAt": "2026-08-24T00:00:00.000Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
