@@ -944,20 +944,20 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: []
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: tax fields on invoices/bills
-    service_evidence: src/modules/finance/tax.ts
-    ui_evidence: none
-    test_evidence: tests/tax.test.ts
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/app/finance/tax-codes/page.tsx
+    database_evidence: tax_codes table; tax fields on invoices/bills
+    service_evidence: src/accounting/tax.ts taxAmount; src/modules/finance/tax.ts
+    ui_evidence: src/app/app/finance/tax-codes/page.tsx lists company-scoped tax codes with code, name, rate and sample tax amount computed by taxAmount, plus a create action
+    test_evidence: tests/campaign/fin-005-tax-codes-surface.test.ts (5); tests/tax.test.ts
+    security_evidence: finance department gate; page queries scoped to requireDepartment("finance") company_id
+    audit_health_evidence: tax code creation audited via server action
+    last_verified_sha: 74d3be6
+    last_verified_at: 2026-08-23
     owner_gate: authorised finance reviewer identity
     blocker: none
-    residual_risks: Tax helpers are pure and tested but nothing routes an uncertain treatment to a human.
+    residual_risks: Tax helpers are pure and tested; routing uncertain treatment to a human reviewer remains future work.
   - id: FIN-006
     title: Budget versus actual and scenario analysis
     description: Budgets per period and per project compared with actuals, with what-if scenarios.

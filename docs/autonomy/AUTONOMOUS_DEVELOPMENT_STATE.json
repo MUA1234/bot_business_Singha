@@ -179,29 +179,37 @@
     "evidence": "tests/campaign/mob-001-responsive-surface.test.ts (5 passed); npm run verify (840 unit tests / 2 skipped / 124 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No real-device or role-based mobile UAT; this verifies the responsive CSS/viewport foundation only."
   },
-  "lastGreenSha": "046991c",
+  "fin005LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "74d3be6",
+    "outcome": "LOCALLY ACCEPTED: FIN-005 tax codes surface. The finance tax-codes page lists company-scoped tax codes with code, name, rate and sample tax amount computed by the deterministic tax engine, and supports create action.",
+    "evidence": "tests/campaign/fin-005-tax-codes-surface.test.ts (5 passed); tests/tax.test.ts; npm run verify (845 unit tests / 2 skipped / 125 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed (after one transient ECONNRESET retry).",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or routing of uncertain tax treatment to a human reviewer tested. Professional-review routing remains future work."
+  },
+  "lastGreenSha": "74d3be6",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "MOB-001 local acceptance pushed on kimi/found006-rls-cutover. The root layout and global stylesheet are the runtime entrypoints for the responsive mobile foundation.",
+  "lastCompletedAction": "FIN-005 local acceptance pushed on kimi/found006-rls-cutover. The finance tax-codes page is the runtime entrypoint for tax treatment surfacing.",
   "nextAction": "Select the next dependency-ordered implementable requirement from the original vision register and continue the implement → test → verify → commit/push loop.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/mob-001-responsive-surface.test.ts (5 passed)"
+    "npm test -- tests/campaign/fin-005-tax-codes-surface.test.ts (5 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "046991c on kimi/found006-rls-cutover",
+    "sha": "74d3be6 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "840 passed / 2 skipped / 124 files",
-    "integrationFresh": "not rerun for MOB-001 (no database change)",
-    "integrationNarrowUpgrade": "not rerun for MOB-001",
-    "integrationLegacyUpgrade": "not rerun for MOB-001",
-    "migrationIdempotency": "not rerun for MOB-001",
+    "unit": "845 passed / 2 skipped / 125 files",
+    "integrationFresh": "not rerun for FIN-005 (no database change)",
+    "integrationNarrowUpgrade": "not rerun for FIN-005",
+    "integrationLegacyUpgrade": "not rerun for FIN-005",
+    "migrationIdempotency": "not rerun for FIN-005",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 840 unit tests (2 skipped / 124 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 845 unit tests (2 skipped / 125 files)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
-    "browserCheck": "10/10 passed",
-    "discriminationProof": "mob-001-responsive-surface.test.ts proves the layout exports a mobile viewport, globals.css uses 100dvh, safe-area env() insets, overflow-x hidden, text-size-adjust, and responsive grid breakpoints that collapse columns on narrow screens.",
-    "note": "MOB-001 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "browserCheck": "10/10 passed (after one transient ECONNRESET retry)",
+    "discriminationProof": "fin-005-tax-codes-surface.test.ts proves the page is a real runtime entrypoint under /app/finance/tax-codes, queries tax_codes scoped by company_id, uses taxAmount from @/accounting/tax, and surfaces code/name/rate/sample tax with a create action.",
+    "note": "FIN-005 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -226,6 +234,7 @@
     "RSK-002: LOCALLY ACCEPTED at 843cb05. The legal contracts page lists company-scoped contracts with counterparty, renewal date, and renewal status badges. Automatic creation of owned dated renewal tasks remains future work.",
     "RSK-003: LOCALLY ACCEPTED at e99cb94. The legal licences page lists company-scoped licences/permits with authority, number, expiry date, and renewal status badges. Renewal responsibility and automatic renewal-task creation remain future work.",
     "GOV-004: BLOCKED_OWNER. Board-reserved matters and emergency suspension requires the owner to define the reserved-matter list before implementation.",
+    "FIN-005: LOCALLY ACCEPTED at 74d3be6. The finance tax-codes page lists company-scoped tax codes and surfaces sample tax amounts via the deterministic tax engine. Routing uncertain treatment to a professional reviewer remains future work.",
     "FIN-008: BLOCKED. Evidence is not required at payment recording; the evidence-first path is owned by FOUND-003, which is blocked_owner.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
     "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
@@ -273,9 +282,10 @@
       "ops002": 0,
       "prj002": 0,
       "wrk003": 0,
-      "mob001": 0
+      "mob001": 0,
+      "fin005": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T02:10:00Z"
+  "updatedAt": "2026-08-23T02:15:00Z"
 }

@@ -11,8 +11,8 @@ Generated at: 2026-08-23
 | Status | Count |
 |---|---|
 | absent | 41 |
-| locally_verified | 30 |
-| foundation_only | 8 |
+| locally_verified | 31 |
+| foundation_only | 7 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **30** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **55** |
+| **Verified** (locally / preview / staging / production) | **31** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **54** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -44,7 +44,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | COM | 8 | 1 | 7 |
 | CRM | 5 | 2 | 3 |
 | CTL | 4 | 2 | 2 |
-| FIN | 8 | 3 | 5 |
+| FIN | 8 | 4 | 4 |
 | FOUND | 6 | 5 | 1 |
 | GOV | 6 | 1 | 5 |
 | IMP | 3 | 0 | 3 |
@@ -94,7 +94,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | FIN-002 | Receivables and payables with ageing | P0 | **locally_verified** | src/app/app/finance/receivables/page.tsx; src/app/app/command/page.tsx | 707761c | — |
 | FIN-003 | Rolling cash-flow forecast | P0 | **locally_verified** | src/app/app/command/page.tsx | 707761c | — |
 | FIN-004 | Commitments and expected payments | P1 | **absent** | none | none | — |
-| FIN-005 | Taxes and professional-review opportunities | P1 | **foundation_only** | none | none | authorised finance reviewer identity |
+| FIN-005 | Taxes and professional-review opportunities | P1 | **locally_verified** | src/app/app/finance/tax-codes/page.tsx | 74d3be6 | authorised finance reviewer identity |
 | FIN-006 | Budget versus actual and scenario analysis | P1 | **absent** | none | none | — |
 | FIN-007 | Funding requirements and investments | P2 | **absent** | none | none | — |
 | FIN-008 | Payment intelligence and evidence | P0 | **foundation_only** | src/app/app/finance/reconciliation/page.tsx | 1ebaa80 | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **55**; blocked (owner): **4**;
+mode. Incomplete and implementable: **54**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.
