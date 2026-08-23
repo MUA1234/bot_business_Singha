@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 56 |
-| absent | 22 |
+| locally_verified | 57 |
+| absent | 21 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **56** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **29** |
+| **Verified** (locally / preview / staging / production) | **57** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **28** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -55,7 +55,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | MOB | 4 | 1 | 3 |
 | MOD | 3 | 2 | 1 |
 | OPS | 8 | 3 | 5 |
-| PRJ | 5 | 4 | 1 |
+| PRJ | 5 | 5 | 0 |
 | RSK | 6 | 5 | 1 |
 | SCH | 6 | 5 | 1 |
 | WRK | 5 | 3 | 2 |
@@ -136,7 +136,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | PRJ-002 | Objectives, milestones and stage gates | P1 | **locally_verified** | src/app/app/admin/objectives/page.tsx | e759c10 | — |
 | PRJ-003 | Project budgets, forecasts and resource requirements | P1 | **locally_verified** | src/app/app/operations/projects/[id]/page.tsx | 4ca0f227ec0b3c928bd42b077ed08622c2f7920f | — |
 | PRJ-004 | Project risks, decisions and scenario comparison | P2 | **locally_verified** | src/app/app/operations/projects/[id]/page.tsx | d0e08db70c2d5d7b32c98e29377d7373efbc1422 | — |
-| PRJ-005 | Portfolio prioritisation | P2 | **absent** | none | none | — |
+| PRJ-005 | Portfolio prioritisation | P2 | **locally_verified** | src/app/app/operations/projects/page.tsx | 5cefe6a56c91fcb507fee17be2cc89e61685d1b8 | — |
 | RSK-001 | Risk register with owner, evidence and due dates | P1 | **locally_verified** | src/app/app/legal/risks/page.tsx | 299b296 | — |
 | RSK-002 | Contracts register with renewal dates | P1 | **locally_verified** | src/app/app/legal/contracts/page.tsx | 843cb05 | — |
 | RSK-003 | Licences and permits with expiry | P1 | **locally_verified** | src/app/app/legal/licences/page.tsx | e99cb94 | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **29**; blocked (owner): **4**;
+mode. Incomplete and implementable: **28**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

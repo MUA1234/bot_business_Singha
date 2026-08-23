@@ -1,21 +1,20 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": ["PRJ-005"],
+  "activeRequirementIds": [],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "76e98a8fe6620d578221be85f4798c78e147aa67",
-    "outcome": "LOCALLY ACCEPTED: CTL-002 Cross-company portfolio overview. The /app/portfolio page resolves the admin's active memberships, queries only those companies, and surfaces a ranked table of project, task, cash, overdue AR/AP, risk, incident and obligation signals. Aggregation is deterministic and uses existing exact-decimal finance helpers. Company isolation is preserved by membership gating.",
+    "testedSha": "5cefe6a56c91fcb507fee17be2cc89e61685d1b8",
+    "outcome": "LOCALLY ACCEPTED: PRJ-005 Portfolio prioritisation. The projects list page ranks active projects by value (scenario expected total), risk (open project-risk exposure), capacity pressure (overloaded assigned people) and overdue/blocked dependencies using deterministic pure helpers. Per-axis ranks and an overall priority order are surfaced in the UI.",
     "container": "disposable local PostgreSQL 16 (port 55441) with supabase-shim",
     "corrections": [
-      "Added src/modules/management/portfolio.ts with pure deterministic summarizeCompanyPortfolio and rankPortfolioByUrgency helpers.",
-      "Added src/app/app/portfolio/page.tsx gated to requireAdmin; resolves active memberships, queries only those companies, aggregates per-company signals, and renders a ranked table.",
-      "Linked /app/portfolio from the Command Centre header.",
-      "Added tests/portfolio.test.ts (8 passed) and tests/campaign/ctl-002-cross-company-portfolio.test.ts (9 passed).",
-      "No new migration required; reuses existing companies, memberships, projects, tasks, risks, incidents, obligations, bank/cash accounts, payments, customer_invoices and supplier_bills tables.",
+      "Added src/modules/project/portfolio-prioritisation.ts with rankProjectsByPriority, projectRiskExposure and transparent PRIORITY_WEIGHTS.",
+      "Updated src/app/app/operations/projects/page.tsx to load project scenarios, project risks, tasks with assignments, memberships and employee profiles; compute per-project prioritisation inputs; and render a ranked project table with value/risk/capacity/dependency ranks.",
+      "Added tests/portfolio-prioritisation.test.ts (9 passed) and tests/campaign/prj-005-portfolio-prioritisation.test.ts (6 passed).",
+      "No new migration required; reuses existing projects, project_scenarios, project_risks, tasks, task_assignments, memberships and employee_profiles tables.",
       "Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on.",
-      "npm run verify (1146 unit tests / 2 skipped / 160 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (after one transient ECONNRESET retry)."
+      "npm run verify (1161 unit tests / 2 skipped / 162 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed."
     ]
   },
   "currentBranch": "kimi/found006-rls-cutover",
@@ -277,20 +276,20 @@
     "evidence": "tests/campaign/gov-002-directive-escalation.test.ts (15 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression); tests/campaign/cron-auth.test.ts (9 passed regression); fresh disposable PostgreSQL 16 0001-0099 full migration; narrow upgrade 0098→0099; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (916 unit tests / 2 skipped / 136 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
   },
-  "lastGreenSha": "76e98a8fe6620d578221be85f4798c78e147aa67",
+  "lastGreenSha": "5cefe6a56c91fcb507fee17be2cc89e61685d1b8",
   "latestMigration": "0107_project_risks_decisions_scenarios.sql",
-  "lastCompletedAction": "Selected PRJ-005 Portfolio prioritisation as the next dependency-ordered requirement.",
-  "nextAction": "Implement PRJ-005: add deterministic project prioritisation scoring that ranks projects by value, risk, capacity and dependency, with a UI surface and tests.",
+  "lastCompletedAction": "Accepted PRJ-005 Portfolio prioritisation.",
+  "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml.",
   "lastTargetedTests": [
-    "tests/portfolio.test.ts (8 passed)",
-    "tests/campaign/ctl-002-cross-company-portfolio.test.ts (9 passed)"
+    "tests/portfolio-prioritisation.test.ts (9 passed)",
+    "tests/campaign/prj-005-portfolio-prioritisation.test.ts (6 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "76e98a8fe6620d578221be85f4798c78e147aa67 on kimi/found006-rls-cutover",
+    "sha": "5cefe6a56c91fcb507fee17be2cc89e61685d1b8 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "1146 passed / 2 skipped / 160 files",
-    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0107 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
+    "unit": "1161 passed / 2 skipped / 162 files",
+    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0107 fresh7 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
     "integrationNarrowUpgrade": "not run for this package (no new migration)",
     "integrationLegacyUpgrade": "not run for this package (no legacy baseline change)",
     "migrationIdempotency": "migration-lint 0001-0107 sequential, no gaps or duplicates",
@@ -298,8 +297,8 @@
     "verify": "passed: secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests",
     "secretScan": "no tracked secrets found",
     "migrationLint": "107 migrations, sequential 0001–0107, no gaps or duplicates",
-    "browserCheck": "10/10 passed (succeeded on second attempt after transient ECONNRESET)",
-    "discriminationProof": "tests/campaign/ctl-002-cross-company-portfolio.test.ts proves /app/portfolio is gated to admin, resolves active memberships, queries only those companies, uses pure deterministic helpers, and links from the Command Centre.",
+    "browserCheck": "10/10 passed",
+    "discriminationProof": "tests/campaign/prj-005-portfolio-prioritisation.test.ts proves the projects page imports rankProjectsByPriority, loads project scenarios/risks/tasks, surfaces per-axis ranks in the table, and sorts by priority score.",
     "note": "No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent during this acceptance pass."
   },
   "openFindings": [
@@ -419,7 +418,7 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T21:32:00.000Z",
+  "updatedAt": "2026-08-23T21:47:00.000Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -523,5 +522,13 @@
     "outcome": "LOCALLY ACCEPTED: CTL-002 Cross-company portfolio overview. The /app/portfolio page is gated to requireAdmin, resolves the current user's active memberships, queries only those companies, and surfaces a ranked table of project, task, cash, overdue AR/AP, risk, incident and obligation signals using pure deterministic helpers. Company isolation is preserved because only membership-linked companies are loaded.",
     "evidence": "Added src/modules/management/portfolio.ts with summarizeCompanyPortfolio and rankPortfolioByUrgency. Added src/app/app/portfolio/page.tsx that loads active memberships, then per-company projects/tasks/risks/incidents/obligations/cash/payments/invoices/bills/capacity snapshots, and renders a ranked table. Linked /app/portfolio from the Command Centre header. Added tests/portfolio.test.ts (8 passed) and tests/campaign/ctl-002-cross-company-portfolio.test.ts (9 passed). No new migration required; reuses existing companies/memberships/projects/tasks/risks/incidents/obligations/bank_accounts/cash_accounts/payments/customer_invoices/supplier_bills/capacity_snapshots tables. Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1146 unit tests / 2 skipped / 160 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (succeeded on second attempt after transient ECONNRESET).",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live multi-company data tested. Cash/AR/AP are shown in the company's base currency; cross-currency aggregation is not converted. Historical capacity_snapshots are not consumed for workload."
+  },
+  "prj005LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "5cefe6a56c91fcb507fee17be2cc89e61685d1b8",
+    "outcome": "LOCALLY ACCEPTED: PRJ-005 Portfolio prioritisation. The /app/operations/projects page loads project scenarios, open risks, tasks and assignments, computes per-project resource requirements, and ranks the registry by a deterministic Borda-style score across value, risk, capacity and dependency axes. Weights are inspectable constants in src/modules/project/portfolio-prioritisation.ts.",
+    "evidence": "Added src/modules/project/portfolio-prioritisation.ts with rankProjectsByPriority, projectRiskExposure and PRIORITY_WEIGHTS. Updated src/app/app/operations/projects/page.tsx to load scenarios/risks/tasks/memberships/employee_profiles, compute per-project overloaded people and overdue/blocked tasks, and render a prioritised table with value/risk/capacity/dependency ranks. Added tests/portfolio-prioritisation.test.ts (9 passed) and tests/campaign/prj-005-portfolio-prioritisation.test.ts (6 passed). No new migration required; reuses existing projects/project_risks/project_decisions/project_scenarios/tasks/task_assignments/memberships/employee_profiles tables. Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1161 unit tests / 2 skipped / 162 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live project portfolio data tested. Ranking weights are simple constants and should be reviewed against IP-001 before any proprietary weighting is committed. Project dependencies are proxied by unresolved decisions and blocked/overdue tasks because explicit project-dependency links are not modelled."
   }
 }

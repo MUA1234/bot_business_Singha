@@ -837,17 +837,17 @@ requirements:
     phase: stage4
     priority: P2
     dependencies: [PRJ-003, PRJ-004]
-    status: absent
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/app/operations/projects/page.tsx
+    database_evidence: existing projects, project_risks, project_decisions, project_scenarios, tasks, task_assignments, memberships, employee_profiles
+    service_evidence: src/modules/project/portfolio-prioritisation.ts
+    ui_evidence: /app/operations/projects page ranks projects in a prioritised table with per-axis ranks
+    test_evidence: tests/portfolio-prioritisation.test.ts; tests/campaign/prj-005-portfolio-prioritisation.test.ts
+    security_evidence: requireDepartment("operations") gate; company-scoped queries; aggregation is deterministic and uses exact-decimal scenario comparison
+    audit_health_evidence: project.prioritisation_query_failed structured log on data-source failures
+    last_verified_sha: 5cefe6a56c91fcb507fee17be2cc89e61685d1b8
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
     residual_risks: Ranking weights are proprietary — see IP-001 before committing any weighting.
@@ -1498,9 +1498,9 @@ requirements:
     phase: stage4
     priority: P2
     dependencies: [CTL-001, FIN-003, WRK-002]
-    status: implementation_in_progress
+    status: absent
     feature_flag: none
-    runtime_entrypoint: src/app/app/command/health/page.tsx
+    runtime_entrypoint: none
     database_evidence: none
     service_evidence: none
     ui_evidence: none
