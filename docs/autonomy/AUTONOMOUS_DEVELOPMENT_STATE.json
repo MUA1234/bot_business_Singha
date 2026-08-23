@@ -419,7 +419,7 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T21:25:00.000Z",
+  "updatedAt": "2026-08-23T21:30:00.000Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -515,5 +515,13 @@
     "outcome": "LOCALLY ACCEPTED: SCH-003 Leave and workload-aware scheduling. The CRON_SECRET-gated /api/cron/follow-ups route reads approved leave_requests and active task assignment estimates, builds per-user availability, skips assignees on approved leave, ranks reachable assignees by free hours, advances past on-leave escalation targets, and falls back to available company admins. The assignTask action refuses to assign a task to someone on approved leave and writes a task.assignment_refused_leave audit event. Pure availability helpers in src/modules/work/availability.ts are deterministic and unit tested.",
     "evidence": "Added src/modules/work/availability.ts with isOnLeave, evaluateAvailability, rankAvailableCandidates, selectBestAvailable and buildAvailabilityInputs. Updated src/app/api/cron/follow-ups/route.ts to load approved leave and workload, skip on-leave assignees, rank by workload, advance escalation chain, and report skippedLeave. Updated src/app/app/operations/tasks/actions.ts assignTask to refuse assignment to on-leave profiles. Added tests/availability.test.ts (10 passed) and tests/campaign/sch-003-leave-workload-aware-scheduling.test.ts (11 passed). No new migration required; reuses existing leave_requests (0017), employee_profiles (0010/0025) and task_assignments (0024/0025) tables. Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1129 unit tests / 2 skipped / 158 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Workload uses assignment-level estimates; historical capacity_snapshots are not consumed. Automatic assignment selection (autoAssign) is not exposed in the UI."
+  },
+  "ctl002LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "76e98a8fe6620d578221be85f4798c78e147aa67",
+    "outcome": "LOCALLY ACCEPTED: CTL-002 Cross-company portfolio overview. The /app/portfolio page is gated to requireAdmin, resolves the current user's active memberships, queries only those companies, and surfaces a ranked table of project, task, cash, overdue AR/AP, risk, incident and obligation signals using pure deterministic helpers. Company isolation is preserved because only membership-linked companies are loaded.",
+    "evidence": "Added src/modules/management/portfolio.ts with summarizeCompanyPortfolio and rankPortfolioByUrgency. Added src/app/app/portfolio/page.tsx that loads active memberships, then per-company projects/tasks/risks/incidents/obligations/cash/payments/invoices/bills/capacity snapshots, and renders a ranked table. Linked /app/portfolio from the Command Centre header. Added tests/portfolio.test.ts (8 passed) and tests/campaign/ctl-002-cross-company-portfolio.test.ts (9 passed). No new migration required; reuses existing companies/memberships/projects/tasks/risks/incidents/obligations/bank_accounts/cash_accounts/payments/customer_invoices/supplier_bills/capacity_snapshots tables. Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1146 unit tests / 2 skipped / 160 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (succeeded on second attempt after transient ECONNRESET).",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live multi-company data tested. Cash/AR/AP are shown in the company's base currency; cross-currency aggregation is not converted. Historical capacity_snapshots are not consumed for workload."
   }
 }
