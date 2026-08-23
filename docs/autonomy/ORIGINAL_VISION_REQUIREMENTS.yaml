@@ -1200,20 +1200,20 @@ requirements:
     phase: stage3
     priority: P1
     dependencies: [SCH-002]
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/api/cron/follow-ups/route.ts
-    database_evidence: tasks status escalated
-    service_evidence: src/modules/work/follow-up.ts escalation branch
+    database_evidence: src/db/migrations/0103_task_escalation_chain.sql (escalation_chain, escalation_level, escalated_to, escalated_at, escalation_reason, last_reminder_at on tasks); refreshed tasks RLS so escalated_to can see/update the task
+    service_evidence: src/modules/work/follow-up.ts selectEscalationTarget; src/app/api/cron/follow-ups/route.ts walks the chain, advances level, falls back to admins when exhausted; src/app/app/operations/tasks/actions.ts setTaskEscalationChain
     ui_evidence: none
-    test_evidence: tests/follow-up.test.ts
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    test_evidence: tests/campaign/sch-004-escalation-chain.test.ts; tests/follow-up.test.ts
+    security_evidence: CRON_SECRET fail-closed timingSafeEqual gate; ops-only server action validates chain members belong to the task's company and are active
+    audit_health_evidence: task.escalation_chain_set audit event; follow_up.enqueued / follow_up.escalated audit events
+    last_verified_sha: 52547a2c68d622807d641134dc597e114fe5d028
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: Escalates to company admins generically rather than to a defined chain.
+    residual_risks: Chain is set manually through the server action; there is no automatic proposal of an escalation chain from role/capability data (WRK-005/AIM-006 unbuilt).
   - id: SCH-005
     title: Handovers and meeting-action extraction
     description: Structured handover between people or shifts, and actions extracted from meetings.

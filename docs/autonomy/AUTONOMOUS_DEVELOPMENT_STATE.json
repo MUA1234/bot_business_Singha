@@ -1,24 +1,21 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [
-    "SCH-004"
-  ],
+  "activeRequirementIds": [],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "9ed08e12ecb08e1c1832aa0f8e38273e9005b936",
-    "outcome": "LOCALLY ACCEPTED: SCH-002 SLAs, 24/48-hour follow-ups and reminders. The CRON_SECRET-gated /api/cron/follow-ups route resolves task assignees through task_assignments → memberships → profiles, enqueues internal WhatsApp reminders via message_outbox, writes follow_up.enqueued / follow_up.escalated audit events, and fails closed on missing/invalid CRON_SECRET or read errors.",
+    "testedSha": "52547a2c68d622807d641134dc597e114fe5d028",
+    "outcome": "LOCALLY ACCEPTED: SCH-004 Escalation and missed-response recovery. Migration 0103 adds escalation_chain, escalation_level, escalated_to, escalated_at, escalation_reason and last_reminder_at to tasks. The CRON_SECRET-gated /api/cron/follow-ups route walks the defined per-task chain, advances one step per escalation sweep, falls back to company admins when the chain is exhausted, persists reminder/escalation state, and writes audit events.",
     "container": "disposable local PostgreSQL 16 (port 55441) with supabase-shim",
     "corrections": [
-      "Rewrote src/app/api/cron/follow-ups/route.ts to remove the non-existent tasks.assigned_to reference; assignees are resolved through task_assignments joined to active memberships and profiles.",
-      "Kept fail-closed CRON_SECRET timingSafeEqual gate and added explicit error handling for profile/task/assignment/membership reads.",
-      "Added per-recipient enqueue through src/lib/outbox-enqueue.ts with channel=whatsapp and kind=internal, and daily idempotency key per task per assignee.",
-      "Added follow_up.enqueued / follow_up.escalated audit events via src/lib/audit.ts when any message is enqueued.",
-      "Added tests/campaign/sch-002-follow-ups-surface.test.ts (14 passed) covering auth failures, empty runs, reminder enqueue for assigned tasks, escalation to admins, and audit events.",
-      "Updated tests/campaign/cron-auth.test.ts to include the follow-ups route (10 routes total).",
-      "tests/follow-up.test.ts (10 passed regression) and tests/campaign/cron-auth.test.ts (10 passed) confirm the evaluateFollowUp module and cron auth boundaries are intact.",
-      "Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (1023 unit tests / 2 skipped / 146 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed."
+      "Added src/db/migrations/0103_task_escalation_chain.sql extending tasks with escalation chain columns and refreshing RLS so escalated_to can see/update the task.",
+      "Added selectEscalationTarget to src/modules/work/follow-up.ts — pure, deterministic chain advancement with chain_exhausted fallback.",
+      "Updated src/app/api/cron/follow-ups/route.ts to read escalation columns and last_reminder_at, pass lastReminderAt to evaluateFollowUp, advance the chain on escalation, update task status/level/escalated_to/escalated_at/escalation_reason/last_reminder_at, and fall back to admins when the chain is exhausted.",
+      "Added setTaskEscalationChain server action in src/app/app/operations/tasks/actions.ts; it validates chain members are active profiles in the same company and writes a task.escalation_chain_set audit event.",
+      "Added tests/campaign/sch-004-escalation-chain.test.ts (8 passed) and extended tests/follow-up.test.ts with selectEscalationTarget coverage (14 tests total).",
+      "Fresh disposable PostgreSQL 16 0001-0103 and narrow upgrade 0102→0103 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on.",
+      "npm run verify (1036 unit tests / 2 skipped / 147 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed."
     ]
   },
   "currentBranch": "kimi/found006-rls-cutover",
@@ -280,30 +277,30 @@
     "evidence": "tests/campaign/gov-002-directive-escalation.test.ts (15 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression); tests/campaign/cron-auth.test.ts (9 passed regression); fresh disposable PostgreSQL 16 0001-0099 full migration; narrow upgrade 0098→0099; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (916 unit tests / 2 skipped / 136 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
   },
-  "lastGreenSha": "9ed08e12ecb08e1c1832aa0f8e38273e9005b936",
-  "latestMigration": "0102_counterparty_compliance.sql",
-  "lastCompletedAction": "Selected SCH-004 Escalation and missed-response recovery as the next dependency-ordered implementable requirement (foundation_only; deps SCH-002 verified; shares /api/cron/follow-ups/route.ts).",
-  "nextAction": "Add task escalation chain persistence, update the follow-ups cron route to walk a defined chain, recover missed responses by advancing the chain, and add campaign tests.",
+  "lastGreenSha": "52547a2c68d622807d641134dc597e114fe5d028",
+  "latestMigration": "0103_task_escalation_chain.sql",
+  "lastCompletedAction": "Accepted SCH-004 Escalation and missed-response recovery as locally verified on kimi/found006-rls-cutover at 52547a2c68d622807d641134dc597e114fe5d028.",
+  "nextAction": "Select the next dependency-ordered implementable requirement and continue the autonomous pass.",
   "lastTargetedTests": [
-    "tests/campaign/sch-002-follow-ups-surface.test.ts (14 passed)",
-    "tests/campaign/cron-auth.test.ts (10 passed)",
-    "tests/follow-up.test.ts (10 passed regression)"
+    "tests/campaign/sch-004-escalation-chain.test.ts (8 passed)",
+    "tests/follow-up.test.ts (14 passed)",
+    "tests/campaign/sch-002-follow-ups-surface.test.ts (8 passed regression)"
   ],
   "lastFullGateResults": {
-    "sha": "9ed08e12ecb08e1c1832aa0f8e38273e9005b936 on kimi/found006-rls-cutover",
+    "sha": "52547a2c68d622807d641134dc597e114fe5d028 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "1023 passed / 2 skipped / 146 files",
-    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0102 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
-    "integrationNarrowUpgrade": "passed: 0101→0102",
+    "unit": "1036 passed / 2 skipped / 147 files",
+    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0103 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
+    "integrationNarrowUpgrade": "passed: 0102→0103",
     "integrationLegacyUpgrade": "not run for this package (foundation branch; previous requirements covered legacy upgrades)",
-    "migrationIdempotency": "migration-lint 0001-0102 sequential, no gaps or duplicates",
+    "migrationIdempotency": "migration-lint 0001-0103 sequential, no gaps or duplicates",
     "build": "clean",
     "verify": "passed: secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests",
     "secretScan": "no tracked secrets found",
-    "migrationLint": "102 migrations, sequential 0001–0102, no gaps or duplicates",
+    "migrationLint": "103 migrations, sequential 0001–0103, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "sch-002-follow-ups-surface.test.ts proves the cron route is CRON_SECRET-gated, resolves assignees through task_assignments/memberships/profiles, enqueues reminders and escalations, and writes follow_up audit events.",
+    "discriminationProof": "sch-004-escalation-chain.test.ts proves migration 0103 adds task escalation chain columns, the route reads them and walks the chain, selectEscalationTarget advances steps deterministically, and setTaskEscalationChain validates chain members.",
     "note": "No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent during this acceptance pass."
   },
   "openFindings": [
@@ -332,6 +329,7 @@
     "FIN-005: LOCALLY ACCEPTED at 74d3be6. The finance tax-codes page lists company-scoped tax codes and surfaces sample tax amounts via the deterministic tax engine. Routing uncertain treatment to a professional reviewer remains future work.",
     "SCH-001: LOCALLY ACCEPTED at dbb208f. The AI monitor cron route is CRON_SECRET-gated, reads WhatsApp conversations with new inbound activity, calls analyzeConversationThread with BATCH=15, updates ai_analyzed_at and writes a monitor.analyzed audit event. Live provider, email discovery and AIM-003 routing remain future work.",
     "SCH-002: LOCALLY ACCEPTED at 9ed08e12ecb08e1c1832aa0f8e38273e9005b936. The CRON_SECRET-gated /api/cron/follow-ups route resolves assignees through task_assignments/memberships/profiles, enqueues internal WhatsApp reminders and escalations via message_outbox, and writes follow_up.enqueued / follow_up.escalated audit events. AI-created tasks remain unreachable until a human assigns them (WRK-005 unbuilt); escalation targets company admins generically (SCH-004).",
+    "SCH-004: LOCALLY ACCEPTED at 52547a2c68d622807d641134dc597e114fe5d028. Migration 0103 adds task escalation chain columns; the follow-ups cron route walks the defined chain, advances one step per escalation sweep, falls back to company admins when exhausted, persists reminder/escalation state, and writes audit events. Chain assignment is manual (setTaskEscalationChain); automatic chain proposal awaits WRK-005/AIM-006.",
     "FIN-008: LOCALLY ACCEPTED at 0a1737a. The finance reconciliation page reads company-scoped bank transactions, payments and receipts; uses a deterministic exact-decimal matcher; and provides server-validated import/confirm-match actions with audit events. The evidence-required-at-payment path remains owner-gated through FOUND-003.",
     "FIN-008 evidence-at-payment: BLOCKED_OWNER. The evidence-first payment path is owned by FOUND-003, which requires hosted migration, channel account mapping, and operations.inbound.review grants.",
     "RSK-001: LOCALLY ACCEPTED at 299b296. Migration 0093 adds a company-scoped risks table with owner, mitigation, evidence, review dates and capability-gated RLS. The legal risks page lists risks and provides an audited create action; the legal home surfaces open-risks count and review deadlines. Automatic creation of owned dated mitigation tasks remains future work.",
@@ -403,11 +401,12 @@
       "prj003": 0,
       "crm003": 0,
       "crm005": 0,
-      "sch002": 0
+      "sch002": 0,
+      "sch004": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T09:05:00Z",
+  "updatedAt": "2026-08-23T09:15:00Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -455,5 +454,13 @@
     "outcome": "LOCALLY ACCEPTED: SCH-002 SLAs, 24/48-hour follow-ups and reminders. The CRON_SECRET-gated /api/cron/follow-ups route resolves task assignees through task_assignments → memberships → profiles, enqueues internal WhatsApp reminders via message_outbox, and writes follow_up.enqueued / follow_up.escalated audit events.",
     "evidence": "Rewrote src/app/api/cron/follow-ups/route.ts to remove the broken tasks.assigned_to reference, added task_assignments/memberships/profiles resolution, kept fail-closed CRON_SECRET timingSafeEqual gate, added read-error handling, and added audit events. Added tests/campaign/sch-002-follow-ups-surface.test.ts (14 passed) and updated tests/campaign/cron-auth.test.ts (10 passed). tests/follow-up.test.ts (10 passed regression). Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1023 unit tests / 2 skipped / 146 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. AI-created tasks remain unreachable until a human assigns them (WRK-005 unbuilt). Escalation targets company admins generically, not a defined per-task chain (SCH-004)."
+  },
+  "sch004LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "52547a2c68d622807d641134dc597e114fe5d028",
+    "outcome": "LOCALLY ACCEPTED: SCH-004 Escalation and missed-response recovery. Migration 0103 adds escalation_chain, escalation_level, escalated_to, escalated_at, escalation_reason and last_reminder_at to tasks; the follow-ups cron route walks the defined chain and falls back to admins when exhausted.",
+    "evidence": "Added src/db/migrations/0103_task_escalation_chain.sql. Added selectEscalationTarget to src/modules/work/follow-up.ts. Updated src/app/api/cron/follow-ups/route.ts to read escalation columns, advance the chain, update task state, and persist last_reminder_at. Added setTaskEscalationChain server action in src/app/app/operations/tasks/actions.ts. Added tests/campaign/sch-004-escalation-chain.test.ts (8 passed) and extended tests/follow-up.test.ts (14 passed). Fresh disposable PostgreSQL 16 0001-0103 and narrow upgrade 0102→0103 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1036 unit tests / 2 skipped / 147 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Escalation chains are set manually; automatic chain proposal awaits WRK-005/AIM-006."
   }
 }

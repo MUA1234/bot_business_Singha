@@ -10,13 +10,13 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 48 |
+| locally_verified | 49 |
 | absent | 29 |
 | specified | 5 |
 | blocked_owner | 4 |
-| foundation_only | 2 |
 | implementation_in_progress | 1 |
 | deliberately_deferred | 1 |
+| foundation_only | 1 |
 
 ## Completion accounting
 
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **48** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **37** |
+| **Verified** (locally / preview / staging / production) | **49** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **36** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -57,7 +57,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | OPS | 8 | 3 | 5 |
 | PRJ | 5 | 3 | 2 |
 | RSK | 6 | 4 | 2 |
-| SCH | 6 | 3 | 3 |
+| SCH | 6 | 4 | 2 |
 | WRK | 5 | 3 | 2 |
 
 ## Requirements
@@ -146,7 +146,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | SCH-001 | Continuous task discovery | P1 | **locally_verified** | src/app/api/cron/ai-monitor/route.ts | dbb208f | — |
 | SCH-002 | SLAs, 24/48-hour follow-ups and reminders | P1 | **locally_verified** | src/app/api/cron/follow-ups/route.ts | 9ed08e12ecb08e1c1832aa0f8e38273e9005b936 | — |
 | SCH-003 | Leave and workload-aware scheduling | P2 | **absent** | none | none | — |
-| SCH-004 | Escalation and missed-response recovery | P1 | **foundation_only** | src/app/api/cron/follow-ups/route.ts | none | — |
+| SCH-004 | Escalation and missed-response recovery | P1 | **locally_verified** | src/app/api/cron/follow-ups/route.ts | 52547a2c68d622807d641134dc597e114fe5d028 | — |
 | SCH-005 | Handovers and meeting-action extraction | P2 | **absent** | none | none | — |
 | SCH-006 | Overdue evidence enforcement | P1 | **locally_verified** | src/app/app/operations/tasks/actions.ts | 707761c | — |
 | WRK-001 | Attendance, availability, leave, sickness and travel | P1 | **locally_verified** | src/app/app/hr/leave/page.tsx | af81ed8 | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **37**; blocked (owner): **4**;
+mode. Incomplete and implementable: **36**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.
