@@ -1,9 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [
-    "WRK-002"
-  ],
+  "activeRequirementIds": [],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -151,7 +149,7 @@
   },
   "lastGreenSha": "56dcee2",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "WRK-002 local acceptance pushed on kimi/found006-rls-cutover. The HR capacity page is the runtime entrypoint, reads assigned tasks and active employees, and surfaces planned/actual/remaining effort with utilization status.",
+  "lastCompletedAction": "WRK-002 local acceptance pushed at d48ac33 on kimi/found006-rls-cutover. The HR capacity page is the runtime entrypoint; historical snapshot consumption and contracted-hour modelling remain future work.",
   "nextAction": "Select the next dependency-ordered implementable requirement from the original vision register and continue the implement → test → verify → commit/push loop.",
   "lastTargetedTests": [
     "npm test -- tests/campaign/wrk-002-capacity-surface.test.ts (5 passed)"
@@ -239,5 +237,5 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T01:52:00Z"
+  "updatedAt": "2026-08-23T01:53:00Z"
 }
