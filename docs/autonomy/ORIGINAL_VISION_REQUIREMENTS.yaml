@@ -1758,14 +1758,14 @@ requirements:
     dependencies: [MOB-002, INT-001]
     status: locally_verified
     feature_flag: none
-    runtime_entrypoint: src/app/api/v1/mobile/health/route.ts; src/app/api/v1/mobile/config/route.ts; src/app/api/v1/mobile/vapid-public-key/route.ts; src/app/api/v1/mobile/push-subscription/route.ts
+    runtime_entrypoint: src/app/api/v1/mobile/health/route.ts; src/app/api/v1/mobile/config/route.ts; src/app/api/v1/mobile/vapid-public-key/route.ts; src/app/api/v1/mobile/notifications/route.ts; src/app/api/v1/mobile/push/subscribe/route.ts; src/app/api/v1/mobile/push-subscription/route.ts
     database_evidence: src/db/migrations/0108_push_subscriptions.sql
     service_evidence: src/lib/mobile/api.ts; src/lib/mobile/push.ts; public/sw.js
     ui_evidence: none
-    test_evidence: tests/mobile-api.test.ts (7); tests/campaign/mob-003-mobile-api.test.ts (7)
-    security_evidence: Push-subscription route authenticates via Supabase session cookies, resolves active company membership, stores only endpoint/crypto keys, never sends or fabricates messages; service worker same-origin and write-pass-through
+    test_evidence: tests/mobile-api.test.ts (7); tests/campaign/mob-003-mobile-api.test.ts (10)
+    security_evidence: Push-subscription routes authenticate via Supabase session cookies or getProfile, resolve active company membership, store only endpoint/crypto keys, never send or fabricate messages; service worker same-origin and write-pass-through; RLS scopes subscriptions by authenticated user and active membership
     audit_health_evidence: none
-    last_verified_sha: b55f054c5ff8beda9b8791ad7334889e97a24fb9
+    last_verified_sha: 1254855
     last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
