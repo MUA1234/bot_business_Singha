@@ -11,8 +11,8 @@ Generated at: 2026-08-23
 | Status | Count |
 |---|---|
 | absent | 41 |
-| locally_verified | 25 |
-| foundation_only | 13 |
+| locally_verified | 26 |
+| foundation_only | 12 |
 | specified | 5 |
 | blocked_owner | 4 |
 | implementation_in_progress | 1 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **25** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **60** |
+| **Verified** (locally / preview / staging / production) | **26** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **59** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -58,7 +58,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | PRJ | 5 | 1 | 4 |
 | RSK | 6 | 2 | 4 |
 | SCH | 6 | 1 | 5 |
-| WRK | 5 | 1 | 4 |
+| WRK | 5 | 2 | 3 |
 
 ## Requirements
 
@@ -150,7 +150,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | SCH-005 | Handovers and meeting-action extraction | P2 | **absent** | none | none | — |
 | SCH-006 | Overdue evidence enforcement | P1 | **locally_verified** | src/app/app/operations/tasks/actions.ts | 707761c | — |
 | WRK-001 | Attendance, availability, leave, sickness and travel | P1 | **locally_verified** | src/app/app/hr/leave/page.tsx | af81ed8 | — |
-| WRK-002 | Current and future workload with historical capacity | P1 | **foundation_only** | src/app/app/hr/capacity/page.tsx | none | — |
+| WRK-002 | Current and future workload with historical capacity | P1 | **locally_verified** | src/app/app/hr/capacity/page.tsx | 56dcee2 | — |
 | WRK-003 | Skills, certifications and expiry | P1 | **foundation_only** | src/app/app/hr/staff | none | — |
 | WRK-004 | Strengths, development needs and coaching | P2 | **absent** | none | none | privacy review of private-versus-manager-visible coaching |
 | WRK-005 | Fair assignment and internal/external team formation | P1 | **absent** | none | none | flag activation |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **60**; blocked (owner): **4**;
+mode. Incomplete and implementable: **59**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

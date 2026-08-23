@@ -1,7 +1,9 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [],
+  "activeRequirementIds": [
+    "WRK-002"
+  ],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -115,6 +117,14 @@
     "evidence": "tests/campaign/wrk-001-leave-surface.test.ts (5 passed); tests/leave.test.ts; npm run verify (800 unit tests / 2 skipped / 116 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, leave request submission/approval UI, attendance, travel, sickness, or working-hours modelling tested. The page is read-only; those remain future work."
   },
+  "wrk002LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "56dcee2",
+    "outcome": "LOCALLY ACCEPTED: WRK-002 capacity surface. The HR capacity page lists active employees, reads assigned tasks, and surfaces planned/actual/remaining hours, free hours, blocked/overdue counts and utilization status badges using the deterministic capacity-detail engine.",
+    "evidence": "tests/campaign/wrk-002-capacity-surface.test.ts (5 passed); tests/capacity.test.ts; tests/capacity-detail.test.ts; npm run verify (820 unit tests / 2 skipped / 120 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or historical capacity_snapshots consumption tested. Utilisation still uses hardcoded 40/4 weekly hours rather than contracted hours per person."
+  },
   "prj001LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -139,29 +149,29 @@
     "evidence": "tests/campaign/rsk-003-licences-register.test.ts (5 passed); tests/renewals.test.ts; npm run verify (815 unit tests / 2 skipped / 119 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or automatic creation of owned dated renewal tasks tested. Renewal responsibility and automatic renewal-task creation remain future work."
   },
-  "lastGreenSha": "e99cb94",
+  "lastGreenSha": "56dcee2",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "RSK-003 local acceptance pushed at e99cb94 on kimi/found006-rls-cutover. The legal licences page is the runtime entrypoint, lists company-scoped licences/permits with authority, number, expiry date, and renewal status badges.",
-  "nextAction": "Select the next dependency-ordered implementable requirement from the original vision register and continue the implement → test → verify → commit/push loop. Candidate pool (after excluding blocked P0s, V3.1 runtime consumers, and items blocked by FOUND-003) includes RSK-004, FIN-005, OPS-002, MOB-001, CRM-003, COM-007, INT-001, WRK-002/003, PRJ-002, FIN-004/006, CTL-002.",
+  "lastCompletedAction": "WRK-002 local acceptance pushed on kimi/found006-rls-cutover. The HR capacity page is the runtime entrypoint, reads assigned tasks and active employees, and surfaces planned/actual/remaining effort with utilization status.",
+  "nextAction": "Select the next dependency-ordered implementable requirement from the original vision register and continue the implement → test → verify → commit/push loop.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/rsk-003-licences-register.test.ts (5 passed)"
+    "npm test -- tests/campaign/wrk-002-capacity-surface.test.ts (5 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "e99cb94 on kimi/found006-rls-cutover",
+    "sha": "56dcee2 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "815 passed / 2 skipped / 119 files",
-    "integrationFresh": "not rerun for RSK-003 (no database change)",
-    "integrationNarrowUpgrade": "not rerun for RSK-003",
-    "integrationLegacyUpgrade": "not rerun for RSK-003",
-    "migrationIdempotency": "not rerun for RSK-003",
+    "unit": "820 passed / 2 skipped / 120 files",
+    "integrationFresh": "not rerun for WRK-002 (no database change)",
+    "integrationNarrowUpgrade": "not rerun for WRK-002",
+    "integrationLegacyUpgrade": "not rerun for WRK-002",
+    "migrationIdempotency": "not rerun for WRK-002",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 815 unit tests (2 skipped / 119 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 820 unit tests (2 skipped / 120 files)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "rsk-003-licences-register.test.ts proves the page is a real runtime entrypoint under /app/legal/licences, queries the licences table, is company-scoped, and surfaces expiry dates and renewal status.",
-    "note": "RSK-003 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "discriminationProof": "wrk-002-capacity-surface.test.ts proves the page is a real runtime entrypoint under /app/hr/capacity, queries profiles/tasks scoped by company_id, uses computeCapacityDetail, and surfaces planned/actual/remaining/utilization status.",
+    "note": "WRK-002 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -177,6 +187,7 @@
     "CRM-001: LOCALLY ACCEPTED at 5d2034b. The sales customers page shows canonical customers, attached channel_identities, duplicate-identity warnings, and the existing WhatsApp conversation list. Automated merge remains future work.",
     "CRM-002: LOCALLY ACCEPTED at 5349d00. The procurement suppliers page shows canonical suppliers, attached channel_identities, duplicate-identity warnings, and bank details with a maker-checker change-control badge. Automated merge and change-request UI remain future work.",
     "WRK-001: LOCALLY ACCEPTED at af81ed8. The HR leave page lists company-scoped leave_requests joined with profiles and shows remaining annual leave per person. Attendance, travel, sickness, working-hours modelling and assignment consumption remain future work.",
+    "WRK-002: LOCALLY ACCEPTED at 56dcee2. The HR capacity page lists active employees, reads assigned tasks, and surfaces planned/actual/remaining hours and utilization status. Historical snapshot consumption and contracted-hour modelling remain future work.",
     "PRJ-001: LOCALLY ACCEPTED at f227fef. The operations projects page lists company-scoped projects with lifecycle status and links from the operations home. Milestones, stage gates and project precedent reuse remain future work.",
     "RSK-002: LOCALLY ACCEPTED at 843cb05. The legal contracts page lists company-scoped contracts with counterparty, renewal date, and renewal status badges. Automatic creation of owned dated renewal tasks remains future work.",
     "RSK-003: LOCALLY ACCEPTED at e99cb94. The legal licences page lists company-scoped licences/permits with authority, number, expiry date, and renewal status badges. Renewal responsibility and automatic renewal-task creation remain future work.",
@@ -223,9 +234,10 @@
       "ip-001": 0,
       "aim-003": 0,
       "ops-005": 0,
-      "rsk003": 0
+      "rsk003": 0,
+      "wrk002": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T01:46:11Z"
+  "updatedAt": "2026-08-23T01:52:00Z"
 }

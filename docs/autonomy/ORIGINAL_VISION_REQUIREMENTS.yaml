@@ -667,20 +667,20 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: [WRK-001]
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/app/hr/capacity/page.tsx
-    database_evidence: capacity_snapshots
-    service_evidence: src/management/ai-manager/exceptions.ts detectCapacityExceptions
-    ui_evidence: src/app/app/hr/capacity/page.tsx
-    test_evidence: tests/capacity.test.ts
-    security_evidence: HR department gate
-    audit_health_evidence: Command Centre capacity exceptions
-    last_verified_sha: none
-    last_verified_at: none
+    database_evidence: profiles, tasks, capacity_snapshots
+    service_evidence: src/modules/work/capacity-detail.ts computeCapacityDetail; src/management/ai-manager/exceptions.ts detectCapacityExceptions
+    ui_evidence: src/app/app/hr/capacity/page.tsx lists active employees, reads assigned tasks, and surfaces planned/actual/remaining hours, free hours, blocked/overdue counts and utilization status badges
+    test_evidence: tests/campaign/wrk-002-capacity-surface.test.ts (5); tests/capacity.test.ts
+    security_evidence: HR department gate; page queries are scoped to requireDepartment("hr") company_id
+    audit_health_evidence: Command Centre capacity exceptions; HR home reads capacity_snapshots
+    last_verified_sha: 56dcee2
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: Utilisation uses hardcoded 40/4 weekly hours rather than contracted hours per person.
+    residual_risks: Utilisation uses hardcoded 40/4 weekly hours rather than contracted hours per person; historical snapshot recompute exists but is not exercised here.
   - id: WRK-003
     title: Skills, certifications and expiry
     description: Skills and certifications per person, with expiry driving renewal tasks.
