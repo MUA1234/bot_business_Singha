@@ -1,7 +1,9 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [],
+  "activeRequirementIds": [
+    "FIN-007"
+  ],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -283,14 +285,9 @@
   },
   "lastGreenSha": "0c4768a",
   "latestMigration": "0104_communication_preferences.sql",
-  "lastCompletedAction": "Implemented and locally accepted COM-007 Human handover, opt-out and communication preferences.",
-  "nextAction": "Select the next dependency-ordered implementable requirement from ORIGINAL_VISION_REQUIREMENTS.yaml.",
-  "lastTargetedTests": [
-    "tests/comms-preferences.test.ts (4 passed)",
-    "tests/campaign/com-007-communication-preferences.test.ts (6 passed)",
-    "tests/campaign/dispatch-receipt.test.ts (12 passed)",
-    "tests/outbox-enqueue.test.ts (5 passed)"
-  ],
+  "lastCompletedAction": "Selected FIN-007 Funding requirements and investments as the next dependency-ordered implementable requirement (absent; deps FIN-003 and FIN-006 both locally_verified; stage4 P2). Previous P0/P1 candidates (AIM-003, GOV-004, WRK-005, COM-003, IMP-001) are blocked by owner gates or unverified dependencies.",
+  "nextAction": "Add funding_requirements and investments tables, compute funding gap from cash forecast, and surface the investment register on the finance page.",
+  "lastTargetedTests": [],
   "lastFullGateResults": {
     "sha": "0c4768a on kimi/found006-rls-cutover",
     "typecheck": "clean",
@@ -413,7 +410,7 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T09:34:06Z",
+  "updatedAt": "2026-08-23T09:41:31.800Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
