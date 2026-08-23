@@ -753,20 +753,20 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: []
-    status: foundation_only
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: src/app/app/operations
-    database_evidence: projects
+    runtime_entrypoint: src/app/app/operations/projects/page.tsx
+    database_evidence: projects (migration 0012)
     service_evidence: none
-    ui_evidence: tasks carry project_id
-    test_evidence: none
-    security_evidence: company-scoped project FK on tasks
+    ui_evidence: src/app/app/operations/projects/page.tsx renders the project registry with lifecycle status; src/app/app/operations/page.tsx links to it
+    test_evidence: tests/campaign/prj-001-project-registry.test.ts (5)
+    security_evidence: company-scoped project FK on tasks; page queries are scoped to requireDepartment("operations") company_id
     audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    last_verified_sha: f227fef
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: The table exists and tasks reference it; there is no project registry UI or lifecycle.
+    residual_risks: The registry UI and lifecycle visibility are implemented; milestones, stage gates, and project reuse as precedent remain future work.
   - id: PRJ-002
     title: Objectives, milestones and stage gates
     description: Objectives with milestones, dependencies and stage gates that must be passed to progress.

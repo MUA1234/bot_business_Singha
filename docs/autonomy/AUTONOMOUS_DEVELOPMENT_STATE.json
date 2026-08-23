@@ -1,7 +1,7 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": ["PRJ-001"],
+  "activeRequirementIds": [],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
@@ -115,29 +115,37 @@
     "evidence": "tests/campaign/wrk-001-leave-surface.test.ts (5 passed); tests/leave.test.ts; npm run verify (800 unit tests / 2 skipped / 116 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, leave request submission/approval UI, attendance, travel, sickness, or working-hours modelling tested. The page is read-only; those remain future work."
   },
-  "lastGreenSha": "af81ed8",
+  "prj001LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "f227fef",
+    "outcome": "LOCALLY ACCEPTED: PRJ-001 reusable project registry. The operations projects page now lists company-scoped projects with lifecycle status (active/on_hold/completed/cancelled) and is linked from the operations home.",
+    "evidence": "tests/campaign/prj-001-project-registry.test.ts (5 passed); npm run verify (805 unit tests / 2 skipped / 117 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, project creation/edit UI, milestones, stage gates, or project reuse as precedent tested. The page is read-only; those remain future work."
+  },
+  "lastGreenSha": "f227fef",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "WRK-001 local acceptance pushed at c5e66a1 on kimi/found006-rls-cutover. Selected PRJ-001 (Reusable project registry with lifecycle states) as the next implementable requirement: it is a stage4 P1 with no dependencies, no blocker, and a foundation in the projects table.",
-  "nextAction": "Assess PRJ-001: create the src/app/app/operations/projects runtime entrypoint that lists company-scoped projects with lifecycle status, and link it from the operations home. Add/update tests, mark locally_verified, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "PRJ-001 local acceptance completed at f227fef on kimi/found006-rls-cutover. The operations projects page now lists company-scoped projects with lifecycle status and is linked from the operations home. Next: run the dependency-order candidate script to select the next implementable requirement.",
+  "nextAction": "Run scripts/autonomy/check-status.mjs to identify the next unblocked, dependency-resolved requirement; implement the smallest surface change, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/wrk-001-leave-surface.test.ts (5 passed)"
+    "npm test -- tests/campaign/prj-001-project-registry.test.ts (5 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "af81ed8 on kimi/found006-rls-cutover",
+    "sha": "f227fef on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "800 passed / 2 skipped / 116 files",
-    "integrationFresh": "not rerun for WRK-001 (no database change)",
-    "integrationNarrowUpgrade": "not rerun for WRK-001",
-    "integrationLegacyUpgrade": "not rerun for WRK-001",
-    "migrationIdempotency": "not rerun for WRK-001",
+    "unit": "805 passed / 2 skipped / 117 files",
+    "integrationFresh": "not rerun for PRJ-001 (no database change)",
+    "integrationNarrowUpgrade": "not rerun for PRJ-001",
+    "integrationLegacyUpgrade": "not rerun for PRJ-001",
+    "migrationIdempotency": "not rerun for PRJ-001",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 800 unit tests (2 skipped / 116 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 805 unit tests (2 skipped / 117 files)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "wrk-001-leave-surface.test.ts proves the page is a real runtime entrypoint, queries leave_requests joined to profiles, uses src/modules/workforce/leave.ts for remaining leave, and links from the HR home.",
-    "note": "WRK-001 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "discriminationProof": "prj-001-project-registry.test.ts proves the page is a real runtime entrypoint under /app/operations/projects, queries the projects table, is company-scoped, renders lifecycle status, and links from the operations home.",
+    "note": "PRJ-001 verification requires no database. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -153,6 +161,7 @@
     "CRM-001: LOCALLY ACCEPTED at 5d2034b. The sales customers page shows canonical customers, attached channel_identities, duplicate-identity warnings, and the existing WhatsApp conversation list. Automated merge remains future work.",
     "CRM-002: LOCALLY ACCEPTED at 5349d00. The procurement suppliers page shows canonical suppliers, attached channel_identities, duplicate-identity warnings, and bank details with a maker-checker change-control badge. Automated merge and change-request UI remain future work.",
     "WRK-001: LOCALLY ACCEPTED at af81ed8. The HR leave page lists company-scoped leave_requests joined with profiles and shows remaining annual leave per person. Attendance, travel, sickness, working-hours modelling and assignment consumption remain future work.",
+    "PRJ-001: LOCALLY ACCEPTED at f227fef. The operations projects page lists company-scoped projects with lifecycle status and links from the operations home. Milestones, stage gates and project precedent reuse remain future work.",
     "GOV-004: BLOCKED_OWNER. Board-reserved matters and emergency suspension requires the owner to define the reserved-matter list before implementation.",
     "FIN-008: BLOCKED. Evidence is not required at payment recording; the evidence-first path is owned by FOUND-003, which is blocked_owner.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
@@ -199,5 +208,5 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T01:23:00Z"
+  "updatedAt": "2026-08-23T01:28:00Z"
 }
