@@ -8,9 +8,10 @@ import { requireAdmin } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { classifyHealth } from "@/management/ai-manager/health";
 import { decSum } from "@/lib/money";
-import { probeCount, metricLabel, metricState, metricNumber } from "@/lib/metric";
+import { probeCount, metricLabel, metricState, metricNumber, value, unavailable, type Metric } from "@/lib/metric";
 import { buildAlerts } from "@/management/ai-manager/alerts";
 import { findUnbalancedJournals } from "@/modules/finance/ledger-integrity";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const metadata = { title: "System Health — Singha Central" };
 
@@ -22,12 +23,57 @@ async function rows<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
   }
 }
 
+interface BacklogMetrics {
+  pending: Metric;
+  processing: Metric;
+  retryWait: Metric;
+  expiredLease: Metric;
+  deadLetter: Metric;
+  oldestPendingAt: string | null;
+  unavailable: boolean;
+}
+
+async function probeBacklog(db: SupabaseClient, cid: string): Promise<BacklogMetrics> {
+  try {
+    const r = await db.rpc("source_event_backlog", { p_company: cid } as any);
+    if (r.error) return allUnavailable();
+    const row = (r.data as any[])[0];
+    if (!row) {
+      return {
+        pending: value(0),
+        processing: value(0),
+        retryWait: value(0),
+        expiredLease: value(0),
+        deadLetter: value(0),
+        oldestPendingAt: null,
+        unavailable: false,
+      };
+    }
+    return {
+      pending: value(Number(row.pending ?? 0)),
+      processing: value(Number(row.processing ?? 0)),
+      retryWait: value(Number(row.retry_wait ?? 0)),
+      expiredLease: value(Number(row.expired_lease ?? 0)),
+      deadLetter: value(Number(row.dead_letter ?? 0)),
+      oldestPendingAt: row.oldest_pending_at ?? null,
+      unavailable: false,
+    };
+  } catch {
+    return allUnavailable();
+  }
+}
+
+function allUnavailable(): BacklogMetrics {
+  const u = unavailable;
+  return { pending: u, processing: u, retryWait: u, expiredLease: u, deadLetter: u, oldestPendingAt: null, unavailable: true };
+}
+
 export default async function HealthPage() {
   const admin = await requireAdmin();
   const db = supabaseAdmin();
   const cid = admin.companyId;
 
-  const [failedEvents, unprocessedEvents, deadLetters, outboxFailed, outboxPending, aiRuns, audits] = await Promise.all([
+  const [failedEvents, unprocessedEvents, deadLetters, outboxFailed, outboxPending, aiRuns, audits, backlog] = await Promise.all([
     probeCount(() => db.from("source_events").select("id", { count: "exact", head: true }).eq("company_id", cid).eq("status", "failed") as any),
     probeCount(() => db.from("source_events").select("id", { count: "exact", head: true }).eq("company_id", cid).in("status", ["received", "processing"]) as any),
     // Company scope is not optional here: `db` is the service-role client, which bypasses row
@@ -40,6 +86,7 @@ export default async function HealthPage() {
     probeCount(() => db.from("message_outbox").select("id", { count: "exact", head: true }).eq("company_id", cid).eq("status", "pending") as any),
     rows<any>(() => db.from("ai_runs").select("cost_usd, validation_ok").eq("company_id", cid).limit(2000) as any),
     probeCount(() => db.from("audit_events").select("id", { count: "exact", head: true }).eq("company_id", cid) as any),
+    probeBacklog(db, cid),
   ]);
 
   const aiCost = decSum(aiRuns.map((r: any) => r.cost_usd));
@@ -98,6 +145,12 @@ export default async function HealthPage() {
     { k: "AI runs", v: String(aiRuns.length), danger: false },
   ];
 
+  const oldestPendingLabel = backlog.unavailable
+    ? "unavailable"
+    : backlog.oldestPendingAt
+      ? new Date(backlog.oldestPendingAt).toLocaleString("en-GB", { timeZone: "UTC" })
+      : "—";
+
   return (
     <div className="stack gap-3">
       <div className="row between">
@@ -140,6 +193,19 @@ export default async function HealthPage() {
       <div className="grid cols-2">
         <div className="card stat"><div className="k">AI cost (USD)</div><div className="v" style={{ fontSize: "1.4rem" }}>${aiCost.toFixed(4)}</div></div>
         <div className="card stat"><div className="k">Audit events</div><div className="v" style={{ fontSize: "1.4rem" }}>{metricLabel(audits)}</div></div>
+      </div>
+
+      {/* CTL-003 — surface the migration 0069 backlog RPC so the operator sees the durable inbound pipeline. */}
+      <div className="card">
+        <div className="card-title">Source-event backlog</div>
+        <div className="grid cols-3 mt-2">
+          <div className="card stat"><div className="k">Pending</div><div className="v" style={{ fontSize: "1.6rem" }}>{metricLabel(backlog.pending)}</div></div>
+          <div className="card stat"><div className="k">Processing</div><div className="v" style={{ fontSize: "1.6rem" }}>{metricLabel(backlog.processing)}</div></div>
+          <div className="card stat"><div className="k">Retry wait</div><div className="v" style={{ fontSize: "1.6rem" }}>{metricLabel(backlog.retryWait)}</div></div>
+          <div className="card stat"><div className="k">Expired lease</div><div className="v" style={{ fontSize: "1.6rem", color: metricState(backlog.expiredLease) === "nonzero" ? "var(--danger)" : undefined }}>{metricLabel(backlog.expiredLease)}</div></div>
+          <div className="card stat"><div className="k">Dead letter</div><div className="v" style={{ fontSize: "1.6rem", color: metricState(backlog.deadLetter) === "nonzero" ? "var(--danger)" : undefined }}>{metricLabel(backlog.deadLetter)}</div></div>
+          <div className="card stat"><div className="k">Oldest pending</div><div className="v" style={{ fontSize: "1.2rem" }}>{oldestPendingLabel}</div></div>
+        </div>
       </div>
     </div>
   );
