@@ -21,7 +21,7 @@
     "vehicles": "capability", "vehicle_documents": "capability", "trips": "capability",
     "tasks": "capability", "task_assignments": "capability", "task_dependencies": "capability",
     "task_check_ins": "capability", "task_evidence": "capability",
-    "legal_matters": "capability", "contracts": "capability", "risks": "capability", "insurances": "capability", "employees": "capability",
+    "legal_matters": "capability", "contracts": "capability", "risks": "capability", "insurances": "capability", "incidents": "capability", "employees": "capability",
     "integrations": "capability", "connectors": "capability", "integration_event_contracts": "capability", "integration_command_contracts": "capability",
     "management_directives": "capability",
     "management_directive_conflicts": "capability",
