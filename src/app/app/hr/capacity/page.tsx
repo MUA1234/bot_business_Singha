@@ -6,9 +6,11 @@
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
-import { computeCapacityDetail, type CapacityTask } from "@/modules/work/capacity-detail";
+import { computeCapacityDetail, type CapacityDetail, type CapacityTask } from "@/modules/work/capacity-detail";
 import { HBarChart } from "@/components/charts";
 import { recomputeCapacity } from "./actions";
+import { Card, CardHeader, CardBody, Button, Badge, DataTable, type DataTableColumn } from "@/components/ui";
+import { fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "Capacity — Singha Central" };
 const CONTRACTED = 40; // default weekly hours until employee_profiles is populated
@@ -22,14 +24,32 @@ async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
   }
 }
 
+interface Employee {
+  id: string;
+  username: string;
+  full_name: string | null;
+  department: string | null;
+}
+
+interface CapacityRow {
+  id: string;
+  name: string;
+  department: string | null;
+  cap: CapacityDetail;
+}
+
 export default async function CapacityPage() {
   const p = await requireDepartment("hr");
   const db = supabaseReadClient();
 
   const [employees, tasks] = await Promise.all([
-    safe<any>(() => db.from("profiles").select("id, username, full_name, department").eq("company_id", p.companyId).eq("is_active", true) as any),
+    safe<Employee>(() =>
+      db.from("profiles").select("id, username, full_name, department").eq("company_id", p.companyId).eq("is_active", true) as any,
+    ),
     // actual/remaining exist after migration 0025; safe() degrades gracefully if not.
-    safe<any>(() => db.from("tasks").select("assigned_to, estimate_hours, actual_hours, remaining_hours, status, due_date").eq("company_id", p.companyId).not("assigned_to", "is", null) as any),
+    safe<any>(() =>
+      db.from("tasks").select("assigned_to, estimate_hours, actual_hours, remaining_hours, status, due_date").eq("company_id", p.companyId).not("assigned_to", "is", null) as any,
+    ),
   ]);
 
   const tasksByUser = new Map<string, CapacityTask[]>();
@@ -45,7 +65,7 @@ export default async function CapacityPage() {
     tasksByUser.set(t.assigned_to, list);
   }
 
-  const rows = employees
+  const rows: CapacityRow[] = employees
     .map((e) => {
       const cap = computeCapacityDetail({
         contractedWeeklyHours: CONTRACTED,
@@ -54,35 +74,96 @@ export default async function CapacityPage() {
         reservedHours: RESERVED,
         tasks: tasksByUser.get(e.id) ?? [],
       });
-      return { name: e.full_name || e.username, department: e.department, cap };
+      return { id: e.id, name: e.full_name || e.username, department: e.department, cap };
     })
     .sort((a, b) => (Number(b.cap.utilizationPct) || 0) - (Number(a.cap.utilizationPct) || 0));
-
-  const statusBadge = (s: string) => (s === "overloaded" ? "danger" : s === "underallocated" ? "info" : "ok");
 
   // Chart scaling only: ∞ utilization (open work but no net hours) draws as the longest bar;
   // the displayed value stays the exact table figure ("∞"). Percentages are not money.
   const maxUtil = Math.max(100, ...rows.map((r) => (Number.isFinite(r.cap.utilizationPct) ? r.cap.utilizationPct : 0)));
+
+  const statusVariant = (s: CapacityDetail["status"]) =>
+    s === "overloaded" ? "danger" : s === "underallocated" ? "info" : "ok";
+
+  const columns: DataTableColumn<CapacityRow>[] = [
+    {
+      key: "employee",
+      header: "Employee",
+      render: (r) => (
+        <div style={{ fontWeight: 600 }}>
+          {r.name} <span className="dim small">· {r.department ?? "—"}</span>
+        </div>
+      ),
+    },
+    { key: "planned", header: "Planned", align: "right", render: (r) => `${fmtNumber(r.cap.plannedHours, 2)}h` },
+    { key: "actual", header: "Actual", align: "right", render: (r) => `${fmtNumber(r.cap.actualHours, 2)}h` },
+    { key: "remaining", header: "Remaining", align: "right", render: (r) => `${fmtNumber(r.cap.remainingHours, 2)}h` },
+    {
+      key: "free",
+      header: "Free",
+      align: "right",
+      render: (r) => (
+        <span style={{ color: r.cap.freeHours < 0 ? "var(--danger)" : undefined }}>
+          {fmtNumber(r.cap.freeHours, 2)}h
+        </span>
+      ),
+    },
+    {
+      key: "blocked",
+      header: "Blocked",
+      align: "right",
+      render: (r) => (r.cap.blockedTasks ? fmtNumber(r.cap.blockedTasks) : "—"),
+    },
+    {
+      key: "overdue",
+      header: "Overdue",
+      align: "right",
+      render: (r) => (
+        <span style={{ color: r.cap.overdueTasks ? "var(--danger)" : undefined }}>
+          {r.cap.overdueTasks ? fmtNumber(r.cap.overdueTasks) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "util",
+      header: "Util.",
+      align: "right",
+      render: (r) => (Number.isFinite(r.cap.utilizationPct) ? `${fmtNumber(r.cap.utilizationPct, 2)}%` : "∞"),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => <Badge variant={statusVariant(r.cap.status)}>{r.cap.status}</Badge>,
+    },
+  ];
 
   return (
     <div className="stack gap-3">
       <div className="row between">
         <div>
           <h1>Capacity</h1>
-          <p className="muted mt-1">Planned vs actual vs remaining effort from assigned tasks ({CONTRACTED}h week, {RESERVED}h reserved). Reproducible from records.</p>
+          <p className="muted mt-1">
+            Planned vs actual vs remaining effort from assigned tasks ({CONTRACTED}h week, {RESERVED}h reserved). Reproducible from records.
+          </p>
         </div>
-        <form action={recomputeCapacity}><button className="btn ghost sm" type="submit">Recompute snapshots</button></form>
+        <form action={recomputeCapacity}>
+          <Button variant="ghost" size="sm" type="submit">
+            Recompute snapshots
+          </Button>
+        </form>
       </div>
 
       {rows.length > 0 && (
-        <div className="card">
-          <div className="card-title">Utilization by person</div>
-          <div className="card-sub">Rebalance work from the red (overloaded) bars onto the dim (under-allocated) ones.</div>
-          <div className="mt-2">
+        <Card>
+          <CardHeader
+            title="Utilization by person"
+            subtitle="Rebalance work from the red (overloaded) bars onto the dim (under-allocated) ones."
+          />
+          <CardBody>
             <HBarChart
               data={rows.map((r) => ({
                 label: r.name,
-                display: Number.isFinite(r.cap.utilizationPct) ? `${r.cap.utilizationPct}%` : "∞",
+                display: Number.isFinite(r.cap.utilizationPct) ? `${fmtNumber(r.cap.utilizationPct, 2)}%` : "∞",
                 value: Number.isFinite(r.cap.utilizationPct) ? r.cap.utilizationPct : maxUtil,
                 // Tone follows the SAME engine status the table badges use (overload 100% / under 60%),
                 // plus an approaching-overload band above 85% within "healthy".
@@ -93,41 +174,26 @@ export default async function CapacityPage() {
                   : "accent",
               }))}
             />
-          </div>
-        </div>
+          </CardBody>
+        </Card>
       )}
 
-      <div className="card">
-        {rows.length === 0 ? (
-          <div className="empty">No active employees, or no assigned/estimated tasks yet. Assign tasks with estimates in Operations.</div>
-        ) : (
-          <div className="table-wrap">
-            <table className="data">
-              <thead><tr>
-                <th>Employee</th><th className="num">Planned</th><th className="num">Actual</th>
-                <th className="num">Remaining</th><th className="num">Free</th><th className="num">Blocked</th>
-                <th className="num">Overdue</th><th className="num">Util.</th><th>Status</th>
-              </tr></thead>
-              <tbody>
-                {rows.map((r, i) => (
-                  <tr key={i}>
-                    <td style={{ fontWeight: 600 }}>{r.name} <span className="dim small">· {r.department}</span></td>
-                    <td className="num">{r.cap.plannedHours}h</td>
-                    <td className="num">{r.cap.actualHours}h</td>
-                    <td className="num">{r.cap.remainingHours}h</td>
-                    <td className="num" style={{ color: r.cap.freeHours < 0 ? "var(--danger)" : undefined }}>{r.cap.freeHours}h</td>
-                    <td className="num">{r.cap.blockedTasks || ""}</td>
-                    <td className="num" style={{ color: r.cap.overdueTasks ? "var(--danger)" : undefined }}>{r.cap.overdueTasks || ""}</td>
-                    <td className="num">{Number.isFinite(r.cap.utilizationPct) ? `${r.cap.utilizationPct}%` : "∞"}</td>
-                    <td><span className={`badge ${statusBadge(r.cap.status)}`}>{r.cap.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-      <p className="muted small">Command Centre reads the snapshots you recompute here for over/under-allocation alerts. <Link href="/app/command">Open →</Link></p>
+      <Card>
+        <CardHeader title="Capacity by person" />
+        <CardBody>
+          <DataTable
+            columns={columns}
+            rows={rows}
+            keyExtractor={(r) => r.id}
+            emptyTitle="No active employees, or no assigned/estimated tasks yet"
+            emptyDescription="Assign tasks with estimates in Operations."
+          />
+        </CardBody>
+      </Card>
+
+      <p className="muted small">
+        Command Centre reads the snapshots you recompute here for over/under-allocation alerts. <Link href="/app/command">Open →</Link>
+      </p>
     </div>
   );
 }

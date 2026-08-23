@@ -6,13 +6,24 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { getDepartment } from "@/lib/departments";
+import { Card, CardBody, Badge, StatusBadge, DataTable, type DataTableColumn } from "@/components/ui";
 
 export const metadata = { title: "Staff — Singha Central" };
+
+interface StaffRow {
+  id: string;
+  username: string;
+  full_name: string | null;
+  department: string | null;
+  job_title: string | null;
+  skills: string[] | null;
+  is_active: boolean | null;
+}
 
 export default async function StaffPage() {
   const p = await requireDepartment("hr");
 
-  let rows: any[] = [];
+  let rows: StaffRow[] = [];
   try {
     const { data } = await supabaseReadClient()
       .from("profiles")
@@ -20,10 +31,58 @@ export default async function StaffPage() {
       .eq("company_id", p.companyId)
       .order("full_name", { nullsFirst: false })
       .limit(500);
-    rows = data ?? [];
+    rows = (data as StaffRow[] | null) ?? [];
   } catch {
     rows = [];
   }
+
+  const columns: DataTableColumn<StaffRow>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (r) => (
+        <div>
+          <div style={{ fontWeight: 600 }}>{r.full_name || r.username}</div>
+          <div className="small dim mono">@{r.username}</div>
+        </div>
+      ),
+    },
+    {
+      key: "department",
+      header: "Department",
+      render: (r) => {
+        const dept = getDepartment(r.department);
+        return <Badge>{dept?.label ?? r.department ?? "—"}</Badge>;
+      },
+    },
+    {
+      key: "title",
+      header: "Title",
+      className: "dim small",
+      render: (r) => r.job_title ?? "—",
+    },
+    {
+      key: "skills",
+      header: "Skills",
+      className: "small",
+      render: (r) => (r.skills ?? []).slice(0, 3).join(", ") || "—",
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => <StatusBadge status={r.is_active ? "active" : "disabled"} />,
+    },
+    {
+      key: "open",
+      header: "",
+      align: "right",
+      render: (r) => (
+        <Link className="btn ghost sm" href={`/app/hr/staff/${r.id}`}>
+          Open
+        </Link>
+      ),
+    },
+  ];
 
   return (
     <div className="stack gap-3">
@@ -32,32 +91,16 @@ export default async function StaffPage() {
         <p className="muted mt-1">Everyone in your company — roles, titles and skills.</p>
       </div>
 
-      <div className="card">
-        {rows.length === 0 ? (
-          <div className="empty">No staff records.</div>
-        ) : (
-          <div className="table-wrap">
-            <table className="data">
-              <thead><tr><th>Name</th><th>Department</th><th>Title</th><th>Skills</th><th>Status</th><th></th></tr></thead>
-              <tbody>
-                {rows.map((r) => {
-                  const dept = getDepartment(r.department);
-                  return (
-                    <tr key={r.id}>
-                      <td><div style={{ fontWeight: 600 }}>{r.full_name || r.username}</div><div className="small dim mono">@{r.username}</div></td>
-                      <td><span className="badge">{dept?.label ?? r.department}</span></td>
-                      <td className="dim small">{r.job_title ?? "—"}</td>
-                      <td className="small">{(r.skills ?? []).slice(0, 3).join(", ") || "—"}</td>
-                      <td>{r.is_active ? <span className="badge ok">active</span> : <span className="badge">disabled</span>}</td>
-                      <td><Link className="btn ghost sm" href={`/app/hr/staff/${r.id}`}>Open</Link></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardBody>
+          <DataTable
+            columns={columns}
+            rows={rows}
+            keyExtractor={(r) => r.id}
+            emptyTitle="No staff records"
+          />
+        </CardBody>
+      </Card>
     </div>
   );
 }

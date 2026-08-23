@@ -1,4 +1,4 @@
-import { type InputHTMLAttributes, type ReactNode, forwardRef } from "react";
+import { type InputHTMLAttributes, type ReactNode, forwardRef, useId } from "react";
 
 interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
@@ -13,7 +13,8 @@ interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
  */
 export const FormField = forwardRef<HTMLInputElement, FormFieldProps>(
   ({ label, hint, error, id, children, className = "", ...inputProps }, ref) => {
-    const fieldId = id ?? `field-${Math.random().toString(36).slice(2, 9)}`;
+    const generatedId = useId();
+    const fieldId = id ?? generatedId;
     const errorId = `${fieldId}-error`;
     const hintId = hint ? `${fieldId}-hint` : undefined;
     const describedBy = [hintId, error ? errorId : undefined].filter(Boolean).join(" ") || undefined;

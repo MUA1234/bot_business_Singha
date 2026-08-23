@@ -9,6 +9,8 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { remainingLeave, usedLeaveDays } from "@/modules/workforce/leave";
+import { Card, CardHeader, CardBody, Badge, StatusBadge, DataTable, type DataTableColumn } from "@/components/ui";
+import { fmtDate, fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "Leave — Singha Central" };
 
@@ -81,6 +83,63 @@ export default async function LeavePage() {
     }
   }
 
+  const profiles = Array.from(byProfile.values());
+
+  const leaveColumns: DataTableColumn<LeaveRow>[] = [
+    {
+      key: "person",
+      header: "Person",
+      render: (r) => (
+        <div>
+          <div style={{ fontWeight: 600 }}>{r.full_name ?? "—"}</div>
+          {r.username && <div className="small dim mono">@{r.username}</div>}
+        </div>
+      ),
+    },
+    {
+      key: "dates",
+      header: "Dates",
+      render: (r) => <span className="dim small mono">{fmtDate(r.start_date)} → {fmtDate(r.end_date)}</span>,
+    },
+    { key: "days", header: "Days", align: "right", render: (r) => fmtNumber(r.days) },
+    { key: "reason", header: "Reason", render: (r) => <span className="dim small">{r.reason ?? "—"}</span> },
+    { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
+    {
+      key: "decided",
+      header: "Decided",
+      render: (r) => <span className="dim small">{fmtDate(r.decided_at)}</span>,
+    },
+  ];
+
+  const profileColumns: DataTableColumn<ProfileLeave>[] = [
+    {
+      key: "person",
+      header: "Person",
+      render: (profile) => (
+        <div>
+          <div style={{ fontWeight: 600 }}>{profile.full_name ?? "—"}</div>
+          {profile.username && <div className="small dim mono">@{profile.username}</div>}
+        </div>
+      ),
+    },
+    { key: "entitlement", header: "Entitlement", align: "right", render: (profile) => fmtNumber(profile.annual_leave_days) },
+    {
+      key: "used",
+      header: "Used",
+      align: "right",
+      render: (profile) => fmtNumber(usedLeaveDays(profile.approved)),
+    },
+    {
+      key: "remaining",
+      header: "Remaining",
+      align: "right",
+      render: (profile) => {
+        const remaining = remainingLeave(profile.annual_leave_days, profile.approved);
+        return <Badge variant={remaining < 0 ? "warn" : "ok"}>{fmtNumber(remaining)}</Badge>;
+      },
+    },
+  ];
+
   return (
     <div className="stack gap-3">
       <div className="row between">
@@ -91,70 +150,30 @@ export default async function LeavePage() {
         <Link className="btn ghost sm" href="/app/hr">← HR</Link>
       </div>
 
-      <div className="card">
-        <div className="card-title">Leave requests</div>
-        {leave.length === 0 ? (
-          <div className="empty mt-2">No leave requests yet.</div>
-        ) : (
-          <div className="table-wrap mt-2">
-            <table className="data">
-              <thead>
-                <tr><th>Person</th><th>Dates</th><th>Days</th><th>Reason</th><th>Status</th><th>Decided</th></tr>
-              </thead>
-              <tbody>
-                {leave.map((r) => {
-                  const profile = byProfile.get(r.profile_id);
-                  const remaining = profile ? remainingLeave(profile.annual_leave_days, profile.approved) : null;
-                  return (
-                    <tr key={r.id}>
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{r.full_name ?? "—"}</div>
-                        {r.username && <div className="small dim mono">@{r.username}</div>}
-                      </td>
-                      <td className="dim small mono">
-                        {r.start_date} → {r.end_date}
-                      </td>
-                      <td>{r.days}</td>
-                      <td className="dim small">{r.reason ?? "—"}</td>
-                      <td><span className={`badge ${r.status === "pending" ? "warn" : r.status === "approved" ? "ok" : ""}`}>{r.status}</span></td>
-                      <td className="dim small">
-                        {r.decided_at ? new Date(r.decided_at).toLocaleDateString() : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title="Leave requests" />
+        <CardBody>
+          <DataTable
+            columns={leaveColumns}
+            rows={leave}
+            keyExtractor={(r) => r.id}
+            emptyTitle="No leave requests yet"
+            emptyDescription="Leave requests will appear here once submitted."
+          />
+        </CardBody>
+      </Card>
 
-      {byProfile.size > 0 && (
-        <div className="card">
-          <div className="card-title">Remaining leave</div>
-          <div className="table-wrap mt-2">
-            <table className="data">
-              <thead><tr><th>Person</th><th>Entitlement</th><th>Used</th><th>Remaining</th></tr></thead>
-              <tbody>
-                {Array.from(byProfile.values()).map((profile) => {
-                  const used = usedLeaveDays(profile.approved);
-                  const remaining = remainingLeave(profile.annual_leave_days, profile.approved);
-                  return (
-                    <tr key={profile.profile_id}>
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{profile.full_name ?? "—"}</div>
-                        {profile.username && <div className="small dim mono">@{profile.username}</div>}
-                      </td>
-                      <td>{profile.annual_leave_days}</td>
-                      <td>{used}</td>
-                      <td><span className={remaining < 0 ? "badge warn" : "badge ok"}>{remaining}</span></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {profiles.length > 0 && (
+        <Card>
+          <CardHeader title="Remaining leave" />
+          <CardBody>
+            <DataTable
+              columns={profileColumns}
+              rows={profiles}
+              keyExtractor={(profile) => profile.profile_id}
+            />
+          </CardBody>
+        </Card>
       )}
     </div>
   );
