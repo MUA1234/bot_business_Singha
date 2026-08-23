@@ -25,6 +25,7 @@
     "management_directives": "capability",
     "management_directive_conflicts": "capability",
     "ai_guide_messages": "capability",
+    "communication_preferences": "capability",
     "expense_claims": "self_service", "leave_requests": "self_service",
     "profiles": "identity", "organisation_units": "identity", "memberships": "identity",
     "membership_roles": "identity", "authority_rules": "identity", "membership_assignments": "identity",

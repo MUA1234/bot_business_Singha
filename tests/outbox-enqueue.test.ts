@@ -12,6 +12,7 @@ import type { OutboxEntry } from "@/events/outbox";
 
 const H = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ supabaseAdmin: () => ({ rpc: H.rpc }) }));
+vi.mock("@/lib/comms/preferences", () => ({ getCommunicationPreference: async () => null }));
 
 import { enqueueOutbox } from "@/lib/outbox-enqueue";
 

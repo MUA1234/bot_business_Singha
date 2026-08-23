@@ -9,11 +9,25 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildOutboxRow, type OutboxEntry } from "@/events/outbox";
 import { log } from "@/lib/log";
+import { getCommunicationPreference } from "@/lib/comms/preferences";
+import { isOptedOut } from "@/modules/comms/preferences";
 
-export type EnqueueResult = "enqueued" | "duplicate" | "unavailable";
+export type EnqueueResult = "enqueued" | "duplicate" | "unavailable" | "opted_out";
 
 export async function enqueueOutbox(entry: OutboxEntry, db?: SupabaseClient): Promise<EnqueueResult> {
   try {
+    // COM-007: respect opt-out before persisting any outbound message.
+    const pref = await getCommunicationPreference(entry.companyId, entry.channel, entry.recipient);
+    if (isOptedOut(pref)) {
+      log("info", "outbound send blocked by opt-out", {
+        event: "outbox.opted_out",
+        companyId: entry.companyId,
+        channel: entry.channel,
+        recipient: entry.recipient,
+      });
+      return "opted_out";
+    }
+
     const row = buildOutboxRow(entry);
     const client = db ?? supabaseAdmin();
     // Atomic, service-only enqueue via `enqueue_outbox_row` (migration 0061): a single INSERT …

@@ -31,6 +31,8 @@ import {
   type InboundReceipt,
 } from "@/lib/inbound/receipt";
 import { log } from "@/lib/log";
+import type { CommunicationPreference } from "@/modules/comms/preferences";
+import { getCommunicationPreference } from "@/lib/comms/preferences";
 
 /** What happened, for the webhook response and for logs. Never shown to a message sender. */
 export type DispatchReceiptResult =
@@ -55,6 +57,8 @@ export interface DispatchReceiptPorts {
   resolveCompany(channel: string, account: string): Promise<{ companyId: string | null; match: string }>;
   knownCurrencies(companyId: string): Promise<string[]>;
   dispatch: typeof dispatchInbound;
+  /** COM-007: load communication preferences for the sender identity. */
+  getPreference(companyId: string, channel: string, from: string): Promise<CommunicationPreference | null>;
 }
 
 const DEFAULT_PORTS: DispatchReceiptPorts = {
@@ -65,6 +69,7 @@ const DEFAULT_PORTS: DispatchReceiptPorts = {
   resolveCompany: resolveCompanyForAccount,
   knownCurrencies: companyKnownCurrencies,
   dispatch: dispatchInbound,
+  getPreference: getCommunicationPreference,
 };
 
 export async function dispatchReceipt(
@@ -115,6 +120,29 @@ export async function dispatchReceipt(
     // for a person rather than dropping it.
     await ports.fail(db, receipt.event.id, owner, "company_unresolved", `receiving account ${providerAccountId ?? "(none)"} is not mapped to a company (${company.match})`);
     return "unattributed";
+  }
+
+  // COM-007: respect opt-out and human handover before any automated dispatch.
+  const pref = await ports.getPreference(company.companyId, message.channel, message.from);
+  if (pref?.opt_out) {
+    await ports.record(db, {
+      eventId: receipt.event.id,
+      owner,
+      outcome: "manual_review",
+      companyId: company.companyId,
+    });
+    log("info", "inbound dispatch blocked by opt-out", { event: "inbound.opted_out", sourceEventId: receipt.event.id, companyId: company.companyId, identity: message.from });
+    return "manual_review";
+  }
+  if (pref?.handover_to) {
+    await ports.record(db, {
+      eventId: receipt.event.id,
+      owner,
+      outcome: "manual_review",
+      companyId: company.companyId,
+    });
+    log("info", "inbound dispatch handed over to human", { event: "inbound.human_handover", sourceEventId: receipt.event.id, companyId: company.companyId, identity: message.from, handoverTo: pref.handover_to });
+    return "manual_review";
   }
 
   try {

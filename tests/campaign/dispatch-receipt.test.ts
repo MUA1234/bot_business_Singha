@@ -15,6 +15,7 @@ import { describe, it, expect, vi } from "vitest";
 import { dispatchReceipt, type DispatchReceiptPorts } from "@/lib/inbound/dispatch-receipt";
 import type { DispatchDeps, DispatchResult, InboundMessage } from "@/lib/inbound/dispatch";
 import type { InboundReceipt } from "@/lib/inbound/receipt";
+import type { CommunicationPreference } from "@/modules/comms/preferences";
 
 const CO = "11111111-1111-1111-1111-111111111111";
 const receipt = (over: Partial<InboundReceipt> = {}): InboundReceipt => ({
@@ -38,6 +39,7 @@ function harness(over: Partial<DispatchReceiptPorts> = {}, handled: DispatchResu
     dispatch: (async () => { calls.push("dispatch"); return { handled, status: "ok" } as DispatchResult; }) as never,
     record: async () => { calls.push("record"); return {}; },
     fail: async () => { calls.push("fail"); return "failed"; },
+    getPreference: async () => null,
     ...over,
   };
   const makeDeps = vi.fn(() => ({}) as DispatchDeps);
@@ -132,5 +134,39 @@ describe("inbound dispatch orchestration", () => {
     });
     await dispatchReceipt(h.db, receipt(), message, "acct", h.makeDeps, { ports: h.ports, owner: "worker-7" });
     expect(owners).toEqual(["worker-7", "worker-7"]);
+  });
+
+  it("COM-007 — an opted-out identity is recorded as manual_review and never dispatched", async () => {
+    const pref: CommunicationPreference = {
+      company_id: CO,
+      channel: "whatsapp",
+      identity: message.from,
+      opt_out: true,
+      handover_to: null,
+      handover_at: null,
+      handover_reason: null,
+    };
+    const h = harness({ getPreference: async () => pref });
+    const out = await dispatchReceipt(h.db, receipt(), message, "acct", h.makeDeps, { ports: h.ports });
+    expect(out).toBe("manual_review");
+    expect(h.calls).toEqual(["claim", "resolveCompany", "record"]);
+    expect(h.calls).not.toContain("dispatch");
+  });
+
+  it("COM-007 — a handed-over identity is recorded as manual_review and never dispatched", async () => {
+    const pref: CommunicationPreference = {
+      company_id: CO,
+      channel: "whatsapp",
+      identity: message.from,
+      opt_out: false,
+      handover_to: "22222222-2222-2222-2222-222222222222",
+      handover_at: new Date().toISOString(),
+      handover_reason: "Customer asked for a person",
+    };
+    const h = harness({ getPreference: async () => pref });
+    const out = await dispatchReceipt(h.db, receipt(), message, "acct", h.makeDeps, { ports: h.ports });
+    expect(out).toBe("manual_review");
+    expect(h.calls).toEqual(["claim", "resolveCompany", "record"]);
+    expect(h.calls).not.toContain("dispatch");
   });
 });

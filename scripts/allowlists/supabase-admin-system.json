@@ -15,6 +15,7 @@
   "src/app/app/messages/[id]/actions.ts",
   "src/inngest/functions.ts",
   "src/lib/audit.ts",
+  "src/lib/comms/preferences.ts",
   "src/lib/documents.ts",
   "src/lib/inbound/production-deps.ts",
   "src/lib/outbox-enqueue.ts",
