@@ -278,16 +278,16 @@
     "evidence": "tests/campaign/gov-002-directive-escalation.test.ts (15 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression); tests/campaign/cron-auth.test.ts (9 passed regression); fresh disposable PostgreSQL 16 0001-0099 full migration; narrow upgrade 0098→0099; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (916 unit tests / 2 skipped / 136 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
   },
-  "lastGreenSha": "b55f054c5ff8beda9b8791ad7334889e97a24fb9",
+  "lastGreenSha": "9074c55",
   "latestMigration": "0108_push_subscriptions.sql",
   "lastCompletedAction": "Completed MOB-003 acceptance and register update. No unblocked implementable requirements remain.",
   "nextAction": "Stop: only blocked_owner, deliberately_deferred, or dependency-blocked requirements remain in the register. Resume when an owner gate is cleared or a dependency becomes verified.",
   "lastTargetedTests": [
     "tests/mobile-api.test.ts (7 passed)",
-    "tests/campaign/mob-003-mobile-api.test.ts (7 passed)"
+    "tests/campaign/mob-003-mobile-api.test.ts (10 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "b55f054c5ff8beda9b8791ad7334889e97a24fb9 on kimi/found006-rls-cutover",
+    "sha": "9074c55 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
     "unit": "1208 passed / 2 skipped / 168 files",
@@ -322,7 +322,7 @@
     "WRK-003: LOCALLY ACCEPTED at 1b494e6. The HR staff list and employee record display and allow editing of employee skills, scoped by company_id. Certification expiry, renewal-task creation and assignment consumption remain future work.",
     "MOB-001: LOCALLY ACCEPTED at 046991c. The root layout and global stylesheet provide a responsive mobile foundation: viewport=device-width/initialScale=1/viewportFit=cover, 100dvh, safe-area insets, overflow-x hidden, text-size-adjust, and collapsing grid breakpoints. Real-device/role-based mobile UAT remains future work.",
     "MOB-002: LOCALLY ACCEPTED at 7c3942b56c6898f26dcef2ec3545619b0b8476c0. The app serves a PWA manifest, registers a same-origin service worker from the root layout, caches the shell for offline opening, and returns a safe 503 retryable response for offline API reads. Writes are never cached or replayed.",
-    "MOB-003: LOCALLY ACCEPTED at b55f054c5ff8beda9b8791ad7334889e97a24fb9. Stable v1 mobile endpoints for health, config, VAPID public key and push-subscription registration; company/user-scoped push_subscriptions table with RLS; never sends or fabricates push messages.",
+    "MOB-003: LOCALLY ACCEPTED at 9074c55. Stable v1 mobile endpoints for health, config, VAPID public key and push-subscription registration; company/user-scoped push_subscriptions table with RLS; never sends or fabricates push messages.",
     "PRJ-001: LOCALLY ACCEPTED at f227fef. The operations projects page lists company-scoped projects with lifecycle status and links from the operations home. Milestones, stage gates and project precedent reuse remain future work.",
     "PRJ-002: LOCALLY ACCEPTED at e759c10. The admin objectives page lists company-scoped objectives, grades progress with assessObjective and supports create/update progress actions. Milestones, dependencies, stage gates and project linkage remain future work.",
     "RSK-002: LOCALLY ACCEPTED at 843cb05. The legal contracts page lists company-scoped contracts with counterparty, renewal date, and renewal status badges. Automatic creation of owned dated renewal tasks remains future work.",
@@ -423,7 +423,7 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T22:00:00.000Z",
+  "updatedAt": "2026-08-23T23:15:00.000Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
