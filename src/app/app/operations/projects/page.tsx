@@ -62,7 +62,7 @@ export default async function ProjectsPage() {
                   const statusTone = proj.status === "active" ? "ok" : proj.status === "on_hold" ? "warn" : proj.status === "completed" ? "" : "";
                   return (
                     <tr key={proj.id}>
-                      <td style={{ fontWeight: 600 }}>{proj.name}</td>
+                      <td style={{ fontWeight: 600 }}><Link className="link" href={`/app/operations/projects/${proj.id}`}>{proj.name}</Link></td>
                       <td className="dim small mono">{proj.code ?? "—"}</td>
                       <td><span className={`badge ${statusTone}`}>{proj.status.replace(/_/g, " ")}</span></td>
                       <td className="dim small">{proj.created_at ? new Date(proj.created_at).toLocaleDateString() : "—"}</td>
