@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import "./globals.css";
 import LivingBackground from "@/components/LivingBackground";
+import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 
 export const metadata = {
   title: "Singha Central",
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en">
       <body>
         <LivingBackground />
+        <ServiceWorkerRegistration />
         {children}
       </body>
     </html>
