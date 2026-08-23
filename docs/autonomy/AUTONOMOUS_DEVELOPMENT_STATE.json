@@ -1,21 +1,22 @@
 {
   "program": "Singha Central Original Vision Completion",
-  "activePhase": "stage3-governance",
-  "activeRequirementIds": ["GOV-005"],
+  "activePhase": "stage4-finance",
+  "activeRequirementIds": ["FIN-008"],
   "currentBranch": "kimi/found006-rls-cutover",
   "currentPr": null,
   "baseSha": "be2f13e",
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "8b90057",
-    "outcome": "LOCALLY ACCEPTED: CTL-003 integration/AI-model health on the control surface. The migration 0069 source_event_backlog RPC is surfaced on src/app/app/admin/health/page.tsx with company-scoped service-role calls and probeCount/unavailability handling.",
+    "testedSha": "c3c0b71",
+    "outcome": "LOCALLY ACCEPTED: GOV-005 human override, appeal and separation of duties. checkSeparationOfDuties is now called by the finance approval action and page, with membership-based authority resolution.",
     "container": "n/a — no database required",
     "corrections": [
-      "Added probeBacklog helper calling source_event_backlog(p_company) via supabaseAdmin.",
-      "Rendered pending, processing, retry wait, expired lease, dead letter and oldest pending tiles in a Source-event backlog card.",
-      "Added tests/campaign/admin-health-backlog.test.ts proving the RPC call, rendered columns, unavailable handling and danger highlighting.",
-      "Updated CTL-003 requirement entry to locally_verified with test_evidence and last_verified_sha."
+      "Added getApproverForUser in src/lib/access.ts to build an Approver from membership roles + role_permissions.",
+      "Updated src/app/app/finance/approvals/actions.ts to call checkSeparationOfDuties with required roles from policy_evaluations.",
+      "Updated src/app/app/finance/approvals/page.tsx to use the same SoD engine when deciding whether to render action buttons.",
+      "Added tests/access-approver.test.ts and tests/campaign/gov-005-approval-sod.test.ts.",
+      "Updated GOV-005 requirement entry to locally_verified with test_evidence and last_verified_sha."
     ]
   },
   "mod003LocalAcceptance": {
@@ -82,31 +83,39 @@
     "evidence": "tests/campaign/admin-health-backlog.test.ts (4 passed); tests/health.test.ts (3 passed); tests/health-signals.test.ts (7 passed); tests/campaign/health-route.test.ts (3 passed); npm run verify (776 unit tests / 2 skipped / 111 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, production traffic, or live provider. AI cost still excludes customer-facing calls (MOD-002 residual)."
   },
-  "lastGreenSha": "4c484ef",
+  "gov005LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "c3c0b71",
+    "outcome": "LOCALLY ACCEPTED: separation-of-duties is enforced on the finance approval action and page. checkSeparationOfDuties from src/policy/authority.ts is now a production caller, using membership roles/permissions resolved by getApproverForUser and required roles derived from policy_evaluations.",
+    "evidence": "tests/access-approver.test.ts (4 passed); tests/campaign/gov-005-approval-sod.test.ts (5 passed); tests/approval-progress.test.ts (4 passed); tests/policy.test.ts (9 passed); npm run verify (785 unit tests / 2 skipped / 113 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean.",
+    "limitations": "checkAuthority with delegations is not yet wired into the approval action; approver_is_beneficiary and sensitive-action SoD need financial-event context in a future iteration. No hosted/staging database or authenticated browser flow tested."
+  },
+  "lastGreenSha": "8221061",
   "latestMigration": "0092_model_gateway_budget_policy_rls.sql",
-  "lastCompletedAction": "CTL-003 local acceptance completed at 8b90057 on kimi/found006-rls-cutover. The admin health page now surfaces the migration 0069 source_event_backlog RPC. Transitioning to GOV-005 (Human override, appeal and separation of duties), a stage3 P0 requirement whose residual_risks identifies that checkSeparationOfDuties and checkAuthority are dead code in production.",
-  "nextAction": "Assess GOV-005: identify where approval actions should invoke checkSeparationOfDuties/checkAuthority, wire the logic into a runtime path, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
+  "lastCompletedAction": "GOV-005 local acceptance completed at c3c0b71 on kimi/found006-rls-cutover. checkSeparationOfDuties is now a production caller on the finance approval action and page. Transitioning to FIN-008 (Payment intelligence and evidence), a stage4 P0 requirement whose residual_risks identifies that evidence is not required at the point of payment recording.",
+  "nextAction": "Assess FIN-008: identify where payments are recorded, determine the smallest change that requires evidence before payment recording, add tests, update the requirement entry to locally_verified with test_evidence and last_verified_sha, run npm run verify, and commit/push. Do not merge to main, deploy, contact hosted databases, enable production flags, use real data/messages/payments, or perform owner-gated decisions.",
   "lastTargetedTests": [
-    "npm test -- tests/campaign/admin-health-backlog.test.ts (4 passed)",
-    "npm test -- tests/health.test.ts (3 passed)",
-    "npm test -- tests/health-signals.test.ts (7 passed)"
+    "npm test -- tests/access-approver.test.ts (4 passed)",
+    "npm test -- tests/campaign/gov-005-approval-sod.test.ts (5 passed)",
+    "npm test -- tests/approval-progress.test.ts (4 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "8b90057 on kimi/found006-rls-cutover",
+    "sha": "c3c0b71 on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "776 passed / 2 skipped / 111 files",
-    "integrationFresh": "not rerun for CTL-003 (no database change)",
-    "integrationNarrowUpgrade": "not rerun for CTL-003",
-    "integrationLegacyUpgrade": "not rerun for CTL-003",
-    "migrationIdempotency": "not rerun for CTL-003",
+    "unit": "785 passed / 2 skipped / 113 files",
+    "integrationFresh": "not rerun for GOV-005 (no database change)",
+    "integrationNarrowUpgrade": "not rerun for GOV-005",
+    "integrationLegacyUpgrade": "not rerun for GOV-005",
+    "migrationIdempotency": "not rerun for GOV-005",
     "build": "compiled cleanly",
-    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 776 unit tests (2 skipped / 111 files)",
+    "verify": "passed: secret scan, migration lint, completion-inventory check (admin-files 19, allowlist enforced), autonomy audit, IP-boundary audit, typecheck, and 785 unit tests (2 skipped / 113 files)",
     "secretScan": "clean",
     "migrationLint": "92 sequential, 0001-0092, no gaps or duplicates",
-    "browserCheck": "not rerun for CTL-003",
-    "discriminationProof": "admin-health-backlog.test.ts proves the admin health page calls source_event_backlog(p_company) and renders every backlog column with unavailable handling; health.test.ts proves classifyHealth distinguishes ok/warn/critical.",
-    "note": "CTL-003 verification requires no database or browser. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
+    "browserCheck": "not rerun for GOV-005",
+    "discriminationProof": "access-approver.test.ts proves getApproverForUser resolves membership roles/permissions; gov-005-approval-sod.test.ts proves checkSeparationOfDuties is imported and called by the finance approval action and page.",
+    "note": "GOV-005 verification requires no database or browser. No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent."
   },
   "openFindings": [
     "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
@@ -118,6 +127,8 @@
     "AIM-004: V3.1 FUTURE WORK. Schema contract exists at src/schemas/v3_1/task-intelligence-profile.ts; no runtime consumer is built per the zero-behaviour-change foundation constraint.",
     "OPS-005: LOCALLY ACCEPTED at e32a1b7. V3.1 flag snapshot reported on /api/health; activation remains owner-gated per slice.",
     "CTL-003: LOCALLY ACCEPTED at 8b90057. The migration 0069 source_event_backlog RPC is surfaced on the admin health page with company scoping and unavailable handling.",
+    "GOV-005: LOCALLY ACCEPTED at c3c0b71. checkSeparationOfDuties is now called by the finance approval action and page via membership-based authority resolution.",
+    "GOV-004: BLOCKED_OWNER. Board-reserved matters and emergency suspension requires the owner to define the reserved-matter list before implementation.",
     "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
     "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
     "OF-015 (P2): sections 3 and 6 have no re-runnable schema-level end-to-end discrimination, because they are application code.",
