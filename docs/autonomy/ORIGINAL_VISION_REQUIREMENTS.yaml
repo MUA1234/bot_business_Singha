@@ -1072,17 +1072,17 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: [CRM-002]
-    status: absent
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/app/procurement/service-providers/page.tsx and src/app/app/procurement/service-providers/[id]/page.tsx
+    database_evidence: src/db/migrations/0101_service_provider_registry.sql adds company-scoped service_providers table with capabilities/service_areas/capacity_notes/price_notes/compliance_status/insurance_status/insurance_expiry; capability-gated RLS and updated_at trigger.
+    service_evidence: src/modules/crm/service-provider.ts (providerHealth); src/app/app/procurement/service-providers/actions.ts (createServiceProvider/updateServiceProviderStatus)
+    ui_evidence: Procurement home links to service providers; list page with create form and compliance/insurance badges; detail page with status update form.
+    test_evidence: tests/campaign/crm-003-service-providers.test.ts; tests/service-provider.test.ts
+    security_evidence: company-scoped reads via Supabase RLS; capability-gated writes (procurement.service_provider.manage); procurement-department/admin gate on server actions; audit events service_provider.created and service_provider.status_updated.
+    audit_health_evidence: service_provider.created and service_provider.status_updated audit actions
+    last_verified_sha: 22cc2730a800f4464b7936b93768e93f2c4b5835
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
     residual_risks: Required by WRK-005 external team formation and by AST-001 maintenance providers.
