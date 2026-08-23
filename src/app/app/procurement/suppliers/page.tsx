@@ -9,6 +9,7 @@
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { counterpartyHealth } from "@/modules/crm/counterparty-compliance";
 
 export const metadata = { title: "Suppliers — Singha Central" };
 
@@ -25,6 +26,9 @@ interface Supplier {
   bank_account_name: string | null;
   bank_account_number: string | null;
   status: string;
+  compliance_status: string;
+  insurance_status: string;
+  insurance_expiry: string | null;
   channel_identities: ChannelIdentity[];
 }
 
@@ -53,7 +57,7 @@ export default async function SuppliersPage() {
 
   const { data: rows } = await db
     .from("suppliers")
-    .select("id, name, email, phone, bank_account_name, bank_account_number, status")
+    .select("id, name, email, phone, bank_account_name, bank_account_number, status, compliance_status, insurance_status, insurance_expiry")
     .eq("company_id", p.companyId)
     .order("name", { ascending: true })
     .limit(500);
@@ -83,6 +87,9 @@ export default async function SuppliersPage() {
     bank_account_name: r.bank_account_name,
     bank_account_number: r.bank_account_number,
     status: r.status,
+    compliance_status: r.compliance_status ?? "pending",
+    insurance_status: r.insurance_status ?? "pending",
+    insurance_expiry: r.insurance_expiry ?? null,
     channel_identities: channelsBySupplier.get(r.id) ?? [],
   }));
 
@@ -117,16 +124,24 @@ export default async function SuppliersPage() {
           <div className="table-wrap mt-2">
             <table className="data">
               <thead>
-                <tr><th>Supplier</th><th>Channel identities</th><th>Bank details</th><th>Status</th></tr>
+                <tr><th>Supplier</th><th>Channel identities</th><th>Bank details</th><th>Compliance</th><th>Insurance</th></tr>
               </thead>
               <tbody>
                 {suppliers.map((s) => {
                   const isDuplicate = duplicateSupplierIds.has(s.id);
+                  const health = counterpartyHealth({
+                    status: s.status,
+                    compliance_status: s.compliance_status,
+                    insurance_status: s.insurance_status,
+                    insurance_expiry: s.insurance_expiry,
+                  });
+                  const healthBadge = health === "verified" ? "ok" : health === "blocked" ? "danger" : "warn";
                   return (
                     <tr key={s.id}>
                       <td style={{ fontWeight: 600 }}>
                         {s.name}
                         {isDuplicate && <span className="badge warn ml-1">duplicate</span>}
+                        <span className={`badge ${healthBadge} ml-1`}>{health}</span>
                       </td>
                       <td className="dim small">
                         {s.channel_identities.length === 0 ? (
@@ -153,7 +168,11 @@ export default async function SuppliersPage() {
                           </div>
                         )}
                       </td>
-                      <td><span className="badge">{s.status}</span></td>
+                      <td><span className="badge">{s.compliance_status}</span></td>
+                      <td>
+                        <span className="badge">{s.insurance_status}</span>
+                        {s.insurance_expiry && <div className="dim small">expires {s.insurance_expiry}</div>}
+                      </td>
                     </tr>
                   );
                 })}

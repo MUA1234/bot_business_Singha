@@ -12,10 +12,11 @@ export const metadata = { title: "Purchase Orders — Singha Central" };
 
 export default async function PurchaseOrdersPage() {
   const p = await requireDepartment("procurement");
+  const db = supabaseReadClient();
 
   let rows: any[] = [];
   try {
-    const { data } = await supabaseReadClient()
+    const { data } = await db
       .from("purchase_orders")
       .select("id, po_number, total_amount, currency, status, expected_payment_date, created_at")
       .eq("company_id", p.companyId)
@@ -24,6 +25,19 @@ export default async function PurchaseOrdersPage() {
     rows = data ?? [];
   } catch {
     rows = [];
+  }
+
+  let suppliers: any[] = [];
+  try {
+    const { data } = await db
+      .from("suppliers")
+      .select("id, name")
+      .eq("company_id", p.companyId)
+      .order("name", { ascending: true })
+      .limit(500);
+    suppliers = data ?? [];
+  } catch {
+    suppliers = [];
   }
 
   return (
@@ -37,6 +51,12 @@ export default async function PurchaseOrdersPage() {
         <div className="card-title">New purchase order</div>
         <form action={createPurchaseOrder} className="row gap-1 wrap mt-2">
           <input name="title" className="input" style={{ flex: 1, minWidth: 200 }} placeholder="Reference / what it's for" />
+          <select name="supplier_id" className="select" style={{ minWidth: 200 }}>
+            <option value="">No supplier (internal)</option>
+            {suppliers.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
           <button className="btn" type="submit">Create PO</button>
         </form>
       </div>

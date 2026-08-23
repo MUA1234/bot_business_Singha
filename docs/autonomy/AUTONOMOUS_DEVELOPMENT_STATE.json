@@ -1,7 +1,9 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [],
+  "activeRequirementIds": [
+    "CRM-005"
+  ],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -277,8 +279,8 @@
   },
   "lastGreenSha": "22cc2730a800f4464b7936b93768e93f2c4b5835",
   "latestMigration": "0101_service_provider_registry.sql",
-  "lastCompletedAction": "Accepted CRM-003 consultant and service-provider registry as locally verified on kimi/found006-rls-cutover at 22cc2730a800f4464b7936b93768e93f2c4b5835.",
-  "nextAction": "Select the next dependency-ordered implementable requirement and continue the autonomous pass.",
+  "lastCompletedAction": "Selected CRM-005 compliance and insurance status per counterparty as next dependency-ordered implementable requirement (deps CRM-003 and RSK-004 locally verified).",
+  "nextAction": "Implement CRM-005 database/service/UI and tests, then run acceptance gates.",
   "lastTargetedTests": [
     "tests/campaign/crm-003-service-providers.test.ts (8 passed)",
     "tests/service-provider.test.ts (9 passed)"
@@ -398,7 +400,7 @@
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T08:05:00Z",
+  "updatedAt": "2026-08-23T08:07:00Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",

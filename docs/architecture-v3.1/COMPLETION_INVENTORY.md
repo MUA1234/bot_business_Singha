@@ -42,7 +42,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/fleet/vehicles/[id]/page.tsx:83 | `<span>{Number(f.litres ?? 0)} L @ {Number(f.odometer ?? 0)} km</span><span className="dim">{fmtMoney` |
 | src/app/app/legal/insurances/actions.ts:31 | `cover_amount: cover_amount ? Number(cover_amount) : null,` |
 | src/app/app/procurement/inventory/page.tsx:26 | `const items: StockItem[] = rows.map((r) => ({ name: r.name, quantityOnHand: Number(r.quantity_on_han` |
-| src/app/app/procurement/purchase-orders/actions.ts:46 | `const total = decSum(rows.map((l: any) => dec(l.unit_price).times(Math.max(0, Math.trunc(Number(l.qu` |
+| src/app/app/procurement/purchase-orders/actions.ts:80 | `const total = decSum(rows.map((l: any) => dec(l.unit_price).times(Math.max(0, Math.trunc(Number(l.qu` |
 | src/app/app/sales/opportunities/page.tsx:30 | `const summary = summarizePipeline(rows.map((r): Opportunity => ({ amount: String(r.amount ?? "0"), p` |
 | src/lib/money.ts:189 | `* `Number(v).toLocaleString()` — the latter both floats the amount and hides its currency scale.` |
 | src/modules/finance/reconcile.ts:66 | `reason: `${best.c.kind} of equal amount, ${Math.round(best.days)}d apart`,` |
@@ -82,7 +82,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 
 - src/app/api/webhooks/email/route.ts
 
-## 7. Error-masking suspects (catch → empty return) — 76 (Phase-1C triage list)
+## 7. Error-masking suspects (catch → empty return) — 77 (Phase-1C triage list)
 
 | file:line | returns |
 |---|---|
@@ -143,8 +143,9 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/operations/tasks/page.tsx:31 | `error-discarding destructure` |
 | src/app/app/procurement/page.tsx:14 | `0` |
 | src/app/app/procurement/page.tsx:17 | `[]` |
-| src/app/app/procurement/purchase-orders/actions.ts:37 | `error-discarding destructure` |
-| src/app/app/procurement/purchase-orders/page.tsx:18 | `error-discarding destructure` |
+| src/app/app/procurement/purchase-orders/actions.ts:71 | `error-discarding destructure` |
+| src/app/app/procurement/purchase-orders/page.tsx:19 | `error-discarding destructure` |
+| src/app/app/procurement/purchase-orders/page.tsx:32 | `error-discarding destructure` |
 | src/app/app/procurement/purchase-requests/page.tsx:27 | `error-discarding destructure` |
 | src/app/app/procurement/rfqs/actions.ts:16 | `error-discarding destructure` |
 | src/app/app/procurement/service-providers/actions.ts:44 | `error-discarding destructure` |

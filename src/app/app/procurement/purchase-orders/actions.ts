@@ -5,6 +5,7 @@ import { requireProfile } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { dec, decSum, parseMoneyInput } from "@/lib/money";
+import { counterpartyHealth, canOrderFromCounterparty } from "@/modules/crm/counterparty-compliance";
 
 async function requireProc() {
   const p = await requireProfile();
@@ -21,14 +22,47 @@ function poNumber(): string {
 export async function createPurchaseOrder(formData: FormData): Promise<void> {
   const p = await requireProc();
   const title = String(formData.get("title") ?? "").trim();
+  const supplierIdRaw = String(formData.get("supplier_id") ?? "").trim();
   const db = supabaseWriteClient();
+
+  let supplierId: string | null = null;
+  if (supplierIdRaw) {
+    const { data: supplier } = await db
+      .from("suppliers")
+      .select("id, status, compliance_status, insurance_status, insurance_expiry")
+      .eq("id", supplierIdRaw)
+      .eq("company_id", p.companyId)
+      .maybeSingle();
+    if (!supplier) {
+      throw new Error("Supplier not found.");
+    }
+    const health = counterpartyHealth({
+      status: supplier.status,
+      compliance_status: supplier.compliance_status,
+      insurance_status: supplier.insurance_status,
+      insurance_expiry: supplier.insurance_expiry,
+    });
+    if (!canOrderFromCounterparty(health)) {
+      await writeAudit({
+        companyId: p.companyId,
+        actorId: p.userId,
+        action: "purchase_order.rejected_compliance",
+        entityType: "purchase_order",
+        entityId: null,
+        payload: { supplier_id: supplier.id, health, title },
+      });
+      throw new Error(`Cannot create purchase order: supplier compliance health is ${health}.`);
+    }
+    supplierId = supplier.id;
+  }
+
   const { data, error } = await db
     .from("purchase_orders")
-    .insert({ company_id: p.companyId, po_number: poNumber(), status: "draft", total_amount: "0.00" })
+    .insert({ company_id: p.companyId, supplier_id: supplierId, po_number: poNumber(), status: "draft", total_amount: "0.00" })
     .select("id")
     .maybeSingle();
   if (error) return;
-  await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "purchase_order.created", entityType: "purchase_order", entityId: data?.id ?? null, payload: { title } });
+  await writeAudit({ companyId: p.companyId, actorId: p.userId, action: "purchase_order.created", entityType: "purchase_order", entityId: data?.id ?? null, payload: { title, supplier_id: supplierId } });
   revalidatePath("/app/procurement/purchase-orders");
 }
 
