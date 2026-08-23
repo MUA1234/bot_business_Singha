@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 44 |
-| absent | 32 |
+| locally_verified | 45 |
+| absent | 31 |
 | specified | 5 |
 | blocked_owner | 4 |
 | foundation_only | 3 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **44** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **41** |
+| **Verified** (locally / preview / staging / production) | **45** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **40** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -55,7 +55,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | MOB | 4 | 1 | 3 |
 | MOD | 3 | 1 | 2 |
 | OPS | 8 | 3 | 5 |
-| PRJ | 5 | 2 | 3 |
+| PRJ | 5 | 3 | 2 |
 | RSK | 6 | 4 | 2 |
 | SCH | 6 | 2 | 4 |
 | WRK | 5 | 3 | 2 |
@@ -134,7 +134,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | OPS-008 | Monitored production pilot | P0 | **blocked_owner** | none | none | owner approval of merge, hosted migration, flags and promotion |
 | PRJ-001 | Reusable project registry with lifecycle states | P1 | **locally_verified** | src/app/app/operations/projects/page.tsx | f227fef | — |
 | PRJ-002 | Objectives, milestones and stage gates | P1 | **locally_verified** | src/app/app/admin/objectives/page.tsx | e759c10 | — |
-| PRJ-003 | Project budgets, forecasts and resource requirements | P1 | **absent** | none | none | — |
+| PRJ-003 | Project budgets, forecasts and resource requirements | P1 | **locally_verified** | src/app/app/operations/projects/[id]/page.tsx | 4ca0f227ec0b3c928bd42b077ed08622c2f7920f | — |
 | PRJ-004 | Project risks, decisions and scenario comparison | P2 | **absent** | none | none | — |
 | PRJ-005 | Portfolio prioritisation | P2 | **absent** | none | none | — |
 | RSK-001 | Risk register with owner, evidence and due dates | P1 | **locally_verified** | src/app/app/legal/risks/page.tsx | 299b296 | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **41**; blocked (owner): **4**;
+mode. Incomplete and implementable: **40**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.

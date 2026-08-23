@@ -795,20 +795,20 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: [PRJ-001, FIN-006, WRK-002]
-    status: absent
+    status: locally_verified
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
-    audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    runtime_entrypoint: src/app/app/operations/projects/[id]/page.tsx
+    database_evidence: Existing migration 0005_banking_and_planning.sql budget_lines and journal_lines with project_id; migration 0012_work_tasks.sql tasks/task_assignments with project_id; accounting_periods provide the forecast periods.
+    service_evidence: src/modules/project/budget-forecast.ts (computeProjectBudgetForecast); src/modules/project/resource-requirements.ts (computeResourceRequirements); src/app/app/operations/projects/actions.ts (updateProjectStatus)
+    ui_evidence: Project registry links to detail; detail page shows project status update, budget vs actual tiles, forecast curve by period, and resource requirements (assigned people, planned/actual/remaining hours, blocked/overdue).
+    test_evidence: tests/campaign/prj-003-project-budget-forecast.test.ts; tests/project-budget-forecast.test.ts
+    security_evidence: company-scoped reads via Supabase RLS; operations-department/admin gate on updateProjectStatus; audit event project.status_updated.
+    audit_health_evidence: project.status_updated audit action
+    last_verified_sha: 4ca0f227ec0b3c928bd42b077ed08622c2f7920f
+    last_verified_at: 2026-08-23
     owner_gate: none
     blocker: none
-    residual_risks: none
+    residual_risks: Resource capacity uses contracted_weekly_hours from employee_profiles when available; defaults to hardcoded thresholds otherwise. Project write RLS policies remain app-layer/service-role while flags are OFF.
   - id: PRJ-004
     title: Project risks, decisions and scenario comparison
     description: Per-project risk and decision log, with scenario comparison between options.

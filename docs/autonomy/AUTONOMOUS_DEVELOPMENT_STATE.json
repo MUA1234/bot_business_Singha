@@ -1,21 +1,19 @@
 {
   "program": "Singha Central Original Vision Completion",
   "activePhase": "stage4-crm",
-  "activeRequirementIds": [
-    "PRJ-003"
-  ],
+  "activeRequirementIds": [],
   "lastLocalAcceptanceAttempt": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
-    "testedSha": "d514bf1242cc4fba4fcd464c8aec1f47958a2b4d",
-    "outcome": "LOCALLY ACCEPTED: FIN-006 budget versus actual and scenario analysis. Existing migration 0005 tables (budgets/budget_lines/forecasts/forecast_scenarios/forecast_lines) are used by deterministic pure modules computeBudgetVsActual and projectScenarios; the /app/finance/budgets list and detail pages surface budgeted/actual/variance and best/expected/worst scenarios; gated server actions create budgets, lines and scenarios with audit events.",
-    "container": "disposable local PostgreSQL 16 (port 55441) with supabase-shim",
+    "testedSha": "4ca0f227ec0b3c928bd42b077ed08622c2f7920f",
+    "outcome": "LOCALLY ACCEPTED: PRJ-003 project budgets, forecasts and resource requirements. Reuses existing project_id links on budget_lines, journal_lines, tasks and task_assignments; deterministic modules computeProjectBudgetForecast and computeResourceRequirements power the project detail page; updateProjectStatus action is operations-gated and audited.",
+    "container": "disposable local PostgreSQL 16 (port 55440/55441) with supabase-shim",
     "corrections": [
-      "Added src/modules/finance/budget-vs-actual.ts and src/modules/finance/scenario-analysis.ts with exact-decimal Money.",
-      "Added src/app/app/finance/budgets/page.tsx, [id]/page.tsx and actions.ts; linked from finance home.",
-      "Added tests/campaign/fin-006-budget-vs-actual.test.ts (11 passed) and tests/budget-vs-actual.test.ts (11 passed).",
+      "Added src/modules/project/budget-forecast.ts and src/modules/project/resource-requirements.ts.",
+      "Added src/app/app/operations/projects/[id]/page.tsx and actions.ts; linked project names from the registry list.",
+      "Added tests/campaign/prj-003-project-budget-forecast.test.ts (12 passed) and tests/project-budget-forecast.test.ts (10 passed).",
       "Fresh disposable PostgreSQL 16 0001-0100; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on.",
-      "npm run verify (950 unit tests / 2 skipped / 139 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed."
+      "npm run verify (972 unit tests / 2 skipped / 141 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed."
     ]
   },
   "currentBranch": "kimi/found006-rls-cutover",
@@ -277,21 +275,21 @@
     "evidence": "tests/campaign/gov-002-directive-escalation.test.ts (15 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression); tests/campaign/cron-auth.test.ts (9 passed regression); fresh disposable PostgreSQL 16 0001-0099 full migration; narrow upgrade 0098→0099; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (916 unit tests / 2 skipped / 136 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
   },
-  "lastGreenSha": "d514bf1242cc4fba4fcd464c8aec1f47958a2b4d",
+  "lastGreenSha": "4ca0f227ec0b3c928bd42b077ed08622c2f7920f",
   "latestMigration": "0100_commitment_expected_payments.sql",
-  "lastCompletedAction": "Selected PRJ-003 project budgets, forecasts and resource requirements as next dependency-ordered implementable requirement (deps PRJ-001, FIN-006, WRK-002 all locally verified).",
-  "nextAction": "Implement PRJ-003 database/service/UI and tests, then run acceptance gates.",
+  "lastCompletedAction": "Accepted PRJ-003 project budgets, forecasts and resource requirements as locally verified on kimi/found006-rls-cutover at 4ca0f227ec0b3c928bd42b077ed08622c2f7920f.",
+  "nextAction": "Select the next dependency-ordered implementable requirement and continue the autonomous pass.",
   "lastTargetedTests": [
-    "tests/campaign/fin-006-budget-vs-actual.test.ts (11 passed)",
-    "tests/budget-vs-actual.test.ts (11 passed)"
+    "tests/campaign/prj-003-project-budget-forecast.test.ts (12 passed)",
+    "tests/project-budget-forecast.test.ts (10 passed)"
   ],
   "lastFullGateResults": {
-    "sha": "d514bf1242cc4fba4fcd464c8aec1f47958a2b4d on kimi/found006-rls-cutover",
+    "sha": "4ca0f227ec0b3c928bd42b077ed08622c2f7920f on kimi/found006-rls-cutover",
     "typecheck": "clean",
     "lint": "0 errors (3 pre-existing next/image warnings)",
-    "unit": "950 passed / 2 skipped / 139 files",
+    "unit": "972 passed / 2 skipped / 141 files",
     "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0100 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
-    "integrationNarrowUpgrade": "not applicable — FIN-006 uses existing migration 0005 tables; no new migration added",
+    "integrationNarrowUpgrade": "not applicable — PRJ-003 uses existing migrations 0005/0012; no new migration added",
     "integrationLegacyUpgrade": "not run for this package (foundation branch; previous requirements covered legacy upgrades)",
     "migrationIdempotency": "migration-lint 0001-0100 sequential, no gaps or duplicates",
     "build": "clean",
@@ -299,7 +297,7 @@
     "secretScan": "no tracked secrets found",
     "migrationLint": "100 migrations, sequential 0001–0100, no gaps or duplicates",
     "browserCheck": "10/10 passed",
-    "discriminationProof": "fin-006-budget-vs-actual.test.ts proves the budget-vs-actual and scenario-analysis modules compute deterministic period/account/project variances with exact decimals; the campaign test verifies the budgets pages and actions surface budgeted/actual/variance and best/expected/worst scenarios.",
+    "discriminationProof": "prj-003-project-budget-forecast.test.ts proves computeProjectBudgetForecast filters budget/journal activity by project and computes exact-decimal variance and a per-period forecast curve; computeResourceRequirements aggregates assigned people, planned/actual/remaining hours, blocked/overdue tasks and capacity status.",
     "note": "No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent during this acceptance pass."
   },
   "openFindings": [
@@ -394,11 +392,12 @@
       "int001": 0,
       "gov001": 0,
       "fin004": 0,
-      "fin006": 0
+      "fin006": 0,
+      "prj003": 0
     },
     "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
   },
-  "updatedAt": "2026-08-23T07:27:00Z",
+  "updatedAt": "2026-08-23T07:46:00Z",
   "fin004LocalAcceptance": {
     "date": "2026-08-23",
     "branch": "kimi/found006-rls-cutover",
@@ -414,5 +413,13 @@
     "outcome": "LOCALLY ACCEPTED: FIN-006 budget versus actual and scenario analysis. Existing migration 0005 tables (budgets/budget_lines/forecasts/forecast_scenarios/forecast_lines) are used by deterministic pure modules computeBudgetVsActual and projectScenarios; the /app/finance/budgets list and detail pages surface budgeted/actual/variance and best/expected/worst scenarios; gated server actions create budgets, lines and scenarios with audit events.",
     "evidence": "Added src/modules/finance/budget-vs-actual.ts and src/modules/finance/scenario-analysis.ts with exact-decimal Money. Added src/app/app/finance/budgets/page.tsx, [id]/page.tsx and actions.ts; linked from finance home. Added tests/campaign/fin-006-budget-vs-actual.test.ts (11 passed) and tests/budget-vs-actual.test.ts (11 passed). Fresh disposable PostgreSQL 16 0001-0100; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (950 unit tests / 2 skipped / 139 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
     "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live budget-creation workflow tested. Budget write RLS policies remain app-layer/service-role while flags are OFF."
+  },
+  "prj003LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "4ca0f227ec0b3c928bd42b077ed08622c2f7920f",
+    "outcome": "LOCALLY ACCEPTED: PRJ-003 project budgets, forecasts and resource requirements. Reuses existing project_id links on budget_lines, journal_lines, tasks and task_assignments; deterministic modules computeProjectBudgetForecast and computeResourceRequirements power the project detail page; updateProjectStatus action is operations-gated and audited.",
+    "evidence": "Added src/modules/project/budget-forecast.ts and src/modules/project/resource-requirements.ts. Added src/app/app/operations/projects/[id]/page.tsx and actions.ts; linked project names from the registry list. Added tests/campaign/prj-003-project-budget-forecast.test.ts (12 passed) and tests/project-budget-forecast.test.ts (10 passed). Fresh disposable PostgreSQL 16 0001-0100; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (972 unit tests / 2 skipped / 141 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live project-status workflow tested. Project write RLS policies remain app-layer/service-role while flags are OFF."
   }
 }
