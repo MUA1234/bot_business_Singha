@@ -10,8 +10,8 @@ Generated at: 2026-08-23
 
 | Status | Count |
 |---|---|
-| locally_verified | 39 |
-| absent | 37 |
+| locally_verified | 40 |
+| absent | 36 |
 | specified | 5 |
 | blocked_owner | 4 |
 | foundation_only | 3 |
@@ -25,8 +25,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **39** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **46** |
+| **Verified** (locally / preview / staging / production) | **40** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **45** |
 | **Blocked — owner** | **4** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **1** |
@@ -51,7 +51,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | INT | 1 | 1 | 0 |
 | IP | 1 | 1 | 0 |
 | LNG | 1 | 0 | 1 |
-| MEM | 1 | 0 | 1 |
+| MEM | 1 | 1 | 0 |
 | MOB | 4 | 1 | 3 |
 | MOD | 3 | 1 | 2 |
 | OPS | 8 | 3 | 5 |
@@ -116,7 +116,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | INT-001 | Integration Gateway and connector registry | P1 | **locally_verified** | src/app/app/admin/integrations/page.tsx | 4b5bbb3 | — |
 | IP-001 | Public-repository IP boundary | P1 | **locally_verified** | scripts/autonomy/check-ip-boundary.mjs | c72b2fe | decision on a private repository or package for proprietary prompts and evaluation data |
 | LNG-001 | Multilingual English / Sinhala / Tamil | P2 | **specified** | none | none | approval of the specification before implementation |
-| MEM-001 | Organizational memory and evidence provenance | P1 | **absent** | none | none | — |
+| MEM-001 | Organizational memory and evidence provenance | P1 | **locally_verified** | src/app/app/command/memory/page.tsx | 82b6ce9 | — |
 | MOB-001 | Responsive mobile experience | P1 | **locally_verified** | src/app/layout.tsx; src/app/globals.css | 046991c | — |
 | MOB-002 | Progressive web app with offline-safe behaviour | P2 | **absent** | none | none | — |
 | MOB-003 | Versioned mobile APIs and push-notification readiness | P2 | **absent** | none | none | — |
@@ -167,5 +167,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **46**; blocked (owner): **4**;
+mode. Incomplete and implementable: **45**; blocked (owner): **4**;
 deferred: **1**; unexpanded groups: **0**.
