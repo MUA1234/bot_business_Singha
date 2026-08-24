@@ -10,6 +10,7 @@
   "src/app/api/webhooks/whatsapp/route.ts",
   "src/app/app/admin/employees/actions.ts",
   "src/app/app/admin/health/page.tsx",
+  "src/components/spatial/panels/SystemHealthPanel.tsx",
   "src/app/app/admin/inbound-review/actions.ts",
   "src/app/app/command/analyze/actions.ts",
   "src/app/app/messages/[id]/actions.ts",

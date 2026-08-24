@@ -3,6 +3,7 @@
 import { lazy, Suspense, type ComponentType } from "react";
 import type { WindowContentProps, WindowTypeSpec } from "./types";
 import { PageLoader } from "@/components/ui";
+import { ModuleWindow } from "./windows/ModuleWindow";
 
 // Lazy load window contents so the core shell stays lightweight.
 const CommandCentreWindow = lazy(() => import("./windows/CommandCentreWindow"));
@@ -51,6 +52,86 @@ export const WINDOW_SPECS: WindowTypeSpec[] = [
     defaultHeight: 640,
     defaultPriority: "normal",
   },
+  {
+    type: "finance",
+    label: "Finance",
+    icon: "wallet",
+    requiredCapabilities: [],
+    singleton: true,
+    defaultWidth: 760,
+    defaultHeight: 600,
+    defaultPriority: "normal",
+  },
+  {
+    type: "staff",
+    label: "Staff",
+    icon: "users",
+    requiredCapabilities: [],
+    singleton: true,
+    defaultWidth: 720,
+    defaultHeight: 520,
+    defaultPriority: "normal",
+  },
+  {
+    type: "projects",
+    label: "Projects",
+    icon: "rocket",
+    requiredCapabilities: [],
+    singleton: true,
+    defaultWidth: 900,
+    defaultHeight: 560,
+    defaultPriority: "normal",
+  },
+  {
+    type: "customers",
+    label: "Customers",
+    icon: "user-round",
+    requiredCapabilities: [],
+    singleton: true,
+    defaultWidth: 900,
+    defaultHeight: 600,
+    defaultPriority: "normal",
+  },
+  {
+    type: "vehicles",
+    label: "Vehicles",
+    icon: "car",
+    requiredCapabilities: [],
+    singleton: true,
+    defaultWidth: 720,
+    defaultHeight: 520,
+    defaultPriority: "normal",
+  },
+  {
+    type: "purchase-orders",
+    label: "Purchase Orders",
+    icon: "shopping-cart",
+    requiredCapabilities: [],
+    singleton: true,
+    defaultWidth: 900,
+    defaultHeight: 560,
+    defaultPriority: "normal",
+  },
+  {
+    type: "risks",
+    label: "Risks",
+    icon: "shield",
+    requiredCapabilities: [],
+    singleton: true,
+    defaultWidth: 760,
+    defaultHeight: 560,
+    defaultPriority: "normal",
+  },
+  {
+    type: "system-health",
+    label: "System Health",
+    icon: "gauge",
+    requiredCapabilities: [],
+    singleton: true,
+    defaultWidth: 800,
+    defaultHeight: 600,
+    defaultPriority: "high",
+  },
 ];
 
 const RENDERERS: Record<string, ComponentType<WindowContentProps>> = {
@@ -58,6 +139,14 @@ const RENDERERS: Record<string, ComponentType<WindowContentProps>> = {
   tasks: TasksWorkspaceWindow,
   approvals: ApprovalsWindow,
   "ai-recommendations": AIRecommendationsWindow,
+  finance: ModuleWindow,
+  staff: ModuleWindow,
+  projects: ModuleWindow,
+  customers: ModuleWindow,
+  vehicles: ModuleWindow,
+  "purchase-orders": ModuleWindow,
+  risks: ModuleWindow,
+  "system-health": ModuleWindow,
 };
 
 export function getWindowRenderer(type: string): ComponentType<WindowContentProps> | null {

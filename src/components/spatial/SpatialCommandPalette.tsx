@@ -3,29 +3,39 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspace, useWindowActions } from "./useWorkspace";
 import { Icon } from "@/components/Icon";
+import { WINDOW_SPECS, getWindowSpec } from "./WindowRegistry";
 import type { SearchableRecord } from "./types";
 
 /**
- * A modal command palette. In the prototype it focuses one of the pre-opened initial
- * windows; selecting a type restores and focuses the matching window.
+ * A modal command palette. It can focus an already-open window or open a new module
+ * window from the registered window types.
  */
 export function SpatialCommandPalette({ onClose }: { onClose: () => void }) {
   const { state } = useWorkspace();
-  const { restoreWindow, focusWindow } = useWindowActions();
+  const { restoreWindow, focusWindow, openWindow } = useWindowActions();
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const records: SearchableRecord[] = useMemo(
-    () =>
-      state.windows.map((w) => ({
-        id: w.id,
-        type: w.type,
-        title: w.title,
-        subtitle: w.type,
-        priority: w.priority,
-      })),
-    [state.windows],
-  );
+  const records: SearchableRecord[] = useMemo(() => {
+    const openRecords = state.windows.map((w) => ({
+      id: w.id,
+      type: w.type,
+      title: w.title,
+      subtitle: w.type,
+      priority: w.priority,
+    }));
+    const openTypes = new Set(state.windows.map((w) => w.type));
+    const moduleRecords: SearchableRecord[] = WINDOW_SPECS.filter(
+      (s) => !openTypes.has(s.type),
+    ).map((s) => ({
+      id: `new-${s.type}`,
+      type: s.type,
+      title: s.label,
+      subtitle: `Open ${s.label}`,
+      priority: s.defaultPriority,
+    }));
+    return [...openRecords, ...moduleRecords];
+  }, [state.windows]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -45,10 +55,33 @@ export function SpatialCommandPalette({ onClose }: { onClose: () => void }) {
       if (existing) {
         if (existing.minimised) restoreWindow(existing.id);
         focusWindow(existing.id);
+      } else {
+        const spec = getWindowSpec(record.type);
+        if (spec) {
+          openWindow({
+            id: `win-${record.type}-${Date.now()}`,
+            type: record.type,
+            title: spec.label,
+            x: 120,
+            y: 120,
+            width: spec.defaultWidth,
+            height: spec.defaultHeight,
+            pinned: false,
+            minimised: false,
+            maximised: false,
+            docked: null,
+            priority: spec.defaultPriority,
+            urgency: "visible",
+            loading: true,
+            stale: false,
+            permissionDenied: false,
+            error: null,
+          });
+        }
       }
       onClose();
     },
-    [state.windows, restoreWindow, focusWindow, onClose],
+    [state.windows, restoreWindow, focusWindow, openWindow, onClose],
   );
 
   const handleKeyDown = useCallback(

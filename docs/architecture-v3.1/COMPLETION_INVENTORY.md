@@ -3,7 +3,7 @@
 > Regenerate with `node scripts/completion-inventory.mjs`. Deterministic: changes only when code changes.
 > Suspect lists are HEURISTIC work lists (each entry needs triage), not verdicts.
 
-## 1. supabaseAdmin() usage — 22 file(s)
+## 1. supabaseAdmin() usage — 23 file(s)
 
 | file | refs |
 |---|---|
@@ -22,6 +22,7 @@
 | src/app/app/admin/inbound-review/actions.ts | 2 |
 | src/app/app/command/analyze/actions.ts | 3 |
 | src/app/app/messages/[id]/actions.ts | 2 |
+| src/components/spatial/panels/SystemHealthPanel.tsx | 3 |
 | src/inngest/functions.ts | 4 |
 | src/lib/audit.ts | 2 |
 | src/lib/comms/preferences.ts | 5 |
@@ -84,7 +85,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 
 - src/app/api/webhooks/email/route.ts
 
-## 7. Error-masking suspects (catch → empty return) — 81 (Phase-1C triage list)
+## 7. Error-masking suspects (catch → empty return) — 92 (Phase-1C triage list)
 
 | file:line | returns |
 |---|---|
@@ -106,7 +107,6 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/command/cases/page.tsx:39 | `error-discarding destructure` |
 | src/app/app/command/memory/page.tsx:55 | `[]` |
 | src/app/app/finance/accounts/page.tsx:18 | `[]` |
-| src/app/app/finance/approvals/page.tsx:25 | `[]` |
 | src/app/app/finance/budgets/[id]/page.tsx:30 | `[]` |
 | src/app/app/finance/budgets/page.tsx:24 | `[]` |
 | src/app/app/finance/cash-counts/page.tsx:19 | `[]` |
@@ -145,7 +145,6 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/me/page.tsx:22 | `[]` |
 | src/app/app/operations/projects/[id]/page.tsx:31 | `[]` |
 | src/app/app/operations/tasks/actions.ts:190 | `error-discarding destructure` |
-| src/app/app/operations/tasks/page.tsx:33 | `error-discarding destructure` |
 | src/app/app/procurement/page.tsx:14 | `0` |
 | src/app/app/procurement/page.tsx:17 | `[]` |
 | src/app/app/procurement/purchase-orders/actions.ts:71 | `error-discarding destructure` |
@@ -157,6 +156,19 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/procurement/service-providers/page.tsx:36 | `error-discarding destructure` |
 | src/app/app/sales/accounts/page.tsx:33 | `[]` |
 | src/app/app/sales/leads/page.tsx:38 | `error-discarding destructure` |
+| src/components/spatial/WorkspaceProvider.tsx:50 | `null` |
+| src/components/spatial/panels/AIRecommendationsPanel.tsx:31 | `error-discarding destructure` |
+| src/components/spatial/panels/AIRecommendationsPanel.tsx:50 | `error-discarding destructure` |
+| src/components/spatial/panels/AIRecommendationsPanel.tsx:69 | `error-discarding destructure` |
+| src/components/spatial/panels/AIRecommendationsPanel.tsx:84 | `error-discarding destructure` |
+| src/components/spatial/panels/ApprovalsPanel.tsx:19 | `[]` |
+| src/components/spatial/panels/FinancePanel.tsx:19 | `[]` |
+| src/components/spatial/panels/PurchaseOrdersPanel.tsx:28 | `error-discarding destructure` |
+| src/components/spatial/panels/PurchaseOrdersPanel.tsx:41 | `error-discarding destructure` |
+| src/components/spatial/panels/StaffPanel.tsx:14 | `error-discarding destructure` |
+| src/components/spatial/panels/SystemHealthPanel.tsx:22 | `[]` |
+| src/components/spatial/panels/TasksPanel.tsx:31 | `error-discarding destructure` |
+| src/components/spatial/panels/VehiclesPanel.tsx:15 | `error-discarding destructure` |
 | src/db/consumer-store.ts:124 | `error-discarding destructure` |
 | src/lib/access.ts:83 | `error-discarding destructure` |
 | src/lib/access.ts:141 | `error-discarding destructure` |

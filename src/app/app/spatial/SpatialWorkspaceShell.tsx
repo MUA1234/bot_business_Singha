@@ -5,14 +5,26 @@ import { CommandCentrePanel } from "@/components/spatial/panels/CommandCentrePan
 import { TasksPanel } from "@/components/spatial/panels/TasksPanel";
 import { ApprovalsPanel } from "@/components/spatial/panels/ApprovalsPanel";
 import { AIRecommendationsPanel } from "@/components/spatial/panels/AIRecommendationsPanel";
+import FinancePanel from "@/components/spatial/panels/FinancePanel";
+import SystemHealthPanel from "@/components/spatial/panels/SystemHealthPanel";
+
+interface PreviewAdmin {
+  userId: string;
+  companyId: string;
+  isAdmin: boolean;
+}
+
+interface SpatialWorkspaceShellProps {
+  __previewAdmin?: PreviewAdmin;
+}
 
 /**
  * Server-side shell for the spatial workspace. It pre-renders the initial windows as
  * server components and passes them to the client `WorkspaceProvider`. The client
  * manager then handles drag, focus, minimise, maximise and docking.
  */
-export async function SpatialWorkspaceShell() {
-  const admin = await requireAdmin();
+export async function SpatialWorkspaceShell({ __previewAdmin }: SpatialWorkspaceShellProps = {}) {
+  const admin = __previewAdmin ?? (await requireAdmin());
 
   const initialWindows: InitialWindow[] = [
     {
@@ -106,6 +118,52 @@ export async function SpatialWorkspaceShell() {
         error: null,
       },
       content: <AIRecommendationsPanel userId={admin.userId} companyId={admin.companyId} />,
+    },
+    {
+      state: {
+        id: "win-finance",
+        type: "finance",
+        title: "Finance",
+        x: 240,
+        y: 120,
+        width: 760,
+        height: 600,
+        z: 5,
+        pinned: false,
+        minimised: true,
+        maximised: false,
+        docked: "bottom",
+        priority: "normal",
+        urgency: "background",
+        loading: false,
+        stale: false,
+        permissionDenied: false,
+        error: null,
+      },
+      content: <FinancePanel companyId={admin.companyId} embedded />,
+    },
+    {
+      state: {
+        id: "win-system-health",
+        type: "system-health",
+        title: "System Health",
+        x: 280,
+        y: 160,
+        width: 800,
+        height: 600,
+        z: 6,
+        pinned: false,
+        minimised: true,
+        maximised: false,
+        docked: "right",
+        priority: "high",
+        urgency: "visible",
+        loading: false,
+        stale: false,
+        permissionDenied: false,
+        error: null,
+      },
+      content: <SystemHealthPanel companyId={admin.companyId} embedded />,
     },
   ];
 
