@@ -5,6 +5,7 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { detectRenewals, type RenewalItem } from "@/management/ai-manager/renewals";
@@ -74,7 +75,7 @@ export default async function LegalHome() {
       <div className="card">
         <div className="card-title">Renewals &amp; deadlines</div>
         {alerts.length === 0 ? (
-          <div className="empty">Nothing expired or due within 45 days.</div>
+          <EmptyState title="Nothing expired or due within 45 days." icon="check-circle" />
         ) : (
           <div className="stack gap-1 mt-2">
             {alerts.map((a) => (

@@ -9,6 +9,7 @@ import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { FormField } from "@/components/ui/FormField";
 import { fmtDateTime, fmtNumber } from "@/lib/format";
 import { fmtMoney } from "@/lib/money";
+import { PermissionDenied } from "@/components/ui/PermissionDenied";
 
 export const metadata = { title: "Model Budgets — Singha Central" };
 
@@ -25,9 +26,9 @@ export default async function ModelBudgetsPage() {
   const allowed = await membershipHasCapability(membership, "ai.model_budget.manage");
   if (!allowed) {
     return (
-      <div className="notice err">
+      <PermissionDenied title="Model budgets" actionHref="/app/admin">
         You do not have permission to view model budget policies.
-      </div>
+      </PermissionDenied>
     );
   }
 

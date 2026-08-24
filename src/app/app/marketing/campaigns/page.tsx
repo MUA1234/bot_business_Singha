@@ -4,6 +4,7 @@
  * outbox worker). Audited, graceful.
  */
 import { requireDepartment } from "@/lib/auth";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { createCampaign, setCampaignStatus } from "./actions";
@@ -57,7 +58,7 @@ export default async function CampaignsPage() {
       <div className="card">
         <div className="card-title">Campaigns ({rows.length})</div>
         {rows.length === 0 ? (
-          <div className="empty">No campaigns yet.</div>
+          <EmptyState title="No campaigns yet." icon="megaphone" />
         ) : (
           <div className="table-wrap mt-3">
             <table className="data">

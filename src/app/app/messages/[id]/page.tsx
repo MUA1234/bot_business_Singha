@@ -6,6 +6,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { analyzeConversation } from "./actions";
@@ -63,7 +64,7 @@ export default async function ThreadPage({ params, searchParams }: { params: { i
 
       <div className="card">
         <div className="stack gap-2">
-          {(messages ?? []).length === 0 && <div className="empty">No messages.</div>}
+          {(messages ?? []).length === 0 && <EmptyState title="No messages." icon="message-square" />}
           {(messages ?? []).map((m: any) => {
             const inbound = m.direction === "inbound";
             return (

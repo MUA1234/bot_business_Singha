@@ -46,12 +46,20 @@ interface CardBodyProps {
   children: ReactNode;
   className?: string;
   padding?: "sm" | "md" | "lg" | "none";
+  style?: React.CSSProperties;
 }
 
-export function CardBody({ children, className = "", padding = "md" }: CardBodyProps) {
+export function CardBody({ children, className = "", padding = "md", style }: CardBodyProps) {
   const padClass =
     padding === "sm" ? "pad-sm" : padding === "lg" ? "pad-lg" : padding === "none" ? "pad-none" : "";
-  return <div className={`card-body${padClass ? ` ${padClass}` : ""}${className ? ` ${className}` : ""}`}>{children}</div>;
+  return (
+    <div
+      className={`card-body${padClass ? ` ${padClass}` : ""}${className ? ` ${className}` : ""}`}
+      style={style}
+    >
+      {children}
+    </div>
+  );
 }
 
 interface CardFooterProps {

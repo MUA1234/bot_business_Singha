@@ -3,6 +3,7 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { createMatter, setMatterStatus } from "./actions";
@@ -38,7 +39,7 @@ export default async function MattersPage() {
 
       <div className="card">
         <div className="card-title">Matters ({rows.length})</div>
-        {rows.length === 0 ? <div className="empty">No matters yet.</div> : (
+        {rows.length === 0 ? <EmptyState title="No matters yet." icon="file-text" /> : (
           <div className="table-wrap mt-3">
             <table className="data">
               <thead><tr><th>Matter</th><th>Type</th><th>Status</th><th>Move to</th></tr></thead>

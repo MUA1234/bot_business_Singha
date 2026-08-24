@@ -4,6 +4,7 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { renewalStatus } from "@/management/ai-manager/renewals";
 import { createObligation, updateObligationStatus } from "./actions";
@@ -70,7 +71,7 @@ export default async function ObligationsPage() {
       <div className="card">
         <div className="card-title">All obligations ({rows.length})</div>
         {rows.length === 0 ? (
-          <div className="empty">No obligations recorded yet.</div>
+          <EmptyState title="No obligations recorded yet." icon="clipboard" />
         ) : (
           <div className="table-wrap mt-3">
             <table className="data">

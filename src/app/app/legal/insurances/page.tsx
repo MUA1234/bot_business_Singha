@@ -4,6 +4,7 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
@@ -54,7 +55,7 @@ export default async function InsurancesPage() {
       <div className="card">
         <div className="card-title">All insurances ({rows.length})</div>
         {rows.length === 0 ? (
-          <div className="empty">No insurance policies yet.</div>
+          <EmptyState title="No insurance policies yet." icon="shield" />
         ) : (
           <div className="table-wrap mt-3">
             <table className="data">

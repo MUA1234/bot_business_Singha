@@ -5,6 +5,7 @@
  */
 import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 
@@ -57,7 +58,7 @@ export default async function MessagesPage() {
 
       <div className="card">
         {list.length === 0 ? (
-          <div className="empty">No customer conversations yet.</div>
+          <EmptyState title="No customer conversations yet." icon="inbox" />
         ) : (
           <div className="table-wrap">
             <table className="data">

@@ -14,6 +14,7 @@ import { supabaseReadClient, supabaseRpcClient } from "@/lib/supabase/read";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PermissionDenied } from "@/components/ui/PermissionDenied";
 import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { AddAccountForm, ActivateForm, ReviewerForm } from "./SetupForms";
 
@@ -29,12 +30,9 @@ export default async function InboundSetupPage() {
 
   if (!canConfigure && !canGrant) {
     return (
-      <div className="stack gap-3">
-        <h1>Inbound setup</h1>
-        <div className="notice err">
-          You do not have permission to change inbound configuration in this company.
-        </div>
-      </div>
+      <PermissionDenied title="Inbound setup" actionHref="/app/admin">
+        You do not have permission to change inbound configuration in this company.
+      </PermissionDenied>
     );
   }
 

@@ -3,6 +3,7 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { createIncident, updateIncidentStatus } from "./actions";
 import { severityBadgeClass, sortIncidentsBySeverity } from "@/modules/legal/incidents";
@@ -72,7 +73,7 @@ export default async function IncidentsPage() {
       <div className="card">
         <div className="card-title">All incidents ({sorted.length})</div>
         {sorted.length === 0 ? (
-          <div className="empty">No incidents recorded yet.</div>
+          <EmptyState title="No incidents recorded yet." icon="alert-triangle" />
         ) : (
           <div className="table-wrap mt-3">
             <table className="data">

@@ -4,6 +4,7 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { renewalStatus } from "@/management/ai-manager/renewals";
@@ -42,7 +43,7 @@ export default async function LicencesPage() {
 
       <div className="card">
         <div className="card-title">Licences ({rows.length})</div>
-        {rows.length === 0 ? <div className="empty">No licences yet.</div> : (
+        {rows.length === 0 ? <EmptyState title="No licences yet." icon="file-text" /> : (
           <div className="table-wrap mt-3">
             <table className="data">
               <thead><tr><th>Name</th><th>Authority</th><th>Number</th><th>Expiry</th></tr></thead>

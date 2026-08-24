@@ -7,3 +7,5 @@ export { DataTable } from "./DataTable";
 export type { DataTableColumn } from "./DataTable";
 export { FormField } from "./FormField";
 export { SearchInput } from "./SearchInput";
+export { PageLoader } from "./PageLoader";
+export { PermissionDenied } from "./PermissionDenied";

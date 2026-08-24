@@ -14,6 +14,7 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PermissionDenied } from "@/components/ui/PermissionDenied";
 import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import { fmtDateTime } from "@/lib/format";
 import { ReviewRow, type ReviewItem } from "./ReviewRow";
@@ -33,13 +34,10 @@ export default async function InboundReviewPage() {
 
   if (!allowed) {
     return (
-      <div className="stack gap-3">
-        <h1>Inbound review</h1>
-        <div className="notice err">
-          You do not have the <code>{INBOUND_REVIEW_CAPABILITY}</code> capability in this company, so
-          this queue is not shown. It contains messages sent to the business by people outside it.
-        </div>
-      </div>
+      <PermissionDenied title="Inbound review" actionHref="/app/admin">
+        You do not have the <code>{INBOUND_REVIEW_CAPABILITY}</code> capability in this company, so
+        this queue is not shown. It contains messages sent to the business by people outside it.
+      </PermissionDenied>
     );
   }
 
