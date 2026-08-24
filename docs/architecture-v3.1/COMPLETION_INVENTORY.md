@@ -156,7 +156,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/procurement/service-providers/page.tsx:36 | `error-discarding destructure` |
 | src/app/app/sales/accounts/page.tsx:33 | `[]` |
 | src/app/app/sales/leads/page.tsx:38 | `error-discarding destructure` |
-| src/components/spatial/WorkspaceProvider.tsx:50 | `null` |
+| src/components/spatial/WorkspaceProvider.tsx:56 | `null` |
 | src/components/spatial/panels/AIRecommendationsPanel.tsx:31 | `error-discarding destructure` |
 | src/components/spatial/panels/AIRecommendationsPanel.tsx:50 | `error-discarding destructure` |
 | src/components/spatial/panels/AIRecommendationsPanel.tsx:69 | `error-discarding destructure` |
