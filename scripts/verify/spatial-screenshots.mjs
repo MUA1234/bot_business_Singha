@@ -13,6 +13,7 @@
  *   SPATIAL_SCREENSHOT_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_ROLE_KEY)
  *   SPATIAL_SCREENSHOT_OWNER_PASSWORD
  *   SPATIAL_SCREENSHOT_STAFF_PASSWORD
+ *   SPATIAL_SCREENSHOT_MANAGER_PASSWORD  (optional; enables manager role + staging data)
  *   BASE_URL                          (default http://localhost:3000)
  *   SCREENSHOT_OUT                    (default ./screenshots/uiux-v2)
  *
@@ -26,6 +27,7 @@ import { mkdir, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { seedForScreenshots } from "./spatial-screenshot-seed.mjs";
+import { seedForStaging } from "./staging-seed.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..");
@@ -42,6 +44,7 @@ const WIDTHS = [
 
 const ROLES = [
   { key: "owner", email: process.env.SPATIAL_SCREENSHOT_OWNER_EMAIL || "owner-screenshot@singha.local" },
+  { key: "manager", email: process.env.SPATIAL_SCREENSHOT_MANAGER_EMAIL || "manager-screenshot@singha.local" },
   { key: "staff", email: process.env.SPATIAL_SCREENSHOT_STAFF_EMAIL || "staff-screenshot@singha.local" },
 ];
 
@@ -49,11 +52,24 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function passwordEnvForRole(role) {
+  const map = {
+    owner: "SPATIAL_SCREENSHOT_OWNER_PASSWORD",
+    manager: "SPATIAL_SCREENSHOT_MANAGER_PASSWORD",
+    staff: "SPATIAL_SCREENSHOT_STAFF_PASSWORD",
+  };
+  return map[role] ?? `SPATIAL_SCREENSHOT_${role.toUpperCase()}_PASSWORD`;
+}
+
 async function getPassword(role) {
-  const name = role === "owner" ? "SPATIAL_SCREENSHOT_OWNER_PASSWORD" : "SPATIAL_SCREENSHOT_STAFF_PASSWORD";
+  const name = passwordEnvForRole(role);
   const v = process.env[name];
   if (!v) throw new Error(`Missing env var: ${name}`);
   return v;
+}
+
+function managerEnabled() {
+  return !!process.env.SPATIAL_SCREENSHOT_MANAGER_PASSWORD;
 }
 
 async function waitForWorkspace(page) {
@@ -179,8 +195,14 @@ async function main() {
     process.exit(1);
   }
 
+  const rolesToCapture = managerEnabled() ? ROLES : ROLES.filter((r) => r.key !== "manager");
+
   console.log("Seeding disposable screenshot environment…");
-  await seedForScreenshots();
+  if (managerEnabled()) {
+    await seedForStaging();
+  } else {
+    await seedForScreenshots();
+  }
 
   await rm(OUT, { recursive: true, force: true });
   await mkdir(OUT, { recursive: true });
@@ -189,7 +211,7 @@ async function main() {
   const allResults = [];
 
   try {
-    for (const role of ROLES) {
+    for (const role of rolesToCapture) {
       console.log(`\nCapturing as ${role.key} (${role.email})…`);
       const results = await runForRole(browser, role.key, role.email);
       allResults.push(...results);
