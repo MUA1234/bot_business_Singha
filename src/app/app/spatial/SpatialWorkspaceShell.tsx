@@ -1,5 +1,5 @@
 import { requireAdmin } from "@/lib/auth";
-import { resolveAllowedModules } from "./actions";
+import { resolveAllowedModules, loadArrivals } from "./actions";
 import { WorkspaceProvider, type InitialWindow } from "@/components/spatial/WorkspaceProvider";
 import { SpatialWorkspace } from "@/components/spatial/SpatialWorkspace";
 import { CommandCentrePanel } from "@/components/spatial/panels/CommandCentrePanel";
@@ -170,10 +170,19 @@ export async function SpatialWorkspaceShell({ __previewAdmin }: SpatialWorkspace
   ];
 
   const initialWindows = allInitialWindows.filter((iw) => allowedTypes.includes(iw.state.type));
+  const initialArrivals = await loadArrivals(admin.userId, admin.companyId, {
+    allowedModuleTypes: allowedTypes,
+    limit: 50,
+  });
 
   return (
     <WorkspaceProvider userId={admin.userId} initialWindows={initialWindows}>
-      <SpatialWorkspace companyId={admin.companyId} userId={admin.userId} allowedTypes={allowedTypes} />
+      <SpatialWorkspace
+        companyId={admin.companyId}
+        userId={admin.userId}
+        allowedTypes={allowedTypes}
+        initialArrivals={initialArrivals}
+      />
     </WorkspaceProvider>
   );
 }

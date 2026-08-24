@@ -426,6 +426,37 @@
   white-space: nowrap;
 }
 
+.rail-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  background: var(--panel);
+  border: 1px dashed var(--panel-border);
+  border-radius: var(--radius-sm);
+}
+
+.arrival-card.priority-critical {
+  animation: arrival-attention 2.4s ease-in-out infinite;
+}
+
+@keyframes arrival-attention {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 90, 77, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 18px -4px rgba(255, 90, 77, 0.45);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arrival-card.priority-critical {
+    animation: none;
+  }
+}
+
 /* ── Dock ─────────────────────────────────────────────────────────── */
 .spatial-dock {
   grid-area: dock;

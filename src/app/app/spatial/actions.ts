@@ -1,7 +1,10 @@
 "use server";
 
 import { resolveCapability } from "@/lib/auth";
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { WINDOW_SPECS } from "@/components/spatial/windowSpecs";
+import { mergeArrivals, type ArrivalTaskRow, type ArrivalNotifRow } from "@/components/spatial/arrivalAdapter";
+import type { SpatialArrival } from "@/components/spatial/types";
 import { loadFinanceData } from "@/components/spatial/panels/FinancePanel";
 import { loadStaffData } from "@/components/spatial/panels/StaffPanel";
 import { loadProjectsData } from "@/components/spatial/panels/ProjectsPanel";
@@ -39,6 +42,42 @@ export async function loadModuleData(
   } catch (e) {
     return { ok: false, error: (e as Error).message ?? "Failed to load module data" };
   }
+}
+
+/**
+ * Load the current production arrivals for the peripheral rail: open tasks and
+ * unread notifications. The result is fully deterministic, deduplicated, and
+ * filtered to the user's company by RLS.
+ */
+export async function loadArrivals(
+  companyId: string,
+  userId: string,
+  options: { allowedModuleTypes?: string[]; limit?: number } = {},
+): Promise<SpatialArrival[]> {
+  const db = supabaseReadClient();
+  const [{ data: tasks }, { data: notifs }] = await Promise.all([
+    db
+      .from("tasks")
+      .select("id, title, status, due_date, priority, created_at")
+      .eq("company_id", companyId)
+      .not("status", "in", "(completed,cancelled)")
+      .order("created_at", { ascending: false })
+      .limit(100),
+    db
+      .from("notifications")
+      .select("id, title, body, type, created_at")
+      .eq("company_id", companyId)
+      .eq("recipient_id", userId)
+      .eq("is_read", false)
+      .order("created_at", { ascending: false })
+      .limit(100),
+  ]);
+
+  return mergeArrivals(
+    (tasks ?? []) as ArrivalTaskRow[],
+    (notifs ?? []) as ArrivalNotifRow[],
+    { allowedModuleTypes: options.allowedModuleTypes, limit: options.limit },
+  );
 }
 
 /**

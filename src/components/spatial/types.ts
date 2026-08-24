@@ -132,3 +132,31 @@ export interface SearchableRecord {
   subtitle?: string;
   priority?: SpatialPriority;
 }
+
+/** Shared fields for every real production item surfaced in the rail. */
+export interface SpatialArrivalBase {
+  id: string;
+  title: string;
+  priority: SpatialPriority;
+  /** ISO timestamp used for stable ordering. */
+  timestamp: string;
+  /** Registered window type the arrival opens when acted on. */
+  moduleType: string;
+  /** Optional record identity inside the target module. */
+  recordId?: string;
+}
+
+/** A task that has arrived in the rail. */
+export interface TaskArrival extends SpatialArrivalBase {
+  kind: "task";
+  due?: string | null;
+}
+
+/** An alert / notification that has arrived in the rail. */
+export interface AlertArrival extends SpatialArrivalBase {
+  kind: "alert";
+  message: string;
+}
+
+export type SpatialArrival = TaskArrival | AlertArrival;
+
