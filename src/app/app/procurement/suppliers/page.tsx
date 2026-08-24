@@ -119,7 +119,7 @@ export default async function SuppliersPage() {
         return (
           <div style={{ fontWeight: 600 }}>
             {s.name}
-            {isDuplicate && <Badge variant="warn" className="ml-1">duplicate</Badge>}
+            {isDuplicate && <Badge variant="warn" className="badge warn ml-1">duplicate</Badge>}
             <Badge variant={healthBadge} className="ml-1">{health}</Badge>
           </div>
         );

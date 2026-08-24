@@ -32,22 +32,19 @@
 
 Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 
-## 2. money-as-Number suspects — 17 line(s) (Phase-1A triage list)
+## 2. money-as-Number suspects — 14 line(s) (Phase-1A triage list)
 
 | file:line | code |
 |---|---|
 | src/ai/anthropic-transport.ts:62 | `const maxTokens = Math.min(req.maxTokens, EVAL_LIMITS.maxOutputTokens);` |
 | src/app/api/health/route.ts:120 | `imbalancedJournals: Number(row.imbalanced_journals ?? 0),` |
-| src/app/app/command/health/page.tsx:198 | `totalPeople: Math.max(1, caps.length),` |
-| src/app/app/finance/customer-invoices/[id]/page.tsx:55 | `<tr key={i}><td>{l.description}</td><td className="num">{Number(l.quantity)}</td><td className="num"` |
-| src/app/app/finance/supplier-bills/[id]/page.tsx:56 | `<tr key={i}><td>{l.description}</td><td className="num">{Number(l.quantity)}</td><td className="num"` |
-| src/app/app/finance/tax-codes/page.tsx:50 | `<td className="num dim">{fmtMoney(taxAmount("1000", Number(r.rate), "LKR"))}</td>` |
-| src/app/app/fleet/vehicles/[id]/page.tsx:83 | `<span>{Number(f.litres ?? 0)} L @ {Number(f.odometer ?? 0)} km</span><span className="dim">{fmtMoney` |
+| src/app/app/command/health/page.tsx:208 | `totalPeople: Math.max(1, caps.length),` |
+| src/app/app/finance/tax-codes/page.tsx:30 | `{ key: "tax", header: "Tax on 1,000", align: "right", render: (r) => <span className="dim">{fmtMoney` |
 | src/app/app/legal/insurances/actions.ts:31 | `cover_amount: cover_amount ? Number(cover_amount) : null,` |
 | src/app/app/operations/projects/actions.ts:257 | `if (Number.isNaN(Number(bestCaseTotal)) \|\| Number.isNaN(Number(expectedTotal)) \|\| Number.isNaN(Numbe` |
-| src/app/app/procurement/inventory/page.tsx:26 | `const items: StockItem[] = rows.map((r) => ({ name: r.name, quantityOnHand: Number(r.quantity_on_han` |
+| src/app/app/procurement/inventory/page.tsx:39 | `const items: StockItem[] = rawRows.map((r) => ({ name: r.name, quantityOnHand: Number(r.quantity_on_` |
 | src/app/app/procurement/purchase-orders/actions.ts:80 | `const total = decSum(rows.map((l: any) => dec(l.unit_price).times(Math.max(0, Math.trunc(Number(l.qu` |
-| src/app/app/sales/opportunities/page.tsx:30 | `const summary = summarizePipeline(rows.map((r): Opportunity => ({ amount: String(r.amount ?? "0"), p` |
+| src/app/app/sales/opportunities/page.tsx:49 | `const summary = summarizePipeline(deals.map((r): Opportunity => ({ amount: String(r.amount ?? "0"), ` |
 | src/lib/money.ts:189 | `* `Number(v).toLocaleString()` — the latter both floats the amount and hides its currency scale.` |
 | src/modules/finance/reconcile.ts:66 | `reason: `${best.c.kind} of equal amount, ${Math.round(best.days)}d apart`,` |
 | src/modules/management/health-score.ts:62 | `return clamp(60 + 40 * Math.min(1, amount.div(1_000_000).toNumber()));` |
@@ -101,65 +98,65 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/api/exports/[kind]/route.ts:64 | `error-discarding destructure` |
 | src/app/api/exports/[kind]/route.ts:76 | `error-discarding destructure` |
 | src/app/api/exports/[kind]/route.ts:86 | `error-discarding destructure` |
-| src/app/app/admin/catalog/page.tsx:14 | `error-discarding destructure` |
+| src/app/app/admin/catalog/page.tsx:28 | `error-discarding destructure` |
 | src/app/app/admin/employees/actions.ts:27 | `error-discarding destructure` |
-| src/app/app/admin/employees/page.tsx:22 | `error-discarding destructure` |
-| src/app/app/admin/health/page.tsx:21 | `[]` |
-| src/app/app/admin/outbox/page.tsx:16 | `[]` |
-| src/app/app/command/cases/page.tsx:21 | `error-discarding destructure` |
-| src/app/app/command/memory/page.tsx:51 | `[]` |
-| src/app/app/finance/accounts/page.tsx:17 | `[]` |
-| src/app/app/finance/approvals/page.tsx:22 | `[]` |
-| src/app/app/finance/budgets/[id]/page.tsx:20 | `[]` |
-| src/app/app/finance/budgets/page.tsx:15 | `[]` |
-| src/app/app/finance/cash-counts/page.tsx:17 | `[]` |
-| src/app/app/finance/chart-of-accounts/page.tsx:19 | `error-discarding destructure` |
-| src/app/app/finance/commitments/page.tsx:18 | `[]` |
-| src/app/app/finance/customer-invoices/page.tsx:19 | `error-discarding destructure` |
+| src/app/app/admin/employees/page.tsx:29 | `error-discarding destructure` |
+| src/app/app/admin/health/page.tsx:24 | `[]` |
+| src/app/app/admin/outbox/page.tsx:34 | `[]` |
+| src/app/app/command/cases/page.tsx:39 | `error-discarding destructure` |
+| src/app/app/command/memory/page.tsx:55 | `[]` |
+| src/app/app/finance/accounts/page.tsx:18 | `[]` |
+| src/app/app/finance/approvals/page.tsx:25 | `[]` |
+| src/app/app/finance/budgets/[id]/page.tsx:30 | `[]` |
+| src/app/app/finance/budgets/page.tsx:24 | `[]` |
+| src/app/app/finance/cash-counts/page.tsx:19 | `[]` |
+| src/app/app/finance/chart-of-accounts/page.tsx:20 | `error-discarding destructure` |
+| src/app/app/finance/commitments/page.tsx:20 | `[]` |
+| src/app/app/finance/customer-invoices/page.tsx:29 | `error-discarding destructure` |
 | src/app/app/finance/expenses/actions.ts:19 | `error-discarding destructure` |
-| src/app/app/finance/expenses/page.tsx:17 | `[]` |
-| src/app/app/finance/forecast/page.tsx:21 | `[]` |
-| src/app/app/finance/funding/page.tsx:21 | `[]` |
-| src/app/app/finance/journals/new/page.tsx:18 | `error-discarding destructure` |
-| src/app/app/finance/journals/page.tsx:18 | `error-discarding destructure` |
-| src/app/app/finance/loans/page.tsx:16 | `[]` |
-| src/app/app/finance/page.tsx:16 | `[]` |
-| src/app/app/finance/periods/page.tsx:16 | `[]` |
-| src/app/app/finance/receivables/page.tsx:28 | `[]` |
-| src/app/app/finance/reconciliation/page.tsx:19 | `[]` |
-| src/app/app/finance/supplier-bank-changes/page.tsx:16 | `[]` |
-| src/app/app/finance/supplier-bills/page.tsx:19 | `error-discarding destructure` |
-| src/app/app/finance/trial-balance/page.tsx:20 | `[]` |
-| src/app/app/fleet/page.tsx:17 | `[]` |
+| src/app/app/finance/expenses/page.tsx:26 | `[]` |
+| src/app/app/finance/forecast/page.tsx:23 | `[]` |
+| src/app/app/finance/funding/page.tsx:24 | `[]` |
+| src/app/app/finance/journals/new/page.tsx:19 | `error-discarding destructure` |
+| src/app/app/finance/journals/page.tsx:20 | `error-discarding destructure` |
+| src/app/app/finance/loans/page.tsx:18 | `[]` |
+| src/app/app/finance/page.tsx:18 | `[]` |
+| src/app/app/finance/periods/page.tsx:17 | `[]` |
+| src/app/app/finance/receivables/page.tsx:37 | `[]` |
+| src/app/app/finance/reconciliation/page.tsx:22 | `[]` |
+| src/app/app/finance/supplier-bank-changes/page.tsx:26 | `[]` |
+| src/app/app/finance/supplier-bills/page.tsx:29 | `error-discarding destructure` |
+| src/app/app/finance/trial-balance/page.tsx:21 | `[]` |
+| src/app/app/fleet/page.tsx:18 | `[]` |
 | src/app/app/fleet/vehicles/actions.ts:37 | `error-discarding destructure` |
-| src/app/app/fleet/vehicles/page.tsx:17 | `error-discarding destructure` |
-| src/app/app/hr/capacity/page.tsx:20 | `[]` |
+| src/app/app/fleet/vehicles/page.tsx:29 | `error-discarding destructure` |
+| src/app/app/hr/capacity/page.tsx:22 | `[]` |
 | src/app/app/hr/page.tsx:12 | `0` |
 | src/app/app/hr/page.tsx:15 | `[]` |
 | src/app/app/hr/staff/actions.ts:18 | `error-discarding destructure` |
-| src/app/app/hr/staff/page.tsx:17 | `error-discarding destructure` |
+| src/app/app/hr/staff/page.tsx:28 | `error-discarding destructure` |
 | src/app/app/legal/contracts/actions.ts:36 | `error-discarding destructure` |
-| src/app/app/legal/contracts/page.tsx:20 | `error-discarding destructure` |
-| src/app/app/legal/incidents/page.tsx:15 | `[]` |
-| src/app/app/legal/obligations/page.tsx:16 | `[]` |
-| src/app/app/legal/page.tsx:17 | `[]` |
-| src/app/app/marketing/audiences/page.tsx:15 | `0` |
+| src/app/app/legal/contracts/page.tsx:21 | `error-discarding destructure` |
+| src/app/app/legal/incidents/page.tsx:16 | `[]` |
+| src/app/app/legal/obligations/page.tsx:17 | `[]` |
+| src/app/app/legal/page.tsx:18 | `[]` |
+| src/app/app/marketing/audiences/page.tsx:16 | `0` |
 | src/app/app/marketing/page.tsx:13 | `0` |
-| src/app/app/me/page.tsx:19 | `[]` |
-| src/app/app/operations/projects/[id]/page.tsx:28 | `[]` |
+| src/app/app/me/page.tsx:22 | `[]` |
+| src/app/app/operations/projects/[id]/page.tsx:31 | `[]` |
 | src/app/app/operations/tasks/actions.ts:190 | `error-discarding destructure` |
-| src/app/app/operations/tasks/page.tsx:31 | `error-discarding destructure` |
+| src/app/app/operations/tasks/page.tsx:33 | `error-discarding destructure` |
 | src/app/app/procurement/page.tsx:14 | `0` |
 | src/app/app/procurement/page.tsx:17 | `[]` |
 | src/app/app/procurement/purchase-orders/actions.ts:71 | `error-discarding destructure` |
-| src/app/app/procurement/purchase-orders/page.tsx:19 | `error-discarding destructure` |
-| src/app/app/procurement/purchase-orders/page.tsx:32 | `error-discarding destructure` |
-| src/app/app/procurement/purchase-requests/page.tsx:27 | `error-discarding destructure` |
+| src/app/app/procurement/purchase-orders/page.tsx:31 | `error-discarding destructure` |
+| src/app/app/procurement/purchase-orders/page.tsx:44 | `error-discarding destructure` |
+| src/app/app/procurement/purchase-requests/page.tsx:38 | `error-discarding destructure` |
 | src/app/app/procurement/rfqs/actions.ts:16 | `error-discarding destructure` |
 | src/app/app/procurement/service-providers/actions.ts:44 | `error-discarding destructure` |
-| src/app/app/procurement/service-providers/page.tsx:21 | `error-discarding destructure` |
-| src/app/app/sales/accounts/page.tsx:18 | `[]` |
-| src/app/app/sales/leads/page.tsx:24 | `error-discarding destructure` |
+| src/app/app/procurement/service-providers/page.tsx:36 | `error-discarding destructure` |
+| src/app/app/sales/accounts/page.tsx:33 | `[]` |
+| src/app/app/sales/leads/page.tsx:38 | `error-discarding destructure` |
 | src/db/consumer-store.ts:124 | `error-discarding destructure` |
 | src/lib/access.ts:83 | `error-discarding destructure` |
 | src/lib/access.ts:141 | `error-discarding destructure` |

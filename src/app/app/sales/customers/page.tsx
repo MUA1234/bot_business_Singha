@@ -143,7 +143,7 @@ export default async function CustomersPage() {
                   <span style={{ fontWeight: 600 }}>
                     {c.name}
                     {duplicateCustomerIds.has(c.id) && (
-                      <Badge variant="warn" className="ml-1">duplicate</Badge>
+                      <Badge variant="warn" className="badge warn ml-1">duplicate</Badge>
                     )}
                   </span>
                 ),
