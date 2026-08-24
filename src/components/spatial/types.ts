@@ -60,9 +60,10 @@ export interface SpatialWindowState {
 
 /** Serialized layout snapshot persisted to localStorage. */
 export interface SpatialLayoutSnapshot {
-  version: 1;
+  version: 2;
   windows: SpatialWindowState[];
   nextZ: number;
+  focusedId: string | null;
   reducedMotion: boolean;
   flatMode: boolean;
   generatedAt: string;
@@ -88,9 +89,10 @@ export type WorkspaceAction =
   | { kind: "setError"; id: string; error: string | null }
   | { kind: "setReducedMotion"; reducedMotion: boolean }
   | { kind: "setFlatMode"; flatMode: boolean }
-  | { kind: "snapshot"; windows: SpatialWindowState[]; nextZ: number }
+  | { kind: "snapshot"; windows: SpatialWindowState[]; nextZ: number; focusedId?: string | null }
   | { kind: "batchArrive"; arrivals: SpatialWindowState[] }
-  | { kind: "reorder"; ids: string[] };
+  | { kind: "reorder"; ids: string[] }
+  | { kind: "blur" };
 
 /** Registry entry describing how to render a window type. */
 export interface WindowTypeSpec {

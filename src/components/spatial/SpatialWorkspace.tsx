@@ -1,20 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import { useWorkspace } from "./useWorkspace";
 import { SpatialWindow } from "./SpatialWindow";
 import { FocusStage } from "./FocusStage";
 import { PeripheralRail } from "./PeripheralRail";
 import { SpatialDock } from "./SpatialDock";
 import { WorkspaceToolbar } from "./WorkspaceToolbar";
+import { SpatialCommandPalette } from "./SpatialCommandPalette";
 import { WindowRenderer } from "./WindowRegistry";
 import { WindowErrorBoundary } from "./WindowErrorBoundary";
+import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
+import type { SpatialArrival } from "./types";
 
 /**
  * The top-level spatial workspace component. It renders the focus stage, the floating
- * windows, the peripheral arrival rail, the dock, and the toolbar.
+ * windows, the peripheral arrival rail, the dock, the toolbar, and the command palette.
  */
-import type { SpatialArrival } from "./types";
-
 export function SpatialWorkspace({
   companyId,
   userId,
@@ -27,6 +29,14 @@ export function SpatialWorkspace({
   initialArrivals?: SpatialArrival[];
 }) {
   const { state, ready } = useWorkspace();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  useWorkspaceShortcuts({
+    onOpenCommandPalette: () => setPaletteOpen(true),
+    onCloseCommandPalette: () => setPaletteOpen(false),
+    commandPaletteOpen: paletteOpen,
+    allowedTypes,
+  });
 
   if (!ready) {
     return (
@@ -40,7 +50,7 @@ export function SpatialWorkspace({
 
   return (
     <div className={`spatial-workspace${state.flatMode ? " flat" : ""}`} aria-label="Spatial operations workspace">
-      <WorkspaceToolbar />
+      <WorkspaceToolbar onOpenCommandPalette={() => setPaletteOpen(true)} />
       <FocusStage focused={focused} />
       <div className="spatial-windows" role="region" aria-label="Open windows">
         {state.windows
@@ -67,6 +77,7 @@ export function SpatialWorkspace({
       </div>
       <PeripheralRail initialArrivals={initialArrivals ?? []} allowedTypes={allowedTypes} />
       <SpatialDock companyId={companyId} userId={userId} allowedTypes={allowedTypes} />
+      {paletteOpen && <SpatialCommandPalette allowedTypes={allowedTypes} onClose={() => setPaletteOpen(false)} />}
     </div>
   );
 }

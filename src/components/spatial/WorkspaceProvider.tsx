@@ -23,12 +23,28 @@ function storageKey(userId: string) {
 
 function makeSnapshot(state: WorkspaceState, userId: string): SpatialLayoutSnapshot {
   return {
-    version: 1,
+    version: 2,
     windows: state.windows.map((w) => ({ ...w })),
     nextZ: state.nextZ,
+    focusedId: state.focusedId,
     reducedMotion: state.reducedMotion,
     flatMode: state.flatMode,
     generatedAt: new Date().toISOString(),
+  };
+}
+
+function migrateSnapshot(s: Partial<SpatialLayoutSnapshot>): SpatialLayoutSnapshot | null {
+  if (!Array.isArray(s.windows)) return null;
+  const version = typeof s.version === "number" ? s.version : 1;
+  if (version !== 1 && version !== 2) return null;
+  return {
+    version: 2,
+    windows: s.windows as SpatialWindowState[],
+    nextZ: typeof s.nextZ === "number" ? s.nextZ : 1,
+    focusedId: version === 2 && (typeof s.focusedId === "string" || s.focusedId === null) ? s.focusedId : null,
+    reducedMotion: !!s.reducedMotion,
+    flatMode: !!s.flatMode,
+    generatedAt: typeof s.generatedAt === "string" ? s.generatedAt : new Date().toISOString(),
   };
 }
 
@@ -36,17 +52,7 @@ function parseSnapshot(raw: string): SpatialLayoutSnapshot | null {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (typeof parsed !== "object" || parsed === null) return null;
-    const s = parsed as Partial<SpatialLayoutSnapshot>;
-    if (s.version !== 1) return null;
-    if (!Array.isArray(s.windows)) return null;
-    return {
-      version: 1,
-      windows: s.windows as SpatialWindowState[],
-      nextZ: typeof s.nextZ === "number" ? s.nextZ : 1,
-      reducedMotion: !!s.reducedMotion,
-      flatMode: !!s.flatMode,
-      generatedAt: typeof s.generatedAt === "string" ? s.generatedAt : new Date().toISOString(),
-    };
+    return migrateSnapshot(parsed as Partial<SpatialLayoutSnapshot>);
   } catch {
     return null;
   }
@@ -102,7 +108,12 @@ export function WorkspaceProvider({
       if (raw) {
         const snapshot = parseSnapshot(raw);
         if (snapshot) {
-          dispatch({ kind: "snapshot", windows: snapshot.windows, nextZ: snapshot.nextZ });
+          dispatch({
+            kind: "snapshot",
+            windows: snapshot.windows,
+            nextZ: snapshot.nextZ,
+            focusedId: snapshot.focusedId,
+          });
           dispatch({ kind: "setReducedMotion", reducedMotion: snapshot.reducedMotion });
           dispatch({ kind: "setFlatMode", flatMode: snapshot.flatMode });
         }
@@ -138,7 +149,12 @@ export function WorkspaceProvider({
       const raw = localStorage.getItem(storageKey(userId));
       const snapshot = raw ? parseSnapshot(raw) : null;
       if (snapshot) {
-        dispatch({ kind: "snapshot", windows: snapshot.windows, nextZ: snapshot.nextZ });
+        dispatch({
+          kind: "snapshot",
+          windows: snapshot.windows,
+          nextZ: snapshot.nextZ,
+          focusedId: snapshot.focusedId,
+        });
         dispatch({ kind: "setReducedMotion", reducedMotion: snapshot.reducedMotion });
         dispatch({ kind: "setFlatMode", flatMode: snapshot.flatMode });
       }

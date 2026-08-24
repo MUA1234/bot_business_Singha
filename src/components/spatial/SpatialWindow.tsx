@@ -13,19 +13,26 @@ interface SpatialWindowProps {
 
 type DragMode = "move" | "resize" | null;
 
+const DRAG_THRESHOLD = 8;
+const GRID = 16;
+const EDGE_SNAP = 16;
+
 /**
  * A floating glass window inside the spatial workspace.
  *
- * - Pointer-based drag and resize.
+ * - Pointer-based drag and resize (mouse, touch, pen).
  * - Touch-friendly title bar and 48×48 controls.
  * - Focus, minimise, maximise, restore, pin, dock and close.
  * - Reduced-motion / flat-mode aware.
+ * - Accidental-touch protection: a small movement threshold before drag starts.
+ * - Snap-to-grid and edge docking when released.
  */
 export function SpatialWindow({ window: w, children }: SpatialWindowProps) {
   const { state } = useWorkspace();
   const { focusWindow, closeWindow, minimiseWindow, maximiseWindow, restoreWindow, pinWindow, dockWindow, moveWindow, resizeWindow } = useWindowActions();
   const ref = useRef<HTMLDivElement>(null);
   const dragStart = useRef<{ x: number; y: number; w: number; h: number; mode: DragMode } | null>(null);
+  const movedRef = useRef(false);
   const [dragging, setDragging] = useState(false);
 
   const isFocused = state.focusedId === w.id;
@@ -53,6 +60,8 @@ export function SpatialWindow({ window: w, children }: SpatialWindowProps) {
       e.preventDefault();
       e.stopPropagation();
       if (w.maximised || w.minimised) return;
+      const target = e.currentTarget;
+      target.setPointerCapture?.(e.pointerId);
       dragStart.current = {
         x: e.clientX,
         y: e.clientY,
@@ -60,8 +69,8 @@ export function SpatialWindow({ window: w, children }: SpatialWindowProps) {
         h: w.height,
         mode,
       };
+      movedRef.current = false;
       setDragging(true);
-      (e.target as Element).setPointerCapture?.(e.pointerId);
     },
     [w.height, w.maximised, w.minimised, w.width],
   );
@@ -72,6 +81,12 @@ export function SpatialWindow({ window: w, children }: SpatialWindowProps) {
       const { x, y, w: sw, h: sh, mode } = dragStart.current;
       const dx = e.clientX - x;
       const dy = e.clientY - y;
+
+      if (!movedRef.current) {
+        if (Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
+        movedRef.current = true;
+      }
+
       if (mode === "move") {
         moveWindow(w.id, w.x + dx, w.y + dy);
       } else if (mode === "resize") {
@@ -80,16 +95,37 @@ export function SpatialWindow({ window: w, children }: SpatialWindowProps) {
     };
     const onUp = (e: globalThis.PointerEvent) => {
       if (!dragStart.current) return;
+      const target = e.target instanceof Element ? e.target : null;
+      try {
+        target?.releasePointerCapture?.(e.pointerId);
+      } catch {
+        // releasePointerCapture may throw if not captured.
+      }
       dragStart.current = null;
       setDragging(false);
-      // Snap to edges when within 16px.
       if (!w.maximised && !w.minimised) {
-        const snapX = w.x < 16 ? 0 : state.bounds.width - w.width < 16 ? state.bounds.width - w.width : null;
-        const snapY = w.y < 16 ? 0 : state.bounds.height - w.height < 16 ? state.bounds.height - w.height : null;
-        if (snapX !== null || snapY !== null) {
-          moveWindow(w.id, snapX ?? w.x, snapY ?? w.y);
+        // Edge docking / snap-to-grid.
+        let nextX = w.x;
+        let nextY = w.y;
+        if (w.x < EDGE_SNAP) {
+          nextX = 0;
+        } else if (state.bounds.width - w.x - w.width < EDGE_SNAP) {
+          nextX = state.bounds.width - w.width;
+        } else {
+          nextX = Math.round(w.x / GRID) * GRID;
+        }
+        if (w.y < EDGE_SNAP) {
+          nextY = 0;
+        } else if (state.bounds.height - w.y - w.height < EDGE_SNAP) {
+          nextY = state.bounds.height - w.height;
+        } else {
+          nextY = Math.round(w.y / GRID) * GRID;
+        }
+        if (nextX !== w.x || nextY !== w.y) {
+          moveWindow(w.id, nextX, nextY);
         }
       }
+      movedRef.current = false;
     };
     if (dragging) {
       window.addEventListener("pointermove", onMove);
@@ -108,7 +144,7 @@ export function SpatialWindow({ window: w, children }: SpatialWindowProps) {
     width: w.maximised ? "100%" : w.width,
     height: w.maximised ? "100%" : w.height,
     zIndex: w.z,
-    transform: dragging ? "scale(1.01)" : "scale(1)",
+    transform: dragging && movedRef.current ? "scale(1.01)" : "scale(1)",
     transition: reducedMotion ? "none" : "transform 0.1s ease, box-shadow 0.2s ease",
   };
 

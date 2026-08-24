@@ -123,4 +123,39 @@ describe("workspace reducer", () => {
     expect(state.reducedMotion).toBe(true);
     expect(state.flatMode).toBe(true);
   });
+
+  it("blurs the focused window safely", () => {
+    let state = createInitialState(bounds);
+    state = workspaceReducer(state, { kind: "open", window: makeWindow("a") });
+    expect(state.focusedId).toBe("a");
+    state = workspaceReducer(state, { kind: "blur" });
+    expect(state.focusedId).toBeNull();
+    state = workspaceReducer(state, { kind: "blur" });
+    expect(state.focusedId).toBeNull();
+  });
+
+  it("restores focusedId from a snapshot", () => {
+    let state = createInitialState(bounds);
+    state = workspaceReducer(state, { kind: "open", window: makeWindow("a") });
+    state = workspaceReducer(state, { kind: "open", window: makeWindow("b") });
+    state = workspaceReducer(state, {
+      kind: "snapshot",
+      windows: state.windows,
+      nextZ: state.nextZ,
+      focusedId: "a",
+    });
+    expect(state.focusedId).toBe("a");
+  });
+
+  it("handles many windows with deterministic z-order and focus", () => {
+    let state = createInitialState(bounds);
+    for (let i = 0; i < 25; i++) {
+      state = workspaceReducer(state, { kind: "open", window: makeWindow(String(i)) });
+    }
+    expect(state.windows).toHaveLength(25);
+    expect(state.nextZ).toBe(26);
+    expect(state.focusedId).toBe("24");
+    const zs = state.windows.map((w) => w.z).sort((a, b) => a - b);
+    expect(zs).toEqual(Array.from({ length: 25 }, (_, i) => i + 1));
+  });
 });

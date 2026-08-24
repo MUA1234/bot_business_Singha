@@ -305,7 +305,13 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
         ...state,
         windows: action.windows.map((w) => clamp({ ...w }, state.bounds)),
         nextZ: Math.max(state.nextZ, action.nextZ),
+        focusedId: action.focusedId ?? null,
       };
+    }
+
+    case "blur": {
+      if (state.focusedId === null) return state;
+      return { ...state, focusedId: null };
     }
 
     case "batchArrive": {

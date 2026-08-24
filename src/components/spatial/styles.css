@@ -644,6 +644,65 @@
   font-size: 0.78rem;
 }
 
+.dock-windows-trigger {
+  display: none;
+}
+
+.dock-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.dock-sheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dock-sheet-list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.dock-sheet-list-item.focused {
+  border-color: rgba(var(--accent-rgb), 0.45);
+  background: rgba(var(--accent-rgb), 0.12);
+}
+
+.dock-sheet-list-title {
+  flex: 1;
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dock-sheet-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
 /* ── Command palette ────────────────────────────────────────────── */
 .command-palette-backdrop {
   position: fixed;
@@ -842,16 +901,24 @@
     display: none;
   }
 
-  .dock-mobile-trigger {
+  .dock-mobile-trigger,
+  .dock-windows-trigger {
     display: inline-flex;
   }
 
   .spatial-dock {
     padding: 8px 12px;
+    justify-content: space-between;
   }
 
   .dock-empty {
     display: none;
+  }
+
+  .dock-section.dock-minimised {
+    flex: 1;
+    justify-content: flex-end;
+    overflow-x: auto;
   }
 }
 

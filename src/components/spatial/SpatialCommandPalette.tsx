@@ -4,16 +4,24 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspace, useWindowActions } from "./useWorkspace";
 import { Icon } from "@/components/Icon";
 import { WINDOW_SPECS, getWindowSpec } from "./windowSpecs";
+import { useFocusTrap } from "./useFocusTrap";
 import type { SearchableRecord } from "./types";
+
+interface SpatialCommandPaletteProps {
+  allowedTypes: string[];
+  onClose: () => void;
+}
 
 /**
  * A modal command palette. It can focus an already-open window or open a new module
- * window from the registered window types.
+ * window from the registered window types. Focus is trapped inside the palette while
+ * it is open and Escape closes it.
  */
-export function SpatialCommandPalette({ onClose }: { onClose: () => void }) {
+export function SpatialCommandPalette({ allowedTypes, onClose }: SpatialCommandPaletteProps) {
   const { state } = useWorkspace();
   const { restoreWindow, focusWindow, openWindow } = useWindowActions();
   const [query, setQuery] = useState("");
+  const paletteRef = useFocusTrap<HTMLDivElement>(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const records: SearchableRecord[] = useMemo(() => {
@@ -26,7 +34,7 @@ export function SpatialCommandPalette({ onClose }: { onClose: () => void }) {
     }));
     const openTypes = new Set(state.windows.map((w) => w.type));
     const moduleRecords: SearchableRecord[] = WINDOW_SPECS.filter(
-      (s) => !openTypes.has(s.type),
+      (s) => allowedTypes.includes(s.type) && !openTypes.has(s.type),
     ).map((s) => ({
       id: `new-${s.type}`,
       type: s.type,
@@ -35,7 +43,7 @@ export function SpatialCommandPalette({ onClose }: { onClose: () => void }) {
       priority: s.defaultPriority,
     }));
     return [...openRecords, ...moduleRecords];
-  }, [state.windows]);
+  }, [state.windows, allowedTypes]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -46,6 +54,8 @@ export function SpatialCommandPalette({ onClose }: { onClose: () => void }) {
   }, [query, records]);
 
   useEffect(() => {
+    // Focus the input explicitly when the palette opens; useFocusTrap focuses the
+    // first focusable, which is also the input, but this guarantees caret placement.
     inputRef.current?.focus();
   }, []);
 
@@ -95,6 +105,7 @@ export function SpatialCommandPalette({ onClose }: { onClose: () => void }) {
   return (
     <div className="command-palette-backdrop" onClick={onClose} role="presentation">
       <div
+        ref={paletteRef}
         className="command-palette"
         role="dialog"
         aria-label="Open window"

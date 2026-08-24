@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { useWorkspace, useWindowActions } from "./useWorkspace";
-import { SpatialCommandPalette } from "./SpatialCommandPalette";
 import { Icon } from "@/components/Icon";
 
 /**
@@ -13,10 +12,9 @@ import { Icon } from "@/components/Icon";
  * - Flat-mode toggle
  * - Close all non-pinned windows
  */
-export function WorkspaceToolbar() {
+export function WorkspaceToolbar({ onOpenCommandPalette }: { onOpenCommandPalette: () => void }) {
   const { state, dispatch, saveLayout, restoreLayout } = useWorkspace();
   const { closeWindow } = useWindowActions();
-  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const toggleReducedMotion = useCallback(
     () => dispatch({ kind: "setReducedMotion", reducedMotion: !state.reducedMotion }),
@@ -41,7 +39,7 @@ export function WorkspaceToolbar() {
           <button
             type="button"
             className="toolbar-btn"
-            onClick={() => setPaletteOpen(true)}
+            onClick={onOpenCommandPalette}
             aria-label="Open command palette"
             title="Command palette"
           >
@@ -104,7 +102,6 @@ export function WorkspaceToolbar() {
           </button>
         </div>
       </div>
-      {paletteOpen && <SpatialCommandPalette onClose={() => setPaletteOpen(false)} />}
     </>
   );
 }
