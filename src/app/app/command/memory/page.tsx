@@ -123,7 +123,7 @@ export default async function MemoryPage() {
             ) : (
               <div className="stack gap-1">
                 {cases.map((c) => (
-                  <div key={c.id} className="small row-item">
+                  <div key={c.id} className="small row-item" style={{ borderBottom: "1px solid var(--panel-border)", padding: "6px 0" }}>
                     <div className="row between">
                       <Badge>{c.case_type}</Badge>
                       <span className="dim mono">case:{String(c.id).slice(0, 8)}</span>
@@ -145,7 +145,7 @@ export default async function MemoryPage() {
             ) : (
               <div className="stack gap-1">
                 {tasks.map((t) => (
-                  <div key={t.id} className="small row-item">
+                  <div key={t.id} className="small row-item" style={{ borderBottom: "1px solid var(--panel-border)", padding: "6px 0" }}>
                     <div className="row between">
                       <Link href={`/app/operations/tasks/${t.id}`} className="link">{t.title}</Link>
                       <StatusBadge status={t.status.replace(/_/g, " ")} />
@@ -168,7 +168,7 @@ export default async function MemoryPage() {
                 {customers.map((c) => {
                   const ids = identitiesByCustomer.get(c.id) ?? [];
                   return (
-                    <div key={c.id} className="small row-item">
+                    <div key={c.id} className="small row-item" style={{ borderBottom: "1px solid var(--panel-border)", padding: "6px 0" }}>
                       <div className="row between">
                         <Link href={`/app/sales/customers/${c.id}`} className="link">{c.name}</Link>
                         <span className="dim mono">customer:{String(c.id).slice(0, 8)}</span>
@@ -187,15 +187,6 @@ export default async function MemoryPage() {
         </Card>
       </div>
 
-      <style jsx>{`
-        .row-item {
-          border-bottom: 1px solid var(--panel-border);
-          padding: 6px 0;
-        }
-        .row-item:last-child {
-          border-bottom: none;
-        }
-      `}</style>
     </div>
   );
 }

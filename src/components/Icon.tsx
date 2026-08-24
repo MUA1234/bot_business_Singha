@@ -49,6 +49,15 @@ import {
   ChevronDown,
   LogOut,
   LayoutDashboard,
+  Layout,
+  Pin,
+  PinOff,
+  Minimize2,
+  Maximize2,
+  Minus,
+  PanelRight,
+  MoveDiagonal,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 
@@ -97,6 +106,15 @@ const MAP: Record<string, LucideIcon> = {
   "chevron-right": ChevronRight,
   "chevron-down": ChevronDown,
   "log-out": LogOut,
+  layout: Layout,
+  pin: Pin,
+  "pin-off": PinOff,
+  "minimize-2": Minimize2,
+  "maximize-2": Maximize2,
+  minus: Minus,
+  "panel-right": PanelRight,
+  "move-diagonal": MoveDiagonal,
+  sparkles: Sparkles,
 };
 
 export function Icon({

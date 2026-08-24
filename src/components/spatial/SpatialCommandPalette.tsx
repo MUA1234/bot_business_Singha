@@ -1,0 +1,103 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useWorkspace, useWindowActions } from "./useWorkspace";
+import { Icon } from "@/components/Icon";
+import type { SearchableRecord } from "./types";
+
+/**
+ * A modal command palette. In the prototype it focuses one of the pre-opened initial
+ * windows; selecting a type restores and focuses the matching window.
+ */
+export function SpatialCommandPalette({ onClose }: { onClose: () => void }) {
+  const { state } = useWorkspace();
+  const { restoreWindow, focusWindow } = useWindowActions();
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const records: SearchableRecord[] = useMemo(
+    () =>
+      state.windows.map((w) => ({
+        id: w.id,
+        type: w.type,
+        title: w.title,
+        subtitle: w.type,
+        priority: w.priority,
+      })),
+    [state.windows],
+  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return records;
+    return records.filter(
+      (r) => r.title.toLowerCase().includes(q) || r.type.toLowerCase().includes(q),
+    );
+  }, [query, records]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const open = useCallback(
+    (record: SearchableRecord) => {
+      const existing = state.windows.find((w) => w.id === record.id || w.type === record.type);
+      if (existing) {
+        if (existing.minimised) restoreWindow(existing.id);
+        focusWindow(existing.id);
+      }
+      onClose();
+    },
+    [state.windows, restoreWindow, focusWindow, onClose],
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "Enter" && filtered[0]) open(filtered[0]);
+    },
+    [filtered, onClose, open],
+  );
+
+  return (
+    <div className="command-palette-backdrop" onClick={onClose} role="presentation">
+      <div
+        className="command-palette"
+        role="dialog"
+        aria-label="Open window"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <input
+          ref={inputRef}
+          type="text"
+          className="command-palette-input"
+          placeholder="Focus a workspace…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
+          aria-label="Search windows"
+        />
+        <div className="command-palette-results" role="listbox">
+          {filtered.length === 0 && (
+            <div className="command-palette-empty">No matching window</div>
+          )}
+          {filtered.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              className="command-palette-item"
+              onClick={() => open(r)}
+              role="option"
+              aria-selected={false}
+              aria-label={`Open ${r.title}`}
+            >
+              <Icon name="layout" size={18} />
+              <span className="command-palette-title">{r.title}</span>
+              <span className="command-palette-subtitle">{r.subtitle}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -45,6 +45,7 @@ export const env = {
     rlsReads: () => process.env.RLS_READS === "on",
     rlsWrites: () => process.env.RLS_WRITES === "on",
     whatsappAsync: () => process.env.WHATSAPP_ASYNC === "on",
+    spatialWorkspace: () => process.env.NEXT_PUBLIC_SPATIAL_WORKSPACE === "on",
   },
 
   cronSecret: () => optional("CRON_SECRET"),
