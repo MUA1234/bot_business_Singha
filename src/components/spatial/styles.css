@@ -481,6 +481,138 @@
   text-overflow: ellipsis;
 }
 
+.dock-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--panel-border);
+  margin: 4px 0;
+}
+
+.dock-module,
+.dock-mobile-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  white-space: nowrap;
+}
+
+.dock-module:hover,
+.dock-module:focus-visible,
+.dock-mobile-trigger:hover,
+.dock-mobile-trigger:focus-visible {
+  background: var(--panel-strong);
+  transform: translateY(-1px);
+}
+
+.dock-module.active {
+  background: rgba(var(--accent-rgb), 0.18);
+  border-color: rgba(var(--accent-rgb), 0.45);
+  color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.12);
+}
+
+.dock-module.minimised {
+  background: rgba(var(--accent-rgb), 0.08);
+  border-style: dashed;
+  border-color: rgba(var(--accent-rgb), 0.35);
+  color: var(--accent);
+}
+
+.dock-module-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.dock-mobile-trigger {
+  display: none;
+}
+
+.dock-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 1000;
+}
+
+.dock-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1001;
+  background: var(--panel-strong);
+  border-top: 1px solid var(--panel-border);
+  border-radius: 20px 20px 0 0;
+  padding: 16px;
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.dock-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dock-sheet-title {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.dock-sheet-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.dock-sheet-close:hover,
+.dock-sheet-close:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.dock-sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 12px;
+}
+
+.dock-sheet-grid .dock-module {
+  flex-direction: column;
+  border-radius: var(--radius);
+  padding: 16px 8px;
+  text-align: center;
+}
+
+.dock-sheet-grid .dock-module-label {
+  max-width: 100%;
+  white-space: normal;
+  font-size: 0.78rem;
+}
+
 /* ── Command palette ────────────────────────────────────────────── */
 .command-palette-backdrop {
   position: fixed;
@@ -673,6 +805,22 @@
   .window-btn {
     width: 48px;
     height: 48px;
+  }
+
+  .dock-modules-row {
+    display: none;
+  }
+
+  .dock-mobile-trigger {
+    display: inline-flex;
+  }
+
+  .spatial-dock {
+    padding: 8px 12px;
+  }
+
+  .dock-empty {
+    display: none;
   }
 }
 

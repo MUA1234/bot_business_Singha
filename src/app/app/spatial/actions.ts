@@ -1,5 +1,7 @@
 "use server";
 
+import { resolveCapability } from "@/lib/auth";
+import { WINDOW_SPECS } from "@/components/spatial/windowSpecs";
 import { loadFinanceData } from "@/components/spatial/panels/FinancePanel";
 import { loadStaffData } from "@/components/spatial/panels/StaffPanel";
 import { loadProjectsData } from "@/components/spatial/panels/ProjectsPanel";
@@ -37,4 +39,28 @@ export async function loadModuleData(
   } catch (e) {
     return { ok: false, error: (e as Error).message ?? "Failed to load module data" };
   }
+}
+
+/**
+ * Resolve which registered module types the given user is allowed to open.
+ * The registry remains the single source of truth; this function only checks
+ * the capability gate for each spec's requiredCapabilities. Empty lists mean
+ * unrestricted (e.g. command centre, AI recommendations, system health).
+ */
+export async function resolveAllowedModules(userId: string, companyId: string): Promise<string[]> {
+  const allowed: string[] = [];
+  for (const spec of WINDOW_SPECS) {
+    const caps = spec.requiredCapabilities ?? [];
+    if (caps.length === 0) {
+      allowed.push(spec.type);
+      continue;
+    }
+    const results = await Promise.all(
+      caps.map((cap) => resolveCapability(userId, companyId, cap)),
+    );
+    if (results.every((r) => r === "granted")) {
+      allowed.push(spec.type);
+    }
+  }
+  return allowed;
 }

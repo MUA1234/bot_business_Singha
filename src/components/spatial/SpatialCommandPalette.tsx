@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspace, useWindowActions } from "./useWorkspace";
 import { Icon } from "@/components/Icon";
-import { WINDOW_SPECS, getWindowSpec } from "./WindowRegistry";
+import { WINDOW_SPECS, getWindowSpec } from "./windowSpecs";
 import type { SearchableRecord } from "./types";
 
 /**

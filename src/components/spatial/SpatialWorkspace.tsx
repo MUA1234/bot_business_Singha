@@ -13,7 +13,15 @@ import { WindowErrorBoundary } from "./WindowErrorBoundary";
  * The top-level spatial workspace component. It renders the focus stage, the floating
  * windows, the peripheral arrival rail, the dock, and the toolbar.
  */
-export function SpatialWorkspace({ companyId, userId }: { companyId: string; userId: string }) {
+export function SpatialWorkspace({
+  companyId,
+  userId,
+  allowedTypes,
+}: {
+  companyId: string;
+  userId: string;
+  allowedTypes: string[];
+}) {
   const { state, ready } = useWorkspace();
 
   if (!ready) {
@@ -54,7 +62,7 @@ export function SpatialWorkspace({ companyId, userId }: { companyId: string; use
           ))}
       </div>
       <PeripheralRail />
-      <SpatialDock companyId={companyId} userId={userId} />
+      <SpatialDock companyId={companyId} userId={userId} allowedTypes={allowedTypes} />
     </div>
   );
 }
