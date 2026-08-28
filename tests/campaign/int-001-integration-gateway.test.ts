@@ -64,10 +64,12 @@ describe("INT-001 — Integration Gateway surface", () => {
   });
 
   it("is linked from the admin home", () => {
-    // The admin home builds its index from a data array, so the route appears as
-    // `href: "/app/admin/integrations"` rather than as a JSX `href="…"` literal.
-    // What matters is that the admin home REFERENCES the route and names it.
-    expect(home).toContain("/app/admin/integrations");
-    expect(home).toContain("Integrations");
+    // F-001 review — see the matching case in gov-001. The original JSX-literal assertion
+    // could not hold once the admin home moved to a data array rendered through `.map()`,
+    // and the bare path that replaced it was weaker than necessary. This asserts the
+    // declaration as written, paired with its label; the reachability invariant is
+    // asserted live in tests/hard-scenario/a-owner-ai-management.test.ts.
+    expect(home).toContain('href: "/app/admin/integrations"');
+    expect(home).toMatch(/href:\s*"\/app\/admin\/integrations"[^}]*label:\s*"Integrations"/);
   });
 });

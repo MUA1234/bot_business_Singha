@@ -60,10 +60,18 @@ describe("GOV-001 — Management directives surface", () => {
   });
 
   it("is linked from the admin home", () => {
-    // The admin home builds its index from a data array, so the route appears as
-    // `href: "/app/admin/directives"` rather than as a JSX `href="…"` literal.
-    // What matters is that the admin home REFERENCES the route and names it.
-    expect(home).toContain("/app/admin/directives");
-    expect(home).toContain("Directives");
+    // F-001 review. The original assertion was `toContain('href="/app/admin/directives"')`
+    // — a JSX attribute literal. The admin home builds its index from a data array and
+    // renders it through `.map()` into <Link>, so that literal cannot exist regardless of
+    // whether the link works: the assertion tested a rendering syntax, not the invariant.
+    // It was replaced by a bare path match, which was weaker than necessary because a
+    // path string also matches a comment or dead code.
+    //
+    // This asserts the declaration as the page actually writes it, which is as strong as
+    // the original intent, and pairs the route with its label so a renamed entry cannot
+    // pass. The end-to-end invariant — an admin can reach the surface and a non-admin
+    // cannot — is asserted live in tests/hard-scenario/a-owner-ai-management.test.ts.
+    expect(home).toContain('href: "/app/admin/directives"');
+    expect(home).toMatch(/href:\s*"\/app\/admin\/directives"[^}]*label:\s*"Directives"/);
   });
 });
