@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import "./globals.css";
-import LivingBackground from "@/components/LivingBackground";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 
 export const metadata = {
@@ -10,18 +9,24 @@ export const metadata = {
 };
 
 export const viewport = {
-  themeColor: "#0b0e11",
+  themeColor: "#08090b",
   width: "device-width",
   initialScale: 1,
   // Let content extend under notches; globals.css pads with safe-area insets.
   viewportFit: "cover" as const,
 };
 
+/**
+ * The environment layer is mounted per-area rather than here, because the
+ * authenticated application lights the room differently depending on which
+ * module you are in (see `SpatialShell` → `SpatialEnvironment`), while public
+ * surfaces use the neutral composition. Mounting it once at the root would
+ * force one lighting state on everything.
+ */
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <LivingBackground />
         <ServiceWorkerRegistration />
         {children}
       </body>

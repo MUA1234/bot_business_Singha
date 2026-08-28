@@ -1,0 +1,946 @@
+/*
+ * ═══════════════════════════════════════════════════════════════════════════
+ * SINGHA — CINEMATIC SPATIAL EXECUTIVE OS
+ * Layer 3 of 4: THE SHELL — environment, command rail, top strip, AI presence
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * The shell is the place the work happens in. It is not a sidebar and a header;
+ * it is an atmospheric environment with a structural rail along one edge, a
+ * minimal identity strip along the top, and an always-reachable AI presence.
+ */
+
+/* ═══ THE ENVIRONMENT ════════════════════════════════════════════════════
+ * A restrained atmospheric space: obsidian ground, a smoky aubergine mass to
+ * one side, a single soft key light, and a champagne bounce at the far edge.
+ * Fixed, inert, and entirely CSS — no video, no canvas, no WebGL required, so
+ * it costs nothing on the critical path and works offline. */
+.env {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-env);
+  pointer-events: none;
+  overflow: hidden;
+  background: var(--env-0);
+}
+.env-field {
+  position: absolute;
+  inset: -10%;
+  background:
+    radial-gradient(62% 50% at 14% -4%, rgba(58, 55, 72, 0.9) 0%, rgba(8, 9, 11, 0) 64%),
+    radial-gradient(56% 54% at 92% 10%, rgba(52, 34, 52, 0.78) 0%, rgba(8, 9, 11, 0) 60%),
+    radial-gradient(78% 56% at 46% 108%, rgba(38, 26, 38, 0.85) 0%, rgba(8, 9, 11, 0) 66%),
+    radial-gradient(40% 34% at 74% 62%, rgba(30, 27, 40, 0.7) 0%, rgba(8, 9, 11, 0) 70%),
+    linear-gradient(166deg, #14141b 0%, var(--env-1) 38%, var(--env-0) 68%, #0b0812 100%);
+}
+/* The key light — a single soft volumetric shaft from upper left. Restrained
+ * volumetric lighting, not a glow effect. */
+.env-key {
+  position: absolute;
+  top: -30%;
+  left: -14%;
+  width: 62%;
+  height: 150%;
+  transform: rotate(14deg);
+  background: linear-gradient(
+    98deg,
+    rgba(255, 249, 238, 0) 0%,
+    rgba(255, 249, 238, 0.055) 40%,
+    rgba(255, 249, 238, 0.085) 52%,
+    rgba(255, 249, 238, 0.02) 64%,
+    rgba(255, 249, 238, 0) 76%
+  );
+  filter: blur(44px);
+}
+/* The champagne bounce — the far edge of the room catching warm light. */
+.env-bounce {
+  position: absolute;
+  right: -18%;
+  bottom: -34%;
+  width: 68%;
+  height: 78%;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    rgba(217, 180, 119, 0.14) 0%,
+    rgba(217, 180, 119, 0.05) 44%,
+    rgba(217, 180, 119, 0) 72%
+  );
+  filter: blur(56px);
+}
+/* A single horizon line: the floor of the room. Architectural, not decorative —
+ * it is what makes surfaces read as floating ABOVE something. */
+.env-horizon {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  top: 62%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 252, 246, 0) 0%,
+    rgba(255, 252, 246, 0.055) 30%,
+    rgba(217, 180, 119, 0.075) 52%,
+    rgba(255, 252, 246, 0.04) 72%,
+    rgba(255, 252, 246, 0) 100%
+  );
+}
+.env-horizon::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 180px;
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.016) 0%, rgba(255, 252, 246, 0) 100%);
+}
+/* Fine grain so large flat gradients never band on an 8-bit panel. */
+.env-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.32'/%3E%3C/svg%3E");
+}
+/* Domain character: the same room, lit differently. Not separate websites —
+ * one environment whose atmosphere shifts as you move between modules. */
+.env[data-domain="finance"] .env-field {
+  background:
+    radial-gradient(56% 42% at 22% 0%, rgba(32, 36, 46, 0.9) 0%, rgba(8, 9, 11, 0) 60%),
+    radial-gradient(48% 44% at 90% 18%, #131a22 0%, rgba(8, 9, 11, 0) 56%),
+    linear-gradient(172deg, #0b0d11 0%, var(--env-0) 52%, #08090d 100%);
+}
+.env[data-domain="people"] .env-field {
+  background:
+    radial-gradient(58% 46% at 18% 2%, rgba(52, 42, 46, 0.78) 0%, rgba(8, 9, 11, 0) 62%),
+    radial-gradient(52% 46% at 86% 16%, var(--env-plum-2) 0%, rgba(8, 9, 11, 0) 58%),
+    linear-gradient(168deg, #100e11 0%, var(--env-0) 50%, #0d0a0e 100%);
+}
+.env[data-domain="projects"] .env-field {
+  background:
+    radial-gradient(60% 40% at 12% 0%, rgba(38, 40, 48, 0.82) 0%, rgba(8, 9, 11, 0) 58%),
+    radial-gradient(46% 52% at 94% 24%, #171a20 0%, rgba(8, 9, 11, 0) 56%),
+    linear-gradient(170deg, var(--env-1) 0%, var(--env-0) 48%, #090a0e 100%);
+}
+.env[data-domain="operations"] .env-field {
+  background:
+    radial-gradient(64% 44% at 50% -6%, rgba(30, 36, 40, 0.8) 0%, rgba(8, 9, 11, 0) 60%),
+    radial-gradient(50% 46% at 6% 30%, #121a1c 0%, rgba(8, 9, 11, 0) 58%),
+    linear-gradient(176deg, #0a0d0e 0%, var(--env-0) 54%, #080a0b 100%);
+}
+.env[data-domain="ai"] .env-field {
+  background:
+    radial-gradient(70% 52% at 50% 42%, rgba(24, 22, 30, 0.9) 0%, rgba(8, 9, 11, 0) 66%),
+    linear-gradient(180deg, #0a0a0e 0%, var(--env-0) 100%);
+}
+.env[data-domain="crm"] .env-field {
+  background:
+    radial-gradient(56% 44% at 24% 4%, rgba(46, 40, 50, 0.8) 0%, rgba(8, 9, 11, 0) 60%),
+    radial-gradient(50% 48% at 88% 20%, var(--env-plum-1) 0%, rgba(8, 9, 11, 0) 56%),
+    linear-gradient(168deg, #0f0d12 0%, var(--env-0) 50%, #0a090e 100%);
+}
+
+/* ═══ SHELL FRAME ════════════════════════════════════════════════════════ */
+.os {
+  display: grid;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
+  min-height: 100vh;
+  min-height: 100dvh;
+  position: relative;
+}
+
+/* ═══ COMMAND RAIL ═══════════════════════════════════════════════════════
+ * A thin structural rail along the left edge. Metal, not glass — it is part of
+ * the frame of the room rather than a floating surface. Icons are restrained;
+ * labels appear on hover, on focus, and always on a touch device with room. */
+.rail {
+  position: sticky;
+  top: 0;
+  z-index: var(--layer-rail);
+  height: 100vh;
+  height: 100dvh;
+  width: var(--rail-w);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-2) var(--sp-4);
+  padding-left: max(var(--sp-2), env(safe-area-inset-left));
+  background: var(--mat-metal);
+  border-right: 1px solid var(--mat-metal-edge);
+  transition: width var(--mo-panel) var(--ease-spatial);
+}
+.rail::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--mat-metal-grain);
+  opacity: 0.6;
+  pointer-events: none;
+}
+/* The rail's inner edge catches the key light. */
+.rail::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -1px;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 252, 246, 0) 0%,
+    rgba(255, 252, 246, 0.12) 18%,
+    rgba(217, 180, 119, 0.1) 48%,
+    rgba(255, 252, 246, 0.04) 82%,
+    rgba(255, 252, 246, 0) 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+.rail-brand a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  border-radius: var(--radius-xs);
+}
+.rail-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 52px;
+  flex: none;
+  margin-bottom: var(--sp-2);
+  position: relative;
+  z-index: 2;
+}
+.rail-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  flex: 1;
+  position: relative;
+  z-index: 2;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 252, 246, 0.12) transparent;
+}
+.rail-nav::-webkit-scrollbar { width: 3px; }
+.rail-nav::-webkit-scrollbar-thumb { background: rgba(255, 252, 246, 0.12); border-radius: 3px; }
+.rail-foot {
+  flex: none;
+  padding-top: var(--sp-2);
+  position: relative;
+  z-index: 2;
+}
+
+/* A rail destination. Collapsed it is a 44 px glyph; the label rides out on a
+ * flyout so the collapsed rail never truncates a word. */
+.rail-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--touch-min);
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-size: var(--t-small);
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--mo-state) var(--ease-out), color var(--mo-state) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+.rail-item .rail-ico {
+  width: 22px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.rail-item .rail-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rail-item { color: var(--text-dim); }
+.rail-item .rail-ico { color: var(--silver); }
+.rail-item:hover { background: rgba(255, 252, 246, 0.055); color: var(--text); }
+.rail-item:hover .rail-ico { color: var(--ivory); }
+.rail-item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.6);
+  color: var(--text);
+}
+/* Current location: champagne left edge + a lifted ground. Not a filled pill —
+ * the accent is a light catching an edge, never a block of gold. */
+.rail-item.is-current {
+  color: var(--ivory);
+  background: linear-gradient(
+    90deg,
+    rgba(var(--accent-rgb), 0.14) 0%,
+    rgba(var(--accent-rgb), 0.045) 44%,
+    rgba(var(--accent-rgb), 0) 100%
+  );
+}
+.rail-item.is-current::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(
+    180deg,
+    rgba(217, 180, 119, 0) 0%,
+    var(--accent-hi) 26%,
+    var(--accent) 74%,
+    rgba(217, 180, 119, 0) 100%
+  );
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.5);
+}
+.rail-item.is-current .rail-ico { color: var(--accent); }
+/* A destination carrying unattended matters shows a count, not a red dot with
+ * no number — a badge that cannot say how many is not information. */
+.rail-count {
+  margin-left: auto;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--t-label);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  background: rgba(255, 252, 246, 0.08);
+  color: var(--text-muted);
+}
+.rail-count.is-critical { background: rgba(var(--danger-rgb), 0.18); color: var(--danger); }
+.rail-count.is-warn { background: rgba(var(--warn-rgb), 0.16); color: var(--warn); }
+
+/* Collapsed rail: hide labels, centre glyphs, show a flyout label on hover or
+ * keyboard focus. */
+.rail:not(.is-open) .rail-item { justify-content: center; padding: 0; }
+.rail:not(.is-open) .rail-item .rail-label { display: none; }
+.rail:not(.is-open) .rail-count {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  margin-left: 0;
+  min-width: 18px;
+  height: 18px;
+  font-size: var(--t-label);
+}
+.rail-fly {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-6px);
+  padding: 7px 12px;
+  border-radius: var(--radius-xs);
+  background: var(--mat-smoked);
+  backdrop-filter: blur(var(--mat-smoked-blur));
+  -webkit-backdrop-filter: blur(var(--mat-smoked-blur));
+  border: 1px solid var(--mat-smoked-edge);
+  box-shadow: var(--shadow-active);
+  color: var(--text);
+  font-size: var(--t-small);
+  font-weight: 650;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--mo-state) var(--ease-out), transform var(--mo-state) var(--ease-out);
+  z-index: 3;
+}
+.rail:not(.is-open) .rail-item:hover .rail-fly,
+.rail:not(.is-open) .rail-item:focus-visible .rail-fly {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+.rail.is-open { width: var(--rail-w-open); }
+.os:has(.rail.is-open) { grid-template-columns: var(--rail-w-open) minmax(0, 1fr); }
+
+.rail-toggle {
+  width: 100%;
+  min-height: var(--touch-min);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-ghost);
+  font-family: inherit;
+  font-size: var(--t-label);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.rail-toggle:hover { color: var(--text-muted); background: rgba(255, 252, 246, 0.04); }
+
+/* Rail section captions, visible only when the rail is open. */
+.rail-section {
+  padding: var(--sp-4) var(--sp-3) var(--sp-1);
+  font-size: var(--t-label);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-ghost);
+}
+.rail:not(.is-open) .rail-section {
+  padding: var(--sp-3) 0 var(--sp-1);
+  text-align: center;
+  font-size: 0;
+}
+.rail:not(.is-open) .rail-section::after {
+  content: "";
+  display: block;
+  height: 1px;
+  margin: 0 auto;
+  width: 22px;
+  background: rgba(255, 252, 246, 0.09);
+}
+
+/* ═══ STAGE ══════════════════════════════════════════════════════════════
+ * Everything to the right of the rail. The camera lives here. */
+.stage {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  perspective: var(--cam-perspective);
+  perspective-origin: var(--cam-origin);
+}
+.stage-scene {
+  flex: 1;
+  min-width: 0;
+  transform-style: preserve-3d;
+  transition: transform var(--mo-module) var(--ease-spatial);
+  /* Camera influence, written by SpatialShell from pointer position. Capped by
+   * the tokens so no component can exceed the subconscious range. */
+  transform: rotateY(var(--cam-x, 0deg)) rotateX(var(--cam-y, 0deg))
+    translateZ(var(--cam-z, 0px));
+}
+/* A module change: the arriving surface expands toward the viewer while the
+ * outgoing composition quietly recedes. */
+.stage-scene[data-transition="entering"] {
+  animation: module-enter var(--mo-module) var(--ease-spatial) both;
+}
+@keyframes module-enter {
+  from { opacity: 0.35; transform: translateZ(-72px) scale(0.982); }
+  to { opacity: 1; transform: translateZ(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage-scene[data-transition="entering"] { animation: none; }
+}
+
+/* ═══ TOP STRIP ══════════════════════════════════════════════════════════
+ * Minimal. Company / branch / clock on the left; search, palette, alerts and
+ * identity on the right. It is a strip, not a header. */
+.strip {
+  position: sticky;
+  top: 0;
+  z-index: var(--layer-active);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--strip-h);
+  padding: var(--sp-2) var(--gutter);
+  padding-right: max(var(--gutter), env(safe-area-inset-right));
+  background: linear-gradient(180deg, rgba(8, 9, 11, 0.86) 0%, rgba(8, 9, 11, 0.52) 100%);
+  backdrop-filter: blur(var(--blur-mid));
+  -webkit-backdrop-filter: blur(var(--blur-mid));
+  border-bottom: 1px solid rgba(255, 252, 246, 0.055);
+}
+.strip-scope {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+/* The company-space selector. Which company you are acting within must never be
+ * ambiguous, so it is the first thing in the strip and it is always visible. */
+.strip-company {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 34px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-xs);
+  background: rgba(255, 252, 246, 0.04);
+  border: 1px solid rgba(255, 252, 246, 0.07);
+  color: var(--text);
+  font-size: var(--t-small);
+  font-weight: 700;
+  white-space: nowrap;
+  min-width: 0;
+}
+.strip-company .co-mark {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 5px;
+  background: var(--accent-grad);
+  color: var(--accent-ink);
+  display: grid;
+  place-items: center;
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+.strip-company .co-name { overflow: hidden; text-overflow: ellipsis; }
+/* Which company you are acting within must never be truncated to two letters —
+ * cross-company confusion is a security failure. Below the width where both the
+ * company and the branch fit, the BRANCH gives way first, and the clock after
+ * it, so the company name keeps its room. */
+@media (max-width: 1100px) {
+  .strip-branch { display: none; }
+}
+@media (max-width: 900px) {
+  .strip-clock { display: none; }
+}
+.strip-company { max-width: min(34ch, 40vw); }
+.strip-branch {
+  font-size: var(--t-small);
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.strip-clock {
+  font-size: var(--t-small);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.strip-spacer { flex: 1; min-width: var(--sp-2); }
+.strip-actions { display: flex; align-items: center; gap: var(--sp-2); flex: none; }
+
+/* The command trigger doubles as the global search field on wide screens and
+ * collapses to a glyph on phones. */
+.strip-command {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--touch-min);
+  min-width: 210px;
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  border-radius: var(--radius-xs);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 252, 246, 0.08);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: var(--t-small);
+  cursor: pointer;
+  transition: border-color var(--mo-state) var(--ease-out), color var(--mo-state) var(--ease-out);
+}
+.strip-command:hover { border-color: rgba(var(--accent-rgb), 0.32); color: var(--text-muted); }
+.strip-command .kbd {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--t-label);
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(255, 252, 246, 0.06);
+  border: 1px solid rgba(255, 252, 246, 0.08);
+  color: var(--text-ghost);
+}
+.strip-btn {
+  position: relative;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  border-radius: var(--radius-xs);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background var(--mo-state) var(--ease-out), color var(--mo-state) var(--ease-out);
+}
+.strip-btn:hover { background: rgba(255, 252, 246, 0.05); color: var(--text); }
+.strip-btn .strip-btn-count {
+  position: absolute;
+  top: 4px;
+  right: 3px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--danger);
+  color: #fff;
+  font-size: var(--t-label);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--env-0);
+}
+/* System / connection state. Honest: it reports what the last real check said,
+ * and says "unknown" when nothing has been checked. */
+.strip-conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--sp-2);
+  height: 32px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 252, 246, 0.035);
+  font-size: var(--t-label);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* ═══ WORK SURFACE ═══════════════════════════════════════════════════════ */
+.surface {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  max-width: var(--canvas-max);
+  margin-inline: auto;
+  padding: var(--gutter);
+  padding-bottom: max(calc(var(--gutter) + 84px), calc(env(safe-area-inset-bottom) + 84px));
+}
+.surface:focus { outline: none; }
+/* --canvas-max already scales with the viewport, so no per-breakpoint cap is
+ * needed. A surface whose content is a single reading or decision column opts
+ * into the narrower measure explicitly rather than inheriting it. */
+.surface.is-focus { max-width: var(--canvas-max-focus); }
+
+/* ═══ AI PRESENCE ════════════════════════════════════════════════════════
+ * The Senior AI Manager is always reachable and never a mascot. It is a soft
+ * luminous core with concentric response rings — a light that breathes when
+ * idle, listens when engaged, and thinks in a slow restrained wave. */
+/* Bottom-RIGHT, not bottom-centre. A persistent presence pinned to the centre
+ * of the viewport sits permanently on top of the reading column and covers a
+ * different heading at every scroll position. The right gutter is equally
+ * reachable and covers nothing. */
+.presence {
+  position: fixed;
+  right: max(var(--sp-5), env(safe-area-inset-right));
+  bottom: max(var(--sp-5), env(safe-area-inset-bottom));
+  z-index: var(--layer-presence);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 6px 6px 6px 7px;
+  border-radius: var(--radius-pill);
+  background: rgba(13, 12, 17, 0.72);
+  backdrop-filter: blur(var(--blur-mid)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--blur-mid)) saturate(1.2);
+  border: 1px solid rgba(255, 252, 246, 0.1);
+  box-shadow: var(--shadow-priority), var(--reflect-top);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform var(--mo-focus) var(--ease-spatial), box-shadow var(--mo-focus) var(--ease-out);
+}
+.presence:hover { transform: translateY(-2px); }
+.presence:focus-visible { outline: none; box-shadow: var(--shadow-priority), 0 0 0 2px rgba(var(--accent-rgb), 0.6); }
+.presence-core {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 50%;
+  /* A contained luminous core, not a solid ball. The previous gradient ran
+   * bright ivory straight out to an opaque gold edge, which rendered as a flat
+   * sphere sitting on top of the interface — the one element that did not look
+   * like it belonged in the room. It is now a small bright centre falling away
+   * into darkness, with the warmth carried by the halo around it rather than by
+   * the body itself. */
+  background: radial-gradient(
+    circle at 42% 36%,
+    rgba(255, 251, 242, 0.92) 0%,
+    rgba(227, 191, 130, 0.78) 22%,
+    rgba(180, 137, 74, 0.42) 46%,
+    rgba(74, 56, 34, 0.5) 72%,
+    rgba(28, 22, 16, 0.75) 100%
+  );
+  box-shadow:
+    0 0 0 1px rgba(var(--accent-rgb), 0.3),
+    0 0 14px -2px rgba(var(--accent-rgb), 0.5),
+    0 0 34px -6px rgba(var(--accent-rgb), 0.28),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.55),
+    inset 0 1px 2px rgba(255, 251, 242, 0.5);
+}
+/* Idle: a calm breath. One cycle every six seconds — slow enough that it reads
+ * as alive rather than as an animation demanding attention. */
+.presence-core::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--accent-rgb), 0.28);
+  animation: presence-breath 6s var(--ease-in-out) infinite;
+}
+@keyframes presence-breath {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.14); opacity: 0.16; }
+}
+/* Listening: concentric response rings expand outward from the core. */
+.presence[data-state="listening"] .presence-core::after {
+  animation: presence-ring 1.4s var(--ease-out) infinite;
+}
+@keyframes presence-ring {
+  0% { transform: scale(1); opacity: 0.65; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+/* Thinking: a slow restrained wave across the core. No fake percentage, no
+ * spinner pretending to know how long it will take. */
+.presence[data-state="thinking"] .presence-core {
+  background-image: linear-gradient(
+      100deg,
+      rgba(255, 250, 240, 0) 30%,
+      rgba(255, 250, 240, 0.55) 50%,
+      rgba(255, 250, 240, 0) 70%
+    ),
+    radial-gradient(circle at 38% 34%, rgba(255, 250, 240, 0.95) 0%, var(--accent-hi) 28%, var(--accent-lo) 58%, rgba(120, 92, 52, 0) 100%);
+  background-size: 220% 100%, 100% 100%;
+  animation: presence-wave 2.1s var(--ease-in-out) infinite;
+}
+@keyframes presence-wave {
+  from { background-position: 180% 0, 0 0; }
+  to { background-position: -80% 0, 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .presence-core::after,
+  .presence[data-state="thinking"] .presence-core { animation: none; }
+  .presence[data-state="thinking"] .presence-core { box-shadow: 0 0 22px rgba(var(--accent-rgb), 0.6); }
+}
+/* The presence RECEDES when it is not being used.
+ *
+ * It is a fixed overlay in the lower-right corner, so at full width it sat on
+ * top of whatever happened to scroll beneath it — most visibly the right-aligned
+ * annotation on a section heading. Collapsed to its core it occupies a corner
+ * nothing competes for, and it expands to its full label on hover or keyboard
+ * focus. The accessible name is on the button itself, so the label is
+ * presentation only and nothing is lost when it is collapsed. */
+.presence-text {
+  display: grid;
+  grid-template-columns: 0fr;
+  gap: 1px;
+  min-width: 0;
+  opacity: 0;
+  transition: grid-template-columns var(--mo-panel) var(--ease-spatial),
+    opacity var(--mo-state) var(--ease-out), padding var(--mo-panel) var(--ease-spatial);
+  padding-right: 0;
+}
+.presence-text > * { overflow: hidden; white-space: nowrap; min-width: 0; }
+.presence:hover .presence-text,
+.presence:focus-visible .presence-text {
+  grid-template-columns: 1fr;
+  opacity: 1;
+  padding-right: var(--sp-3);
+}
+/* A pointer-less device cannot hover, so the label stays out on a large
+ * touchscreen where there is room for it. */
+@media (pointer: coarse) and (min-width: 1024px) {
+  .presence-text { grid-template-columns: 1fr; opacity: 1; padding-right: var(--sp-3); }
+}
+.presence-title {
+  font-size: var(--t-label);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-ghost);
+}
+.presence-line {
+  font-size: var(--t-small);
+  font-weight: 650;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 34ch;
+}
+@media (max-width: 767px) {
+  .presence { right: max(var(--sp-4), env(safe-area-inset-right)); padding: 6px; }
+  .presence-text { display: none; }
+}
+
+/* ═══ RESPONSIVE SHELL ═══════════════════════════════════════════════════
+ * Tablet keeps the rail but drops the open state; phone moves navigation to a
+ * bottom edge bar, because a thumb cannot reach a top-left rail. */
+@media (max-width: 1023px) {
+  .rail.is-open { width: var(--rail-w); }
+  .os:has(.rail.is-open) { grid-template-columns: var(--rail-w) minmax(0, 1fr); }
+  .rail.is-open .rail-item { justify-content: center; padding: 0; }
+  .rail.is-open .rail-item .rail-label { display: none; }
+  .rail-toggle { display: none; }
+}
+/* The phone bar exists only on a phone; the grouped index only above it. */
+.rail-bar { display: none; }
+
+@media (max-width: 767px) {
+  .os { grid-template-columns: minmax(0, 1fr); }
+  .os:has(.rail.is-open) { grid-template-columns: minmax(0, 1fr); }
+  .rail {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    height: auto;
+    width: auto;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-right: none;
+    border-top: 1px solid var(--mat-metal-edge);
+  }
+  .rail::before { top: -1px; bottom: auto; left: 0; right: 0; width: auto; height: 1px;
+    background: linear-gradient(90deg, rgba(255, 252, 246, 0) 0%, rgba(255, 252, 246, 0.1) 30%, rgba(217, 180, 119, 0.12) 52%, rgba(255, 252, 246, 0) 100%); }
+  /* The full grouped index is the SHEET's content on a phone; the bar replaces
+   * it in the frame. Sixteen scrolling tabs is a list nobody reads. */
+  .rail-brand, .rail-foot, .rail-nav { display: none; }
+  .rail-bar {
+    display: flex;
+    flex: 1;
+    align-items: stretch;
+    justify-content: space-around;
+    gap: 0;
+    padding: var(--sp-1) var(--sp-1) 0;
+    position: relative;
+    z-index: 2;
+  }
+  .rail-bar .rail-item {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 2px 8px;
+    min-height: 58px;
+    font-size: var(--t-label);
+    font-weight: 600;
+    letter-spacing: 0;
+    background: none;
+    border: none;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: center;
+  }
+  /* Specificity note: the collapsed-rail rule that hides labels is
+   * `.rail:not(.is-open) .rail-item .rail-label` (0,4,0). The phone bar always
+   * shows its labels, so it has to match that weight or higher — hence the
+   * `.rail` prefix rather than a bare `.rail-bar`. */
+  .rail .rail-bar .rail-item .rail-label,
+  .rail:not(.is-open) .rail-bar .rail-item .rail-label {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rail-bar .rail-item.is-current::before {
+    left: 50%;
+    top: 0;
+    bottom: auto;
+    transform: translateX(-50%);
+    width: 22px;
+    height: 2px;
+    border-radius: 0 0 2px 2px;
+    background: linear-gradient(90deg, rgba(217, 180, 119, 0) 0%, var(--accent-hi) 50%, rgba(217, 180, 119, 0) 100%);
+  }
+  /* The count rides on the shoulder of the glyph, not in the row flow — a tab
+   * label and its badge must not push each other around. */
+  .rail .rail-bar .rail-item .rail-count,
+  .rail:not(.is-open) .rail-bar .rail-item .rail-count {
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    margin-left: 5px;
+    right: auto;
+    min-width: 18px;
+    height: 18px;
+    border: 2px solid #16151a;
+  }
+  .rail-fly { display: none; }
+
+  .surface { padding-bottom: calc(var(--gutter) + 116px); }
+  .presence { bottom: calc(70px + max(var(--sp-2), env(safe-area-inset-bottom))); }
+  .strip { padding-left: var(--sp-4); padding-right: var(--sp-4); }
+  .strip-clock, .strip-branch { display: none; }
+  .strip-command { min-width: 0; width: var(--touch-min); padding: 0; justify-content: center; }
+  .strip-command .strip-command-text, .strip-command .kbd { display: none; }
+}
+
+/* ═══ DESTINATION SHEET (phone) ══════════════════════════════════════════
+ * Everything the rail holds, grouped exactly as the desktop rail groups it.
+ * Nothing is dropped on a small screen — it is one tap further away. */
+.rail-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-focus);
+  background: rgba(5, 5, 8, 0.62);
+  backdrop-filter: blur(var(--blur-near));
+  -webkit-backdrop-filter: blur(var(--blur-near));
+  display: flex;
+  align-items: flex-end;
+}
+.rail-sheet {
+  width: 100%;
+  max-height: 82dvh;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--mat-glass);
+  background-image: var(--mat-glass-sheen);
+  border-top: var(--border-firm);
+  backdrop-filter: blur(var(--mat-glass-blur)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--mat-glass-blur)) saturate(1.15);
+  box-shadow: var(--shadow-focus), var(--reflect-top);
+  animation: sheet-rise var(--mo-panel) var(--ease-spatial) both;
+}
+@keyframes sheet-rise {
+  from { transform: translateY(28px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .rail-sheet { animation: none; } }
+.rail-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid rgba(255, 252, 246, 0.07);
+}
+.rail-sheet-body {
+  overflow-y: auto;
+  padding: var(--sp-3) var(--sp-4);
+  padding-bottom: max(var(--sp-5), env(safe-area-inset-bottom));
+}
+.rail-sheet-section {
+  font-size: var(--t-label);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-ghost);
+  padding: var(--sp-4) 0 var(--sp-2);
+}
+.rail-sheet-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 168px), 1fr));
+  gap: var(--sp-2);
+}
+.rail-sheet-items .rail-item {
+  justify-content: flex-start;
+  padding: 0 var(--sp-3);
+  background: rgba(255, 252, 246, 0.035);
+  border: 1px solid rgba(255, 252, 246, 0.06);
+  font-size: var(--t-small);
+}
+.rail-sheet-items .rail-item .rail-label { display: block; }
+.rail-sheet-items .rail-fly { display: none; }

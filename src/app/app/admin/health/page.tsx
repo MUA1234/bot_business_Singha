@@ -11,7 +11,8 @@ import { decSum } from "@/lib/money";
 import { probeCount, metricLabel, metricState, metricNumber, value, unavailable, type Metric } from "@/lib/metric";
 import { buildAlerts } from "@/management/ai-manager/alerts";
 import { findUnbalancedJournals } from "@/modules/finance/ledger-integrity";
-import { Card, CardHeader, CardBody } from "@/components/ui/Card";
+import { ConditionInstrument, type ConditionSegment } from "@/components/os/ConditionInstrument";
+import { Matter, PageHead, Section, Signal, StateNote } from "@/components/os/primitives";
 import { Badge } from "@/components/ui/Badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/DataTable";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -169,86 +170,189 @@ export default async function HealthPage() {
     { key: "message", header: "Message", render: (a) => a.message },
   ];
 
+  // ── The condition instrument ────────────────────────────────────────────
+  // Segments are REAL counts. A signal whose probe failed is counted as
+  // "cannot say", never as zero — the whole point of the Metric contract is
+  // that a failed read must not render as a calm zero. Any unavailable probe
+  // marks the instrument degraded, which suppresses the all-clear entirely.
+  const probes: Metric[] = [
+    pausedDuplicates,
+    failedEvents,
+    deadLetters,
+    outboxFailed,
+    unprocessedEvents,
+    outboxPending,
+    audits,
+  ];
+  const unreadable = probes.filter((m) => metricState(m) === "unavailable").length;
+  const quiet = probes.filter((m) => metricState(m) === "zero").length;
+  const degraded = unreadable > 0 || backlog.unavailable;
+
+  const criticalAlerts = (alerts as AlertRow[]).filter((a) => a.severity === "critical").length;
+  const warningAlerts = (alerts as AlertRow[]).filter((a) => a.severity === "warning").length;
+  const infoAlerts = (alerts as AlertRow[]).length - criticalAlerts - warningAlerts;
+
+  const segments: ConditionSegment[] = [
+    { key: "critical", label: "Critical alerts", count: criticalAlerts, tone: "critical" },
+    { key: "warning", label: "Warnings", count: warningAlerts, tone: "warn" },
+    { key: "info", label: "Informational", count: infoAlerts, tone: "info" },
+    { key: "unreadable", label: "Signals that could not be read", count: unreadable, tone: "blocked" },
+    { key: "quiet", label: "Signals reading zero", count: quiet, tone: "ok" },
+  ];
+
   return (
-    <div className="stack gap-3">
-      <div className="row between wrap">
-        <div>
-          <h1>System Health</h1>
-          <p className="muted mt-1">
-            Queues, failures, and AI cost.{" "}
+    <div className="stack" style={{ gap: "var(--sp-2)" }}>
+      <PageHead
+        eyebrow="Platform"
+        title="System health"
+        lede="Queues, failures, backlog and AI cost. A signal that could not be read is reported as unreadable, never as a reassuring zero — this screen will not show green because a component merely rendered."
+        actions={<Link className="btn ghost sm" href="/app/admin">Admin</Link>}
+      />
+
+      {degraded && (
+        <StateNote kind="partial" title="Some signals could not be read">
+          {unreadable > 0 && `${unreadable} probe(s) failed. `}
+          {backlog.unavailable && "The source-event backlog RPC did not answer. "}
+          No all-clear can be given while a signal is unreadable: an unreadable signal is not the
+          same as a healthy one.
+        </StateNote>
+      )}
+
+      <div className="centre">
+        <div className="card pad-lg">
+          <ConditionInstrument segments={segments} degraded={degraded} label="Now" />
+          <div className="mt-3 row wrap gap-2 center">
             <Badge variant={healthVariant}>{health.level.toUpperCase()}</Badge>
-          </p>
+          </div>
         </div>
-        <Link className="btn ghost sm" href="/app/admin">← Admin</Link>
+
+        <div className="stack gap-2">
+          <div className="card">
+            <Section title="What is wrong" meta={`${health.issues.length} issue(s)`} />
+            {health.issues.length === 0 ? (
+              degraded ? (
+                <StateNote kind="partial" title="No issues listed, but the read was incomplete">
+                  The summariser found no issue in the signals it COULD read.
+                </StateNote>
+              ) : (
+                <StateNote kind="empty" title="No issues detected">
+                  Every signal on this page read successfully and none is in a failure state.
+                </StateNote>
+              )
+            ) : (
+              <div className="stack gap-2">
+                {health.issues.map((i, idx) => (
+                  <Signal key={idx} kind={health.level === "critical" ? "critical" : "warn"}>
+                    {i}
+                  </Signal>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {alerts.length > 0 && (
+            <div className="card">
+              <Section title="Alerts" meta={`${alerts.length}`} />
+              <DataTable columns={alertColumns} rows={alerts as AlertRow[]} keyExtractor={(a) => a.key} />
+            </div>
+          )}
+        </div>
       </div>
 
-      {health.issues.length > 0 && (
-        <div className={`notice ${health.level === "critical" ? "err" : "ok"}`}>
-          {health.issues.map((i, idx) => <div key={idx}>• {i}</div>)}
-        </div>
-      )}
-
-      {alerts.length > 0 && (
-        <Card>
-          <CardHeader title={`Alerts (${alerts.length})`} />
-          <CardBody>
-            <DataTable columns={alertColumns} rows={alerts as AlertRow[]} keyExtractor={(a) => a.key} />
-          </CardBody>
-        </Card>
-      )}
-
-      <div className="grid cols-3">
+      {/* ── SIGNALS ─────────────────────────────────────────────────────── */}
+      <Section title="Signals" meta="a dash means the probe failed, not that the count is zero" />
+      <div className="field-matters">
         {tiles.map((t) => (
-          <Card key={t.k} className="stat">
-            <div className="k">{t.k}</div>
-            <div className="v" style={{ color: t.danger ? "var(--danger)" : undefined }}>{t.v}</div>
-          </Card>
+          <Matter
+            key={t.k}
+            kind="Signal"
+            kindIcon={t.danger ? "alert-triangle" : "activity"}
+            band={t.danger ? "critical" : "normal"}
+            title={t.k}
+            value={t.v}
+            valueTone={t.danger ? "critical" : undefined}
+            footer={
+              t.v === "unavailable" ? (
+                <Signal kind="blocked">Could not be read — this is not a zero</Signal>
+              ) : t.danger ? (
+                <Signal kind="critical">Needs attention</Signal>
+              ) : (
+                <Signal kind="ok">Quiet</Signal>
+              )
+            }
+          />
         ))}
       </div>
 
+      <Section title="Cost and audit" />
       <div className="grid cols-2">
-        <Card className="stat">
+        <div className="card stat">
           <div className="k">AI cost (USD)</div>
-          <div className="v" style={{ color: "var(--info)" }}>${aiCost.toFixed(4)}</div>
-        </Card>
-        <Card className="stat">
+          <div className="v">${aiCost.toFixed(4)}</div>
+          <div className="d">Across {aiRuns.length} recorded run(s)</div>
+        </div>
+        <div className="card stat">
           <div className="k">Audit events</div>
           <div className="v">{metricLabel(audits)}</div>
-        </Card>
+          <div className="d">
+            {metricState(audits) === "unavailable" ? (
+              <Signal kind="blocked">Could not be read</Signal>
+            ) : (
+              "Recorded in this company"
+            )}
+          </div>
+        </div>
       </div>
 
       {/* CTL-003 — surface the migration 0069 backlog RPC so the operator sees the durable inbound pipeline. */}
-      <Card>
-        <CardHeader title="Source-event backlog" />
-        <CardBody>
-          <div className="grid cols-3">
-            <Card className="stat">
-              <div className="k">Pending</div>
-              <div className="v">{metricLabel(backlog.pending)}</div>
-            </Card>
-            <Card className="stat">
-              <div className="k">Processing</div>
-              <div className="v">{metricLabel(backlog.processing)}</div>
-            </Card>
-            <Card className="stat">
-              <div className="k">Retry wait</div>
-              <div className="v">{metricLabel(backlog.retryWait)}</div>
-            </Card>
-            <Card className="stat">
-              <div className="k">Expired lease</div>
-              <div className="v" style={{ color: metricState(backlog.expiredLease) === "nonzero" ? "var(--danger)" : undefined }}>{metricLabel(backlog.expiredLease)}</div>
-            </Card>
-            <Card className="stat">
-              <div className="k">Dead letter</div>
-              <div className="v" style={{ color: metricState(backlog.deadLetter) === "nonzero" ? "var(--danger)" : undefined }}>{metricLabel(backlog.deadLetter)}</div>
-            </Card>
-            <Card className="stat">
-              <div className="k">Oldest pending</div>
-              <div className="v">{oldestPendingLabel}</div>
-            </Card>
+      <Section title="Source-event backlog" meta="the durable inbound pipeline" />
+      {backlog.unavailable ? (
+        <StateNote kind="error" title="The backlog could not be read">
+          The <code>source_event_backlog</code> RPC did not answer. The inbound pipeline may be fine
+          or it may be stalled — this screen cannot tell, and will not guess.
+        </StateNote>
+      ) : (
+        <div className="grid cols-3">
+          <div className="card stat">
+            <div className="k">Pending</div>
+            <div className="v">{metricLabel(backlog.pending)}</div>
           </div>
-        </CardBody>
-      </Card>
+          <div className="card stat">
+            <div className="k">Processing</div>
+            <div className="v">{metricLabel(backlog.processing)}</div>
+          </div>
+          <div className="card stat">
+            <div className="k">Retry wait</div>
+            <div className="v">{metricLabel(backlog.retryWait)}</div>
+          </div>
+          <div className="card stat">
+            <div className="k">Expired lease</div>
+            <div className="v" style={{ color: metricState(backlog.expiredLease) === "nonzero" ? "var(--danger)" : undefined }}>
+              {metricLabel(backlog.expiredLease)}
+            </div>
+            <div className="d">
+              {metricState(backlog.expiredLease) === "nonzero" && (
+                <Signal kind="critical">Work was leased and never finished</Signal>
+              )}
+            </div>
+          </div>
+          <div className="card stat">
+            <div className="k">Dead letter</div>
+            <div className="v" style={{ color: metricState(backlog.deadLetter) === "nonzero" ? "var(--danger)" : undefined }}>
+              {metricLabel(backlog.deadLetter)}
+            </div>
+            <div className="d">
+              {metricState(backlog.deadLetter) === "nonzero" && (
+                <Signal kind="critical">Events gave up — the original is preserved</Signal>
+              )}
+            </div>
+          </div>
+          <div className="card stat">
+            <div className="k">Oldest pending</div>
+            <div className="v" style={{ fontSize: "1.1rem" }}>{oldestPendingLabel}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

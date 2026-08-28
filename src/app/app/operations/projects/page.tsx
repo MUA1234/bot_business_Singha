@@ -6,10 +6,12 @@
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { tasksWithAssignments } from "@/lib/embeds";
 import { dec } from "@/lib/money";
 import { rankProjectsByPriority, type ProjectPrioritisationInput } from "@/modules/project/portfolio-prioritisation";
 import { computeResourceRequirements, type ResourceTaskInput, type ResourceAssignmentInput, type ResourceMembershipInput, type ResourceEmployeeInput } from "@/modules/project/resource-requirements";
-import { Card, CardHeader, CardBody, Badge, EmptyState, DataTable, type DataTableColumn } from "@/components/ui";
+import { Badge, DataTable, type DataTableColumn } from "@/components/ui";
+import { Matter, PageHead, Section, Signal, StateNote } from "@/components/os/primitives";
 import { fmtDate, fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "Projects — Singha Central" };
@@ -77,11 +79,8 @@ export default async function ProjectsPage() {
     db.from("projects").select("id, name, code, status, created_at").eq("company_id", p.companyId).order("created_at", { ascending: false }).limit(500),
     db.from("project_scenarios").select("project_id, expected_total, chosen").eq("company_id", p.companyId),
     db.from("project_risks").select("project_id, impact, likelihood, status").eq("company_id", p.companyId),
-    db
-      .from("tasks")
-      .select("id, project_id, status, due_date, estimate_hours, actual_hours, remaining_hours, task_assignments(membership_id, estimate_hours)")
-      .eq("company_id", p.companyId)
-      .limit(1000),
+    // NOT an embed — see src/lib/embeds.ts: three foreign keys make it ambiguous.
+    tasksWithAssignments(db, p.companyId).then((data) => ({ data })),
     db.from("memberships").select("id, user_id").eq("company_id", p.companyId).eq("status", "active"),
     db.from("employee_profiles").select("membership_id, contracted_weekly_hours, reserved_weekly_hours").eq("company_id", p.companyId),
   ]);
@@ -256,19 +255,74 @@ export default async function ProjectsPage() {
 
   const tableRows = sortedProjects.map((proj, idx) => ({ ...proj, index: idx + 1 }));
 
-  return (
-    <div className="stack gap-3">
-      <div className="row between">
-        <div>
-          <h1>Projects</h1>
-          <p className="muted mt-1">Reusable project registry with lifecycle states and portfolio prioritisation.</p>
-        </div>
-        <Link className="btn ghost sm" href="/app/operations">← Operations</Link>
-      </div>
+  // The projects that most need a decision, shown as spatial matters ahead of
+  // the full register. "Needs attention" is derived, not asserted: a project
+  // qualifies when it carries open risks or overdue and blocked work — each of
+  // which is a row count, not a judgement.
+  const attention = tableRows
+    .map((proj) => {
+      const projectTasks = tasks.filter((t) => t.project_id === proj.id);
+      const stuck = projectTasks.filter((t) => isBlockedOrOverdue(t, today)).length;
+      const openRisks = risks.filter((r) => r.project_id === proj.id && r.status === "open").length;
+      return { proj, stuck, openRisks, total: projectTasks.length };
+    })
+    .filter((x) => x.stuck > 0 || x.openRisks > 0)
+    .slice(0, 6);
 
-      <Card>
-        <CardHeader title="Project registry — prioritised" />
-        <CardBody>
+  return (
+    <div className="stack" style={{ gap: "var(--sp-2)" }}>
+      <PageHead
+        eyebrow="Projects"
+        title="Project portfolio"
+        lede="Every project, ranked by a weighted combination of value, risk, capacity pressure and overdue or blocked dependencies. The ranking is deterministic and reproducible from the records it reads."
+        actions={<Link className="btn ghost sm" href="/app/operations">Operations</Link>}
+      />
+
+      {attention.length > 0 && (
+        <>
+          <Section
+            title="Projects needing a decision"
+            meta={`${attention.length} of ${projects.length}`}
+          />
+          <div className="field-matters">
+            {attention.map(({ proj, stuck, openRisks, total }) => (
+              <Matter
+                key={proj.id}
+                kind={proj.code ?? "Project"}
+                kindIcon="git-branch"
+                band={stuck > 0 ? "critical" : "high"}
+                title={proj.name}
+                href={`/app/operations/projects/${proj.id}`}
+                facts={[
+                  { k: "State", v: proj.status.replace(/_/g, " ") },
+                  { k: "Overdue or blocked", v: String(stuck), numeric: true },
+                  { k: "Open risks", v: String(openRisks), numeric: true },
+                  { k: "Tasks", v: String(total), numeric: true },
+                  { k: "Priority rank", v: `#${proj.index}` },
+                ]}
+                footer={
+                  stuck > 0 ? (
+                    <Signal kind="critical">Work is stuck on this project</Signal>
+                  ) : (
+                    <Signal kind="warn">Open risks recorded against it</Signal>
+                  )
+                }
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      <Section
+        title="Project registry"
+        meta={`${projects.length} project${projects.length === 1 ? "" : "s"}, most urgent first`}
+      />
+      {tableRows.length === 0 ? (
+        <StateNote kind="empty" title="No projects yet">
+          Create a project to see it ranked against the rest of the portfolio.
+        </StateNote>
+      ) : (
+        <div className="card">
           <DataTable
             columns={columns}
             rows={tableRows}
@@ -277,10 +331,12 @@ export default async function ProjectsPage() {
             emptyDescription="Create a project to see it ranked."
           />
           <p className="small muted mt-2">
-            Priority is a weighted combination of value (higher is better), risk, capacity pressure and overdue/blocked dependencies.
+            Priority is a weighted combination of value (higher is better), risk, capacity pressure
+            and overdue or blocked dependencies. A dash means the input for that dimension has not
+            been recorded — it is not a zero.
           </p>
-        </CardBody>
-      </Card>
+        </div>
+      )}
     </div>
   );
 }

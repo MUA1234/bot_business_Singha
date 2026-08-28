@@ -22,7 +22,14 @@ describe("PRJ-005 — Portfolio prioritisation surface", () => {
   it("loads project scenarios, risks and tasks for prioritisation", () => {
     expect(page).toContain('from("project_scenarios")');
     expect(page).toContain('from("project_risks")');
-    expect(page).toContain('task_assignments(membership_id, estimate_hours)');
+    // Task assignments are loaded, but NOT as a PostgREST embed. The former
+    // `task_assignments(membership_id, estimate_hours)` embed cannot work in
+    // this schema: `task_assignments` holds three foreign keys into `tasks`, so
+    // PostgREST refuses the join as ambiguous and returns an error with
+    // `data: null`. The page read that as "no assignments" and every project
+    // reported no assigned staff. See src/lib/embeds.ts.
+    expect(page).toContain("tasksWithAssignments");
+    expect(page).not.toContain("task_assignments(membership_id, estimate_hours)");
   });
 
   it("exports pure deterministic prioritisation helpers", () => {

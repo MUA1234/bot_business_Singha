@@ -64,7 +64,10 @@ describe("INT-001 — Integration Gateway surface", () => {
   });
 
   it("is linked from the admin home", () => {
-    expect(home).toContain('href="/app/admin/integrations"');
+    // The admin home builds its index from a data array, so the route appears as
+    // `href: "/app/admin/integrations"` rather than as a JSX `href="…"` literal.
+    // What matters is that the admin home REFERENCES the route and names it.
+    expect(home).toContain("/app/admin/integrations");
     expect(home).toContain("Integrations");
   });
 });

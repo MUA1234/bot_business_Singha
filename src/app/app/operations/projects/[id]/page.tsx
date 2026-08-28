@@ -10,6 +10,7 @@ import { notFound } from "next/navigation";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { postedJournalsWithLines, tasksWithAssignments } from "@/lib/embeds";
 import { fmtMoney } from "@/lib/money";
 import { computeProjectBudgetForecast } from "@/modules/project/budget-forecast";
 import { computeResourceRequirements } from "@/modules/project/resource-requirements";
@@ -17,8 +18,10 @@ import { riskExposureLevel, riskNeedsReview } from "@/modules/project/risks";
 import { decisionStatusLabel, type DecisionOption } from "@/modules/project/decisions";
 import { compareScenarios } from "@/modules/project/scenarios";
 import { updateProjectStatus, createProjectRisk, updateProjectRiskStatus, createProjectDecision, decideProjectDecision, createProjectScenario, chooseProjectScenario } from "../actions";
-import { Card, CardHeader, CardBody, Badge, EmptyState, DataTable, type DataTableColumn } from "@/components/ui";
+import { Badge, EmptyState, DataTable, type DataTableColumn } from "@/components/ui";
 import { fmtDate, fmtNumber } from "@/lib/format";
+import { Icon } from "@/components/Icon";
+import { Facts, PageHead, Provenance, Section, Signal, StateNote } from "@/components/os/primitives";
 
 export const metadata = { title: "Project — Singha Central" };
 
@@ -100,20 +103,12 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
     safe<any>(() =>
       db.from("accounting_periods").select("id, name, start_date, end_date").eq("company_id", p.companyId).order("start_date") as any,
     ),
-    safe<any>(() =>
-      db
-        .from("journal_entries")
-        .select("id, posting_date, journal_lines(id, account_code, debit, credit, project_id)")
-        .eq("company_id", p.companyId)
-        .eq("status", "posted") as any,
-    ),
-    safe<any>(() =>
-      db
-        .from("tasks")
-        .select(
-          "id, title, status, estimate_hours, actual_hours, remaining_hours, due_date, task_assignments(id, membership_id, estimate_hours)")
-        .eq("company_id", p.companyId)
-        .eq("project_id", projectId) as any,
+    postedJournalsWithLines(db, p.companyId),
+    // NOT an embed: `task_assignments` holds three foreign keys into `tasks`,
+    // so `tasks(…, task_assignments(...))` is ambiguous and returns nothing,
+    // which made every project report "no assigned staff". See src/lib/embeds.ts.
+    tasksWithAssignments(db, p.companyId).then((rows) =>
+      rows.filter((t) => t.project_id === projectId),
     ),
     safe<any>(() => db.from("memberships").select("id, user_id").eq("company_id", p.companyId) as any),
     safe<any>(() =>
@@ -291,7 +286,16 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
       key: "variance",
       header: "Variance",
       align: "right",
-      render: (point) => <span style={{ color: point.variance.startsWith("-") ? "var(--danger)" : "var(--ok)" }}>{fmt(point.variance)}</span>,
+      // variance = actual − budgeted, so a POSITIVE variance is overspend and a
+      // negative one is underspend. Colouring the minus sign red said the
+      // opposite, and contradicted the totals directly above this table.
+      render: (point) => {
+        const value = Number(point.variance);
+        const over = Number.isFinite(value) && value > 0;
+        return (
+          <span style={{ color: over ? "var(--danger)" : "var(--ok)" }}>{fmt(point.variance)}</span>
+        );
+      },
     },
   ];
 
@@ -384,103 +388,205 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
     },
   ];
 
+  // The project's condition, derived from the records already read above. No
+  // health score and no percentage-complete is invented: a project is at risk
+  // when work on it is stuck or a risk is open, and over budget when the
+  // variance the budget engine computed is negative.
+  // The budget engine computes `variance = actual − budgeted`, so a POSITIVE
+  // variance means more was spent than budgeted. Treating a leading minus sign
+  // as "over budget" reported every under-spent project as overspending.
+  const varianceValue = Number(budgetForecast.budgetVsActual.totals.variance);
+  const overBudget = Number.isFinite(varianceValue) && varianceValue > 0;
+  const stuck = resourceReq.totals.blockedTasks + resourceReq.totals.overdueTasks;
+  const openRiskCount = projectRisks.filter((r: any) => r.status === "open").length;
+
   return (
-    <div className="stack gap-3">
-      <div className="row between">
-        <div>
-          <h1>{project.name}</h1>
-          <p className="muted mt-1">
-            <Badge variant={statusVariant(project.status)}>{project.status.replace(/_/g, " ")}</Badge>
-            {project.code && <span className="dim small mono" style={{ marginLeft: 8 }}>{project.code}</span>}
-          </p>
+    <div className="stack" style={{ gap: "var(--sp-2)" }}>
+      <PageHead
+        eyebrow={project.code ? `Project ${project.code}` : "Project"}
+        title={project.name}
+        lede="Objective, money, people, risk and the decisions taken — everything recorded against this project, in one room."
+        actions={
+          <Link className="btn ghost sm" href="/app/operations/projects">
+            <Icon name="chevron-left" size={14} /> Projects
+          </Link>
+        }
+      />
+
+      {/* ── CONDITION ───────────────────────────────────────────────────── */}
+      <div className="card">
+        <div className="row wrap gap-3 between">
+          <Badge variant={statusVariant(project.status)}>{project.status.replace(/_/g, " ")}</Badge>
+          {stuck > 0 ? (
+            <Signal kind="critical">
+              {fmtNumber(stuck)} task{stuck === 1 ? "" : "s"} blocked or overdue
+            </Signal>
+          ) : (
+            <Signal kind="ok">No blocked or overdue work</Signal>
+          )}
+          {openRiskCount > 0 ? (
+            <Signal kind="warn">
+              {fmtNumber(openRiskCount)} open risk{openRiskCount === 1 ? "" : "s"}
+            </Signal>
+          ) : (
+            <Signal kind="ok">No open risks recorded</Signal>
+          )}
+          {budgetForecast.budgetVsActual.totals.budgeted === "0.00" ? (
+            <Signal kind="offline">No budget recorded to compare against</Signal>
+          ) : overBudget ? (
+            <Signal kind="critical">Over budget</Signal>
+          ) : (
+            <Signal kind="ok">Within budget</Signal>
+          )}
         </div>
-        <Link className="btn ghost sm" href="/app/operations/projects">← Projects</Link>
       </div>
 
-      <Card>
-        <CardHeader title="Update status" />
-        <CardBody>
-          <form action={updateProjectStatus} className="row gap-1 wrap mt-2">
-            <input type="hidden" name="project_id" value={projectId} />
-            <select name="status" className="input" defaultValue={project.status} style={{ width: 160 }}>
-              {PROJECT_STATUSES.map((s) => (
-                <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
-              ))}
-            </select>
-            <button className="btn" type="submit">Save</button>
-          </form>
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader title={`Budget vs actual — ${budgetCurrency}`} />
-        <CardBody>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-3)" }} className="mt-3">
-            <div className="card stat"><div className="k">Budgeted</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmt(budgetForecast.budgetVsActual.totals.budgeted)}</div></div>
-            <div className="card stat"><div className="k">Actual</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmt(budgetForecast.budgetVsActual.totals.actual)}</div></div>
-            <div className="card stat"><div className="k">Variance</div><div className="v" style={{ fontSize: "1.4rem", color: budgetForecast.budgetVsActual.totals.variance.startsWith("-") ? "var(--danger)" : "var(--ok)" }}>{fmt(budgetForecast.budgetVsActual.totals.variance)}</div></div>
-            <div className="card stat"><div className="k">Variance %</div><div className="v" style={{ fontSize: "1.4rem" }}>{budgetForecast.budgetVsActual.totals.variancePercent ?? "—"}%</div></div>
-          </div>
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader title="Forecast curve by period" />
-        <CardBody>
-          <DataTable
-            columns={forecastColumns}
-            rows={budgetForecast.forecastCurve}
-            keyExtractor={(point) => point.periodId}
-            emptyTitle="No periods defined"
-            className="mt-3"
-          />
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader title="Resource requirements" />
-        <CardBody>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "var(--space-3)" }} className="mt-3">
-            <div className="card stat"><div className="k">Assigned people</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmtNumber(resourceReq.totals.assignedPeople)}</div></div>
-            <div className="card stat"><div className="k">Planned hours</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmtNumber(resourceReq.totals.plannedHours)}</div></div>
-            <div className="card stat"><div className="k">Actual hours</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmtNumber(resourceReq.totals.actualHours)}</div></div>
-            <div className="card stat"><div className="k">Remaining hours</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmtNumber(resourceReq.totals.remainingHours)}</div></div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "var(--space-3)" }} className="mt-3">
-            <div className="card stat"><div className="k">Open tasks</div><div className="v">{fmtNumber(resourceReq.totals.openTasks)}</div></div>
-            <div className="card stat"><div className="k">Blocked</div><div className="v" style={{ color: resourceReq.totals.blockedTasks > 0 ? "var(--danger)" : undefined }}>{fmtNumber(resourceReq.totals.blockedTasks)}</div></div>
-            <div className="card stat"><div className="k">Overdue</div><div className="v" style={{ color: resourceReq.totals.overdueTasks > 0 ? "var(--danger)" : undefined }}>{fmtNumber(resourceReq.totals.overdueTasks)}</div></div>
+      <div className="split">
+        <div className="stack" style={{ gap: "var(--sp-2)", minWidth: 0 }}>
+          {/* ── MONEY ───────────────────────────────────────────────────── */}
+          <Section title="Budget against actual" meta={budgetCurrency} />
+          <div className="grid cols-4">
+            <div className="card stat">
+              <div className="k">Budgeted</div>
+              <div className="v">{fmt(budgetForecast.budgetVsActual.totals.budgeted)}</div>
+            </div>
+            <div className="card stat">
+              <div className="k">Actual</div>
+              <div className="v">{fmt(budgetForecast.budgetVsActual.totals.actual)}</div>
+            </div>
+            <div className="card stat">
+              <div className="k">Variance</div>
+              <div className="v" style={{ color: overBudget ? "var(--danger)" : "var(--ok)" }}>
+                {fmt(budgetForecast.budgetVsActual.totals.variance)}
+              </div>
+            </div>
+            <div className="card stat">
+              <div className="k">Variance %</div>
+              <div className="v">
+                {budgetForecast.budgetVsActual.totals.variancePercent ?? "—"}
+                {budgetForecast.budgetVsActual.totals.variancePercent != null ? "%" : ""}
+              </div>
+              <div className="d">
+                {budgetForecast.budgetVsActual.totals.variancePercent == null
+                  ? "No budget recorded to compare against"
+                  : ""}
+              </div>
+            </div>
           </div>
 
-          <DataTable
-            columns={resourceColumns}
-            rows={resourceReq.people}
-            keyExtractor={(person) => person.membershipId}
-            emptyTitle="No assigned staff"
-            className="mt-3"
-          />
+          <Section title="Forecast curve by period" />
+          <div className="card">
+            <DataTable
+              columns={forecastColumns}
+              rows={budgetForecast.forecastCurve}
+              keyExtractor={(point) => point.periodId}
+              emptyTitle="No periods defined"
+              emptyDescription="Define accounting periods to see the curve."
+            />
+          </div>
 
-          {resourceReq.unassigned.taskCount > 0 && (
-            <p className="small muted mt-2">
-              Unassigned: {fmtNumber(resourceReq.unassigned.taskCount)} task(s), {fmtNumber(resourceReq.unassigned.plannedHours)}h planned,
-              {" "}{fmtNumber(resourceReq.unassigned.remainingHours)}h remaining.
-            </p>
-          )}
-        </CardBody>
-      </Card>
+          {/* ── PEOPLE ──────────────────────────────────────────────────── */}
+          <Section title="Resource requirements" meta="from assigned, estimated tasks" />
+          <div className="grid cols-4">
+            <div className="card stat">
+              <div className="k">Assigned people</div>
+              <div className="v">{fmtNumber(resourceReq.totals.assignedPeople)}</div>
+            </div>
+            <div className="card stat">
+              <div className="k">Planned hours</div>
+              <div className="v">{fmtNumber(resourceReq.totals.plannedHours)}</div>
+            </div>
+            <div className="card stat">
+              <div className="k">Actual hours</div>
+              <div className="v">{fmtNumber(resourceReq.totals.actualHours)}</div>
+            </div>
+            <div className="card stat">
+              <div className="k">Remaining hours</div>
+              <div className="v">{fmtNumber(resourceReq.totals.remainingHours)}</div>
+            </div>
+          </div>
+          <div className="card mt-2">
+            <div className="row wrap gap-4" style={{ marginBottom: "var(--sp-3)" }}>
+              <Signal kind="info">{fmtNumber(resourceReq.totals.openTasks)} open</Signal>
+              <Signal kind={resourceReq.totals.blockedTasks > 0 ? "blocked" : "ok"}>
+                {fmtNumber(resourceReq.totals.blockedTasks)} blocked
+              </Signal>
+              <Signal kind={resourceReq.totals.overdueTasks > 0 ? "critical" : "ok"}>
+                {fmtNumber(resourceReq.totals.overdueTasks)} overdue
+              </Signal>
+            </div>
+            <DataTable
+              columns={resourceColumns}
+              rows={resourceReq.people}
+              keyExtractor={(person) => person.membershipId}
+              emptyTitle="No assigned staff"
+              emptyDescription="Assign tasks with estimates to see the load per person."
+            />
+            {resourceReq.unassigned.taskCount > 0 && (
+              <div className="mt-3">
+                <StateNote kind="partial" title="Work with nobody accountable">
+                  {fmtNumber(resourceReq.unassigned.taskCount)} task(s),{" "}
+                  {fmtNumber(resourceReq.unassigned.plannedHours)}h planned and{" "}
+                  {fmtNumber(resourceReq.unassigned.remainingHours)}h remaining are not assigned to
+                  anyone, so they appear in no person&apos;s load.
+                </StateNote>
+              </div>
+            )}
+          </div>
+        </div>
 
-      <Card>
-        <CardHeader title="Project risks" />
-        <CardBody>
-          <DataTable
-            columns={riskColumns}
-            rows={projectRisks}
-            keyExtractor={(r) => r.id}
-            emptyTitle="No risks recorded"
-            className="mt-3"
-          />
+        {/* ── CONTEXT LAYER ─────────────────────────────────────────────── */}
+        <aside className="split-aside">
+          <div className="card">
+            <Section title="Lifecycle" />
+            <form action={updateProjectStatus} className="stack gap-2">
+              <input type="hidden" name="project_id" value={projectId} />
+              <label className="field">
+                <span className="label">Project state</span>
+                <select name="status" className="select" defaultValue={project.status}>
+                  {PROJECT_STATUSES.map((s) => (
+                    <option key={s} value={s}>{s.replace(/_/g, " ")}</option>
+                  ))}
+                </select>
+              </label>
+              <button className="btn" type="submit">Save state</button>
+            </form>
+          </div>
 
-          <form action={createProjectRisk} className="stack gap-1 mt-3">
+          <div className="card mt-2">
+            <Section title="At a glance" />
+            <Facts
+              items={[
+                { k: "Code", v: project.code ?? "", missing: !project.code },
+                { k: "State", v: project.status.replace(/_/g, " ") },
+                { k: "Currency", v: budgetCurrency },
+                { k: "Open tasks", v: fmtNumber(resourceReq.totals.openTasks), numeric: true },
+                { k: "Open risks", v: fmtNumber(openRiskCount), numeric: true },
+                { k: "Decisions recorded", v: fmtNumber(projectDecisions.length), numeric: true },
+                { k: "Scenarios", v: fmtNumber(projectScenarios.length), numeric: true },
+              ]}
+            />
+          </div>
+        </aside>
+      </div>
+
+      {/* ── RISK ────────────────────────────────────────────────────────── */}
+      <Section title="Project risks" meta={`${openRiskCount} open of ${projectRisks.length} recorded`} />
+      <div className="card">
+        <DataTable
+          columns={riskColumns}
+          rows={projectRisks}
+          keyExtractor={(r) => r.id}
+          emptyTitle="No risks recorded"
+          emptyDescription="A project with no recorded risks is not the same as a project with no risks."
+        />
+
+        <div className="mt-3">
+          <details>
+            <summary className="t-label" style={{ cursor: "pointer", padding: "var(--sp-2) 0" }}>
+              <Icon name="plus" size={12} aria-hidden="true" /> Record a risk
+            </summary>
+          <form action={createProjectRisk} className="stack gap-1 mt-2">
             <input type="hidden" name="project_id" value={projectId} />
             <div className="row gap-1 wrap">
               <input name="title" className="input" placeholder="Risk title" required style={{ minWidth: 200 }} />
@@ -508,53 +614,73 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
             <textarea name="mitigation" className="input" placeholder="Mitigation" rows={2} />
             <button className="btn" type="submit">Add risk</button>
           </form>
-        </CardBody>
-      </Card>
+          </details>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader title="Project decisions" />
-        <CardBody>
-          {projectDecisions.length === 0 ? (
-            <EmptyState title="No decisions recorded" icon="git-commit" />
-          ) : (
-            <div className="stack gap-2 mt-3">
-              {projectDecisions.map((d) => (
-                <Card key={d.id} padding="sm">
-                  <CardBody>
-                    <div className="row between">
-                      <strong>{d.title}</strong>
-                      <Badge variant={d.status === "decided" ? "ok" : d.status === "reversed" ? "warn" : "default"}>{d.statusLabel}</Badge>
-                    </div>
-                    {d.context && <p className="small muted mt-1">{d.context}</p>}
-                    {d.options.length > 0 && (
-                      <ul className="small mt-1">
-                        {d.options.map((o) => (
-                          <li key={o.id} className={o.id === d.decidedOptionId ? "bold" : undefined}>
-                            {o.label} {o.id === d.decidedOptionId && "✓"}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {d.rationale && <p className="small mt-1">Rationale: {d.rationale}</p>}
-                    {d.status !== "decided" && d.status !== "reversed" && (
-                      <form action={decideProjectDecision} className="stack gap-1 mt-2">
-                        <input type="hidden" name="decision_id" value={d.id} />
-                        <input type="hidden" name="status" value="decided" />
-                        <select name="option_id" className="input sm" required>
-                          <option value="">Choose option…</option>
-                          {d.options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-                        </select>
-                        <textarea name="rationale" className="input" placeholder="Rationale" rows={2} />
-                        <button className="btn sm" type="submit">Record decision</button>
-                      </form>
-                    )}
-                  </CardBody>
-                </Card>
-              ))}
-            </div>
-          )}
+      {/* ── DECISIONS ───────────────────────────────────────────────────── */}
+      <Section title="Project decisions" meta={`${projectDecisions.length} recorded`} />
+      <div className="card">
+        {projectDecisions.length === 0 ? (
+          <EmptyState
+            title="No decisions recorded"
+            description="A decision recorded here carries its options, the one chosen and the reason — so a future reader can see not only what was done but what was rejected."
+            icon="git-branch"
+          />
+        ) : (
+          <div className="stack gap-3">
+            {projectDecisions.map((d) => (
+              <Provenance
+                key={d.id}
+                kind={d.status === "decided" ? "human" : d.status === "reversed" ? "done" : "system"}
+                label={d.status === "decided" ? "Human decision" : d.statusLabel}
+              >
+                <div className="row between wrap gap-2">
+                  <strong>{d.title}</strong>
+                  <Badge variant={d.status === "decided" ? "ok" : d.status === "reversed" ? "warn" : "default"}>{d.statusLabel}</Badge>
+                </div>
+                {d.context && <p className="small muted mt-1">{d.context}</p>}
+                {d.options.length > 0 && (
+                  <ul className="small mt-2" style={{ paddingLeft: "var(--sp-4)" }}>
+                    {d.options.map((o) => (
+                      <li
+                        key={o.id}
+                        style={
+                          o.id === d.decidedOptionId
+                            ? { fontWeight: 700, color: "var(--text)" }
+                            : { color: "var(--text-dim)" }
+                        }
+                      >
+                        {o.label}
+                        {o.id === d.decidedOptionId && " — chosen"}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {d.rationale && <p className="small mt-2">Rationale: {d.rationale}</p>}
+                {d.status !== "decided" && d.status !== "reversed" && (
+                  <form action={decideProjectDecision} className="stack gap-1 mt-3">
+                    <input type="hidden" name="decision_id" value={d.id} />
+                    <input type="hidden" name="status" value="decided" />
+                    <select name="option_id" className="select" required>
+                      <option value="">Choose option…</option>
+                      {d.options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    </select>
+                    <textarea name="rationale" className="textarea" placeholder="Why this option, and what was given up" rows={2} />
+                    <button className="btn sm" type="submit">Record decision</button>
+                  </form>
+                )}
+              </Provenance>
+            ))}
+          </div>
+        )}
 
-          <form action={createProjectDecision} className="stack gap-1 mt-3">
+        <div className="mt-3">
+          <details>
+            <summary className="t-label" style={{ cursor: "pointer", padding: "var(--sp-2) 0" }}>
+              <Icon name="plus" size={12} aria-hidden="true" /> Record a decision
+            </summary>
+          <form action={createProjectDecision} className="stack gap-1 mt-2">
             <input type="hidden" name="project_id" value={projectId} />
             <input name="title" className="input" placeholder="Decision title" required />
             <textarea name="context" className="input" placeholder="Context" rows={2} />
@@ -567,24 +693,40 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
             />
             <button className="btn" type="submit">Add decision</button>
           </form>
-        </CardBody>
-      </Card>
+          </details>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader title="Scenario comparison" />
-        <CardBody>
-          <DataTable
-            columns={scenarioColumns}
-            rows={projectScenarios}
-            keyExtractor={(s) => s.id}
-            emptyTitle="No scenarios recorded"
-            className="mt-3"
-          />
-          {scenarioComparison.preferredId && (
-            <p className="small muted mt-2">Advisory preference: {projectScenarios.find((s) => s.id === scenarioComparison.preferredId)?.title} — {scenarioComparison.reason}</p>
-          )}
+      {/* ── SCENARIOS ───────────────────────────────────────────────────── */}
+      <Section title="Scenario comparison" meta="compare outcomes before committing" />
+      <div className="card">
+        <DataTable
+          columns={scenarioColumns}
+          rows={projectScenarios}
+          keyExtractor={(s) => s.id}
+          emptyTitle="No scenarios recorded"
+          emptyDescription="Record best, expected and worst cases to compare options side by side."
+        />
+        {scenarioComparison.preferredId && (
+          <div className="mt-3">
+            <Provenance kind="ai" label="Advisory preference">
+              <p className="small muted">
+                <strong>
+                  {projectScenarios.find((s) => s.id === scenarioComparison.preferredId)?.title}
+                </strong>{" "}
+                — {scenarioComparison.reason}. This is a comparison of the figures recorded against
+                each scenario; choosing one is a human decision and is recorded as such.
+              </p>
+            </Provenance>
+          </div>
+        )}
 
-          <form action={createProjectScenario} className="stack gap-1 mt-3">
+        <div className="mt-3">
+          <details>
+            <summary className="t-label" style={{ cursor: "pointer", padding: "var(--sp-2) 0" }}>
+              <Icon name="plus" size={12} aria-hidden="true" /> Record a scenario
+            </summary>
+          <form action={createProjectScenario} className="stack gap-1 mt-2">
             <input type="hidden" name="project_id" value={projectId} />
             <div className="row gap-1 wrap">
               <input name="title" className="input" placeholder="Scenario title" required style={{ minWidth: 200 }} />
@@ -597,8 +739,9 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
             </div>
             <button className="btn" type="submit">Add scenario</button>
           </form>
-        </CardBody>
-      </Card>
+          </details>
+        </div>
+      </div>
     </div>
   );
 }

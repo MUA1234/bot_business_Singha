@@ -11,6 +11,7 @@
  * role, so cross-company leakage cannot hide behind a bypass.
  */
 import { redirect } from "next/navigation";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { Approver } from "@/policy/authority";
 import { role, permission, type Role, type Permission } from "@/schemas/approval-policy";
@@ -33,6 +34,30 @@ export interface Membership {
   roleKeys: string[];
 }
 
+/**
+ * Roles held by one membership, read as a SEPARATE query.
+ *
+ * It cannot be a PostgREST embed. `membership_roles` carries two foreign keys
+ * into `memberships` — the original single-column `membership_id` FK and the
+ * composite `(membership_id, company_id)` FK added for tenant integrity — so
+ * `memberships.select("…, membership_roles(role_key)")` is ambiguous and
+ * PostgREST refuses it with "more than one relationship was found".
+ *
+ * That refusal is returned as an ERROR with `data: null`, and both call sites
+ * treated a null result as "this user has no membership". The effect was that
+ * `getApproverForUser` returned null for EVERY user, `checkSeparationOfDuties`
+ * was never reached, and the approvals screen told every finance approver that
+ * they were "not an approver" — no approval could be granted through the UI at
+ * all. Two plain queries cannot become ambiguous when another FK is added.
+ */
+async function roleKeysFor(db: SupabaseClient, membershipId: string): Promise<string[]> {
+  const { data } = await db
+    .from("membership_roles")
+    .select("role_key")
+    .eq("membership_id", membershipId);
+  return (data ?? []).map((r: { role_key: string }) => r.role_key);
+}
+
 /** Resolve the signed-in user's active membership (optionally for a given company). */
 export async function getMembership(companyId?: string): Promise<Membership | null> {
   const db = supabaseServer();
@@ -43,7 +68,7 @@ export async function getMembership(companyId?: string): Promise<Membership | nu
 
   let q = db
     .from("memberships")
-    .select("id, user_id, company_id, status, membership_roles(role_key)")
+    .select("id, user_id, company_id, status")
     .eq("user_id", user.id)
     .eq("status", "active");
   if (companyId) q = q.eq("company_id", companyId);
@@ -52,7 +77,7 @@ export async function getMembership(companyId?: string): Promise<Membership | nu
   const row = rows?.[0];
   if (!row) return null;
 
-  const roleKeys = (row.membership_roles as { role_key: string }[] | null)?.map((r) => r.role_key) ?? [];
+  const roleKeys = await roleKeysFor(db, row.id as string);
   return {
     membershipId: row.id as string,
     userId: row.user_id as string,
@@ -97,15 +122,17 @@ export async function getApproverForUser(userId: string, companyId: string): Pro
   const db = supabaseServer();
   const { data: mems } = await db
     .from("memberships")
-    .select("id, status, membership_roles(role_key)")
+    .select("id, status")
     .eq("user_id", userId)
     .eq("company_id", companyId);
   const active = (mems ?? []).find((m: any) => m.status === "active");
   if (!active) return null;
   const allowedRoles = new Set(role.options as readonly string[]);
-  const roleKeys = ((active.membership_roles as { role_key: string }[] | null) ?? [])
-    .map((r) => r.role_key)
-    .filter((r): r is Role => allowedRoles.has(r));
+  // Separate query — see roleKeysFor: an embed here is ambiguous and returns an
+  // error, which previously made every approver look like a non-approver.
+  const roleKeys = (await roleKeysFor(db, active.id as string)).filter((r): r is Role =>
+    allowedRoles.has(r),
+  );
   if (roleKeys.length === 0) return { user_id: userId, roles: [], permissions: [] };
   const allowedPerms = new Set(permission.options as readonly string[]);
   const { data: perms } = await db

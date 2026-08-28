@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { postedJournalsWithLines } from "@/lib/embeds";
 import { fmtMoney } from "@/lib/money";
 import { fmtNumber } from "@/lib/format";
 import { computeBudgetVsActual } from "@/modules/finance/budget-vs-actual";
@@ -74,6 +75,17 @@ function scenarioFromAssumptions(assumptions: Record<string, unknown>): { byAcco
   return { byAccount, kindMultiplier: kindMultiplier as Record<ScenarioKind, string> };
 }
 
+/**
+ * variance = actual − budgeted (see modules/finance/budget-vs-actual.ts), so a
+ * POSITIVE variance is OVERSPEND. Colouring the minus sign red marked every
+ * under-spent line as a problem and every overspend as healthy — exactly
+ * backwards on the screen a budget holder uses to spot overspending.
+ */
+function isOverspend(variance: string): boolean {
+  const value = Number(variance);
+  return Number.isFinite(value) && value > 0;
+}
+
 export default async function BudgetDetailPage({ params, searchParams }: { params: { id: string }; searchParams?: { scenario?: string } }) {
   const p = await requireDepartment("finance");
   const db = supabaseReadClient();
@@ -92,13 +104,10 @@ export default async function BudgetDetailPage({ params, searchParams }: { param
     safe<any>(() => db.from("accounting_periods").select("id, name, start_date, end_date").eq("company_id", p.companyId).order("start_date") as any),
     safe<any>(() => db.from("projects").select("id, name").eq("company_id", p.companyId).order("name") as any),
     safe<any>(() => db.from("chart_of_accounts").select("code, name").eq("company_id", p.companyId).eq("is_active", true).order("code") as any),
-    safe<any>(() =>
-      db
-        .from("journal_entries")
-        .select("id, posting_date, journal_lines(id, account_code, debit, credit, project_id)")
-        .eq("company_id", p.companyId)
-        .eq("status", "posted") as any,
-    ),
+    // NOT an embed — `journal_lines` holds two foreign keys into
+    // `journal_entries`, so the join is ambiguous and returns nothing, which
+    // made every budget's actual read as zero. See src/lib/embeds.ts.
+    postedJournalsWithLines(db, p.companyId),
     safe<any>(() =>
       db
         .from("forecast_scenarios")
@@ -154,7 +163,7 @@ export default async function BudgetDetailPage({ params, searchParams }: { param
       header: "Variance",
       align: "right",
       render: (l) => (
-        <span style={{ color: l.variance.startsWith("-") ? "var(--danger)" : "var(--ok)" }}>
+        <span style={{ color: isOverspend(l.variance) ? "var(--danger)" : "var(--ok)" }}>
           {fmt(l.variance)}
         </span>
       ),
@@ -189,7 +198,7 @@ export default async function BudgetDetailPage({ params, searchParams }: { param
       <div className="grid cols-4">
         <Card className="stat"><div className="k">Budgeted</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmt(bva.totals.budgeted)}</div></Card>
         <Card className="stat"><div className="k">Actual</div><div className="v" style={{ fontSize: "1.4rem" }}>{fmt(bva.totals.actual)}</div></Card>
-        <Card className="stat"><div className="k">Variance</div><div className="v" style={{ fontSize: "1.4rem", color: bva.totals.variance.startsWith("-") ? "var(--danger)" : "var(--ok)" }}>{fmt(bva.totals.variance)}</div></Card>
+        <Card className="stat"><div className="k">Variance</div><div className="v" style={{ fontSize: "1.4rem", color: isOverspend(bva.totals.variance) ? "var(--danger)" : "var(--ok)" }}>{fmt(bva.totals.variance)}</div></Card>
         <Card className="stat"><div className="k">Variance %</div><div className="v" style={{ fontSize: "1.4rem" }}>{bva.totals.variancePercent != null ? `${fmtNumber(bva.totals.variancePercent, 1)}%` : "—"}</div></Card>
       </div>
 

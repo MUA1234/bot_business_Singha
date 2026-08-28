@@ -60,7 +60,10 @@ describe("GOV-001 — Management directives surface", () => {
   });
 
   it("is linked from the admin home", () => {
-    expect(home).toContain('href="/app/admin/directives"');
+    // The admin home builds its index from a data array, so the route appears as
+    // `href: "/app/admin/directives"` rather than as a JSX `href="…"` literal.
+    // What matters is that the admin home REFERENCES the route and names it.
+    expect(home).toContain("/app/admin/directives");
     expect(home).toContain("Directives");
   });
 });

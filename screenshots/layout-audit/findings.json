@@ -1,0 +1,1334 @@
+{
+  "agg": [
+    {
+      "kind": "squeezed",
+      "sel": "a.matter",
+      "count": 4,
+      "screens": [
+        "crm",
+        "documents"
+      ],
+      "vps": [
+        "w1280",
+        "tablet",
+        "mobile"
+      ],
+      "samples": [
+        "Price confirmations2 open price ",
+        "Price confirmations2 open price ",
+        "Price confirmations2 open price "
+      ],
+      "worstSqueeze": 46
+    },
+    {
+      "kind": "squeezed",
+      "sel": "div.matter",
+      "count": 4,
+      "screens": [
+        "fleet",
+        "legal"
+      ],
+      "vps": [
+        "tablet",
+        "mobile"
+      ],
+      "samples": [
+        "Expired2 documents, services or ",
+        "Lapsed5 obligation, licence or r",
+        "Expired2 documents, services or "
+      ],
+      "worstSqueeze": 80
+    },
+    {
+      "kind": "wraps",
+      "sel": "span.k",
+      "count": 2,
+      "screens": [
+        "projects"
+      ],
+      "vps": [
+        "w1920"
+      ],
+      "samples": [
+        "Overdue or blocked",
+        "Overdue or blocked"
+      ]
+    },
+    {
+      "kind": "wraps",
+      "sel": "span.consequence-text > strong",
+      "count": 1,
+      "screens": [
+        "approvals"
+      ],
+      "vps": [
+        "mobile"
+      ],
+      "samples": [
+        "supplier payment"
+      ]
+    }
+  ],
+  "canvasRows": [
+    {
+      "screen": "command-centre",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "ai-manager",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "approvals",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "work",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "projects",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "project-room",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "people",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "capacity",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "staff",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "finance",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "journals",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "trial-balance",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "budgets",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "receivables",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "crm",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "messages",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "calendar",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "documents",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "fleet",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "legal",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "health",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "audit",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "procurement",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "admin",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "marketing",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "portfolio",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 2086,
+      "unusedRight": -166
+    },
+    {
+      "screen": "notifications",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "my-work",
+      "vp": "w1920",
+      "viewport": 1920,
+      "stageLeft": 76,
+      "stageWidth": 1844,
+      "contentRight": 1920,
+      "unusedRight": 0
+    },
+    {
+      "screen": "command-centre",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "ai-manager",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "approvals",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "work",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "projects",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "project-room",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "people",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "capacity",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "staff",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "finance",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "journals",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "trial-balance",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "budgets",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "receivables",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "crm",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "messages",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "calendar",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "documents",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "fleet",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "legal",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "health",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "audit",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "procurement",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "admin",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "marketing",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "portfolio",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1972,
+      "unusedRight": -532
+    },
+    {
+      "screen": "notifications",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "my-work",
+      "vp": "w1440",
+      "viewport": 1440,
+      "stageLeft": 76,
+      "stageWidth": 1364,
+      "contentRight": 1440,
+      "unusedRight": 0
+    },
+    {
+      "screen": "command-centre",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "ai-manager",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "approvals",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "work",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "projects",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1379,
+      "unusedRight": -99
+    },
+    {
+      "screen": "project-room",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "people",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "capacity",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1339,
+      "unusedRight": -59
+    },
+    {
+      "screen": "staff",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "finance",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "journals",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "trial-balance",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "budgets",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "receivables",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "crm",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "messages",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "calendar",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "documents",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "fleet",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "legal",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "health",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "audit",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "procurement",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "admin",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "marketing",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "portfolio",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1961,
+      "unusedRight": -681
+    },
+    {
+      "screen": "notifications",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "my-work",
+      "vp": "w1280",
+      "viewport": 1280,
+      "stageLeft": 76,
+      "stageWidth": 1204,
+      "contentRight": 1280,
+      "unusedRight": 0
+    },
+    {
+      "screen": "command-centre",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "ai-manager",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "approvals",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "work",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "projects",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 1332,
+      "unusedRight": -498
+    },
+    {
+      "screen": "project-room",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 1159,
+      "unusedRight": -325
+    },
+    {
+      "screen": "people",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "capacity",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 1294,
+      "unusedRight": -460
+    },
+    {
+      "screen": "staff",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 955,
+      "unusedRight": -121
+    },
+    {
+      "screen": "finance",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "journals",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 1003,
+      "unusedRight": -169
+    },
+    {
+      "screen": "trial-balance",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "budgets",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "receivables",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 928,
+      "unusedRight": -94
+    },
+    {
+      "screen": "crm",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 850,
+      "unusedRight": -16
+    },
+    {
+      "screen": "messages",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 1244,
+      "unusedRight": -410
+    },
+    {
+      "screen": "calendar",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "documents",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "fleet",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "legal",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "health",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "audit",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "procurement",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "admin",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "marketing",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "portfolio",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 1896,
+      "unusedRight": -1062
+    },
+    {
+      "screen": "notifications",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "my-work",
+      "vp": "tablet",
+      "viewport": 834,
+      "stageLeft": 76,
+      "stageWidth": 758,
+      "contentRight": 834,
+      "unusedRight": 0
+    },
+    {
+      "screen": "command-centre",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 390,
+      "unusedRight": 0
+    },
+    {
+      "screen": "ai-manager",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 390,
+      "unusedRight": 0
+    },
+    {
+      "screen": "approvals",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 693,
+      "unusedRight": -303
+    },
+    {
+      "screen": "work",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 390,
+      "unusedRight": 0
+    },
+    {
+      "screen": "projects",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 1203,
+      "unusedRight": -813
+    },
+    {
+      "screen": "project-room",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 1037,
+      "unusedRight": -647
+    },
+    {
+      "screen": "people",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 390,
+      "unusedRight": 0
+    },
+    {
+      "screen": "capacity",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 1165,
+      "unusedRight": -774
+    },
+    {
+      "screen": "staff",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 841,
+      "unusedRight": -451
+    },
+    {
+      "screen": "finance",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 390,
+      "unusedRight": 0
+    },
+    {
+      "screen": "journals",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 881,
+      "unusedRight": -491
+    },
+    {
+      "screen": "trial-balance",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 651,
+      "unusedRight": -261
+    },
+    {
+      "screen": "budgets",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 659,
+      "unusedRight": -269
+    },
+    {
+      "screen": "receivables",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 807,
+      "unusedRight": -417
+    },
+    {
+      "screen": "crm",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 734,
+      "unusedRight": -344
+    },
+    {
+      "screen": "messages",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 1128,
+      "unusedRight": -738
+    },
+    {
+      "screen": "calendar",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 390,
+      "unusedRight": 0
+    },
+    {
+      "screen": "documents",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 700,
+      "unusedRight": -309
+    },
+    {
+      "screen": "fleet",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 410,
+      "unusedRight": -20
+    },
+    {
+      "screen": "legal",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 390,
+      "unusedRight": 0
+    },
+    {
+      "screen": "health",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 558,
+      "unusedRight": -168
+    },
+    {
+      "screen": "audit",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 390,
+      "unusedRight": 0
+    },
+    {
+      "screen": "procurement",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 390,
+      "unusedRight": 0
+    },
+    {
+      "screen": "admin",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 390,
+      "unusedRight": 0
+    },
+    {
+      "screen": "marketing",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 390,
+      "unusedRight": 0
+    },
+    {
+      "screen": "portfolio",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 1737,
+      "unusedRight": -1347
+    },
+    {
+      "screen": "notifications",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 390,
+      "unusedRight": 0
+    },
+    {
+      "screen": "my-work",
+      "vp": "mobile",
+      "viewport": 390,
+      "stageLeft": 0,
+      "stageWidth": 390,
+      "contentRight": 390,
+      "unusedRight": 0
+    }
+  ]
+}

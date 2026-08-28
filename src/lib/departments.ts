@@ -32,18 +32,31 @@ export const DEPARTMENTS: Department[] = [
     nav: [
       { href: "/app/admin", label: "Overview", icon: "home" },
       { href: "/app/command", label: "Command Centre", icon: "gauge" },
+      { href: "/app/portfolio", label: "Portfolio", icon: "briefcase" },
+      { href: "/app/ai", label: "AI Operations", icon: "sparkles" },
       { href: "/app/command/analyze", label: "Analysis", icon: "shield" },
+      { href: "/app/command/cases", label: "AI cases", icon: "sparkles" },
+      { href: "/app/command/memory", label: "Memory", icon: "database" },
       { href: "/app/admin/objectives", label: "Objectives", icon: "target" },
       { href: "/app/admin/employees", label: "Employees", icon: "users" },
       { href: "/app/admin/inbound-review", label: "Inbound Review", icon: "inbox" },
       { href: "/app/admin/inbound-setup", label: "Inbound Setup", icon: "settings" },
       { href: "/app/admin/health", label: "System Health", icon: "shield" },
+      { href: "/app/admin/outbox", label: "Outbox", icon: "send" },
+      { href: "/app/admin/integrations", label: "Integrations", icon: "plug" },
+      { href: "/app/admin/directives", label: "Directives", icon: "megaphone" },
+      { href: "/app/admin/model-budgets", label: "Model Budgets", icon: "sparkles" },
       { href: "/app/admin/audit", label: "Audit Log", icon: "clipboard" },
       { href: "/app/admin/departments", label: "Departments", icon: "building-2" },
       { href: "/app/admin/catalog", label: "Products & Prices", icon: "tag" },
       { href: "/app/sales", label: "Sales & Orders", icon: "shopping-cart" },
       { href: "/app/finance", label: "Finance", icon: "wallet" },
       { href: "/app/marketing", label: "Marketing", icon: "megaphone" },
+      { href: "/app/operations", label: "Operations", icon: "settings" },
+      { href: "/app/operations/tasks", label: "Work", icon: "list-todo" },
+      { href: "/app/operations/projects", label: "Projects", icon: "git-branch" },
+      { href: "/app/hr", label: "People", icon: "user-cog" },
+      { href: "/app/hr/capacity", label: "Capacity", icon: "gauge" },
       { href: "/app/procurement", label: "Procurement", icon: "truck" },
       { href: "/app/legal", label: "Legal", icon: "scale" },
       { href: "/app/fleet", label: "Fleet", icon: "car" },
@@ -114,6 +127,9 @@ export const DEPARTMENTS: Department[] = [
     nav: [
       { href: "/app/operations", label: "Overview", icon: "home" },
       { href: "/app/operations/tasks", label: "Tasks", icon: "list-todo" },
+      // `/app/operations/projects` is gated by requireDepartment("operations"),
+      // so this department could always reach it — it simply had no link.
+      { href: "/app/operations/projects", label: "Projects", icon: "git-branch" },
     ],
   },
   {
@@ -125,6 +141,9 @@ export const DEPARTMENTS: Department[] = [
       { href: "/app/hr", label: "Overview", icon: "home" },
       { href: "/app/hr/staff", label: "Staff", icon: "users" },
       { href: "/app/hr/capacity", label: "Capacity", icon: "gauge" },
+      // `/app/hr/leave` is gated by requireDepartment("hr") and was reachable
+      // by route but had no link; the HR overview points at it.
+      { href: "/app/hr/leave", label: "Leave", icon: "calendar-days" },
     ],
   },
   {
@@ -174,6 +193,11 @@ const SHARED_NAV: NavItem[] = [
   { href: "/app/me", label: "My Work", icon: "list-todo" },
   { href: "/app/notifications", label: "Notifications", icon: "message-square" },
   { href: "/app/messages", label: "Messages", icon: "message-square" },
+  // Both of these assemble EXISTING company-scoped records — dated commitments
+  // and stored evidence — and add no capability of their own, so every
+  // department that can see those records can see them gathered.
+  { href: "/app/calendar", label: "Calendar", icon: "calendar-days" },
+  { href: "/app/documents", label: "Documents", icon: "folder-open" },
 ];
 for (const d of DEPARTMENTS) {
   for (let i = 0; i < SHARED_NAV.length; i++) {

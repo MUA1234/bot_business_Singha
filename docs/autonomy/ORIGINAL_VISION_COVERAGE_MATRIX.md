@@ -4,7 +4,7 @@
 > A status is only as good as the evidence columns beside it; the audit refuses a completion status
 > with empty evidence.
 
-Generated at: 2026-08-24
+Generated at: 2026-08-28
 
 ## Totals
 

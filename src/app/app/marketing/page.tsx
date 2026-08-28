@@ -4,6 +4,9 @@
  */
 import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
+import { Icon } from "@/components/Icon";
+import { fmtNumber } from "@/lib/format";
+import { PageHead, Section } from "@/components/os/primitives";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 
@@ -32,11 +35,46 @@ export default async function MarketingHome() {
   ];
 
   return (
-    <div className="stack gap-3">
-      <div><h1>Marketing</h1><p className="muted mt-1">Campaigns, audiences and broadcasts.</p></div>
+    <div className="stack" style={{ gap: "var(--sp-2)" }}>
+      <PageHead
+        eyebrow="Relations"
+        title="Marketing"
+        lede="Campaigns, audiences and broadcasts. A broadcast outside the 24-hour customer-service window may only use an approved template — the system enforces that, it is not left to the sender."
+        actions={
+          <>
+            <Link className="btn ghost sm" href="/app/marketing/campaigns">Campaigns</Link>
+            <Link className="btn ghost sm" href="/app/marketing/audiences">Audiences</Link>
+          </>
+        }
+      />
+
+      <Section title="Position" />
       <div className="grid cols-4">
         {tiles.map((t) => (
-          <Link key={t.k} href={t.href} className="card stat"><div className="k">{t.k}</div><div className="v" style={{ fontSize: "1.8rem" }}>{t.v}</div></Link>
+          <Link key={t.k} href={t.href} className="card stat">
+            <div className="k">{t.k}</div>
+            <div className="v">{fmtNumber(t.v)}</div>
+          </Link>
+        ))}
+      </div>
+
+      <Section title="The rest of Marketing" />
+      <div className="grid cols-3">
+        {[
+          { href: "/app/marketing/campaigns", label: "Campaigns", icon: "rocket", note: "What is running, drafted and finished" },
+          { href: "/app/marketing/audiences", label: "Audiences", icon: "target", note: "Who a campaign reaches, and their consent" },
+          { href: "/app/sales/leads", label: "Leads", icon: "user-round", note: "Enquiries a campaign produced" },
+        ].map((item) => (
+          <Link key={item.href} href={item.href} className="node-card">
+            <span className="node-card-ico" aria-hidden="true">
+              <Icon name={item.icon} size={17} strokeWidth={1.6} />
+            </span>
+            <span className="node-card-text">
+              <span className="node-card-title">{item.label}</span>
+              <span className="node-card-note">{item.note}</span>
+            </span>
+            <Icon name="chevron-right" size={15} className="dim" aria-hidden="true" />
+          </Link>
         ))}
       </div>
     </div>

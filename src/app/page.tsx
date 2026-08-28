@@ -3,6 +3,7 @@ import { Brand } from "@/components/Brand";
 import { Icon } from "@/components/Icon";
 import { getProfile } from "@/lib/auth";
 import { DEPARTMENTS } from "@/lib/departments";
+import { SpatialEnvironment } from "@/components/os/SpatialEnvironment";
 
 export const dynamic = "force-dynamic"; // the landing greets a signed-in staff member by session
 
@@ -24,6 +25,8 @@ export default async function Home() {
       : "Your work is ready and in order.";
 
   return (
+    <>
+    <SpatialEnvironment />
     <main className="container" style={{ paddingTop: 12, paddingBottom: 48 }}>
       <nav className="landing-nav">
         <Brand size={30} />
@@ -156,11 +159,12 @@ export default async function Home() {
         </div>
       </section>
 
-      <footer className="mt-4 dim small row gap-2">
-        <Link href="/privacy">Privacy</Link>·
-        <Link href="/terms">Terms</Link>·
+      <footer className="mt-4 dim small row wrap landing-foot">
+        <Link href="/privacy">Privacy</Link>
+        <Link href="/terms">Terms</Link>
         <Link href="/data-deletion">Data Deletion</Link>
       </footer>
     </main>
+    </>
   );
 }

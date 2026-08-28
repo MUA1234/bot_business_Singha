@@ -9,7 +9,8 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { computeCapacityDetail, type CapacityDetail, type CapacityTask } from "@/modules/work/capacity-detail";
 import { HBarChart } from "@/components/charts";
 import { recomputeCapacity } from "./actions";
-import { Card, CardHeader, CardBody, Button, Badge, DataTable, type DataTableColumn } from "@/components/ui";
+import { Button, Badge, DataTable, type DataTableColumn } from "@/components/ui";
+import { PageHead, Section } from "@/components/os/primitives";
 import { fmtNumber } from "@/lib/format";
 
 export const metadata = { title: "Capacity — Singha Central" };
@@ -138,28 +139,24 @@ export default async function CapacityPage() {
   ];
 
   return (
-    <div className="stack gap-3">
-      <div className="row between">
-        <div>
-          <h1>Capacity</h1>
-          <p className="muted mt-1">
-            Planned vs actual vs remaining effort from assigned tasks ({CONTRACTED}h week, {RESERVED}h reserved). Reproducible from records.
-          </p>
-        </div>
-        <form action={recomputeCapacity}>
-          <Button variant="ghost" size="sm" type="submit">
-            Recompute snapshots
-          </Button>
-        </form>
-      </div>
+    <div className="stack" style={{ gap: "var(--sp-2)" }}>
+      <PageHead
+        eyebrow="People"
+        title="Capacity"
+        lede={`Planned against actual against remaining effort, from assigned tasks with estimates (${CONTRACTED}h week, ${RESERVED}h reserved). Every figure here is reproducible from records — none of it is inferred from how long someone appears to be working.`}
+        actions={
+          <form action={recomputeCapacity}>
+            <Button variant="ghost" size="sm" type="submit">
+              Recompute snapshots
+            </Button>
+          </form>
+        }
+      />
 
       {rows.length > 0 && (
-        <Card>
-          <CardHeader
-            title="Utilization by person"
-            subtitle="Rebalance work from the red (overloaded) bars onto the dim (under-allocated) ones."
-          />
-          <CardBody>
+        <>
+          <Section title="Utilisation by person" meta="rebalance from the red bars onto the dim ones" />
+          <div className="card">
             <HBarChart
               data={rows.map((r) => ({
                 label: r.name,
@@ -174,25 +171,24 @@ export default async function CapacityPage() {
                   : "accent",
               }))}
             />
-          </CardBody>
-        </Card>
+          </div>
+        </>
       )}
 
-      <Card>
-        <CardHeader title="Capacity by person" />
-        <CardBody>
-          <DataTable
-            columns={columns}
-            rows={rows}
-            keyExtractor={(r) => r.id}
-            emptyTitle="No active employees, or no assigned/estimated tasks yet"
-            emptyDescription="Assign tasks with estimates in Operations."
-          />
-        </CardBody>
-      </Card>
+      <Section title="Capacity by person" meta={`${rows.length} active`} />
+      <div className="card">
+        <DataTable
+          columns={columns}
+          rows={rows}
+          keyExtractor={(r) => r.id}
+          emptyTitle="No active employees, or no assigned/estimated tasks yet"
+          emptyDescription="Assign tasks with estimates in Operations."
+        />
+      </div>
 
-      <p className="muted small">
-        Command Centre reads the snapshots you recompute here for over/under-allocation alerts. <Link href="/app/command">Open →</Link>
+      <p className="muted small mt-3">
+        The Command Centre reads the snapshots you recompute here for over- and under-allocation
+        exceptions. <Link href="/app/command">Open the Command Centre →</Link>
       </p>
     </div>
   );

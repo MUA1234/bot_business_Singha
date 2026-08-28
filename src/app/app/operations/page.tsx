@@ -9,7 +9,10 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import { detectTaskExceptions, type TaskLike } from "@/management/ai-manager/exceptions";
 import { BarChart, type BarDatum } from "@/components/charts";
 import { TASK_STATES } from "@/modules/work/task-lifecycle";
-import { Card, CardHeader, CardBody, Badge, EmptyState } from "@/components/ui";
+import { Badge } from "@/components/ui";
+import { Icon } from "@/components/Icon";
+import { fmtNumber } from "@/lib/format";
+import { Matter, PageHead, Section, Signal, StateNote } from "@/components/os/primitives";
 
 export const metadata = { title: "Operations — Singha Central" };
 const TERMINAL = new Set(["completed", "cancelled"]);
@@ -53,46 +56,120 @@ export default async function OperationsHome() {
   ];
 
   return (
-    <div className="stack gap-3">
-      <div className="row between">
-        <div><h1>Operations</h1><p className="muted mt-1">Fulfilment, tasks, projects and delivery.</p></div>
-        <div className="row gap-1">
-          <Link className="btn ghost sm" href="/app/operations/projects">Projects</Link>
-          <Link className="btn sm" href="/app/operations/tasks">Tasks →</Link>
+    <div className="stack" style={{ gap: "var(--sp-2)" }}>
+      <PageHead
+        eyebrow="Operations"
+        title="Delivery"
+        lede="Fulfilment, tasks, projects and delivery. Everything below is a count of task rows in this company — nothing is estimated."
+        actions={
+          <>
+            <Link className="btn ghost sm" href="/app/operations/projects">Projects</Link>
+            <Link className="btn ghost sm" href="/app/operations/tasks">All work</Link>
+          </>
+        }
+      />
+
+      <Section title="Position" />
+      <div className="grid cols-4">
+        <Link href="/app/operations/tasks" className="card stat">
+          <div className="k">Open tasks</div>
+          <div className="v">{fmtNumber(open.length)}</div>
+          <div className="d">Not completed or cancelled</div>
+        </Link>
+        <Link href="/app/operations/tasks" className="card stat">
+          <div className="k">In progress</div>
+          <div className="v">{fmtNumber(inProgress)}</div>
+          <div className="d">Someone is working on these</div>
+        </Link>
+        <Link href="/app/operations/tasks" className="card stat">
+          <div className="k">Blocked</div>
+          <div className="v">{fmtNumber(blocked)}</div>
+          <div className="d">
+            {blocked > 0 ? (
+              <Signal kind="blocked">Waiting on someone or something</Signal>
+            ) : (
+              <Signal kind="ok">Nothing blocked</Signal>
+            )}
+          </div>
+        </Link>
+        <div className="card stat">
+          <div className="k">Exceptions</div>
+          <div className="v">{fmtNumber(exceptions.length)}</div>
+          <div className="d">
+            {exceptions.some((e) => e.severity === "critical") ? (
+              <Signal kind="critical">At least one is critical</Signal>
+            ) : exceptions.length > 0 ? (
+              <Signal kind="warn">Review when convenient</Signal>
+            ) : (
+              <Signal kind="ok">Nothing flagged</Signal>
+            )}
+          </div>
         </div>
       </div>
-      <div className="grid cols-4">
-        {tiles.map((t) => (
-          <div key={t.k} className="card stat"><div className="k">{t.k}</div><div className="v" style={{ fontSize: "1.8rem", color: t.danger ? "var(--danger)" : undefined }}>{t.v}</div></div>
+
+      <Section title="Needs attention" meta={`${exceptions.length} flagged`} />
+      {exceptions.length === 0 ? (
+        <StateNote kind="empty" title="Nothing flagged">
+          No task exception was detected across {fmtNumber(tasks.length)} task row(s) read for this
+          company.
+        </StateNote>
+      ) : (
+        <div className="field-matters">
+          {exceptions.slice(0, 12).map((e, i) => (
+            <Matter
+              key={`${e.type}-${i}`}
+              kind={e.type.replace(/_/g, " ")}
+              kindIcon={
+                e.severity === "critical" ? "alert-triangle" : e.severity === "warn" ? "alert-circle" : "info"
+              }
+              band={e.severity === "critical" ? "critical" : e.severity === "warn" ? "high" : "normal"}
+              title={e.message}
+              href={e.taskId ? `/app/operations/tasks/${e.taskId}` : undefined}
+              footer={
+                <>
+                  <Signal
+                    kind={e.severity === "critical" ? "critical" : e.severity === "warn" ? "warn" : "info"}
+                  >
+                    {e.severity === "critical" ? "Act now" : e.severity === "warn" ? "Decide today" : "Watch"}
+                  </Signal>
+                  <Badge variant={e.severity === "critical" ? "danger" : e.severity === "warn" ? "warn" : "info"}>
+                    {e.type.replace(/_/g, " ")}
+                  </Badge>
+                </>
+              }
+            />
+          ))}
+        </div>
+      )}
+
+      {statusData.length > 0 && (
+        <>
+          <Section title="Work by state" meta="clear the amber and red bars first — they stall delivery" />
+          <div className="card">
+            <BarChart data={statusData} valueOnAll />
+          </div>
+        </>
+      )}
+
+      <Section title="The rest of Operations" />
+      <div className="grid cols-3">
+        {[
+          { href: "/app/operations/tasks", label: "Work", icon: "list-todo", note: "Every task, arranged by what decides the next action" },
+          { href: "/app/operations/projects", label: "Projects", icon: "git-branch", note: "The portfolio, ranked by value, risk and capacity" },
+          { href: "/app/hr/capacity", label: "Capacity", icon: "gauge", note: "Who is carrying what" },
+        ].map((item) => (
+          <Link key={item.href} href={item.href} className="node-card">
+            <span className="node-card-ico" aria-hidden="true">
+              <Icon name={item.icon} size={17} strokeWidth={1.6} />
+            </span>
+            <span className="node-card-text">
+              <span className="node-card-title">{item.label}</span>
+              <span className="node-card-note">{item.note}</span>
+            </span>
+            <Icon name="chevron-right" size={15} className="dim" aria-hidden="true" />
+          </Link>
         ))}
       </div>
-      {statusData.length > 0 && (
-        <Card>
-          <CardHeader title="Tasks by status" subtitle="Clear the amber blocked and red overdue bars first — they stall delivery." />
-          <CardBody>
-            <div className="mt-2">
-              <BarChart data={statusData} valueOnAll />
-            </div>
-          </CardBody>
-        </Card>
-      )}
-      <Card>
-        <CardHeader title="Needs attention" />
-        <CardBody>
-          {exceptions.length === 0 ? (
-            <EmptyState title="Nothing flagged" description="No task exceptions detected." icon="check-circle" />
-          ) : (
-            <div className="stack gap-1 mt-2">
-              {exceptions.slice(0, 12).map((e, i) => (
-                <div key={i} className="row between" style={{ padding: "8px 4px", borderBottom: "1px solid var(--panel-border)" }}>
-                  {e.taskId ? <Link href={`/app/operations/tasks/${e.taskId}`}>{e.message}</Link> : <span>{e.message}</span>}
-                  <Badge variant={e.severity === "critical" ? "danger" : e.severity === "warn" ? "warn" : "info"}>{e.type.replace(/_/g, " ")}</Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardBody>
-      </Card>
     </div>
   );
 }

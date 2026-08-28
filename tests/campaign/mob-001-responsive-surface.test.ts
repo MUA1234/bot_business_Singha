@@ -30,8 +30,15 @@ describe("MOB-001 — responsive mobile surface", () => {
 
   it("includes responsive breakpoints that collapse grids on narrow screens", () => {
     expect(css).toContain("@media (max-width:");
-    expect(css).toContain("grid-template-columns: 1fr");
-    expect(css).toContain("grid-template-columns: repeat(2, 1fr)");
+    // The track spelling is `minmax(0, 1fr)` rather than `1fr`: a bare `1fr`
+    // track has an `auto` minimum, so one wide cell (a long unbroken string, a
+    // data table) blows the grid out and scrolls the whole page sideways —
+    // which the "prevents horizontal overflow" case above exists to stop.
+    // These assert the COLLAPSE BEHAVIOUR and accept either spelling.
+    const oneColumn = /grid-template-columns:\s*(minmax\(0,\s*1fr\)|1fr)\s*[;}]/;
+    const twoColumn = /grid-template-columns:\s*repeat\(2,\s*(minmax\(0,\s*1fr\)|1fr)\)/;
+    expect(css).toMatch(oneColumn);
+    expect(css).toMatch(twoColumn);
   });
 
   it("respects safe-area insets for notched devices", () => {

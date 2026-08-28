@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useFormState, useFormStatus } from "react-dom";
 import { fmtMoney } from "@/lib/money";
 import { resolveDuplicateReview, type ResolveState } from "./actions";
 
@@ -165,8 +165,37 @@ export function ReviewCardView({ item, children }: { item: ReviewItem; children?
   );
 }
 
+/**
+ * The two decision buttons, split into their own component ON PURPOSE.
+ *
+ * `useFormStatus` reports the pending state of the form it is rendered INSIDE,
+ * so it cannot be called by the component that renders the `<form>` element —
+ * there it would always report `false` and the buttons would stay live during
+ * submission, letting a second click record a second decision on the same
+ * review.
+ */
+function DecisionButtons() {
+  const { pending } = useFormStatus();
+  return (
+    <div className="row gap-2 flex-wrap">
+      <button type="submit" name="resolution" value="dismissed_distinct"
+        disabled={pending} data-testid="dup-mark-distinct">
+        {pending ? "Recording…" : "These are different transactions"}
+      </button>
+      <button type="submit" name="resolution" value="confirmed_duplicate"
+        className="danger" disabled={pending} data-testid="dup-confirm">
+        {pending ? "Recording…" : "Confirm it is a duplicate"}
+      </button>
+    </div>
+  );
+}
+
 export function ReviewCard({ item }: { item: ReviewItem }) {
-  const [state, action, pending] = useActionState<ResolveState, FormData>(resolveDuplicateReview, {});
+  // `useFormState` from react-dom, NOT `useActionState` from react: this project
+  // is on React 18.3, where `useActionState` does not exist. Importing it made
+  // the build emit "Attempted import error" and left this component's
+  // interactive path broken at runtime.
+  const [state, action] = useFormState<ResolveState, FormData>(resolveDuplicateReview, {});
   if (item.state === "resolved") return <ReviewCardView item={item} />;
   return (
     <ReviewCardView item={item}>
@@ -177,16 +206,7 @@ export function ReviewCard({ item }: { item: ReviewItem }) {
             <input name="reason" required maxLength={500} data-testid="dup-reason"
               placeholder="e.g. second genuine invoice from the same supplier, different PO" />
           </label>
-          <div className="row gap-2 flex-wrap">
-            <button type="submit" name="resolution" value="dismissed_distinct"
-              disabled={pending} data-testid="dup-mark-distinct">
-              {pending ? "Recording…" : "These are different transactions"}
-            </button>
-            <button type="submit" name="resolution" value="confirmed_duplicate"
-              className="danger" disabled={pending} data-testid="dup-confirm">
-              {pending ? "Recording…" : "Confirm it is a duplicate"}
-            </button>
-          </div>
+          <DecisionButtons />
           {state.error && <div className="notice err" data-testid="dup-error">{state.error}</div>}
           {state.conflict && <div className="notice warn" data-testid="dup-conflict">{state.conflict}</div>}
         {state.ok && <div className="notice ok" data-testid="dup-ok">{state.ok}</div>}

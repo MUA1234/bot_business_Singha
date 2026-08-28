@@ -3,6 +3,7 @@
  * The caller must enforce permission (operations department or admin).
  */
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { tasksWithAssignments } from "@/lib/embeds";
 import { dec } from "@/lib/money";
 import { rankProjectsByPriority, type ProjectPrioritisationInput, type ProjectPriority } from "@/modules/project/portfolio-prioritisation";
 import {
@@ -61,11 +62,10 @@ export async function loadProjectsData(companyId: string, userId?: string): Prom
     db.from("projects").select("id, name, code, status, created_at").eq("company_id", companyId).order("created_at", { ascending: false }).limit(500),
     db.from("project_scenarios").select("project_id, expected_total, chosen").eq("company_id", companyId),
     db.from("project_risks").select("project_id, impact, likelihood, status").eq("company_id", companyId),
-    db
-      .from("tasks")
-      .select("id, project_id, status, due_date, estimate_hours, actual_hours, remaining_hours, task_assignments(membership_id, estimate_hours)")
-      .eq("company_id", companyId)
-      .limit(1000),
+    // NOT an embed — see src/lib/embeds.ts: `task_assignments` holds three
+    // foreign keys into `tasks`, so the embed is ambiguous and returns nothing,
+    // which made every project report "no assigned staff".
+    tasksWithAssignments(db, companyId).then((data) => ({ data })),
     db.from("memberships").select("id, user_id").eq("company_id", companyId).eq("status", "active"),
     db.from("employee_profiles").select("membership_id, contracted_weekly_hours, reserved_weekly_hours").eq("company_id", companyId),
   ]);

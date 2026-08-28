@@ -8,8 +8,9 @@ import { requireProfile } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { unreadCount } from "@/lib/notify";
 import { markRead, markAllRead } from "./actions";
-import { Card, CardHeader, CardBody, Button, EmptyState } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { fmtDateTime } from "@/lib/format";
+import { PageHead, Section, Signal, StateNote } from "@/components/os/primitives";
 
 export const metadata = { title: "Notifications — Singha Central" };
 
@@ -28,58 +29,75 @@ export default async function NotificationsPage() {
   const unread = unreadCount(rows);
 
   return (
-    <div className="stack gap-3">
-      <Card>
-        <CardHeader
-          title="Notifications"
-          subtitle={unread > 0 ? `${unread} unread` : "You're all caught up."}
-          action={
-            unread > 0 && (
-              <form action={markAllRead}>
-                <Button variant="ghost" size="sm" type="submit">Mark all read</Button>
-              </form>
-            )
-          }
-        />
-        <CardBody>
-          {rows.length === 0 ? (
-            <EmptyState title="No notifications yet" description="When something needs your attention, it will show up here." />
-          ) : (
-            <div className="stack gap-1">
-              {rows.map((n) => (
+    <div className="stack" style={{ gap: "var(--sp-2)" }}>
+      <PageHead
+        eyebrow="Communications"
+        title="Notifications"
+        lede="What the system has raised for you personally. Nothing here is a broadcast — each one was addressed to you because a record changed that you are accountable for."
+        actions={
+          unread > 0 ? (
+            <form action={markAllRead}>
+              <Button variant="ghost" size="sm" type="submit">
+                Mark all read
+              </Button>
+            </form>
+          ) : undefined
+        }
+      />
+
+      <Section
+        title={unread > 0 ? "Unread" : "All caught up"}
+        meta={unread > 0 ? `${unread} unread of ${rows.length}` : `${rows.length} in total`}
+      />
+
+      {rows.length === 0 ? (
+        <StateNote kind="empty" title="No notifications yet">
+          When something needs your attention it will appear here. An empty list means nothing has
+          been raised for you — not that nothing has happened.
+        </StateNote>
+      ) : (
+        <div className="card">
+          <div className="stack gap-1">
+            {rows.map((n) => {
+              const body = (
+                <>
+                  <span className="node-card-text">
+                    <span className="node-card-title">{n.title}</span>
+                    {n.body && <span className="node-card-note">{n.body}</span>}
+                    <span className="node-card-note dim">{fmtDateTime(n.created_at)}</span>
+                  </span>
+                  {!n.is_read && <Signal kind="info">Unread</Signal>}
+                </>
+              );
+              return (
                 <div
                   key={n.id}
-                  className="row"
-                  style={{
-                    padding: "10px 6px",
-                    borderBottom: "1px solid var(--panel-border)",
-                    opacity: n.is_read ? 0.6 : 1,
-                    alignItems: "flex-start",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    flexWrap: "wrap",
-                  }}
+                  className="row gap-2"
+                  style={{ alignItems: "stretch", opacity: n.is_read ? 0.62 : 1 }}
                 >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: n.is_read ? 400 : 700 }}>
-                      {!n.is_read && <span style={{ color: "var(--accent)" }}>● </span>}
-                      {n.link ? <Link href={n.link}>{n.title}</Link> : n.title}
+                  {n.link ? (
+                    <Link href={n.link} className="node-card" style={{ flex: 1 }}>
+                      {body}
+                    </Link>
+                  ) : (
+                    <div className="node-card" style={{ flex: 1 }}>
+                      {body}
                     </div>
-                    {n.body && <div className="small dim">{n.body}</div>}
-                    <div className="small dim">{fmtDateTime(n.created_at)}</div>
-                  </div>
+                  )}
                   {!n.is_read && (
-                    <form action={markRead}>
+                    <form action={markRead} style={{ display: "flex", alignItems: "center" }}>
                       <input type="hidden" name="id" value={n.id} />
-                      <Button variant="ghost" size="sm" type="submit">Read</Button>
+                      <Button variant="ghost" size="sm" type="submit">
+                        Read
+                      </Button>
                     </form>
                   )}
                 </div>
-              ))}
-            </div>
-          )}
-        </CardBody>
-      </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

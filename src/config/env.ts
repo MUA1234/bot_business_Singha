@@ -46,6 +46,16 @@ export const env = {
     rlsWrites: () => process.env.RLS_WRITES === "on",
     whatsappAsync: () => process.env.WHATSAPP_ASYNC === "on",
     spatialWorkspace: () => process.env.NEXT_PUBLIC_SPATIAL_WORKSPACE === "on",
+    /**
+     * Design lab — an isolated, development-only surface that renders the
+     * Spatial Executive OS design system against clearly-labelled synthetic
+     * fixtures, so the interface can be inspected in a real browser without a
+     * database. It is refused outright when APP_ENV is production, regardless
+     * of this flag, and it reads no business data of any kind.
+     */
+    designLab: () =>
+      process.env.NEXT_PUBLIC_DESIGN_LAB === "on" &&
+      (process.env.APP_ENV ?? "development") !== "production",
   },
 
   cronSecret: () => optional("CRON_SECRET"),

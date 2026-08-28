@@ -40,3 +40,44 @@ reading), and status. If it reverses an earlier decision, mark the old one
 | D-020 | **WP3 staff progress + WP5 AI cost (2026-08-06).** WP3: additive migration `0025` (task actual/remaining/blocker/ETA + assignment estimate + capacity fields); pure `task-progress.ts` workflow engine + rich `capacity-detail.ts` (planned/actual/remaining/free/blocked/overdue, reproducible from records); worker/manager server actions authorised via `canActOnTask` (any-dept assignee), company-scoped + audited + graceful pre-0025; task-detail Progress UI + rich `/app/hr/capacity`. WP5: model prices moved to `src/ai/pricing.ts`; **`gpt-5.6-sol` price is env-configured** (`OPENAI_PRICE_GPT56_INPUT_PER_MTOK` / `OPENAI_PRICE_GPT56_OUTPUT_PER_MTOK`, USD per 1M tokens) so recorded cost stops being 0 — no rate is guessed; unknown/unpriced model still records an explicit "0". | NEXT_PHASE_DEVELOPER_BRIEF §WP3/§WP5.4. Pure engines are fully unit-tested without a DB; env-configured pricing keeps the real rate an owner decision (D-015 notes gpt-5.6-sol access is account-side). | Adopted — set the two price env vars in Vercel to activate non-zero AI cost |
 | D-014 | **Consumer pipeline wired past the webhook boundary** (2026-08-02): `src/inngest/processing.ts` runs extract→detect-missing→dedup→draft→policy→approval/clarification→audit as pure orchestration over ports; the live Inngest function binds Supabase + the gateway. Approval policy is stored per company as validated JSONB in a new `approval_policies` table (migration `0006`). The live OpenAI transport (`src/ai/openai-transport.ts`) uses the global `fetch` — **no OpenAI SDK dependency added** (cost/dependency rule). Model ids stay confined to the gateway routing table + this transport. | User instruction 2026-08-02: "decide on your own so you can fully complete it." The pure logic was already built + tested; wiring it end-to-end completes the phase without needing live keys (keys only *activate* it). `fetch` avoids a new dependency; a policy table makes deterministic auto-approve reachable in production, not just tests. Auto-approve still never posts a journal or moves money (financial controls). | Adopted |
 | D-021 | **`playwright-core` as a DEV dependency for viewport browser checks (2026-08-19).** OF-016 requires the duplicate-review queue to be exercised in a real browser at 390 / 768 / 1440. The existing `scripts/verify/browser-check.mjs` drives Chromium through `--dump-dom`, which renders but cannot set a viewport or evaluate JavaScript — so it cannot measure horizontal overflow or capture console errors per width. `playwright-core` (Apache-2.0) drives the **already-installed** Chromium at `/opt/pw-browsers` and downloads nothing (`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`, `executablePath` pinned). It is a **devDependency only** — no production bundle, no runtime, no service, no cost. `scripts/verify/browser-check-duplicate-reviews.mjs` uses it. | The cost rule is satisfied: OSS, no managed service, no paid tier, nothing downloaded at install. The alternative — asserting responsive layout by reading CSS — is exactly the kind of unverified claim this repository keeps correcting. Stated limit, unchanged: there is no Supabase instance in this container, so no browser check can sign in and load the queue with rows in it; that is covered by `tests/integration/of016-rendered-matches-persisted.test.tsx`, which renders the real component against rows the real RPC persisted. | Adopted |
+
+## D-0xx — No WebGL/Three.js in the spatial interface (2026-08-27)
+
+**Status:** Decided. No dependency added.
+
+**Context.** The UI/UX brief asks for a "cinematic spatial" interface, and the
+tooling addendum asked whether Three.js / React Three Fiber should be used.
+Neither `three` nor `@react-three/fiber` is currently installed; the production
+dependency count is 9.
+
+**Decision.** Do not add a WebGL renderer. The spatial qualities the brief asks
+for — functional depth, a subtle virtual camera, luminous instruments,
+domain-specific lighting — are delivered by CSS 3D transforms, a real
+`perspective` on the composition, layered gradients and SVG, all of which are
+already implemented and measured.
+
+**Reasons.**
+
+1. **Nothing in the interface is a 3D object.** The instruments are dials,
+   rings and arcs — 2D figures with depth cues. Rendering a ring in WebGL makes
+   it no more legible, and legibility is the entire point of an instrument.
+2. **The one genuine 3D use case is gated.** A spatial site or fleet model would
+   need location and telemetry, which are GPS/CCTV capabilities held behind
+   legal and privacy review (`docs/SECURITY_AND_PRIVACY_MODEL.md`). Building the
+   renderer before the data is authorised would be building ahead.
+3. **It works against the performance tiers.** `SpatialEnvironment` already
+   downgrades atmosphere on weaker devices. A WebGL context is not something a
+   tier can partially disable — it is present or it is not — and it costs
+   battery on exactly the phones and tablets this system is operated from.
+4. **Cost and weight.** `three` plus `@react-three/fiber` is a large addition to
+   the critical path for a decorative gain, against a stated rule that the
+   system must keep a small, free-tier-friendly dependency surface.
+
+**Revisit when:** GPS/telemetry is legally approved AND a spatial model would
+answer a question a 2D view cannot — e.g. an actual site or yard layout. At that
+point the renderer should be lazy-loaded on that route alone, never on the shell.
+
+**Figma** IS connected and was used: the desktop grid proportions, the
+role-based type ramp and the 1920 Command Centre composition study live in the
+Figma file "Singha — Spatial Executive OS: Grid & Type System". Figma is a
+design source, not a runtime dependency, so it adds nothing to the bundle.
