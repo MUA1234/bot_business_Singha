@@ -221,6 +221,51 @@ test strength rather than to behaviour, and the brief separates cosmetic from fu
 
 ---
 
+## F-012 — the harness could run against the WRONG Supabase without noticing (Harness, fixed)
+
+Not a product defect. It is the most important harness finding of the campaign, because
+it could have silently invalidated results while every check looked green.
+
+**What happened.** The gateway listens on **54321** — the Supabase default. Hours after
+the round-2 gates completed, the gateway process exited, and an unrelated project's
+Supabase stack on this machine (`supabase_kong_sbdev`) claimed the port. It answered
+`/auth/v1/health` with a healthy **200** — from a different database, with a different
+JWT secret.
+
+The self-check caught it, but only by accident: it failed on `PGRST301 — None of the keys
+was able to decode the JWT` when probing data. Had the foreign stack shared the same JWT
+secret, the probe would have passed and the suites would have run happily against
+**someone else's database**.
+
+**The real defect was in the check, not the collision.** The self-check verified that
+*something* answered on the gateway port. It never verified that the something was
+**ours**. Liveness is not identity.
+
+**Fix.**
+
+1. The gateway exposes a private `/__hst/identity` endpoint returning a fixed marker and
+   its configured upstreams.
+2. The self-check now demands that marker **before** anything else, and names the likely
+   cause when it is absent.
+3. The campaign stack moved off the Supabase default port to **54399**, so a collision
+   cannot recur silently.
+
+Verified: our gateway returns `{"identity":"singha-hard-scenario-gateway", …}`; the
+foreign stack on 54321 returns `{"message":"no Route matched with those values"}` and is
+correctly rejected.
+
+**Effect on the recorded results: none.** Every gate in this round ran while the
+self-check passed immediately beforehand — including its live gateway and RLS probes,
+which exercise the real database — and the suites themselves read and wrote fixture rows
+that only our database contains. The collision occurred after the gates completed. The
+results were nonetheless **re-verified end to end** on the relocated stack; see the
+revised report.
+
+**Not touched:** the other project's Supabase stack, exactly as with the unrelated
+process on port 3230.
+
+---
+
 ## F-008 — the campaign's own stack trips a privilege-topology test (Informational)
 
 Not a product defect. Recorded because it changes how the integration result must be

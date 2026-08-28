@@ -56,6 +56,25 @@ async function main() {
     bad("database is loopback", DB_URL.replace(/:[^:@/]*@/, ":<redacted>@"));
   } else ok("database is loopback");
 
+  // IDENTITY before liveness. Port 54321 is the Supabase default: an unrelated project's
+  // Supabase stack claimed it on this machine mid-campaign and answered /auth/v1/health
+  // with a healthy 200 from a DIFFERENT database with a different JWT secret. A liveness
+  // probe cannot tell that apart, so the suites would have run against the wrong system
+  // while every check looked green. This asks the gateway to identify itself.
+  try {
+    const r = await fetch(`${GATEWAY}/__hst/identity`);
+    const body = r.ok ? await r.json().catch(() => null) : null;
+    body?.identity === "singha-hard-scenario-gateway"
+      ? ok(`gateway is THIS campaign's gateway (identity verified)`)
+      : bad(
+          "the gateway on this port is NOT this campaign's gateway",
+          `${GATEWAY} answered ${r.status} with identity=${JSON.stringify(body?.identity ?? null)} — ` +
+            `another Supabase stack has probably taken the port; start ours elsewhere via GATEWAY_PORT`,
+        );
+  } catch (e) {
+    bad("gateway identity unreachable", String(e.message).slice(0, 120));
+  }
+
   for (const [name, url] of [["gateway /auth/v1/health", `${GATEWAY}/auth/v1/health`], ["app /login", `${APP}/login`]]) {
     try {
       const r = await fetch(url);

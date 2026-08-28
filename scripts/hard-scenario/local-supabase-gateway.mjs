@@ -65,8 +65,25 @@ function isServiceRoleToken(headers) {
   }
 }
 
+/**
+ * A private identity endpoint, so a caller can prove it is talking to THIS gateway.
+ *
+ * Port 54321 is the Supabase default. An unrelated project's Supabase stack started on
+ * this machine mid-campaign, claimed 54321 after this process exited, and answered
+ * `/auth/v1/health` with a healthy 200 — from a different database with a different JWT
+ * secret. A liveness probe cannot tell those apart; an identity probe can. The harness
+ * self-check requires this marker before it trusts anything behind the gateway.
+ */
+const GATEWAY_IDENTITY = "singha-hard-scenario-gateway";
+
 const server = http.createServer((req, res) => {
   const matches = (p) => req.url === p || req.url.startsWith(p + "/") || req.url.startsWith(p + "?");
+
+  if (matches("/__hst/identity")) {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ identity: GATEWAY_IDENTITY, gotrue: GOTRUE, restApi: REST_API, restService: REST_SVC }));
+    return;
+  }
   let prefix = null;
   let upstream = null;
   if (matches("/auth/v1")) {

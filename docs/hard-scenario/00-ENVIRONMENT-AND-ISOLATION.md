@@ -13,7 +13,7 @@ Everything is disposable, loopback-only, and created for this campaign.
 | PostgreSQL 16 | `postgres:16` (`singha-hst-pg16`) | `127.0.0.1:55442` | `singha_app` (app stack) and `singha_hst` (headless integration) |
 | GoTrue | `supabase/gotrue:v2.196.0` | `127.0.0.1:55444` | REAL authentication; migrations confined to the `auth` schema |
 | PostgREST | `supabase/postgrest:v16.1` | `127.0.0.1:55445` | REAL data API and RLS enforcement, via an `authenticator` role |
-| Gateway | `scripts/hard-scenario/local-supabase-gateway.mjs` | `127.0.0.1:54321` | Stands in for Kong: `/auth/v1`→GoTrue, `/rest/v1`→PostgREST. Forwards verbatim; rewrites nothing but the path prefix |
+| Gateway | `scripts/hard-scenario/local-supabase-gateway.mjs` | `127.0.0.1:54399` | Stands in for Kong: `/auth/v1`→GoTrue, `/rest/v1`→PostgREST (routed by the token's role claim). Forwards verbatim; rewrites nothing but the path prefix. **Moved off the Supabase default 54321 after F-012**, and exposes `/__hst/identity` so a caller can prove it reached OUR gateway rather than another project's stack |
 | Application | `next start` | `127.0.0.1:3241` | The real built application |
 
 Schema: the Supabase compatibility shim (`tests/integration/helpers/supabase-shim.sql`)

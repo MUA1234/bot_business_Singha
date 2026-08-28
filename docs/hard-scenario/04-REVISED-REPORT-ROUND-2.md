@@ -64,13 +64,25 @@ hold no CREATE), schema/migration/auth state, both tenants seeded, RLS live on t
 tables, residue from previous runs, and the outbound guard exercised against the three
 real provider hosts.
 
-It earned its place immediately by failing three times on real problems — twice on its
-own assertions, once on genuine residue:
+It earned its place immediately by failing four times on real problems — three times on
+its own assertions, once on genuine residue:
 
 1. It accepted only an empty anon result when a `42501` permission denial is *stronger*.
 2. It found two 2 MB residue rows left by an earlier scenario.
 3. It hard-coded `migs === 108` and went stale when 0109 landed — now it asserts the
    invariant (applied count equals migration files on disk).
+4. **F-012** — it checked that *something* answered on the gateway port, never that the
+   something was **ours**. An unrelated project's Supabase stack later claimed port 54321
+   (the Supabase default) and answered `/auth/v1/health` with a healthy 200 from a
+   different database. It now demands a gateway **identity** marker first, and the
+   campaign runs on **54399**.
+
+Point 4 is the one worth dwelling on. Liveness is not identity, and a green check that
+does not establish *what it is green about* is worth nothing. Two variants of the same
+trap occurred in this round: a foreign stack answering healthily on the expected port,
+and — while re-verifying — the campaign's own gateway and application having been reaped,
+so the suites reported 11 failures and 79 skips against nothing at all. Neither red nor
+green output means anything until the target is confirmed.
 
 ---
 
@@ -204,9 +216,13 @@ skip link present; landmarks present; no unnamed buttons; no missing alt
 
 ## 6. Item 9 — final gates
 
+All results below were additionally **re-verified end to end** after finding F-012, on a
+relocated stack whose identity was confirmed before the suites ran: self-check **28/28**,
+hard-scenario **9 files / 107 tests / 0 failures**.
+
 | Gate | Result |
 |---|---|
-| Harness self-check | **27/27** (gates everything below) |
+| Harness self-check | **28/28** (gates everything below; the 28th is the gateway-identity check added by F-012) |
 | Unit suite | **184 files / 1363 passed, 2 skipped** |
 | Integration (live PG16) | **77 files / 697 passed, 0 failed** — genuine |
 | Hard-scenario suites | **9 files / 107 passed** |
@@ -254,6 +270,7 @@ row; it touches no data, because 0109 only ever added constraints. Verified roun
 | F-005 | Low | Money precision lost beyond ~15 significant digits | **Fixed** R2 (`dec()` fails closed) |
 | F-001 | Low | Two assertions weakened in the checkpoint | **Fixed** R2 (stronger, mutation-verified) |
 | F-008 | Info | Harness tripped the OF-017 topology test | **Fixed** R2 (topology corrected) |
+| F-012 | Harness | The harness could have run against the WRONG Supabase without noticing | **Fixed** R2 (identity check + port move) |
 | **F-009** | **Medium** | **A trip in company A can be charged to company B's project** | **Open** — owner gate |
 | **F-010** | **Low/Med** | **A trip's end odometer may be lower than its start** | **Open** — owner gate |
 | F-007 | Info | `cron-auth` flakes at the default 5 s timeout on this machine | Open (environmental) |
