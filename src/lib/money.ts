@@ -156,10 +156,57 @@ export function lineTotal(unitPrice: Money, quantity: number): Money {
 // "nothing settled yet"; anything MALFORMED throws (fail closed, never silently zero).
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Exact Decimal from a DB money column (string | null | undefined). NULL/'' → 0; malformed → throw. */
+/**
+ * The point beyond which a JS `number` can no longer be trusted to carry money.
+ *
+ * PostgREST serialises `numeric` as an unquoted JSON number, so every value read through
+ * it arrives here as a double — that is a platform property, identical on hosted
+ * Supabase, not a choice this repository made. A double holds ~15 significant decimal
+ * digits, and JS prints the shortest string that round-trips, so any decimal with 15 or
+ * fewer significant digits survives EXACTLY. Beyond that it does not: 99999999999999.9999
+ * is read back as 100000000000000, losing 0.9999 silently.
+ *
+ * 1e12 is the conservative cut-off. With four decimal places, a value below it needs at
+ * most 16 characters and stays inside the exact range; above it, two-to-four decimal
+ * places can no longer be represented, so accepting the number would mean accepting a
+ * value that may already be wrong. Refusing is the only honest option — see F-005.
+ */
+const MAX_EXACT_NUMBER_MAGNITUDE = 1e12;
+
+/** Significant decimal digits in a number's shortest round-tripping representation. */
+function significantDigits(n: number): number {
+  return String(Math.abs(n)).replace(/[.eE+-]/g, "").replace(/^0+/, "").replace(/0+$/, "").length || 1;
+}
+
+/**
+ * Exact Decimal from a DB money column. NULL/'' → 0; malformed → throw.
+ *
+ * A `number` is accepted ONLY inside the range where the double round-trip is provably
+ * lossless. Outside it this throws rather than silently propagating a value that has
+ * already lost precision — the invariant at the top of this file is "never a JS float
+ * for money", and failing closed is what makes that true rather than aspirational.
+ *
+ * The durable fix at a call site is to have the database hand over text in the first
+ * place: `.select("amount::text")` makes PostgREST emit a quoted decimal string, which
+ * this function then parses exactly.
+ */
 export function dec(value: unknown): Decimal {
   if (value === null || value === undefined) return new Decimal(0);
   if (value instanceof Decimal) return value;
+
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error(`Invalid decimal money value: ${JSON.stringify(value)}`);
+    }
+    if (Math.abs(value) >= MAX_EXACT_NUMBER_MAGNITUDE || significantDigits(value) > 15) {
+      throw new Error(
+        `Money arrived as a JS number too large to be exact (${value}). ` +
+          `Read this column as text — select("<column>::text") — so the decimal is not ` +
+          `routed through a double. See F-005.`,
+      );
+    }
+  }
+
   const s = String(value).trim();
   if (s === "") return new Decimal(0);
   if (!/^-?\d+(\.\d+)?$/.test(s)) throw new Error(`Invalid decimal money value: ${JSON.stringify(value)}`);
