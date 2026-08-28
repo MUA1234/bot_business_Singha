@@ -26,8 +26,16 @@ export default async function CampaignsPage() {
   let rows: any[] = [];
   let audiences: any[] = [];
   try {
-    rows = (await db.from("campaigns").select("id, name, channel, status, budget, currency, sent_count, audiences(name)").eq("company_id", p.companyId).order("created_at", { ascending: false }).limit(200)).data ?? [];
+    // NOT an embed. `campaigns` holds two foreign keys into `audiences` (the original
+    // `audience_id` key and the composite `(audience_id, company_id)` tenant-integrity
+    // key), so PostgREST refuses `audiences(name)` as ambiguous (PGRST201) and returns
+    // an error with `data: null`. `?? []` then rendered an empty campaign list on every
+    // load. The audiences for this company are already read below, so the label is
+    // resolved from that list. See src/lib/embeds.ts.
+    rows = (await db.from("campaigns").select("id, name, channel, status, budget, currency, sent_count, audience_id").eq("company_id", p.companyId).order("created_at", { ascending: false }).limit(200)).data ?? [];
     audiences = (await db.from("audiences").select("id, name").eq("company_id", p.companyId).order("name")).data ?? [];
+    const audienceName = new Map<string, string>(audiences.map((a) => [a.id as string, a.name as string]));
+    rows = rows.map((r) => ({ ...r, audiences: r.audience_id ? { name: audienceName.get(r.audience_id) ?? null } : null }));
   } catch {
     rows = [];
   }

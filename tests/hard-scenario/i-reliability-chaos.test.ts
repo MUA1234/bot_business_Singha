@@ -211,7 +211,7 @@ describe.skipIf(!stackConfigured)("I — reliability and chaos (real webhook bou
     const b = msgId("batch-b");
     const payload = delivery(a, "message A");
     // Add a second message to the same change value.
-    (payload.entry[0].changes[0].value as { messages: unknown[] }).messages.push({
+    (payload.entry[0]!.changes[0]!.value as { messages: unknown[] }).messages.push({
       from: "94770000502", id: b, timestamp: "1787000300", type: "text", text: { body: "message B" },
     });
 
@@ -224,7 +224,7 @@ describe.skipIf(!stackConfigured)("I — reliability and chaos (real webhook bou
       expect(data ?? [], `${id} missing`).toHaveLength(1);
       // Each row must carry only ITS message, never the whole batch — a batch can span
       // companies, and storing it whole would put another company's text in this row.
-      const rawText = JSON.stringify((data as { raw_payload: unknown }[])[0].raw_payload);
+      const rawText = JSON.stringify((data as { raw_payload: unknown }[])[0]!.raw_payload);
       const other = id === a ? "message B" : "message A";
       expect(rawText.includes(other), `${id} stored another message's content`).toBe(false);
     }

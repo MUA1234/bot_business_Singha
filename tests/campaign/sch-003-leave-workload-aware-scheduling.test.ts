@@ -38,7 +38,24 @@ describe("SCH-003 — Leave and workload-aware scheduling", () => {
   it("reads active task estimates to determine workload", () => {
     expect(route).toContain("workloadByUser");
     expect(route).toContain("estimate_hours");
-    expect(route).toContain('not("tasks.status", "in", "(completed,cancelled)")');
+    // Completed and cancelled work must not count toward anyone's load.
+    expect(route).toContain('not("status", "in", "(completed,cancelled)")');
+  });
+
+  it("does NOT compute workload through an ambiguous PostgREST embed", () => {
+    // Finding F-003. This was read as
+    //   task_assignments.select("memberships!inner(user_id), tasks!inner(estimate_hours)")
+    // filtered by `tasks.status` and `memberships.status`. That embed cannot be answered:
+    // `task_assignments` holds three foreign keys into `tasks` and two into `memberships`,
+    // so PostgREST refuses it as ambiguous (PGRST201) and returns an error — which made
+    // `workloadError` truthy and this cron return 500 on EVERY run.
+    //
+    // The previous version of the test above asserted the embed's filter syntax verbatim,
+    // which is why a route that could never succeed still passed its suite.
+    expect(route).not.toContain("memberships!inner(user_id)");
+    expect(route).not.toContain("tasks!inner(estimate_hours)");
+    expect(route).not.toContain('not("tasks.status", "in", "(completed,cancelled)")');
+    expect(route).not.toContain('eq("memberships.status", "active")');
   });
 
   it("skips assignees on approved leave when sending reminders", () => {

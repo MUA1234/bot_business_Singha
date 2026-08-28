@@ -15,8 +15,11 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.{test,spec}.{ts,tsx}"],
-    // Live DB tests run via `npm run test:integration` (their own serial config).
-    exclude: ["**/node_modules/**", "tests/integration/**"],
+    // Live-stack tests run under their own serial configs:
+    //   tests/integration   -> `npm run test:integration`
+    //   tests/hard-scenario -> vitest.hard-scenario.config.ts (needs the running
+    //                          application, GoTrue, PostgREST and the gateway)
+    exclude: ["**/node_modules/**", "tests/integration/**", "tests/hard-scenario/**"],
     reporters: "default",
   },
 });

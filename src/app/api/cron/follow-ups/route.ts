@@ -67,11 +67,6 @@ interface LeaveRow {
   end_date: string;
 }
 
-interface WorkloadRow {
-  user_id: string;
-  estimate_hours: number | null;
-}
-
 function parseChain(chain: unknown): string[] {
   if (Array.isArray(chain)) return chain.filter((c): c is string => typeof c === "string");
   return [];
@@ -123,7 +118,8 @@ export async function GET(req: Request): Promise<Response> {
     { data: assignments, error: assignmentsError },
     { data: memberships, error: membershipsError },
     { data: leaveRows, error: leaveError },
-    { data: workloadRows, error: workloadError },
+    { data: openTaskHours, error: workloadError },
+    { data: allAssignments, error: allAssignmentsError },
   ] = await Promise.all([
     db.from("task_assignments").select("task_id, membership_id").in("task_id", taskIds),
     db.from("memberships").select("id, user_id").eq("status", "active"),
@@ -133,20 +129,25 @@ export async function GET(req: Request): Promise<Response> {
       .eq("status", "approved")
       .lte("start_date", today())
       .gte("end_date", today()),
-    db
-      .from("task_assignments")
-      .select("memberships!inner(user_id), tasks!inner(estimate_hours)")
-      .not("tasks.status", "in", "(completed,cancelled)")
-      .eq("memberships.status", "active"),
+    // Workload used to be read by EMBEDDING memberships and tasks inside a
+    // task_assignments select, filtered on the embedded tables' columns. That embed
+    // cannot be answered in this schema: task_assignments holds three foreign keys into
+    // tasks and two into memberships, so PostgREST refuses the join as ambiguous
+    // (PGRST201) and returns an error — which made `workloadError` truthy and this cron
+    // return 500 on EVERY run. Two plain reads, joined below, cannot become ambiguous.
+    // See src/lib/embeds.ts.
+    db.from("tasks").select("id, estimate_hours").not("status", "in", "(completed,cancelled)").limit(5000),
+    db.from("task_assignments").select("task_id, membership_id").limit(20000),
   ]);
 
-  if (assignmentsError || membershipsError || leaveError || workloadError) {
+  if (assignmentsError || membershipsError || leaveError || workloadError || allAssignmentsError) {
     log("error", "follow-ups assignment/availability read failed", {
       event: "follow_up.assignment_read_failed",
       assignmentsError: assignmentsError?.message,
       membershipsError: membershipsError?.message,
       leaveError: leaveError?.message,
       workloadError: workloadError?.message,
+      allAssignmentsError: allAssignmentsError?.message,
     });
     return NextResponse.json({ ok: false, error: "assignment read failed" }, { status: 500 });
   }
@@ -176,13 +177,22 @@ export async function GET(req: Request): Promise<Response> {
     leaveByUser.set(r.profile_id, list);
   }
 
-  // Workload (active assigned estimated hours) by user.
+  // Workload (active assigned estimated hours) by user, joined here rather than by an
+  // embed. `membershipById` already holds ONLY active memberships (the query filters on
+  // status), so an assignment whose membership is missing from it is an inactive member
+  // and is skipped — exactly what the former `memberships!inner … status=active` did.
+  const hoursByTask = new Map<string, number>(
+    ((openTaskHours ?? []) as { id: string; estimate_hours: number | null }[]).map((t) => [
+      t.id,
+      Number(t.estimate_hours) || 0,
+    ]),
+  );
   const workloadByUser = new Map<string, number>();
-  for (const row of (workloadRows ?? []) as any[]) {
-    const userId = row.memberships?.user_id ?? row.user_id;
-    const hours = row.tasks?.estimate_hours ?? row.estimate_hours ?? 0;
-    if (!userId) continue;
-    workloadByUser.set(userId, (workloadByUser.get(userId) ?? 0) + (Number(hours) || 0));
+  for (const a of (allAssignments ?? []) as { task_id: string; membership_id: string }[]) {
+    const m = membershipById.get(a.membership_id);
+    if (!m) continue; // inactive or unknown membership
+    if (!hoursByTask.has(a.task_id)) continue; // task is completed/cancelled
+    workloadByUser.set(m.user_id, (workloadByUser.get(m.user_id) ?? 0) + hoursByTask.get(a.task_id)!);
   }
 
   const day = today();

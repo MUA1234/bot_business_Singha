@@ -40,7 +40,7 @@ describe.skipIf(!stackConfigured)("H — security and tenant isolation", () => {
     expect(status).toBe(200);
     const rows = Array.isArray(body) ? (body as { company_id: string }[]) : [];
     expect(rows).toHaveLength(1);
-    expect(rows[0].company_id).toBe(TENANT_B.company);
+    expect(rows[0]!.company_id).toBe(TENANT_B.company);
   });
 
   /* ── H2. Cross-company reads by direct record id ─────────────────────── */
@@ -102,13 +102,13 @@ describe.skipIf(!stackConfigured)("H — security and tenant isolation", () => {
     const { data } = await svc.from("tasks").select("id,title").eq("id", TENANT_B.secretTask);
     const rows = (data ?? []) as { title: string }[];
     expect(rows, "tenant B's task was deleted by tenant A").toHaveLength(1);
-    expect(rows[0].title).not.toBe("HST tampered");
+    expect(rows[0]!.title).not.toBe("HST tampered");
   });
 
   /* ── H4. Tampered, forged and expired sessions ───────────────────────── */
 
   it("H4 — a token with a flipped signature is refused", async () => {
-    const [h, p, s] = a.accessToken.split(".");
+    const [h, p, s] = a.accessToken.split(".") as [string, string, string];
     const flipped = `${h}.${p}.${s.slice(0, -3)}${s.slice(-3) === "AAA" ? "BBB" : "AAA"}`;
     const { status } = await rest(`/customers?select=id&limit=1`, flipped);
     expect(status).toBe(401);
@@ -116,7 +116,7 @@ describe.skipIf(!stackConfigured)("H — security and tenant isolation", () => {
 
   it("H4 — a token whose payload was edited to claim service_role is refused", async () => {
     // Re-encoding the payload without the signing key is the realistic attack.
-    const [h, p, s] = a.accessToken.split(".");
+    const [h, p, s] = a.accessToken.split(".") as [string, string, string];
     const claims = JSON.parse(Buffer.from(p, "base64url").toString());
     claims.role = "service_role";
     const forged = `${h}.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.${s}`;
@@ -125,7 +125,7 @@ describe.skipIf(!stackConfigured)("H — security and tenant isolation", () => {
   });
 
   it("H4 — an expired token is refused", async () => {
-    const [h, p, s] = a.accessToken.split(".");
+    const [h, p, s] = a.accessToken.split(".") as [string, string, string];
     const claims = JSON.parse(Buffer.from(p, "base64url").toString());
     claims.exp = Math.floor(Date.now() / 1000) - 3600;
     const expired = `${h}.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.${s}`;

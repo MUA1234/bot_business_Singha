@@ -21,10 +21,30 @@ function storageKey(userId: string) {
   return `singha-spatial-layout:${userId}`;
 }
 
-function makeSnapshot(state: WorkspaceState, userId: string): SpatialLayoutSnapshot {
+/**
+ * Exported so the persistence contract can be tested directly. The failure it guards
+ * against (F-006) is invisible from the outside: `saveLayout` swallows its own errors by
+ * design, so a broken snapshot looks exactly like a working one.
+ */
+export function makeSnapshot(state: WorkspaceState, userId: string): SpatialLayoutSnapshot {
   return {
     version: 2,
-    windows: state.windows.map((w) => ({ ...w })),
+    // `content` MUST be dropped, not merely "not used". It holds the window's rendered
+    // React tree, and a shallow `{ ...w }` copied it into the snapshot. Two consequences,
+    // both real:
+    //
+    //   1. Saving was silently BROKEN. A server-opened window's element graph is
+    //      circular, so `JSON.stringify` threw "Converting circular structure to JSON"
+    //      before `setItem` was ever reached — and the catch below, written for quota and
+    //      private-mode errors, swallowed it. Every window in a normal workspace carries
+    //      content, so "Save layout" did nothing at all and "Restore layout" had nothing
+    //      to restore.
+    //   2. Where it did NOT throw, it wrote the rendered record content — customer names,
+    //      money amounts, task text — into localStorage, which is exactly what layout
+    //      state must never hold.
+    //
+    // Stripping it fixes both, and matches what the type has always documented.
+    windows: state.windows.map(({ content: _content, ...w }) => w),
     nextZ: state.nextZ,
     focusedId: state.focusedId,
     reducedMotion: state.reducedMotion,
