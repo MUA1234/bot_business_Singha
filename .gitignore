@@ -32,3 +32,6 @@ npm-debug.log*
 .idea/
 .vscode/
 .env.verify
+
+# Playwright MCP session artefacts (local browser snapshots/logs)
+.playwright-mcp/

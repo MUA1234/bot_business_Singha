@@ -221,6 +221,47 @@ test strength rather than to behaviour, and the brief separates cosmetic from fu
 
 ---
 
+## F-008 — the campaign's own stack trips a privilege-topology test (Informational)
+
+Not a product defect. Recorded because it changes how the integration result must be
+read, and because it is a point in the suite's favour.
+
+`tests/integration/found-006-caller-trust.test.ts` — "TOPOLOGY DETECTOR: no login role in
+THIS database holds both api and service membership" — **failed** on the campaign stack:
+
+```
+expected [ 'authenticator' ] to deeply equal []
+```
+
+**Cause is the harness, not the application.** To run real PostgREST, the campaign creates
+an `authenticator` login role holding `anon`, `authenticated` and `service_role`. That is
+the stock Supabase topology, and it is exactly what OF-017 forbids for this system: the
+service backend must have its own login identity that serves no public API traffic.
+PostgreSQL roles are **cluster-wide**, so a role created for the `singha_app` database is
+visible to a test running against `singha_hst` on the same cluster.
+
+**Attribution proven, not assumed:**
+
+```
+revoke service_role from authenticator
+  -> tests/integration/found-006-caller-trust.test.ts: 21 passed (21)
+grant  service_role to authenticator   (restored — PostgREST needs it)
+  -> the topology assertion fails again
+```
+
+`postgres` also holds all three memberships (granted by the Supabase shim) but is a
+superuser and is correctly not flagged.
+
+**How to read the integration gate:** 696/697 passed on the campaign stack; **697/697
+attributable to the application**, with the one failure caused by the test environment's
+PostgREST role grant.
+
+**Recommendation for any future harness:** give PostgREST a login role holding only
+`anon` and `authenticated`, and reach `service_role` through a separate identity — which
+is the topology this test is asking production to adopt.
+
+---
+
 ## F-007 — `cron-auth` flakes at the default timeout (Informational)
 
 `tests/campaign/cron-auth.test.ts` intermittently fails on this machine at vitest's
