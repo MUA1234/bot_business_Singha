@@ -35,3 +35,6 @@ npm-debug.log*
 
 # Playwright MCP session artefacts (local browser snapshots/logs)
 .playwright-mcp/
+
+# Hard-scenario local/CI artifacts (checksums recorded in the report, binaries not committed)
+artifacts/
