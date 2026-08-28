@@ -82,9 +82,9 @@ function fixtureTransport(reply: string | (() => never)): CompletionTransport & 
     seen,
     async complete(req: CompletionRequest): Promise<CompletionResponse> {
       seen.push(req);
-      if (typeof reply === "function") reply();
+      if (typeof reply === "function") reply(); // throws — models the transport failing
       return {
-        text: reply,
+        text: reply as string,
         usage: { input_tokens: 120, output_tokens: 240 },
         cost_usd: "0.0031",
       };
@@ -287,7 +287,7 @@ describe("A — AI behaviour (deterministic fixtures through the real gateway)",
     // property is asserted here so a future change cannot start inventing scores.
     const { anthropicKeyPresent } = await import("@/ai/anthropic-transport");
     expect(anthropicKeyPresent({} as NodeJS.ProcessEnv)).toBe(false);
-    expect(anthropicKeyPresent({ ANTHROPIC_API_KEY: "  " } as NodeJS.ProcessEnv)).toBe(false);
+    expect(anthropicKeyPresent({ ANTHROPIC_API_KEY: "  " } as unknown as NodeJS.ProcessEnv)).toBe(false);
   });
 });
 

@@ -109,8 +109,14 @@ async function main() {
     const [{ count: tables }] = await q(`select count(*)::int from information_schema.tables where table_schema='public'`);
     tables > 100 ? ok(`schema applied (${tables} public tables)`) : bad("schema looks incomplete", `${tables} tables`);
 
+    // Assert the INVARIANT (the schema is fully migrated), not a number that goes stale
+    // the next time a migration is added — which is exactly how this check first failed.
+    const { readdirSync } = await import("node:fs");
+    const onDisk = readdirSync("src/db/migrations").filter((f) => /^\d{4}_.*\.sql$/.test(f)).length;
     const [{ count: migs }] = await q(`select count(*)::int from schema_migrations`);
-    migs === 108 ? ok(`108 migrations recorded`) : bad("unexpected migration count", `${migs}`);
+    migs === onDisk
+      ? ok(`all ${onDisk} migrations applied`)
+      : bad("schema is not fully migrated", `${migs} applied, ${onDisk} on disk`);
 
     const uid = await q(`select prosrc from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='auth' and p.proname='uid'`);
     uid[0]?.prosrc?.includes("request.jwt.claims")
