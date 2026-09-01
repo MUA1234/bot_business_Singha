@@ -396,11 +396,30 @@ describe.skipIf(!enabled)("R1 accountable-owner integrity", () => {
     ).rejects.toThrow(/owner_required/i);
   });
 
-  it("needs_routing REQUIRES a reason and a department — unrouted work can never be silent", async () => {
+  it("needs_routing REQUIRES a reason, enforced through the RPC boundary", async () => {
     const id = await newItem(CO_A, "recommended");
+
+    // Since R1_DRAFT_010 the state column is RPC-only, so a direct UPDATE is refused BEFORE
+    // the routing constraint is reached - a stronger refusal than the one this test
+    // originally asserted.
+    await expect(db.query(`update management_items set state='needs_routing' where id=$1`, [id]))
+      .rejects.toThrow(/may only change through r1_draft_transition_item/i);
+
+    // Through the RPC, the reason is mandatory...
     await expect(
-      db.query(`update management_items set state='needs_routing' where id=$1`, [id]),
-    ).rejects.toThrow(/routing_reason/i);
+      db.query(`select r1_draft_transition_item($1,'recommended','needs_routing',$2,'user',null,'[]'::jsonb)`,
+        [id, MANAGER]),
+    ).rejects.toThrow(/requires a reason/i);
+
+    // ...and supplying it records the routing provenance.
+    const { rows } = await db.query(
+      `select r1_draft_transition_item($1,'recommended','needs_routing',$2,'user','no finance officer free','[]'::jsonb) as r`,
+      [id, MANAGER]);
+    expect(rows[0].r.result).toBe("transitioned");
+    const { rows: it2 } = await db.query(
+      `select routing_reason, routing_department from management_items where id=$1`, [id]);
+    expect(it2[0].routing_reason).toMatch(/no finance officer free/);
+    expect(it2[0].routing_department).toBe("finance");
   });
 
   it("REVOCATION re-routes truthfully and NEVER falls back to an administrator", async () => {
@@ -467,4 +486,74 @@ describe.skipIf(!enabled)("R1 accountable-owner integrity", () => {
 // Single connection for the whole file; closed once, after both describes.
 afterAll(async () => {
   await db?.end().catch(() => {});
+});
+
+// ── R1-F-002: the lifecycle is RPC-only ────────────────────────────────────────────────
+describe.skipIf(!enabled)("R1-F-002 — management item state is RPC-only", () => {
+  async function ownedItem(state = "observed") {
+    const id = randomUUID();
+    await db.query(
+      `insert into management_items (id, company_id, department, kind, subject_table, subject_id,
+                                     identity_key, state, accountable_owner_id)
+       values ($1,$2,'finance','k','t','1',$3,$4,$5)`,
+      [id, CO_A, `f002-${id}`, state, membershipOf.get(MANAGER)!],
+    );
+    await db.query(
+      `insert into management_item_evidence (company_id,item_id,source_table,source_id,facts)
+       values ($1,$2,'t',$3,'{}'::jsonb)`, [CO_A, id, `src-${id.slice(0, 8)}`]);
+    return id;
+  }
+
+  it("REFUSES a direct UPDATE of state by a capable manager — the bypass is closed", async () => {
+    const id = await ownedItem();
+    const msg = await refusalFor(MANAGER, `update management_items set state='verified' where id=$1`, [id]);
+    expect(msg).toMatch(/may only change through r1_draft_transition_item/i);
+
+    const { rows } = await db.query(`select state from management_items where id=$1`, [id]);
+    expect(rows[0].state).toBe("observed");
+  });
+
+  it("REFUSES a direct UPDATE even by the service context", async () => {
+    const id = await ownedItem();
+    await expect(db.query(`update management_items set state='verified' where id=$1`, [id]))
+      .rejects.toThrow(/may only change through r1_draft_transition_item/i);
+  });
+
+  it("a direct UPDATE writes NO transition row, so the audit trail cannot gain a hole", async () => {
+    const id = await ownedItem();
+    await db.query(`update management_items set state='verified' where id=$1`, [id]).catch(() => {});
+    const { rows } = await db.query(
+      `select count(*)::int as n from management_item_transitions where item_id=$1`, [id]);
+    expect(rows[0].n).toBe(0);
+  });
+
+  it("the RPC still works, and it is the ONLY way through", async () => {
+    const id = await ownedItem();
+    const { rows } = await db.query(
+      `select r1_draft_transition_item($1,'observed','understood',$2,'user',null,'[]'::jsonb) as r`,
+      [id, MANAGER]);
+    expect(rows[0].r.result).toBe("transitioned");
+    const { rows: st } = await db.query(`select state from management_items where id=$1`, [id]);
+    expect(st[0].state).toBe("understood");
+  });
+
+  it("the token is BURNED: a second direct update in the same transaction is still refused", async () => {
+    const id = await ownedItem();
+    await db.query("begin");
+    try {
+      await db.query(`select r1_draft_transition_item($1,'observed','understood',$2,'user',null,'[]'::jsonb)`,
+        [id, MANAGER]);
+      // The RPC's token authorised exactly one write; a follow-up direct update must fail.
+      await expect(db.query(`update management_items set state='prioritised' where id=$1`, [id]))
+        .rejects.toThrow(/may only change through/i);
+    } finally {
+      await db.query("rollback");
+    }
+  });
+
+  it("NON-state columns remain directly updatable by a capable manager", async () => {
+    const id = await ownedItem();
+    await expect(db.query(`update management_items set monitoring_state='on_track' where id=$1`, [id]))
+      .resolves.toBeTruthy();
+  });
 });
