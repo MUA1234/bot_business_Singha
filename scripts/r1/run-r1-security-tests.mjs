@@ -76,11 +76,12 @@ try {
     env: { ...process.env, DATABASE_URL: URL, R1_DRAFT_CONFIRM: "disposable-local-only" },
   });
 
-  console.log("▶ running R1 security tests …");
+  console.log("▶ running R1 security + adapter tests …");
   run("node", [
     "node_modules/vitest/vitest.mjs", "run",
     "-c", "vitest.integration.config.ts",
     "tests/integration/r1-security-baseline.test.ts",
+    "tests/integration/r1-adapter-ingest.test.ts",
   ], { env: { ...process.env, DATABASE_URL: URL, R1_DRAFT_CONFIRM: "disposable-local-only" } });
 } catch {
   code = 1;

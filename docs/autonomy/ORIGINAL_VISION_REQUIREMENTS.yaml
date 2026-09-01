@@ -2273,24 +2273,24 @@ requirements:
     phase: recovery-r4
     priority: P0
     dependencies: [AIM-001, FOUND-004, KRN-002, KRN-003]
-    status: absent
+    status: implementation_in_progress
     gap: Today the loop is two ad-hoc call sites (src/app/app/command/analyze/actions.ts and src/app/api/cron/ai-monitor/route.ts). planFromObservation and the authority engine are reusable, but there is no kernel, no case state machine and no registry.
     feature_flag: none
     runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: none
+    database_evidence: src/db/draft-migrations-r1/R1_DRAFT_001..008 (QUARANTINED drafts - applied to no hosted database)
+    service_evidence: src/kernel/lifecycle.ts (16 states, transition map); src/kernel/invariants.ts; src/kernel/interpretation.ts
     ui_evidence: none
-    test_evidence: none
-    security_evidence: none
+    test_evidence: tests/kernel/lifecycle.test.ts; tests/kernel/invariants.test.ts; tests/kernel/interpretation.test.ts; tests/integration/r1-draft-schema.test.ts (31 live)
+    security_evidence: capability-aware RLS matrix (R1_DRAFT_007) + accountable-owner composite FK and assignment guard (R1_DRAFT_008); 30 live role tests in tests/integration/r1-security-baseline.test.ts
     audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    last_verified_sha: 5962a14
+    last_verified_at: 2026-09-02
     authority_restrictions: The kernel may act unattended ONLY within automatic authority per owner decision D-9; every higher level stops at the deterministic authority ladder and requires a recorded human decision.
     privacy_restrictions: Context packs are company-scoped and bounded; untrusted external content is fenced and labelled and can never instruct the kernel; no cross-company data may enter a pack.
     acceptance_scenarios: A condition detected in one domain drives a case through every state to verified with an audit trail; adding a second domain changes no kernel file (proven by diff); a model outage degrades the loop to deterministic rules instead of stopping it.
     owner_gate: owner approval of the target architecture (granted 2026-09-02, D-10) plus phase gate — implementation is NOT authorised before R4
     blocker: R2 line reconciliation and R3 domain-service seam
-    residual_risks: If built before the domain-service seam exists, the kernel will re-implement page queries and become a thirteenth silo.
+    residual_risks: NO RUNTIME ENTRYPOINT: nothing in the running application invokes the kernel yet, so this cannot be locally_verified. Migrations are quarantined drafts with no assigned numbers pending PR-F-001/PR-F-004. Recommendation, approval and presentation are checkpoints 4-5.
     verified_local: no
     verified_staging: no
     verified_production: no
@@ -2303,24 +2303,24 @@ requirements:
     phase: recovery-r4
     priority: P0
     dependencies: [KRN-001]
-    status: absent
+    status: implementation_in_progress
     gap: PR-F-006 — exactly ONE signal class is observed (wa_conversations, by /api/cron/ai-monitor). Every domain detector already exists as a tested pure function (renewals, exceptions, objective-status, forecast, ageing, budget-vs-actual, capacity, three-way match, availability) and NONE reaches the loop.
     feature_flag: none
     runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: none
+    database_evidence: src/db/draft-migrations-r1/R1_DRAFT_005_observation_sources (QUARANTINED draft)
+    service_evidence: src/kernel/adapters/{finance,workforce,operations,crm,system-health}.ts wrapping the existing tested detectors; src/kernel/adapters/index.ts registry; src/kernel/observation.ts contract; src/kernel/ingest.ts
     ui_evidence: none
-    test_evidence: none
-    security_evidence: none
+    test_evidence: tests/kernel/adapters.test.ts (41); tests/integration/r1-adapter-ingest.test.ts (6 live)
+    security_evidence: company identity resolved from the scan context and never from a payload; sensitive-fact keys refused; minimum-safe-summary bands instead of amounts, names, message bodies or config values
     audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    last_verified_sha: 5962a14
+    last_verified_at: 2026-09-02
     authority_restrictions: A detector observes and reports; it may never create a case, task or action itself.
     privacy_restrictions: Observations carry evidence references, not copied personal content; people-related sources obey the WRK-006 fairness and visibility model.
     acceptance_scenarios: An overdue invoice, an expiring vehicle document and an inbound message each produce an observation through the same contract; a scan that throws is recorded as a scan failure and the health surface reports the domain as UNOBSERVED rather than silently returning zero.
     owner_gate: phase gate — not authorised before R4
     blocker: KRN-001
-    residual_risks: Detector cadence is the main recurring-cost lever; an imprecise detector trains the owner to ignore alerts, so each needs a precision measurement (see IMP-001).
+    residual_risks: Five of the twelve target domains are covered (finance, workforce, operations, crm, system). NO RUNTIME ENTRYPOINT: no scheduler or route invokes a scan yet, and no loader reads the rows the adapters consume - the detectors are driven by injected data in tests. Event-triggered intake is declared for CRM but not wired.
     verified_local: no
     verified_staging: no
     verified_production: no
@@ -2333,24 +2333,24 @@ requirements:
     phase: recovery-r4
     priority: P0
     dependencies: [KRN-001, FOUND-004, FOUND-005]
-    status: absent
+    status: foundation_only
     gap: planFromObservation emits suggestedActions as free text for a human to read. Existing server actions already validate with Zod, check capability and write audit, so registration is largely wiring rather than rewriting.
     feature_flag: none
     runtime_entrypoint: none
     database_evidence: none
-    service_evidence: none
+    service_evidence: src/kernel/types.ts DomainAction contract; src/kernel/invariants.ts assertActionRegistered / assertInternalOnly; adapters emit an action CATEGORY, never an executable action id
     ui_evidence: none
-    test_evidence: none
+    test_evidence: tests/kernel/invariants.test.ts INV-4/INV-5; tests/kernel/adapters.test.ts category assertions
     security_evidence: none
     audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    last_verified_sha: 5962a14
+    last_verified_at: 2026-09-02
     authority_restrictions: Each entry declares its capability and authority floor; the kernel cannot execute above automatic authority without a recorded human decision.
     privacy_restrictions: An action's input schema must not accept raw untrusted text as an authority, identity or scope input.
     acceptance_scenarios: A recommendation the catalogue cannot express becomes a clarification for a human, never an improvised action; an attempt to execute an unregistered action is refused and audited.
     owner_gate: phase gate — not authorised before R4
     blocker: KRN-001
-    residual_risks: none
+    residual_risks: The contract and its guards exist and are tested, but NO ACTION IS REGISTERED and nothing executes one. A catalogue with no entries is a foundation, not a capability. Checkpoint 4.
     verified_local: no
     verified_staging: no
     verified_production: no
