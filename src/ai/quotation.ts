@@ -55,6 +55,11 @@ STRICT RULES:
 
 Set "ready_to_quote": true only once you have a name, an address, and at least one item with a quantity.
 Put every item the customer has mentioned so far (with best-known quantity) into "items".
+When a requested item clearly corresponds to one of "known_product_names", use that name VERBATIM as
+the item's "description" (e.g. a customer asking for "10 bags of cement" when the catalogue lists
+"Cement Bag 50kg" must produce description "Cement Bag 50kg"). This is what lets the deterministic
+pricing step match the catalogue; a paraphrase silently forces the order into manual pricing. If an
+item matches nothing in the list, describe it in the customer's own words instead of guessing.
 Carry forward everything already in "collected_so_far" — re-state a known name/address/item in your
 answer rather than dropping it, and NEVER ask again for a detail that is already in "collected_so_far".
 Put still-missing fields into "needs_more_info" (e.g. "address", "item quantity").
@@ -130,7 +135,7 @@ export interface QuotationTurnInput {
 }
 
 /** Prompt version — bump whenever SYSTEM_PROMPT or the output contract changes. */
-export const QUOTATION_PROMPT_VERSION = "quotation-1.1";
+export const QUOTATION_PROMPT_VERSION = "quotation-1.2";
 
 export async function runQuotationTurn(
   transport: CompletionTransport,
