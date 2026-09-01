@@ -18,6 +18,7 @@ import { enqueueOutbox } from "@/lib/outbox-enqueue";
 import { drainOutbox } from "@/events/outbox-drain";
 import { createQuotationFromItems, tryFinalizeAndSend } from "@/lib/quotations";
 import { DEFAULT_COMPANY_ID } from "@/lib/constants";
+import { log } from "@/lib/log";
 
 interface ConvState {
   name?: string | null;
@@ -117,7 +118,16 @@ export async function handleCustomerMessage(input: {
   const awaitingAlready = status === "awaiting_price";
 
   if (!turn.ok) {
-    // Graceful fallback if the model is unavailable — never drop the customer.
+    // Graceful fallback if the model is unavailable — never drop the customer. LOG THE REASON:
+    // a silent fallback here previously hid a schema mismatch that stopped every quotation from
+    // being created while the conversation still looked healthy from the outside.
+    log("error", "quotation turn failed", {
+      event: "wa.turn_failed",
+      conversationId,
+      companyId,
+      waMessageId: input.waMessageId,
+      reason: turn.reason,
+    });
     reply = "Thanks for your message! One of our team will get back to you shortly.";
   } else {
     // Merge collected details.

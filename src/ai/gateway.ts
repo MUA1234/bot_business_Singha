@@ -34,6 +34,13 @@ export interface CompletionRequest {
   system: string;
   user: string;
   maxTokens: number;
+  /**
+   * Optional provider-enforced output contract. When set, the transport asks the provider for
+   * strict JSON-schema structured output, so the response shape cannot drift from the Zod
+   * contract. Prompt wording alone is not a guarantee — a drifted key name silently discarded
+   * the collected customer name in production (see ai/quotation.ts `normalizeTurnShape`).
+   */
+  jsonSchema?: { name: string; schema: Record<string, unknown> };
 }
 export interface CompletionResponse {
   text: string;

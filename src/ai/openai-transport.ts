@@ -61,7 +61,11 @@ export function makeOpenAiTransport(opts: OpenAiTransportOptions = {}): Completi
             // JSON mode (text.format json_object) requires the word "json" in the input.
             input: `${req.user}\n\nReturn the result as a single json object.`,
             max_output_tokens: req.maxTokens,
-            text: { format: { type: "json_object" } },
+            // A caller-supplied schema is enforced by the provider (strict structured output);
+            // otherwise fall back to plain JSON mode.
+            text: req.jsonSchema
+              ? { format: { type: "json_schema", name: req.jsonSchema.name, strict: true, schema: req.jsonSchema.schema } }
+              : { format: { type: "json_object" } },
           }),
         });
       } finally {
