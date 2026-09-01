@@ -100,7 +100,7 @@ create unique index if not exists management_item_decisions_one_per_actor
 
 do $$
 begin
-  if to_regproc('public.has_company_access(uuid)') is not null then
+  if to_regprocedure('public.has_company_access(uuid)') is not null then
     execute 'alter table management_item_decisions enable row level security';
     begin
       execute 'create policy management_item_decisions_read on management_item_decisions

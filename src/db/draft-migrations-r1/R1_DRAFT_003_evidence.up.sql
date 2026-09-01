@@ -103,7 +103,7 @@ create trigger management_items_require_evidence
 
 do $$
 begin
-  if to_regproc('public.has_company_access(uuid)') is not null then
+  if to_regprocedure('public.has_company_access(uuid)') is not null then
     execute 'alter table management_item_evidence enable row level security';
     begin
       execute 'create policy management_item_evidence_read on management_item_evidence

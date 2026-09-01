@@ -166,7 +166,7 @@ begin
   -- Company-scoped read isolation, matching the existing pattern. Only when the helper
   -- exists; the reconciled numbered migration must additionally add the capability-gated
   -- write matrix and composite (company_id, id) FKs used elsewhere in this repository.
-  if to_regproc('public.has_company_access(uuid)') is not null then
+  if to_regprocedure('public.has_company_access(uuid)') is not null then
     execute 'alter table management_items enable row level security';
     begin
       execute 'create policy management_items_read on management_items

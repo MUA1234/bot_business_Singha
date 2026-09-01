@@ -29,10 +29,21 @@ let db2: pg.Client;
 /** Insert an item directly (bypassing the kernel) so transitions can be tested in isolation. */
 async function newItem(company = CO_A, state = "observed", kind = "receivable_overdue") {
   const id = randomUUID();
+  // Working states require an accountable owner (unit 008). Standalone has no memberships
+  // table, so any uuid satisfies the shape; the AUTHORISATION of that owner is proven in
+  // tests/integration/r1-security-baseline.test.ts against the real identity schema.
+  const owner = randomUUID();
+  const needsOwner = ["assigned", "monitoring", "escalated", "verifying", "verified"].includes(state);
+  const needsRouting = state === "needs_routing";
   await db.query(
-    `insert into management_items (id, company_id, department, kind, subject_table, subject_id, identity_key, state)
-     values ($1,$2,'finance',$3,'customer_invoices',$4,$5,$6)`,
-    [id, company, kind, `inv-${id.slice(0, 8)}`, `${company}:${kind}:${id}`, state],
+    `insert into management_items (id, company_id, department, kind, subject_table, subject_id,
+                                   identity_key, state, accountable_owner_id,
+                                   routing_department, routing_reason)
+     values ($1,$2,'finance',$3,'customer_invoices',$4,$5,$6,$7,$8,$9)`,
+    [id, company, kind, `inv-${id.slice(0, 8)}`, `${company}:${kind}:${id}`, state,
+     needsOwner ? owner : null,
+     needsRouting ? "finance" : null,
+     needsRouting ? "seeded unrouted" : null],
   );
   return id;
 }
@@ -77,7 +88,7 @@ describe.skipIf(!enabled)("R1 draft schema — live disposable PostgreSQL", () =
 
   it("records the draft units in its OWN ledger and never in schema_migrations", async () => {
     const { rows } = await db.query(`select count(*)::int as n from r1_draft_migrations`);
-    expect(rows[0].n).toBe(6);
+    expect(rows[0].n).toBe(8);
 
     // The strongest possible form of the assertion: applying every draft unit did not even
     // CREATE the production ledger, so it cannot have written to it. (If a future run does
@@ -106,6 +117,16 @@ describe.skipIf(!enabled)("R1 draft schema — live disposable PostgreSQL", () =
       ["assigned", "monitoring"], ["monitoring", "verifying"], ["verifying", "verified"],
     ] as const;
     for (const [from, to] of path) {
+      // Assignment requires an accountable owner to have been CHOSEN first (unit 008) —
+      // the loop cannot hand work to nobody. Standalone has no memberships table, so the
+      // SHAPE is what is under test here; the AUTHORISATION of that owner is proven in
+      // tests/integration/r1-security-baseline.test.ts against the real identity schema.
+      if (to === "assigned") {
+        await db.query(
+          "update management_items set accountable_owner_id=$2 where id=$1",
+          [id, randomUUID()],
+        );
+      }
       const r = await transition(db, id, from, to);
       expect(r.rows[0].r.result, `${from} -> ${to}`).toBe("transitioned");
     }
@@ -145,14 +166,22 @@ describe.skipIf(!enabled)("R1 draft schema — live disposable PostgreSQL", () =
   it("routes to needs_routing when no assignee can be recommended (R1-D-3)", async () => {
     const id = await newItem(CO_A, "recommended");
     await addEvidence(id);
-    const r = await transition(db, id, "recommended", "needs_routing");
+    // The transition itself must carry the reason (unit 008): R1-D-3 forbids unrouted work
+    // sitting silently, so a follow-up UPDATE cannot be the place it is recorded.
+    await expect(transition(db, id, "recommended", "needs_routing", null))
+      .rejects.toThrow(/requires a reason/i);
+
+    const r = await transition(db, id, "recommended", "needs_routing",
+      "no available finance officer with the required capability");
     expect(r.rows[0].r.result).toBe("transitioned");
-    await db.query(
-      `update management_items set routing_department='finance', routing_reason=$2, routing_requested_at=now() where id=$1`,
-      [id, "no available finance officer with the required capability"],
-    );
-    const { rows } = await db.query(`select routing_reason from management_items where id=$1`, [id]);
+
+    const { rows } = await db.query(
+      `select routing_reason, routing_department, routing_requested_at, accountable_owner_id
+         from management_items where id=$1`, [id]);
     expect(rows[0].routing_reason).toMatch(/no available finance officer/);
+    expect(rows[0].routing_department).toBe("finance");   // defaulted from the item department
+    expect(rows[0].routing_requested_at).not.toBeNull();
+    expect(rows[0].accountable_owner_id).toBeNull();       // released, not left stale
   });
 
   // ── concurrency, with two REAL connections ───────────────────────────────────────────

@@ -76,7 +76,7 @@ begin
     end;
   end if;
 
-  if to_regproc('public.has_company_access(uuid)') is not null then
+  if to_regprocedure('public.has_company_access(uuid)') is not null then
     execute 'alter table observation_sources enable row level security';
     begin
       execute 'create policy observation_sources_read on observation_sources

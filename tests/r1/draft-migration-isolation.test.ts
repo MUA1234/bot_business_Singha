@@ -43,9 +43,10 @@ describe("quarantine 1 — the draft directory is not the production directory",
     expect(prod.filter((f) => f.startsWith("R1_DRAFT_"))).toEqual([]);
   });
 
-  it("the draft directory exists and holds the six R1 units", () => {
+  it("the draft directory exists and holds the R1 units", () => {
     expect(existsSync(DRAFT_DIR)).toBe(true);
-    expect(listDraftUnits()).toHaveLength(6);
+    // 001-006 schema (checkpoint 2) + 007 RLS matrix + 008 accountable owner (security baseline).
+    expect(listDraftUnits()).toHaveLength(8);
   });
 });
 
