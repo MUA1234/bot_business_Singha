@@ -1,9 +1,26 @@
 # 6. Target AI Management OS architecture
 
-> This is a **target for owner approval**, not an implementation plan to begin. It is
-> deliberately built from what already exists: every box below is either an existing
-> component, an existing component with a defined new interface, or a small number of
-> genuinely new components. Nothing working is discarded.
+> **APPROVED by the owner 2026-09-02 (D-10).** Implementation is **not** authorised —
+> Phase R0 only. It is deliberately built from what already exists: every box below is
+> either an existing component, an existing component with a defined new interface, or a
+> small number of genuinely new components. Nothing working is discarded.
+>
+> **Amendments applied 2026-09-02 (owner decisions and Original Vision Reconciliation):**
+>
+> 1. **Customer-facing AI agents are a separate, connected subsystem that this OS
+>    supervises through explicit adapters** (CSA-001, CSA-002). §6.6 previously listed
+>    them only as out of scope. They remain out of scope *to build* — legal and privacy
+>    gated — and are in scope *to supervise*. The adapter boundary is the control.
+> 2. **The spatial workspace is the intended primary experience** (D-5, UX-001), not an
+>    optional shell, and must always preserve a flat 2D fallback, reduced-motion mode,
+>    mobile stacked mode and a rollback flag. It may not become production-default until
+>    it is connected to real management cases and passes human usability testing.
+> 3. **Vercel is retained as preview-only** (D-1), not retired as §10.5 proposed. It must
+>    never run a competing production scheduler or receive the production Meta webhook.
+> 4. **GPS, CCTV and attendance are future-gated, not deleted** (GTD-001…003).
+> 5. The kernel, its observation sources and its action catalogue now carry requirement
+>    IDs **KRN-001, KRN-002, KRN-003**; work allocation is **WRK-005/WRK-007** plus the
+>    marketplace **WMP-001/002/003**; learning is **AIM-008, IMP-001/002/003**.
 
 ## 6.1 The one principle
 
@@ -167,9 +184,21 @@ Restated because the target must not be read as licence to relax them:
   external systems are data. The kernel fences them; they cannot instruct it.
 - **Company scope is absolute.** Every kernel record carries `company_id`; the RLS
   cutover (OF-012) must complete so isolation is enforced by the database.
-- **Gated capabilities stay gated.** GPS, CCTV, facial recognition, customer-facing AI
-  agents, the agent builder and multi-country features are **out of scope** and remain
-  behind legal/privacy review. The kernel must not be used as a route to build them.
+- **Gated capabilities stay gated — but are preserved, not deleted.** GPS (GTD-001), CCTV
+  (GTD-002), attendance devices (GTD-003), facial recognition, the agent builder and
+  multi-country features remain behind legal/privacy review and **must not be built**.
+  The kernel must not be used as a route to build them.
+- **Customer-facing AI agents are supervised, not absorbed** (CSA-001, CSA-002). They are
+  a separate subsystem; agent activity reaches the kernel **only** through an explicit
+  adapter, as observations. No code path may let the OS itself originate an autonomous
+  customer message. Shared canonical customer identity, controlled and scoped agent
+  memory, and always-available human handover are the three required controls.
+- **The autonomy ceiling is `automatic` authority** (D-9): create an internal task, send
+  an internal reminder, request a progress update, route an internal notification,
+  schedule a follow-up, escalate an overdue internal task under an approved playbook.
+  Customer messages, quotations with unconfirmed prices, payments, material journals,
+  contracts, permission changes, HR decisions, external commitments and irreversible
+  actions **always** require a human.
 - **Cost discipline.** No Redis, Kafka, queues or paid infrastructure. The kernel runs
   on the existing Postgres + scheduler + outbox spine. Model calls stay bounded by the
   existing model-gateway budget policy, and every kernel model call is metered (which
@@ -180,12 +209,13 @@ Restated because the target must not be read as licence to relax them:
 One origin, one scheduler, one webhook:
 
 ```
-   Meta webhook ──► Railway (singha-web, persistent process)
+   Meta webhook ──► Railway (singha-web, persistent process)   ◄── canonical (D-1)
                       ├── in-process scheduler: kernel scans, outbox drain,
                       │   follow-ups, escalation, digest
-                      └── Supabase (RLS enforced, RLS_READS/RLS_WRITES on)
+                      └── Supabase (RLS enforced, RLS_READS/RLS_WRITES on — D-4)
 
-   Vercel ── retired, or kept as a non-webhook preview environment only
+   Vercel ── PREVIEW ONLY (D-1). Never a production scheduler; never the production
+             Meta webhook. Currently 402 DEPLOYMENT_DISABLED (incident R0-F-001).
 ```
 
 Plus a **staging environment** (currently absent — OPS-004 is `blocked_owner`), because

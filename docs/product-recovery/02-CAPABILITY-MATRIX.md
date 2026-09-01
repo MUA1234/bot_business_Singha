@@ -1,5 +1,15 @@
 # 2. Original-vision capability matrix
 
+> **UPDATED 2026-09-02 by the Original Vision Reconciliation.** The register now holds
+> **110** requirements (was 90) across **27** groups (was 20), and every record carries a
+> **deployment axis** — `verified_local` / `verified_staging` / `verified_production`.
+> Current truth: **60 local, 0 staging, 0 production.** That axis exists because of this
+> document's central finding: `locally_verified` carried no deployment meaning, which is
+> how the register could report 60 verified requirements while the owner experienced a
+> quotation app. Twenty new requirement IDs preserve the owner's original vision — see
+> [14-VISION-RECONCILIATION.md](14-VISION-RECONCILIATION.md) for the full mapping and the
+> five-way separation (retained / adapt / missing / future-gated / incidents).
+>
 > **This is a mapping view, not a new register.**
 > `docs/autonomy/ORIGINAL_VISION_REQUIREMENTS.yaml` remains the single requirement
 > register and `docs/autonomy/OPEN_FINDINGS_REGISTER.md` the single findings store, as
@@ -98,16 +108,23 @@ the difference between an assistant and an operating system.
 
 ## 2.3 Register status roll-up (existing register, unmodified)
 
-| Status | Count |
-|---|---|
-| `locally_verified` | 60 |
-| `absent` | 18 |
-| `specified` | 5 |
-| `blocked_owner` | 4 |
-| `implementation_in_progress` | 1 |
-| `foundation_only` | 1 |
-| `deliberately_deferred` | 1 |
-| **`staging_verified` / `production_verified`** | **0** |
+| Status | Before (90) | **After reconciliation (110)** |
+|---|---|---|
+| `locally_verified` | 60 | **60** |
+| `absent` | 18 | **29** |
+| `specified` | 5 | **5** |
+| `blocked_owner` | 4 | **6** |
+| `deliberately_deferred` | 1 | **4** |
+| `implementation_in_progress` | 1 | **2** |
+| `foundation_only` | 1 | **2** |
+| `implemented_unverified` | 0 | **2** |
+| **`staging_verified` / `production_verified`** | **0** | **0** |
+
+The verified count did not move. Twenty requirements were **added**, not completed —
+nineteen of them describing work that does not exist, and two (`PRC-001` procurement,
+`FIN-009` accounting core) describing substantial shipped code that had **never held a
+requirement record** and is therefore `implemented_unverified` until behavioural evidence
+is assembled against those records.
 
 The register is unusually honest — it explicitly refuses a completion status without
 runtime, test and SHA evidence, and it records that "a schema contract, a feature flag,

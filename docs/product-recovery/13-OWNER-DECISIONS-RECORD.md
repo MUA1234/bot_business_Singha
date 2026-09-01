@@ -85,6 +85,35 @@ controls remain mandatory: Zod schema → deterministic authority rules → perm
 Configured credentials may be **used** but never printed, copied or committed. **Stop if
 an operation cannot be proven read-only.**
 
+## Supplementary instruction — Original Vision Reconciliation (2026-09-02)
+
+Issued after the R0 checkpoint. Documentation-only; R1 and implementation remain
+unauthorised.
+
+| Ruling | Effect |
+|---|---|
+| **Meta webhook change deferred** to later owner-controlled provider work | Removed from R1. Record that Railway is healthy and **exposes** the webhook route — but **do not claim inbound WhatsApp is operational**: Meta's callback destination and the Railway configuration are unverified. Meta verification must not block the vision reconciliation. |
+| **Railway remains canonical**; no contact with or change to Meta, Railway, Vercel or Supabase | Honoured — this checkpoint made no network call beyond the two read-only probes already recorded in R0. |
+| **Hosted migration state and exact deployed SHA remain open production gates** | Carried forward as PR-F-004 / R0-F-002 and PR-F-014 / R0-F-004. |
+| **Preserve twelve original requirements**, creating stable IDs where nothing covers them | 20 new IDs across 7 new groups. See [14-VISION-RECONCILIATION.md](14-VISION-RECONCILIATION.md). |
+| **Never mark implemented or verified without behavioural evidence** | Verified count unchanged at 60. Two records describing shipped code are `implemented_unverified`, not complete. |
+| **Do not weaken an audit because an evidence SHA is invalid; register the defect** | Honoured. The rule was **not** relaxed: IP-001's evidence was re-run at `f86eb97` and the SHA replaced with the commit actually verified; the defect is recorded in the register and as R0-F-005. |
+| **Do not let WhatsApp sales workflows define the architecture** | Sales is recorded as one managed operational channel (COM-001) at the same altitude as procurement, fleet or legal. |
+
+### New gates created by this reconciliation
+
+| Gate | Requirement | Why |
+|---|---|---|
+| Approve the points/credit model, its inputs and its visibility | **WMP-002** | Must not become punitive surveillance or an uncontrolled social-credit system |
+| Approve the marketplace model and external-party exposure | **WMP-001** | External consultants must never see internal staff data |
+| Approve the fairness and anti-surveillance guardrails **first** | **WMP-003** | Registered as a **blocker on** WMP-002, not a sibling |
+| Approve the private-vs-manager-visible coaching model | **WRK-004, WRK-006, AIM-009** | Inherited privacy review; guidance visibility must respect privacy, policy and manager authority |
+| Approve the multilingual specification | **LNG-001, LNG-002** | Meaning, permissions and audit evidence must be language-invariant |
+| Legal and privacy review before any customer-facing agent work | **CSA-001, CSA-002** | Remains prohibited to build; permitted to supervise via adapters |
+| Notices, retention policy and legal review | **GTD-001/002/003** | GPS, CCTV, attendance devices — future-gated, preserved, not deleted. Facial recognition needs **separate** written approval and is excluded |
+| Owner gate before any customer-facing campaign execution | **MKT-001** | Campaign sending is an external commitment surface |
+| Spatial must not become production-default | **UX-001** (D-5) | Until connected to real management cases and passing human usability testing |
+
 ## Effect on the audit's own recommendations
 
 Two audit recommendations are **superseded** by the owner's ruling and must not be acted

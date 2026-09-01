@@ -25,6 +25,17 @@ import { loadRegister, validateRequirement, COMPLETE_STATUSES, groupOf } from ".
 const APPROVED_GROUPS = [
   "FOUND", "INT", "MEM", "AIM", "GOV", "WRK", "PRJ", "FIN", "AST", "CRM",
   "SCH", "LNG", "COM", "CTL", "MOD", "IMP", "RSK", "MOB", "OPS", "IP",
+  // Approved by the owner's Original Vision Reconciliation instruction, 2026-09-02, which directed
+  // creating stable requirement IDs where no existing record accurately covered an original
+  // requirement. Each group was added only after confirming the register had NO coverage:
+  //   KRN — the reusable management kernel (the loop itself)
+  //   WMP — work marketplace, opportunity/bidding window and its fairness guardrails
+  //   CSA — customer-facing AI agents as a SEPARATE subsystem supervised through adapters
+  //   PRC — procurement, suppliers and inventory (implemented in code, never registered)
+  //   MKT — marketing and campaigns (implemented thinly, never registered)
+  //   UX  — primary experience: spatial workspace with flat/reduced-motion/mobile fallbacks
+  //   GTD — GPS, CCTV and attendance device integration, preserved as FUTURE owner-gated
+  "KRN", "WMP", "CSA", "PRC", "MKT", "UX", "GTD",
 ];
 
 /** Committed snapshot of known ids. A requirement may not vanish without an owner decision. */

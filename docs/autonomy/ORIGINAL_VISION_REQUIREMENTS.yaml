@@ -12,6 +12,25 @@
 #   * locally_verified REQUIRES runtime_entrypoint + test_evidence + last_verified_sha.
 #   * A schema contract, a feature flag, a type, a doc, a prompt or a fixture is NOT implementation.
 #   * Percentages are never evidence.
+#   * A completion status must cite a SHA that EXISTS in this repository. If it does not, the
+#     evidence is re-run and the SHA replaced with the commit actually verified — the rule is never
+#     relaxed to make the audit pass. See IP-001 / defect R0-F-005 for a worked example.
+#
+# DEPLOYMENT AXIS (added 2026-09-02, Original Vision Reconciliation). Every record carries
+# `verified_local`, `verified_staging` and `verified_production` (yes|no). These exist because the
+# product-recovery audit found the register could report 60 requirements verified while the owner
+# experienced a far narrower product: `locally_verified` carries NO deployment meaning. Current
+# truth: 60 local, ZERO staging, ZERO production. `verified_local` is derived from the status;
+# staging and production are `no` for every record until OPS-004 and OPS-008 provide a real
+# environment and a monitored pilot.
+#
+# EXTENDED FIELDS. Records added by the 2026-09-02 reconciliation additionally carry `intent`
+# (exact original intent), `gap` (existing implementation or what is missing),
+# `authority_restrictions`, `privacy_restrictions` and `acceptance_scenarios` (behavioural, so a
+# future completion claim can be tested rather than asserted). Backfilling these five fields across
+# the 90 pre-existing records is OUTSTANDING work: they cannot be written honestly without
+# re-reading each requirement's implementation, and inventing them would be the exact failure this
+# register exists to prevent.
 #
 # POPULATION STATE: all owner-approved groups are expanded into individual records. `_pending_population`
 # is a HARD AUDIT FAILURE — see scripts/autonomy/audit-requirements.mjs. Statuses are set by
@@ -41,6 +60,9 @@ requirements:
     owner_gate: hosted migration application
     blocker: none
     residual_risks: The sweeper has no processor wired yet (FOUND-003), so events dead-letter as no_processor by design.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   - id: FOUND-002
     title: Worker fairness by eligibility rather than ordering
@@ -63,6 +85,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: none known
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   - id: FOUND-003
     title: Production-reachable staff and finance intake
@@ -85,6 +110,9 @@ requirements:
     owner_gate: a model provider credential for finance classification; mapping each receiving WhatsApp number to its company in channel_accounts; granting operations.inbound.review to the people who should work the queue; hosted migration application
     blocker: no model provider is configured for finance classification
     residual_risks: BLOCKED by OF-016 as well as by the classifier. A finance message scored as a possible duplicate now pauses REVERSIBLY (0083) instead of being terminally discarded, but there is no resolution RPC, no review screen and no write grant — so a real payment can pause in awaiting_information with nothing in the product able to move it again, and the only page rendering financial events reads exclusively from approval_requests. That is a material blocker recorded rather than repaired, because this package's two correction loops are spent. R1 §7's extreme end-to-end run proved the rest of the chain end to end with a classification FIXTURE, and in doing so found OF-013 — a system-submitted approval request could not be created at all, so every captured finance message that reached the approval branch dead-lettered without reaching an approver. That is fixed (migration 0081). Everything repository-controlled is implemented and verified locally. Marked blocked_owner rather than verified because the classifier that decides whether a staff message describes a financial event has no provider, so TODAY a staff message reaches the review queue rather than finance capture. That is the correct fail-closed behaviour and it is a real improvement on being asked for a delivery address, but it is not the requirement's full outcome, and the remaining step is an owner action rather than code. Two further owner actions matter: until a receiving number is mapped in channel_accounts the documented single-tenant bridge is what attributes messages (safe while exactly one company exists, and it stops applying the moment a second one does), and nobody can work the queue until someone is granted operations.inbound.review. A message that cannot be attributed to any company has no company-scoped queue to land in by construction; it is persisted and counted in health only.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
 
   - id: FOUND-004
     title: Deterministic company-scoped authority engine
@@ -107,6 +135,9 @@ requirements:
     owner_gate: sign-off on the impact-to-level mapping, or replacement by authority_rules-driven mapping
     blocker: none
     residual_risks: Floor inputs derive from the same model output; callers must supply AuthorityContext or the fail-closed fallback applies.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   - id: FOUND-005
     title: AI trust boundary — untrusted output cannot decide identity, scope or authority
@@ -129,6 +160,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: runQuotationTurn takes no CostLedger, so customer-facing model calls are absent from ai_runs (MOD-002).
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   - id: FOUND-006
     title: Service-role and RLS read/write cutover
@@ -151,6 +185,9 @@ requirements:
     owner_gate: flag activation (RLS_READS/RLS_WRITES remain default-OFF pending staging UAT; the cutover is verified only when flags are explicitly enabled)
     blocker: none
     residual_risks: OF-017 remains an unresolved topological boundary: under the PostgREST shared-login model `session_user` is `authenticator`, a member of both `authenticated` and `service_role`, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. Remediation requires a separate connection identity for the service backend — an owner infrastructure decision, pinned by tests. OF-014 residual also remains: a caller with arbitrary SQL as `authenticated` can forge `request.jwt.claims` to impersonate any user to RLS policies. These are outside the supported client boundary; see docs/architecture-v2/FOUND_006_TRUST_MODEL.md §5.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   # ── AIM — AI-management runtime ─────────────────────────────────────────────────────────────
   - id: AIM-001
@@ -174,6 +211,9 @@ requirements:
     owner_gate: hosted migration application
     blocker: none
     residual_risks: none known
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   - id: AIM-002
     title: Task-level deduplication
@@ -196,6 +236,9 @@ requirements:
     owner_gate: hosted migration application
     blocker: none
     residual_risks: Exact identity only matches an identical normalised purpose, so a model that paraphrases its own title still produces a second task — that is concern (2) of migration 0071 (semantic similarity), which is advisory by design and has no producer yet, so task_duplicate_suggestions is never populated. THE OCCURRENCE WINDOW IS A UTC DATE, and an independent review was right that describing this as a midnight-boundary artefact understated it - the ai-monitor cron re-analyses a conversation on every new inbound message, so an unresolved follow-up on a thread that stays active is recreated ONCE PER UTC DAY. That is deliberate (recurring work is legitimately repeated) but it is a real cost against the stated outcome "staff do not receive the same task repeatedly", and a shorter or purpose-specific window is unbuilt. Within ONE analysis, repeats of the same title are given distinct identities on purpose: a model that lists two tasks has proposed two, and merging them discarded the second note. The manual command-centre path scopes identity to the submitted content: a free-text update names no stable entity, and merging on title alone would fuse distinct work.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   - id: AIM-003
     title: Truthful task routing
@@ -218,6 +261,9 @@ requirements:
     owner_gate: hosted migration application
     blocker: none
     residual_risks: UNACCEPTED, pending the owner's acceptance of R1. OF-007 — a service-role caller asserting actor_source='human' by naming a real member — is FIXED: migration 0078 removed the spoofable route_task entirely, split the human path (authenticated only, actor derived from auth.uid()) from the AI and system paths (service-only, source fixed by the function), and enforces the split with a fail-closed trigger; migration 0082 additionally stops an automated caller from deactivating or deleting a standing human decision to get past it, which an independent review demonstrated was the same outcome by a different door. The requirement nonetheless stays implementation_in_progress rather than being restored to verified on this package's own say-so — it was taken off verified before any R1 code, and only the owner's acceptance of R1 puts it back. No task is ever ASSIGNED BY THE SYSTEM, because no availability, workload or capability recommender exists yet (WRK-002/WRK-005 are unbuilt) — the assigned state itself now works and is tested, but nothing proposes an assignee. Captured work therefore terminates in needs_routing or manual_review, which is truthful but not yet useful: there is no queue UI a person opens to work that list, and no approver is notified. Inventing an eligible assignee was rejected as the failure this program exists to stop. An independent review found the earlier claim "every AI-created task terminates in a truthful routing state" was false because the WhatsApp thread-analysis path routed nothing at all; both production paths now route, through one shared implementation.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
 
   - id: AIM-004
     title: Task Intelligence Profile
@@ -240,6 +286,9 @@ requirements:
     owner_gate: flag activation
     blocker: none
     residual_risks: Contract-only; a schema is not an implementation.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
 
   - id: AIM-005
     title: Decision-path ladder
@@ -262,6 +311,9 @@ requirements:
     owner_gate: flag activation
     blocker: none
     residual_risks: Contract-only.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
 
   - id: AIM-006
     title: Team formation and resource recommendation
@@ -284,6 +336,9 @@ requirements:
     owner_gate: flag activation
     blocker: none
     residual_risks: The observation's involved[] people/suppliers are collected then discarded.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
 
   - id: AIM-007
     title: AI Guide next actions
@@ -306,6 +361,9 @@ requirements:
     owner_gate: flag activation
     blocker: none
     residual_risks: Automatic persistence of pipeline suggestedActions is not wired; Ask-AI interactive coaching UI is not built; senior-task-member seniority is enforced by capability rather than task role.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   - id: AIM-008
     title: Outcome measurement and improvement loop
@@ -328,6 +386,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Cases are write-once, so accuracy can never be measured.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
 
   # ── MEM / INT — organizational memory and integration gateway ───────────────────────────────
   - id: MEM-001
@@ -351,6 +412,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: The memory surface is read-only; future analysis producers will consume this data through deterministic contracts rather than free text. No policy/case content retrieval is wired yet.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   - id: INT-001
     title: Integration Gateway and connector registry
@@ -373,6 +437,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Signature verification and nonce-store enforcement are data-model and registry only; the actual runtime inbound/outbound adapter enforcement remains future work. Only the WhatsApp webhook exists today; email is a 501 stub.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   # ── AST / LNG — specified programs, not started ─────────────────────────────────────────────
   - id: AST-001
@@ -396,6 +463,9 @@ requirements:
     owner_gate: approval of the specification before implementation
     blocker: none
     residual_risks: Confirmed by branch reconciliation to have never existed on any branch or PR.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
 
   - id: LNG-001
     title: Multilingual English / Sinhala / Tamil
@@ -418,6 +488,9 @@ requirements:
     owner_gate: approval of the specification before implementation
     blocker: none
     residual_risks: Confirmed by branch reconciliation to have never existed on any branch or PR.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
 
   # ── MOD — model routing and usage ───────────────────────────────────────────────────────────
   - id: MOD-001
@@ -441,6 +514,9 @@ requirements:
     owner_gate: ANTHROPIC_API_KEY supplied privately via local/staging secret configuration
     blocker: no provider key configured
     residual_risks: Until a key exists, live-model quality is unmeasured and must not be reported.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
 
   - id: MOD-002
     title: Customer-facing model calls recorded in the cost ledger
@@ -463,6 +539,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: AI cost figure on the admin health page now includes customer-facing runs when they occur.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   - id: MOD-003
     title: Provider-neutral Model Gateway and Policy Router
@@ -485,6 +564,9 @@ requirements:
     owner_gate: approved provider list and credentials supplied privately; no unapproved provider may be called
     blocker: none for the repository-controlled design; live provider quality stays blocked_owner until credentials exist
     residual_risks: Live-provider quality/cost accuracy remains blocked_owner until credentials configured. MOD-002/OF-011 still means runQuotationTurn has no CostLedger, so the highest-volume model call is not yet budget-accounted and the extraction budget path does not cover it.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   # ── IP — anti-clone and IP protection ───────────────────────────────────────────────────────
   - id: IP-001
@@ -503,11 +585,14 @@ requirements:
     test_evidence: tests/autonomy/ip-boundary.test.ts
     security_evidence: secret-scan already in the verify gate; check-ip-boundary fails on server-only imports in client components, tracked private-key material, and proprietary paths
     audit_health_evidence: check-ip-boundary runs in npm run verify
-    last_verified_sha: c72b2fe
-    last_verified_at: 2026-08-22
+    last_verified_sha: f86eb97
+    last_verified_at: 2026-09-02
     owner_gate: decision on a private repository or package for proprietary prompts and evaluation data
     blocker: none
-    residual_risks: The repository is public today and system prompts are committed in it; the manifest records this as an acceptable open risk until prompts encode proprietary decision logic.
+    residual_risks: The repository is public today and system prompts are committed in it; the manifest records this as an acceptable open risk until prompts encode proprietary decision logic. EVIDENCE DEFECT R0-F-005 (registered, not suppressed) — this record previously cited last_verified_sha c72b2fe, which is NOT a commit in this repository (git cat-file -t reports "not a valid object name"), so the audit correctly REJECTED it and npm run verify failed on the approved baseline. The audit rule was NOT relaxed to make this pass: the evidence was RE-RUN at f86eb97 on 2026-09-02 (vitest tests/autonomy/ip-boundary.test.ts 2/2 passed; check-ip-boundary tracked=1320 source=771 hard=0 review=3) and the SHA replaced with the commit actually verified. Root cause unconfirmed, consistent with a squashed or rebased branch. Any other record citing a SHA absent from history must be RE-VERIFIED the same way, never re-pointed by guess.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
 
   # ── GOV — Executive Governor and Governance Constitution ────────────────────────────────────
@@ -532,6 +617,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Auto-escalation and overdue detection are not yet scheduled or wired; recipient notification is not implemented. AIM-003 routing is not required for the registry surface.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: GOV-002
     title: Directive acknowledgement and escalation
     description: Acknowledgement is recorded; an unacknowledged or overdue directive escalates up a defined chain.
@@ -553,6 +641,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: No hosted/staging database, authenticated browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit).
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: GOV-003
     title: Conflicting-instruction detection and resolution
     description: Two contradictory instructions about the same object are detected, surfaced, and resolved by a human with a recorded reason.
@@ -574,6 +665,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: No live manager-vs-manager campaign scenario has been exercised; only static file and migration-shape coverage plus typecheck/focused test verification.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: GOV-004
     title: Board-reserved matters and emergency suspension
     description: A defined class of matters is reserved to the owner/board; an emergency suspension can halt automated activity immediately.
@@ -595,6 +689,9 @@ requirements:
     owner_gate: definition of the reserved-matter list
     blocker: none
     residual_risks: none
+    verified_local: no
+    verified_staging: no
+    verified_production: no
   - id: GOV-005
     title: Human override, appeal and separation of duties
     description: Any automated decision can be overridden by an authorised human with a recorded reason and an appeal path; SoD is enforced on approvals.
@@ -616,6 +713,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: checkAuthority with delegations is available but not yet wired into the approval action; approver_is_beneficiary and sensitive-action SoD need financial-event context in a future iteration.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: GOV-006
     title: Governance audit trail
     description: Every directive, acknowledgement, escalation, override and reserved-matter decision is audited and searchable.
@@ -637,6 +737,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Reserved-matter decisions and escalations are not yet produced by GOV-004/GOV-002; the governance filter captures the entity types that will carry those events once built.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   # ── WRK — workforce intelligence ────────────────────────────────────────────────────────────
   - id: WRK-001
@@ -660,6 +763,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Leave requests and remaining entitlement are surfaced; attendance, travel, sickness and working-hours modelling do not exist, and nothing consumes availability for assignment.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: WRK-002
     title: Current and future workload with historical capacity
     description: Capacity snapshots per person per week with planned versus actual versus remaining effort.
@@ -681,6 +787,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Utilisation uses hardcoded 40/4 weekly hours rather than contracted hours per person; historical snapshot recompute exists but is not exercised here.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: WRK-003
     title: Skills, certifications and expiry
     description: Skills and certifications per person, with expiry driving renewal tasks.
@@ -702,6 +811,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Skills are stored and displayed; certification expiry, renewal-task creation and assignment consumption remain future work.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: WRK-004
     title: Strengths, development needs and coaching
     description: Per-person strengths and development needs derived from outcomes, with private coaching separated from manager-visible guidance.
@@ -723,6 +835,9 @@ requirements:
     owner_gate: privacy review of private-versus-manager-visible coaching
     blocker: none
     residual_risks: Sensitive; needs an explicit visibility model before implementation.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
   - id: WRK-005
     title: Fair assignment and internal/external team formation
     description: Work is proposed to people by capability, availability and fairness, with external providers considered where internal capacity is absent.
@@ -744,6 +859,9 @@ requirements:
     owner_gate: flag activation
     blocker: none
     residual_risks: none
+    verified_local: no
+    verified_staging: no
+    verified_production: no
 
   # ── PRJ — projects and portfolio ────────────────────────────────────────────────────────────
   - id: PRJ-001
@@ -767,6 +885,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: The registry UI and lifecycle visibility are implemented; milestones, stage gates, and project reuse as precedent remain future work.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: PRJ-002
     title: Objectives, milestones and stage gates
     description: Objectives with milestones, dependencies and stage gates that must be passed to progress.
@@ -788,6 +909,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Objectives exist standalone; milestones, dependencies, stage gates and link to projects remain future work.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: PRJ-003
     title: Project budgets, forecasts and resource requirements
     description: Budget versus actual per project with forecast and the people/assets a project requires.
@@ -809,6 +933,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Resource capacity uses contracted_weekly_hours from employee_profiles when available; defaults to hardcoded thresholds otherwise. Project write RLS policies remain app-layer/service-role while flags are OFF.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: PRJ-004
     title: Project risks, decisions and scenario comparison
     description: Per-project risk and decision log, with scenario comparison between options.
@@ -830,6 +957,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Project write RLS policies remain app-layer/service-role while flags are OFF. Scenario comparison is deterministic and does not include probabilistic Monte-Carlo simulation.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: PRJ-005
     title: Portfolio prioritisation
     description: Ranking across projects by value, risk, capacity and dependency.
@@ -851,6 +981,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Ranking weights are proprietary — see IP-001 before committing any weighting.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   # ── FIN — financial-management intelligence ─────────────────────────────────────────────────
   - id: FIN-001
@@ -874,6 +1007,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Currency is inferred from the first row rather than from a company base-currency setting.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: FIN-002
     title: Receivables and payables with ageing
     description: Outstanding customer invoices and supplier bills, aged into buckets with overdue flagged.
@@ -895,6 +1031,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: none known
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: FIN-003
     title: Rolling cash-flow forecast
     description: Forward projection from open invoices in and bills out over a horizon, with the trough identified.
@@ -916,6 +1055,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Payroll is not modelled, so the forecast is invoice/bill/commitment-only.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: FIN-004
     title: Commitments and expected payments
     description: Purchase orders and contractual commitments feed expected outflows alongside invoices.
@@ -937,6 +1079,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Recurring obligations and payroll are still not modelled in the forecast.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: FIN-005
     title: Taxes and professional-review opportunities
     description: Tax treatment surfaced with uncertain cases routed to authorised finance review.
@@ -958,6 +1103,9 @@ requirements:
     owner_gate: authorised finance reviewer identity
     blocker: none
     residual_risks: Tax helpers are pure and tested; routing uncertain treatment to a human reviewer remains future work.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: FIN-006
     title: Budget versus actual and scenario analysis
     description: Budgets per period and per project compared with actuals, with what-if scenarios.
@@ -979,6 +1127,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Budget write RLS policies are not capability-gated in migration 0005; writes rely on app-layer department check + service-role client while RLS flags are OFF. Forecast scenarios require a companion forecast row because the schema links scenarios to forecasts rather than budgets.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: FIN-007
     title: Funding requirements and investments
     description: Funding gap derived from the forecast, and an investment register.
@@ -1000,6 +1151,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Forecast inputs are invoice/bill/commitment only; payroll and recurring obligations are not modelled.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: FIN-008
     title: Payment intelligence and evidence
     description: Payments recorded against evidence, matched to bills/invoices, reconciled to bank lines; recording a payment is never a transfer.
@@ -1021,6 +1175,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Evidence is not required at the point of payment recording; FOUND-003 will introduce the evidence-first path. Recording a payment against a bill remains a separate settlement RPC; this requirement is verified for the reconciliation/matching surface.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   # ── CRM — customers, suppliers, providers ───────────────────────────────────────────────────
   - id: CRM-001
@@ -1044,6 +1201,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Surface-level duplicate detection is implemented, but automated customer-record merge remains future work. The page is read-only; write/merge actions are not part of this requirement.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: CRM-002
     title: Canonical supplier identity
     description: Supplier records with channel identities, duplicate detection and bank-detail change control.
@@ -1065,6 +1225,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Surface-level duplicate detection and bank-detail visibility are implemented; automated supplier-record merge and the bank-change request UI remain future work.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: CRM-003
     title: Consultant and service-provider registry
     description: External providers with capabilities, service areas, capacity, prices, compliance and insurance.
@@ -1086,6 +1249,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Required by WRK-005 external team formation and by AST-001 maintenance providers.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: CRM-004
     title: Counterparty performance, reliability and history
     description: Communication and assignment history per counterparty, with reliability derived from outcomes.
@@ -1107,6 +1273,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Scoring weights are proprietary — see IP-001.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
   - id: CRM-005
     title: Compliance and insurance status per counterparty
     description: Expiry-tracked compliance and insurance documents that gate ordering and assignment.
@@ -1128,6 +1297,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Campaign scenario CNF-02 exists for this and currently escalates only from a supplied risk label.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   # ── SCH — proactive management ──────────────────────────────────────────────────────────────
   - id: SCH-001
@@ -1151,6 +1323,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Discovery works for WhatsApp conversations; duplicate prevention depends on AIM-002 (verified) and routing depends on AIM-003 (owner-gated). Email is a 501 stub.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: SCH-002
     title: SLAs, 24/48-hour follow-ups and reminders
     description: Time-based follow-up rules with reminders to the responsible person.
@@ -1172,6 +1347,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: The route resolves assignees through task_assignments → memberships → profiles, so manually assigned tasks are reached; AI-created tasks still need a human assignment (WRK-005 unbuilt) before they become reachable. The escalation branch targets company admins generically, not a defined per-task chain (SCH-004).
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: SCH-003
     title: Leave and workload-aware scheduling
     description: Follow-ups and assignments respect availability and current load.
@@ -1193,6 +1371,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Workload uses assignment-level estimates; historical capacity_snapshots are not consumed. Automatic assignment selection is not exposed in the UI.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: SCH-004
     title: Escalation and missed-response recovery
     description: An unanswered follow-up escalates to a defined next person, and a missed response is recovered rather than dropped.
@@ -1214,6 +1395,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Chain is set manually through the server action; there is no automatic proposal of an escalation chain from role/capability data (WRK-005/AIM-006 unbuilt).
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: SCH-005
     title: Handovers and meeting-action extraction
     description: Structured handover between people or shifts, and actions extracted from meetings.
@@ -1235,6 +1419,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: none
+    verified_local: no
+    verified_staging: no
+    verified_production: no
   - id: SCH-006
     title: Overdue evidence enforcement
     description: A task requiring evidence cannot be completed without it, and overdue evidence is chased.
@@ -1256,6 +1443,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: none known
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   # ── COM — communications ────────────────────────────────────────────────────────────────────
   - id: COM-001
@@ -1279,6 +1469,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Non-text messages are silently discarded (COM-002/003).
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: COM-002
     title: Voice-note intake
     description: Voice notes are persisted, transcribed and processed through the same untrusted-input pipeline.
@@ -1300,6 +1493,9 @@ requirements:
     owner_gate: transcription provider selection
     blocker: none
     residual_risks: R1 §6 added ONE canonical inbound adapter contract (src/schemas/inbound-adapter.ts) that WhatsApp now uses (src/lib/inbound/adapters/whatsapp.ts). This channel has no adapter, no runtime entrypoint and no tests, so the contract does NOT advance it: a schema is not an integration, and it stays foundation_only until it has its own entrypoint and scenarios. Currently dropped with no record — a receipt or instruction vanishes without trace.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
   - id: COM-003
     title: Image and document intake with evidence preservation
     description: Images and documents are stored as evidence, linked to their source event, and processed.
@@ -1321,6 +1517,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Blocks FOUND-003's evidence-preservation requirement for photographed receipts.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
   - id: COM-004
     title: Email intake and send
     description: Inbound email ingestion and outbound email through an approved provider.
@@ -1342,6 +1541,9 @@ requirements:
     owner_gate: email provider selection and credentials
     blocker: no provider chosen
     residual_risks: R1 §6 added ONE canonical inbound adapter contract (src/schemas/inbound-adapter.ts) that WhatsApp now uses (src/lib/inbound/adapters/whatsapp.ts). This channel has no adapter, no runtime entrypoint and no tests, so the contract does NOT advance it: a schema is not an integration, and it stays foundation_only until it has its own entrypoint and scenarios. The route is an honest 501 stub, not a silent failure.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
   - id: COM-005
     title: Calendar and meeting events
     description: Approved calendar integration for meetings, availability and action extraction.
@@ -1363,6 +1565,9 @@ requirements:
     owner_gate: connector approval
     blocker: none
     residual_risks: R1 §6 added ONE canonical inbound adapter contract (src/schemas/inbound-adapter.ts) that WhatsApp now uses (src/lib/inbound/adapters/whatsapp.ts). This channel has no adapter, no runtime entrypoint and no tests, so the contract does NOT advance it: a schema is not an integration, and it stays foundation_only until it has its own entrypoint and scenarios.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
   - id: COM-006
     title: Approved data connectors (Google Sheets and similar)
     description: Read/write connectors to approved external data sources through the Integration Gateway.
@@ -1384,6 +1589,9 @@ requirements:
     owner_gate: connector approval and credentials
     blocker: none
     residual_risks: none
+    verified_local: no
+    verified_staging: no
+    verified_production: no
   - id: COM-007
     title: Human handover, opt-out and communication preferences
     description: A conversation can be handed to a person; customers can opt out; preferences are respected.
@@ -1405,6 +1613,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Opt-out is a compliance obligation, not a nicety — treat as P1 with RSK-006.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: COM-008
     title: Live voice (future)
     description: Real-time voice interaction.
@@ -1426,6 +1637,9 @@ requirements:
     owner_gate: explicit approval before any work begins
     blocker: none
     residual_risks: Deferred by the owner's own staging; recorded so it is not forgotten.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
 
   # ── CTL — Mission Control ───────────────────────────────────────────────────────────────────
   - id: CTL-001
@@ -1449,6 +1663,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Carries no AI-case, requires_human or captured-task signal, so AI output is invisible here.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: CTL-002
     title: Cross-company portfolio overview
     description: An owner with several companies sees them together without breaching isolation.
@@ -1470,6 +1687,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Must be built on explicit multi-membership, never by relaxing company scoping.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: CTL-003
     title: Integration and AI/model health on the control surface
     description: Connector health, queue backlog, dead letters and model cost/validation rates surfaced to the operator.
@@ -1491,6 +1711,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: AI cost excludes customer-facing calls (MOD-002).
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: CTL-004
     title: Explainable business-health score
     description: A composite health indicator whose components and weights are inspectable.
@@ -1512,6 +1735,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Weights are proprietary — see IP-001 before committing any.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
 
   # ── IMP — improvement system ────────────────────────────────────────────────────────────────
   - id: IMP-001
@@ -1535,6 +1761,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Cases are write-once today, so nothing can be learned from them.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
   - id: IMP-002
     title: Staff feedback and lessons learned
     description: Staff can mark a recommendation useful or wrong, with a reason retained as a lesson.
@@ -1556,6 +1785,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: none
+    verified_local: no
+    verified_staging: no
+    verified_production: no
   - id: IMP-003
     title: Versioned playbooks and prompt/evaluation improvement with human approval
     description: Playbooks, prompts and evaluation sets are versioned; a protected change requires human approval and can be rolled back.
@@ -1577,6 +1809,9 @@ requirements:
     owner_gate: private repository/package decision for proprietary playbooks
     blocker: none
     residual_risks: Playbooks are confidential and must live in company data or a private package, never in this public repository.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
 
   # ── RSK — risk, legal and compliance ────────────────────────────────────────────────────────
   - id: RSK-001
@@ -1600,6 +1835,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Risk review dates feed the legal overview but do not yet create owned, dated mitigation tasks.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: RSK-002
     title: Contracts register with renewal dates
     description: Contracts with counterparty, status and renewal date driving advance tasks.
@@ -1621,6 +1859,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Renewals are displayed but do not create owned, dated tasks.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: RSK-003
     title: Licences and permits with expiry
     description: Licences and permits tracked with expiry and renewal responsibility.
@@ -1642,6 +1883,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Same as RSK-002 — visibility without ownership. Renewal responsibility and automatic renewal-task creation remain future work.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: RSK-004
     title: Insurance register and renewals
     description: Insurance policies with cover, expiry and renewal tasks.
@@ -1663,6 +1907,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Renewal dates feed the legal overview but do not yet create owned, dated renewal tasks. Required by AST-001 (asset insurance) and CRM-005 (provider insurance).
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: RSK-005
     title: Incidents and statutory obligations
     description: Incident log and a register of statutory obligations with due dates and evidence.
@@ -1684,6 +1931,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Obligations share the existing obligations table with contractual obligations; the obligation_type column distinguishes statutory entries.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: RSK-006
     title: Sri Lankan-context advisory sources and human legal review
     description: Jurisdiction-specific guidance surfaced as advisory only, with uncertain matters routed to a human legal reviewer.
@@ -1705,6 +1955,9 @@ requirements:
     owner_gate: identification of authorised legal reviewer and approved sources
     blocker: none
     residual_risks: The AI may summarise and escalate; it must never issue a legal position. Enforced by the authority engine's legal domain floor.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
 
   # ── MOB — mobile and accessibility ──────────────────────────────────────────────────────────
   - id: MOB-001
@@ -1728,6 +1981,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Real-device/role-based mobile UAT has not been run; this verifies the responsive foundation only.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: MOB-002
     title: Progressive web app with offline-safe behaviour
     description: Installable PWA with a manifest, service worker and safe behaviour on a poor connection.
@@ -1749,6 +2005,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Offline write behaviour must never fabricate a durable record — the same truthfulness rule as delivery.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: MOB-003
     title: Versioned mobile APIs and push-notification readiness
     description: Stable versioned endpoints for a mobile client and the groundwork for push notifications.
@@ -1770,6 +2029,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Actual push delivery and VAPID private key configuration remain owner-gated.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: MOB-004
     title: Accessibility and Sinhala/Tamil rendering
     description: Accessible markup and labels, with fonts and line metrics that render Sinhala and Tamil correctly.
@@ -1791,6 +2053,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: The CSP forbids external font hosts, so Sinhala/Tamil fonts must be self-hosted.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
 
   # ── OPS — operational readiness ─────────────────────────────────────────────────────────────
   - id: OPS-001
@@ -1814,6 +2079,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: The 0069 backlog signal is not yet surfaced; /api/health counts dead letters unscoped by design for a system endpoint.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: OPS-002
     title: Audit search
     description: Searchable append-only audit of privileged and AI actions.
@@ -1835,6 +2103,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: Cron-created records still name a company id as the actor (D-015); full-text or multi-field search is not implemented.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: OPS-003
     title: Backup, restore and rollback drills
     description: Documented and rehearsed backup, restore and migration rollback procedures.
@@ -1856,6 +2127,9 @@ requirements:
     owner_gate: hosted environment access to rehearse against
     blocker: no staging environment exists
     residual_risks: A drill that has never been run is not a procedure.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
   - id: OPS-004
     title: Staging UAT and browser role testing
     description: A staging environment exercised by each role through a browser, covering permissions, dashboards and degraded states.
@@ -1877,6 +2151,9 @@ requirements:
     owner_gate: staging environment plus credentials
     blocker: no staging environment exists
     residual_risks: No browser role testing has been performed at any point in this program.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
   - id: OPS-005
     title: Feature-flag rollout control
     description: Flags are readable at runtime, reported on the health surface, and rolled out per slice.
@@ -1898,6 +2175,9 @@ requirements:
     owner_gate: flag activation per slice
     blocker: none
     residual_risks: 8 of 8 V3.1 flags still have zero runtime consumers; enabling any flag remains an owner-gated decision.
+    verified_local: yes
+    verified_staging: no
+    verified_production: no
   - id: OPS-006
     title: Model and provider configuration with cost monitoring
     description: Provider-neutral routing configuration with budgets, fallback and cost monitoring.
@@ -1919,6 +2199,9 @@ requirements:
     owner_gate: provider selection and credentials
     blocker: none
     residual_risks: No budgets, no fallback, no circuit breaker; model-routes.ts is dead code; cost excludes customer-facing calls.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
   - id: OPS-007
     title: Incident response and business continuity
     description: Documented incident response, on-call expectations and continuity plan.
@@ -1940,6 +2223,9 @@ requirements:
     owner_gate: none
     blocker: none
     residual_risks: none
+    verified_local: no
+    verified_staging: no
+    verified_production: no
   - id: OPS-008
     title: Monitored production pilot
     description: A limited, monitored production pilot with a rollback window.
@@ -1961,3 +2247,630 @@ requirements:
     owner_gate: owner approval of merge, hosted migration, flags and promotion
     blocker: every prior OPS gate
     residual_risks: PRODUCTION_VERIFIED cannot be claimed for any requirement until this completes.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  # ══════════════════════════════════════════════════════════════════════════════════════════════
+  # ORIGINAL VISION RECONCILIATION (2026-09-02, owner-directed, documentation-only).
+  #
+  # The groups below preserve original product requirements that no existing record accurately
+  # covered. They were reconciled from the owner's product-recovery decisions, the historical
+  # architecture/spec set and the implemented code. Statuses are set by INSPECTING RUNTIME CODE.
+  # Nothing here is marked implemented or verified; every record below carries behavioural
+  # acceptance scenarios so a future claim can be tested rather than asserted.
+  #
+  # Records in this section additionally carry: intent, gap, authority_restrictions,
+  # privacy_restrictions, acceptance_scenarios, verified_local/staging/production.
+  # ══════════════════════════════════════════════════════════════════════════════════════════════
+
+  # ── KRN — the reusable management kernel (the loop itself) ──────────────────────────────────
+  - id: KRN-001
+    title: One domain-agnostic management kernel
+    intent: A single reusable implementation of observe to understand to prioritise to recommend to approve to assign to monitor to escalate to verify to learn, which every domain runs through; no department may own its own intelligence.
+    description: The eleven-step management loop exists once, as a persisted case state machine, and cannot name a domain concept in its own code.
+    business_outcome: Adding a managed domain requires a registered detector and action, not new kernel code — which is the test of whether the AI is the operating layer.
+    phase: recovery-r4
+    priority: P0
+    dependencies: [AIM-001, FOUND-004, KRN-002, KRN-003]
+    status: absent
+    gap: Today the loop is two ad-hoc call sites (src/app/app/command/analyze/actions.ts and src/app/api/cron/ai-monitor/route.ts). planFromObservation and the authority engine are reusable, but there is no kernel, no case state machine and no registry.
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: The kernel may act unattended ONLY within automatic authority per owner decision D-9; every higher level stops at the deterministic authority ladder and requires a recorded human decision.
+    privacy_restrictions: Context packs are company-scoped and bounded; untrusted external content is fenced and labelled and can never instruct the kernel; no cross-company data may enter a pack.
+    acceptance_scenarios: A condition detected in one domain drives a case through every state to verified with an audit trail; adding a second domain changes no kernel file (proven by diff); a model outage degrades the loop to deterministic rules instead of stopping it.
+    owner_gate: owner approval of the target architecture (granted 2026-09-02, D-10) plus phase gate — implementation is NOT authorised before R4
+    blocker: R2 line reconciliation and R3 domain-service seam
+    residual_risks: If built before the domain-service seam exists, the kernel will re-implement page queries and become a thirteenth silo.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  - id: KRN-002
+    title: Observation sources across every managed domain
+    intent: Every authorised business source — external channels AND internal business state — emits typed, evidence-linked, deduplicated observations on a schedule the kernel controls.
+    description: A registry of ObservationSource implementations with cadence, last-scan and last-failure state, covering finance, people, projects, tasks, CRM, customer service, marketing, procurement, assets, fleet, legal/compliance, providers and system health.
+    business_outcome: The system notices problems on its own rather than waiting for a person to paste text into a form.
+    phase: recovery-r4
+    priority: P0
+    dependencies: [KRN-001]
+    status: absent
+    gap: PR-F-006 — exactly ONE signal class is observed (wa_conversations, by /api/cron/ai-monitor). Every domain detector already exists as a tested pure function (renewals, exceptions, objective-status, forecast, ageing, budget-vs-actual, capacity, three-way match, availability) and NONE reaches the loop.
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: A detector observes and reports; it may never create a case, task or action itself.
+    privacy_restrictions: Observations carry evidence references, not copied personal content; people-related sources obey the WRK-006 fairness and visibility model.
+    acceptance_scenarios: An overdue invoice, an expiring vehicle document and an inbound message each produce an observation through the same contract; a scan that throws is recorded as a scan failure and the health surface reports the domain as UNOBSERVED rather than silently returning zero.
+    owner_gate: phase gate — not authorised before R4
+    blocker: KRN-001
+    residual_risks: Detector cadence is the main recurring-cost lever; an imprecise detector trains the owner to ignore alerts, so each needs a precision measurement (see IMP-001).
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  - id: KRN-003
+    title: Registered domain action catalogue
+    intent: Every action the kernel may propose is pre-registered with its capability, authority floor, Zod input schema and reversibility; AI may only SELECT from the catalogue and fill a validated schema.
+    description: A typed catalogue of domain actions replacing free-text suggestions, so model output can never invent an action.
+    business_outcome: Free-text AI output can never trigger a sensitive action, which is an absolute rule in CLAUDE.md.
+    phase: recovery-r4
+    priority: P0
+    dependencies: [KRN-001, FOUND-004, FOUND-005]
+    status: absent
+    gap: planFromObservation emits suggestedActions as free text for a human to read. Existing server actions already validate with Zod, check capability and write audit, so registration is largely wiring rather than rewriting.
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: Each entry declares its capability and authority floor; the kernel cannot execute above automatic authority without a recorded human decision.
+    privacy_restrictions: An action's input schema must not accept raw untrusted text as an authority, identity or scope input.
+    acceptance_scenarios: A recommendation the catalogue cannot express becomes a clarification for a human, never an improvised action; an attempt to execute an unregistered action is refused and audited.
+    owner_gate: phase gate — not authorised before R4
+    blocker: KRN-001
+    residual_risks: none
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  # ── WMP — work marketplace and opportunity allocation (owner requirement 1 and 2) ───────────
+  - id: WMP-001
+    title: Work marketplace of open tasks for staff, AI bots and approved external consultants
+    intent: A marketplace surface listing work that is available to be taken, visible to authorised staff, permitted AI bots and approved external consultants, scoped by company, capability and authority.
+    description: Open and unassigned work is discoverable and claimable through one controlled surface rather than existing only as a needs_routing backlog nobody sees.
+    business_outcome: Work stops stalling because nobody knew it was available, and external capacity can be engaged deliberately when internal capacity is absent.
+    phase: recovery-r5
+    priority: P1
+    dependencies: [WRK-005, KRN-001, CRM-003]
+    status: absent
+    gap: PR-F-008 and register finding OF-008 — nothing proposes an assignee and there is no queue UI for needs_routing work, so every captured task stops. tasks, task_assignments, task_routing and the service-provider registry exist; no marketplace surface exists.
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: Visibility is company-scoped and capability-gated; an external consultant sees only work explicitly opened to external parties; claiming work never confers authority over money, contracts or people.
+    privacy_restrictions: A listing exposes the work, not the performance history or personal circumstances of other candidates; an external party must never see internal staff data.
+    acceptance_scenarios: An authorised staff member sees only marketplace items their company and capability permit; an approved external consultant sees only externally-opened items and no internal staff data; a claimed item leaves the marketplace atomically so two people cannot both claim it.
+    owner_gate: owner approval of the marketplace model and of external-party exposure before implementation
+    blocker: not authorised before R5
+    residual_risks: A marketplace can degrade into cherry-picking of easy work; pairing with WMP-002 ranking and WMP-003 fairness guardrails is required, not optional.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  - id: WMP-002
+    title: Point/credit-based opportunity, bidding and ranking window
+    intent: A bounded window in which candidates can register interest in available work, ranked using verified skills, availability, authority and past performance, with points or credits expressing opportunity and contribution.
+    description: A deterministic, explainable ranking and time-boxed bidding mechanism that helps allocate work fairly rather than by whoever responds first.
+    business_outcome: Work reaches the person or party best placed to do it, and allocation can be explained afterwards.
+    phase: recovery-r5
+    priority: P1
+    dependencies: [WMP-001, WMP-003, WRK-003, WRK-002, WRK-006]
+    status: absent
+    gap: No points, credits, bidding, window or ranking exist in code. rankAvailableCandidates ranks by availability and workload only, inside the follow-up escalation path.
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: Ranking PROPOSES; a human with the relevant authority allocates. Points and credits confer no authority, no permission and no pay entitlement.
+    privacy_restrictions: A person's points, credits and ranking inputs are visible to that person and to their authorised manager only — never to peers, never to external parties, never as a public leaderboard.
+    acceptance_scenarios: Two candidates with identical verified inputs receive identical ranks; every rank is accompanied by the reasons and inputs that produced it; a person can see and contest their own inputs; the window closes deterministically and allocation is recorded with who decided.
+    owner_gate: OWNER GATE — explicit approval of the points/credit model, its inputs and its visibility, before any implementation. Owner instruction 2026-09-02 requires it must not become punitive surveillance or an uncontrolled social-credit system.
+    blocker: WMP-003 guardrails must be specified and approved FIRST
+    residual_risks: This is the highest ethical-risk requirement in the register. A points system that feeds discipline, pay or ranking-by-default becomes exactly the social-credit outcome the owner prohibited.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  - id: WMP-003
+    title: Marketplace fairness and anti-surveillance guardrails
+    intent: Hard, testable limits ensuring the marketplace and points model allocate work fairly and never become punitive employee surveillance or an uncontrolled social-credit system.
+    description: Enforced constraints on what may be measured, who may see it, what it may drive, and a person's right to see and contest their own record.
+    business_outcome: The fairness commitment is enforced by tests and controls rather than by intention.
+    phase: recovery-r5
+    priority: P0
+    dependencies: [WRK-006, GOV-005]
+    status: absent
+    gap: No guardrail model exists because no marketplace exists. WRK-004's owner_gate already anticipates a private-versus-manager-visible visibility model; this requirement makes the constraint explicit and testable.
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: Points, credits, ranks and marketplace history may NEVER automatically drive discipline, dismissal, remuneration or permission changes — all of which require a human decision under D-9 and are prohibited as autonomous actions in CLAUDE.md.
+    privacy_restrictions: No public leaderboard; no peer visibility; no covert or continuous behavioural measurement; measurement limited to declared work outcomes; every person can view and contest their own record; retention is bounded and stated.
+    acceptance_scenarios: An attempt to use a points score as an input to a disciplinary, pay or permission action is refused and audited; a peer cannot read another person's score through any surface or API; a person can retrieve their own complete record and lodge a contest that is recorded; removing a contested input changes the rank deterministically.
+    owner_gate: OWNER GATE — approval required before WMP-002 may be implemented
+    blocker: none
+    residual_risks: Guardrails written after the mechanism are rarely enforced; this record must be satisfied BEFORE WMP-002, not alongside it.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  # ── WRK additions — recommendation, explainability and fairness (owner requirement 3 and 6) ─
+  - id: WRK-006
+    title: Explainability and fairness in people analytics
+    intent: Every people-related inference — skills, strengths, workload, performance outcomes, development needs, coaching — is explainable, contestable and constrained by fairness protections.
+    description: People analytics must expose the evidence behind each inference, separate private coaching from manager-visible guidance, and be testable for consistent treatment.
+    business_outcome: Staff can trust the system's judgements about them, and managers can defend a decision that used them.
+    phase: recovery-r5
+    priority: P0
+    dependencies: [WRK-002, WRK-003, WRK-004]
+    status: absent
+    gap: WRK-004 (strengths, development needs, coaching) is absent and already carries an owner gate for its visibility model; no explainability or fairness constraint is recorded anywhere as a testable requirement.
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: An inference about a person may inform a human decision and may never BE the decision; hiring, dismissal, discipline and remuneration remain human-only under D-9.
+    privacy_restrictions: Private coaching is separated from manager-visible guidance by an explicit visibility model approved by the owner; health, personal circumstance and protected characteristics are never inputs.
+    acceptance_scenarios: Every inference renders the evidence that produced it; a person can view their own record in full and contest an item; two people with equivalent evidence receive equivalent inferences; a manager cannot read content designated private coaching.
+    owner_gate: OWNER GATE — privacy review of the private-versus-manager-visible model (inherited from WRK-004)
+    blocker: not authorised before R5
+    residual_risks: Sensitive; an unexplainable people inference is worse than none because it cannot be contested.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  - id: WRK-007
+    title: Advisor, delegate and external-consultant recommendation
+    intent: AI recommends not only assignees and project teams but advisors, delegates and approved external consultants, based on verified skills, availability, capacity, authority and past outcomes.
+    description: Extends recommendation beyond task assignment to who should advise, who may be delegated to within authority, and which external provider to engage.
+    business_outcome: The right expertise is proposed for a decision, not merely the right pair of hands for a task.
+    phase: recovery-r5
+    priority: P1
+    dependencies: [AIM-006, WRK-005, WRK-003, CRM-003, CRM-004, FOUND-004]
+    status: absent
+    gap: AIM-006 (team formation and resource recommendation) is specified-not-built and its own residual notes that the observation's involved[] people and suppliers are collected then discarded. WRK-005 is absent. Delegation exists in the authority engine (delegation subset of delegator) but nothing RECOMMENDS a delegate.
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: A recommended delegate must already be within the delegator's own authority (delegation is a subset, never an expansion); engaging an external provider is an external commitment and always requires human approval under D-9.
+    privacy_restrictions: Recommendation reasons exposed to a requester must not disclose another person's private coaching, health or personal circumstances.
+    acceptance_scenarios: A delegate recommendation outside the delegator's authority is refused with a reason; an external-consultant recommendation surfaces compliance and insurance status from CRM-005 and is blocked for a non-compliant provider; every recommendation carries its evidence and can be overridden with a recorded reason.
+    owner_gate: phase gate — not authorised before R5
+    blocker: WRK-003 verified skills are a prerequisite input
+    residual_risks: Recommending from unverified skill data produces confident, wrong suggestions; WRK-003 must be real first.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  # ── AIM addition — staff-initiated guidance (owner requirement 4) ───────────────────────────
+  - id: AIM-009
+    title: Staff-initiated Ask-AI guidance
+    intent: Any staff member can ask the system for advice about their own work and receive grounded guidance, with visibility governed by privacy, company policy and manager authority.
+    description: An interactive, staff-initiated request path — distinct from the system-initiated per-task guidance of AIM-007 — with an explicit visibility model for what a manager can and cannot see.
+    business_outcome: Staff get help when they need it, without a manager having to be the only route to expertise.
+    phase: recovery-r5
+    priority: P1
+    dependencies: [AIM-007, MOD-003, GOV-005]
+    status: absent
+    gap: AIM-007 is locally_verified for per-task AI Guide messages behind the default-off V3_1_AI_GUIDE flag, and its own residual_risks state plainly that the Ask-AI interactive coaching UI is NOT built. ai_guide_messages (migration 0097) exists as the storage foundation.
+    feature_flag: V3_1_AI_GUIDE
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: Guidance is advice only — it never executes, never commits the company and never grants authority; any action it suggests re-enters the normal authority ladder.
+    privacy_restrictions: An explicit visibility model must state which questions and answers are private to the asker and which are manager-visible; the model is owner-approved before implementation; a manager may not read content designated private.
+    acceptance_scenarios: A staff member asks a question and receives grounded guidance citing the evidence used; content marked private is unreadable by that person's manager through every surface and API; every request is metered through the model gateway and cost ledger; guidance is refused rather than fabricated when evidence is unavailable.
+    owner_gate: OWNER GATE — approval of the guidance visibility model, plus D-6 model budget (no paid model calls during R0 to R3)
+    blocker: not authorised before R5
+    residual_risks: Ask-AI is the most likely surface for prompt injection via untrusted business content; FOUND-005 trust-boundary rules apply in full.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  # ── LNG addition — per-staff language preference (owner requirement 5) ──────────────────────
+  - id: LNG-002
+    title: Per-staff language preference with meaning, permission and audit invariance
+    intent: Each staff member sets their own working language across English, Sinhala and Tamil, and the SAME business meaning, permissions and audit evidence hold regardless of the language chosen.
+    description: Language is a presentation preference per person; it must never change what a record means, who may act on it, or what the audit trail records.
+    business_outcome: Staff work in the language they think in, without creating a second, divergent version of the business truth.
+    phase: recovery-r6
+    priority: P1
+    dependencies: [LNG-001, MOB-004]
+    status: absent
+    gap: LNG-001 is specified-only and its residual states it was confirmed never to have existed on any branch or PR; MOB-004 (accessibility and Sinhala/Tamil rendering) is absent. communication_preferences (migration 0104) covers customer communication preference, not staff UI language.
+    feature_flag: V3_1_MULTILINGUAL
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: Language selection never alters capability, authority level or approval requirements.
+    privacy_restrictions: Language preference is personal data of low sensitivity but is still company-scoped and not exposed to external parties.
+    acceptance_scenarios: The same task viewed in English, Sinhala and Tamil yields identical permissions and identical authority outcomes; an approval recorded in Sinhala produces an audit entry with the same canonical meaning as one recorded in English; money and dates render correctly per locale without changing stored values; an untranslated string falls back visibly rather than silently showing a wrong meaning.
+    owner_gate: OWNER GATE — approval of the multilingual specification before implementation (inherited from LNG-001)
+    blocker: not authorised before R6
+    residual_risks: Translating authority or status vocabulary risks semantic drift; canonical values must remain language-independent identifiers, never translated strings.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  # ── CSA — customer-facing AI agents as a supervised subsystem (owner requirement 7) ─────────
+  - id: CSA-001
+    title: Customer-facing AI agents as a separate subsystem supervised through adapters
+    intent: Customer-facing AI agents live in their own subsystem; the management OS does not become them, it OBSERVES and SUPERVISES them through explicit adapters.
+    description: A bounded adapter contract through which the management kernel receives agent activity as observations and exercises supervision, without the OS itself conducting customer conversations autonomously.
+    business_outcome: Customer-facing automation can exist without the internal management system inheriting its risk surface.
+    phase: future-gated
+    priority: P2
+    dependencies: [KRN-002, CRM-001, COM-007, INT-001]
+    status: blocked_owner
+    gap: Not built and NOT authorised to build. CLAUDE.md prohibits building customer-facing AI agents and the Agent Builder pending legal and privacy review; owner amendment 1 of 2026-09-02 clarifies they remain a SEPARATE subsystem that the OS supervises through adapters. The /app/ai surface already states plainly that no agent builder or agent control room exists.
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: An agent may never make a customer commitment, send a quotation with unconfirmed prices, or take an irreversible action — all human-approval-only under D-9. Supervision is observe-and-intervene, never silent autonomous customer action.
+    privacy_restrictions: Customer conversation content crosses the adapter as bounded evidence references under the retention policy; agent memory is controlled and scoped, never an open store of customer personal data.
+    acceptance_scenarios: Agent activity appears to the kernel as observations through the adapter and through no other path; a supervision intervention is recorded with actor and reason; disabling the adapter stops supervision without affecting internal management; no code path lets the OS itself originate an autonomous customer message.
+    owner_gate: OWNER GATE — legal and privacy review; explicitly NOT authorised for implementation
+    blocker: legal and privacy review (CLAUDE.md gated capability)
+    residual_risks: The clearest route by which this product could become the customer-facing agent platform it is prohibited from being; the adapter boundary is the control and must be enforced structurally.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  - id: CSA-002
+    title: Shared customer identity, controlled agent memory and human handover
+    intent: Customer-facing agents share the canonical customer identity, hold only controlled and scoped memory, and hand over to a human on demand or on trigger.
+    description: Identity, memory and handover are the three controls that keep an agent subsystem accountable to the management OS.
+    business_outcome: A customer is one identity across every channel and agent, and a person can always take over.
+    phase: future-gated
+    priority: P2
+    dependencies: [CSA-001, CRM-001, COM-007]
+    status: blocked_owner
+    gap: CRM-001 (canonical customer identity) and COM-007 (human handover, opt-out and communication preferences) are both locally_verified and provide the foundation; the agent-side controls do not exist because agents do not exist.
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: Handover to a human is always available and never blockable by the agent; opt-out is a compliance obligation, not a preference.
+    privacy_restrictions: Agent memory is bounded in scope and retention, tied to the canonical customer identity, and never used to profile a customer beyond the stated purpose.
+    acceptance_scenarios: The same customer reached on two channels resolves to one canonical identity; a handover request transfers the conversation to a person and is audited; opting out stops agent contact on every channel; agent memory outside the declared scope or retention is refused.
+    owner_gate: OWNER GATE — legal and privacy review; NOT authorised for implementation
+    blocker: CSA-001
+    residual_risks: none
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  # ── PRC — procurement, suppliers and inventory (owner requirement 12: uncovered domain) ─────
+  - id: PRC-001
+    title: Purchase requisition, order and receipt lifecycle
+    intent: Requisition through purchase order through goods receipt through three-way match, company-scoped and capability-gated, as a managed domain of the OS.
+    description: The procurement transaction lifecycle with its approval points, matched against supplier bills before payment.
+    business_outcome: Money is committed deliberately and what arrives is what was ordered and what is paid for.
+    phase: recovery-r6
+    priority: P1
+    dependencies: [CRM-002, FIN-002, FOUND-004]
+    status: implemented_unverified
+    gap: Substantial implementation exists and was NEVER given a requirement record — purchase_requests, purchase_orders, po_lines, goods_receipts, supplier_quotations, rfqs, stock_movements, inventory_items (migrations 0020, 0021), ten procurement pages, five action files, and tests/three-way-match.test.ts. Status is implemented_unverified rather than a completion status because no requirement-level behavioural evidence has been assembled and no SHA verified against this record.
+    feature_flag: none
+    runtime_entrypoint: src/app/app/procurement/purchase-orders/actions.ts
+    database_evidence: src/db/migrations/0020_rfq.sql; src/db/migrations/0021_inventory.sql
+    service_evidence: src/modules/procurement
+    ui_evidence: src/app/app/procurement/purchase-orders/page.tsx; src/app/app/procurement/purchase-requests/page.tsx; src/app/app/procurement/rfqs/page.tsx
+    test_evidence: tests/three-way-match.test.ts; tests/quote-comparison.test.ts; tests/inventory.test.ts
+    security_evidence: capability-gated writes; company-scoped reads; blocked-supplier gate on purchase-order creation (CRM-005)
+    audit_health_evidence: none assembled for this record
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: Approving a purchase commits company money and requires the authority ladder; recording a receipt is not authority to pay; the system never executes a bank transfer.
+    privacy_restrictions: Supplier bank details are maker-checker controlled and must never appear in audit payloads.
+    acceptance_scenarios: A purchase order to a blocked or non-compliant supplier is refused; a three-way match discrepancy prevents payment and raises an exception; a duplicate goods receipt cannot create a second liability.
+    owner_gate: none for the existing surface; verification only
+    blocker: none
+    residual_risks: Recorded as implemented_unverified deliberately — the code exists but the requirement has never been verified end to end, which is exactly the gap this reconciliation exists to expose.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  - id: PRC-002
+    title: Procurement as a managed domain in the management loop
+    intent: Procurement emits observations (RFQ ageing, match variance, stock thresholds, delivery performance) and registers actions so the kernel manages it like every other domain.
+    description: Connects the existing procurement implementation to the management kernel through the standard observation and action contracts.
+    business_outcome: Procurement problems are noticed and acted on rather than waiting to be browsed.
+    phase: recovery-r6
+    priority: P1
+    dependencies: [PRC-001, KRN-002, KRN-003]
+    status: absent
+    gap: Detectors exist as tested pure functions (three-way match, quote comparison, inventory) and none reaches the loop — the PR-F-006 pattern.
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: Observations and proposals only; committing spend remains a human decision under D-9.
+    privacy_restrictions: none beyond supplier bank-detail handling
+    acceptance_scenarios: A stalled RFQ and a match variance each open a case through the same kernel path used by finance; no kernel file changes to add this domain.
+    owner_gate: phase gate — not authorised before R6
+    blocker: KRN-001
+    residual_risks: none
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  # ── MKT — marketing and campaigns (owner requirement 12: uncovered domain) ──────────────────
+  - id: MKT-001
+    title: Campaigns, audiences and marketing outcomes
+    intent: Marketing campaigns and audiences are managed records with measurable outcomes tied back to leads and revenue, not an isolated list.
+    description: Campaign and audience management with attribution to pipeline outcomes and budget linkage.
+    business_outcome: Marketing spend can be judged against what it produced.
+    phase: recovery-r6
+    priority: P2
+    dependencies: [CRM-001, FIN-006, KRN-002]
+    status: foundation_only
+    gap: Marketing had NO requirement record at all. campaigns and audiences tables (migration 0018) exist with three thin pages (352 LOC total) and lead scoring; there is no campaign execution, no attribution and no budget linkage.
+    feature_flag: none
+    runtime_entrypoint: src/app/app/marketing/campaigns/page.tsx
+    database_evidence: src/db/migrations/0018_marketing_objectives.sql
+    service_evidence: none
+    ui_evidence: src/app/app/marketing/page.tsx; src/app/app/marketing/campaigns/page.tsx; src/app/app/marketing/audiences/page.tsx
+    test_evidence: tests/lead-scoring.test.ts
+    security_evidence: company-scoped reads; department gate
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: A campaign that contacts customers is an external commitment surface; outbound customer messaging always requires the approved-template and 24-hour-window rules and human approval under D-9.
+    privacy_restrictions: Audience construction must respect customer opt-out (COM-007) and may not use data collected for another declared purpose.
+    acceptance_scenarios: A campaign records its audience, spend and resulting leads; an opted-out customer is excluded from every audience; campaign spend appears in budget-versus-actual.
+    owner_gate: OWNER GATE before any customer-facing campaign execution
+    blocker: none for the record; execution is gated
+    residual_risks: Marketing is the least-developed managed domain; recorded as foundation_only to make that visible rather than implied.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  # ── FIN addition — the accounting core itself (owner requirement 10) ────────────────────────
+  - id: FIN-009
+    title: Internally-owned double-entry accounting core as the accounting source of truth
+    intent: The company owns its accounting and financial-control core outright; QuickBooks is not used and is not the source of truth.
+    description: An internally-owned double-entry ledger with posted-journal immutability, controlled reversals, period locks, canonical-fingerprint idempotency and human-only material posting.
+    business_outcome: Financial truth is owned by the company, auditable, and cannot be silently rewritten by a person or by AI.
+    phase: delivered-foundation
+    priority: P0
+    dependencies: [FOUND-004]
+    status: implemented_unverified
+    gap: The capability is substantially built and was NEVER given a requirement record — src/accounting (9 modules, 740 LOC), migrations 0002, 0015, 0016, 0030, 0035, 0039, 0043, 0044, 0050, 0051, and decision D-011 records that QuickBooks is void. Recorded as implemented_unverified because no requirement-level behavioural evidence has been assembled against THIS record and no SHA verified for it.
+    feature_flag: none
+    runtime_entrypoint: src/app/app/finance/journals/new/page.tsx
+    database_evidence: src/db/migrations/0002_accounting_core.sql; src/db/migrations/0050_wp13_posted_journal_immutability.sql; src/db/migrations/0051_wp14_canonical_json_fingerprint.sql
+    service_evidence: src/accounting/journal.ts; src/accounting/settlement.ts; src/accounting/periods.ts; src/accounting/trial-balance.ts
+    ui_evidence: src/app/app/finance/journals/page.tsx; src/app/app/finance/trial-balance/page.tsx; src/app/app/finance/balance-sheet/page.tsx
+    test_evidence: tests/accounting.test.ts; tests/settlement.test.ts; tests/periods.test.ts; tests/ledger-integrity.test.ts
+    security_evidence: posted journals immutable at the DB boundary; post RPCs SECURITY DEFINER with capability and company guards; canonical-JSON SHA-256 fingerprint idempotency
+    audit_health_evidence: ledger_integrity_report read-only integrity probe
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: The AI never posts a material journal; material journals are posted only by a human-initiated, permission-checked, transactional path. Approval to record an expense is not permission to execute a bank payment, and the system never executes transfers.
+    privacy_restrictions: Financial records are company-scoped; bank details are maker-checker controlled and excluded from audit payloads.
+    acceptance_scenarios: A posted journal cannot be edited or deleted through any path and is corrected only by a controlled reversal; a duplicate submission with the same canonical fingerprint returns the ORIGINAL journal rather than creating a second; an AI-initiated attempt to post a material journal is refused and audited; a locked period refuses new postings.
+    owner_gate: none — QuickBooks dependency already voided by D-011
+    blocker: none
+    residual_risks: Strong implementation, but hosted migration state is unresolved (PR-F-004), so no production verification of these guarantees exists.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  # ── UX — primary experience (owner requirement 11, owner decision D-5) ──────────────────────
+  - id: UX-001
+    title: Spatial workspace as the primary experience with flat, reduced-motion and mobile fallbacks
+    intent: The spatial workspace is the intended primary user experience, and it must always be usable as a flat 2D surface, in reduced-motion mode, and stacked on mobile, behind a rollback feature flag.
+    description: One workspace shell over the same panels, with mandated fallbacks so the primary experience never becomes the only experience.
+    business_outcome: A modern primary workspace that cannot lock out anyone whose device, accessibility needs or preference require the flat surface.
+    phase: recovery-r6
+    priority: P1
+    dependencies: [CTL-001, MOB-001, MOB-004]
+    status: implementation_in_progress
+    gap: 21 spatial components plus shell, reducer, window registry and panels exist behind NEXT_PUBLIC_SPATIAL_WORKSPACE (default OFF) — but the route is NOT on origin/main, so it is not deployed and reaches no user. The Command Centre panel is already shared between /app/command and the spatial shell, which is the correct structure. Flat fallback, reduced-motion mode, mobile stacked mode and the rollback flag are not yet verified as a set.
+    feature_flag: NEXT_PUBLIC_SPATIAL_WORKSPACE
+    runtime_entrypoint: src/app/app/spatial/page.tsx
+    database_evidence: none
+    service_evidence: src/components/spatial/reducer.ts; src/components/spatial/WorkspaceProvider.tsx
+    ui_evidence: src/components/spatial/SpatialWorkspace.tsx; src/components/spatial/panels
+    test_evidence: tests/spatial
+    security_evidence: admin gate on the shell; flag default OFF with an explicit disabled state
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: A presentation shell confers no authority; every action inside it re-enters the same capability and authority checks as the flat surface.
+    privacy_restrictions: none beyond the underlying surfaces
+    acceptance_scenarios: Every task achievable in the spatial workspace is achievable on the flat surface; reduced-motion mode honours the OS preference and removes animation; a mobile viewport renders stacked and usable; turning the flag off returns every user to the flat experience with no data loss.
+    owner_gate: OWNER GATE (D-5) — must NOT become production-default until connected to real management cases AND passing human usability testing
+    blocker: R2 line reconciliation (the route is not on the deployed line)
+    residual_risks: Undeployed work reaching no user; its value is unrealised until R2 lands, and its fallbacks are unverified as a set.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  # ── GTD — future owner-gated tracking capabilities (owner requirement 9) ────────────────────
+  - id: GTD-001
+    title: GPS location capability (future owner-gated)
+    intent: Preserved as a FUTURE capability, not deleted and not current work — GPS as supporting evidence only, behind privacy, legal and retention controls.
+    description: Vehicle and field-work location signals as supporting evidence for operations, never as infallible truth and never as automatic discipline.
+    business_outcome: Recorded so the requirement is not lost; deliberately not built.
+    phase: future-gated
+    priority: P3
+    dependencies: [RSK-006, GOV-005]
+    status: deliberately_deferred
+    gap: Not built and NOT authorised. CLAUDE.md gates GPS behind legal and privacy review. Owner amendment 2 of 2026-09-02 confirms it is future-gated, not permanently deleted.
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: Location data may never automatically impose disciplinary action; a correction and dispute workflow is mandatory before any use.
+    privacy_restrictions: Requires approved notices, a stated retention policy and legal review before ANY implementation; least-privilege provider credentials; event metadata preferred over continuous tracking.
+    acceptance_scenarios: Not applicable until the gate opens; the acceptance bar begins with approved notices, retention policy and legal sign-off on record.
+    owner_gate: OWNER GATE — notices, retention policy and legal review; NOT authorised
+    blocker: legal and privacy review
+    residual_risks: The highest privacy-risk capability in the product; preserved as a requirement precisely so it is approached deliberately rather than incrementally.
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  - id: GTD-002
+    title: CCTV capability (future owner-gated)
+    intent: Preserved as a FUTURE capability — CCTV as supporting evidence via provider adapters, with selected clips and event metadata rather than continuous AI video processing.
+    description: Camera event metadata and selected clips as evidence, behind privacy, legal and retention controls.
+    business_outcome: Recorded so the requirement is not lost; deliberately not built.
+    phase: future-gated
+    priority: P3
+    dependencies: [RSK-006, GOV-005]
+    status: deliberately_deferred
+    gap: Not built and NOT authorised. CLAUDE.md gates CCTV behind legal and privacy review and separately prohibits facial recognition without written approval.
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: Never automatic discipline; correction and dispute workflow mandatory; facial recognition requires SEPARATE written owner approval and is excluded from this record.
+    privacy_restrictions: Approved notices, retention policy and legal review required first; provider adapters with least-privilege credentials; prefer event metadata and selected clips over continuous processing.
+    acceptance_scenarios: Not applicable until the gate opens.
+    owner_gate: OWNER GATE — notices, retention policy and legal review; NOT authorised
+    blocker: legal and privacy review
+    residual_risks: none
+    verified_local: no
+    verified_staging: no
+    verified_production: no
+
+  - id: GTD-003
+    title: Attendance device integration (future owner-gated)
+    intent: Preserved as a FUTURE capability — attendance captured from devices or access systems, distinct from the attendance and leave RECORDS already covered by WRK-001.
+    description: Device-sourced attendance signals feeding the existing workforce records, behind privacy, legal and retention controls.
+    business_outcome: Recorded so the requirement is not lost; deliberately not built.
+    phase: future-gated
+    priority: P3
+    dependencies: [WRK-001, RSK-006]
+    status: deliberately_deferred
+    gap: Not built and NOT authorised. WRK-001 (attendance, availability, leave, sickness, travel) already covers the RECORDS; only device integration is deferred here.
+    feature_flag: none
+    runtime_entrypoint: none
+    database_evidence: none
+    service_evidence: none
+    ui_evidence: none
+    test_evidence: none
+    security_evidence: none
+    audit_health_evidence: none
+    last_verified_sha: none
+    last_verified_at: none
+    authority_restrictions: Attendance data may never automatically impose disciplinary action or drive remuneration; both remain human decisions under D-9.
+    privacy_restrictions: Approved notices, retention policy and legal review required first; correction and dispute workflow mandatory.
+    acceptance_scenarios: Not applicable until the gate opens.
+    owner_gate: OWNER GATE — notices, retention policy and legal review; NOT authorised
+    blocker: legal and privacy review
+    residual_risks: Combined with WMP-002 points, device attendance is the shortest path to the surveillance outcome the owner prohibited; WMP-003 guardrails bind here too.
+    verified_local: no
+    verified_staging: no
+    verified_production: no

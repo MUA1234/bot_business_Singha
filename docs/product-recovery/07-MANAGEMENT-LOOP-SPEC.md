@@ -1,6 +1,20 @@
 # 7. Reusable management-loop specification
 
 > One loop. Every domain runs through it. No department gets its own intelligence.
+>
+> **APPROVED 2026-09-02 (D-10); implementation NOT authorised — Phase R0 only.**
+> Registered as **KRN-001** (the kernel), **KRN-002** (observation sources), **KRN-003**
+> (action catalogue).
+>
+> **Binding autonomy ceiling (D-9).** The kernel may act unattended **only** within
+> `automatic` authority, and only on catalogue-registered, low-risk, reversible
+> **internal** actions: create an internal task, send an internal reminder, request a
+> progress update, route an internal notification, schedule a follow-up, escalate an
+> overdue internal task under an approved playbook. **Always human-approved:** customer
+> messages or commitments, quotations with unconfirmed prices, payments or transfers,
+> material journals, contracts, permission changes, hiring/dismissal/discipline/
+> remuneration, external provider commitments, and any irreversible action. **AI
+> interpretation never directly executes.**
 
 ## 7.1 The loop as a durable state machine
 
@@ -127,6 +141,28 @@ and should be extended rather than replaced.
 
 Output is a *proposal with reasons*, not a silent assignment. Rejecting a proposal is a
 first-class learning signal (step 11).
+
+**Registered requirements for this step** (added by the Original Vision Reconciliation,
+2026-09-02):
+
+| ID | Adds |
+|---|---|
+| **WRK-005** | fair assignment; external providers where internal capacity is absent |
+| **WRK-007** | advisor, delegate and external-consultant recommendation — a recommended delegate must already be **within the delegator's own authority**; delegation is a subset, never an expansion |
+| **WMP-001** | a **work marketplace**: open work discoverable and claimable by authorised staff, permitted AI bots and approved external consultants, scoped by company, capability and authority |
+| **WMP-002** | a time-boxed **opportunity/bidding and ranking window** using points or credits over verified skills, availability, authority and past performance |
+| **WMP-003** | the **fairness and anti-surveillance guardrails** that must be satisfied **before** WMP-002 is built |
+| **WRK-006** | explainability and fairness for every people inference feeding allocation |
+
+**The guardrails are not optional, and they come first.** Points, credits, ranks and
+marketplace history may **never** automatically drive discipline, dismissal, remuneration
+or permission changes. No public leaderboard, no peer visibility, no covert or continuous
+behavioural measurement; measurement is limited to declared work outcomes; every person
+can view and contest their own record; retention is bounded and stated. A ranking system
+built before its guardrails becomes the social-credit outcome the owner explicitly
+prohibited — so WMP-003 is a **blocker on** WMP-002 in the register, not a sibling.
+
+Ranking **proposes**; a human with the relevant authority allocates.
 
 ### Step 9 — Monitoring, reminders, escalation
 

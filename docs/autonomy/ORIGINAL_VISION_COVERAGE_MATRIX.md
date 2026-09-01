@@ -4,19 +4,20 @@
 > A status is only as good as the evidence columns beside it; the audit refuses a completion status
 > with empty evidence.
 
-Generated at: 2026-08-28
+Generated at: 2026-09-01
 
 ## Totals
 
 | Status | Count |
 |---|---|
 | locally_verified | 60 |
-| absent | 18 |
+| absent | 29 |
+| blocked_owner | 6 |
 | specified | 5 |
-| blocked_owner | 4 |
-| implementation_in_progress | 1 |
-| deliberately_deferred | 1 |
-| foundation_only | 1 |
+| deliberately_deferred | 4 |
+| implementation_in_progress | 2 |
+| foundation_only | 2 |
+| implemented_unverified | 2 |
 
 ## Completion accounting
 
@@ -26,11 +27,11 @@ specification describes what should be built; it is not built.
 | Category | Count |
 |---|---|
 | **Verified** (locally / preview / staging / production) | **60** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **25** |
-| **Blocked — owner** | **4** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **40** |
+| **Blocked — owner** | **6** |
 | **Blocked — external** | **0** |
-| **Deliberately deferred** | **1** |
-| Registered total | 90 |
+| **Deliberately deferred** | **4** |
+| Registered total | 110 |
 
 A blocked-owner requirement is excluded from autonomous implementation, but it still PREVENTS any
 operating-mode claim that depends on it. Blocked is not done.
@@ -39,26 +40,33 @@ operating-mode claim that depends on it. Blocked is not done.
 
 | Group | Registered | Complete | Remaining |
 |---|---|---|---|
-| AIM | 8 | 3 | 5 |
+| AIM | 9 | 3 | 6 |
 | AST | 1 | 0 | 1 |
 | COM | 8 | 2 | 6 |
 | CRM | 5 | 4 | 1 |
+| CSA | 2 | 0 | 2 |
 | CTL | 4 | 4 | 0 |
-| FIN | 8 | 8 | 0 |
+| FIN | 9 | 8 | 1 |
 | FOUND | 6 | 5 | 1 |
 | GOV | 6 | 5 | 1 |
+| GTD | 3 | 0 | 3 |
 | IMP | 3 | 0 | 3 |
 | INT | 1 | 1 | 0 |
 | IP | 1 | 1 | 0 |
-| LNG | 1 | 0 | 1 |
+| KRN | 3 | 0 | 3 |
+| LNG | 2 | 0 | 2 |
 | MEM | 1 | 1 | 0 |
+| MKT | 1 | 0 | 1 |
 | MOB | 4 | 3 | 1 |
 | MOD | 3 | 2 | 1 |
 | OPS | 8 | 3 | 5 |
+| PRC | 2 | 0 | 2 |
 | PRJ | 5 | 5 | 0 |
 | RSK | 6 | 5 | 1 |
 | SCH | 6 | 5 | 1 |
-| WRK | 5 | 3 | 2 |
+| UX | 1 | 0 | 1 |
+| WMP | 3 | 0 | 3 |
+| WRK | 7 | 3 | 4 |
 
 ## Requirements
 
@@ -72,6 +80,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | AIM-006 | Team formation and resource recommendation | P1 | **specified** | none | none | flag activation |
 | AIM-007 | AI Guide next actions | P1 | **locally_verified** | src/app/app/operations/tasks/[id]/page.tsx | d5a3f70 | flag activation |
 | AIM-008 | Outcome measurement and improvement loop | P2 | **absent** | none | none | — |
+| AIM-009 | Staff-initiated Ask-AI guidance | P1 | **absent** | none | none | OWNER GATE — approval of the guidance visibility model, plus D-6 model budget (no paid model calls during R0 to R3) |
 | AST-001 | Asset Intelligence — registry, custody, reservations, utilization, optimization | P1 | **specified** | none | none | approval of the specification before implementation |
 | COM-001 | WhatsApp text inbound and outbound with truthful delivery | P0 | **locally_verified** | src/app/api/webhooks/whatsapp/route.ts; src/app/api/cron/outbox/route.ts | 707761c | — |
 | COM-002 | Voice-note intake | P2 | **absent** | none | none | transcription provider selection |
@@ -86,6 +95,8 @@ operating-mode claim that depends on it. Blocked is not done.
 | CRM-003 | Consultant and service-provider registry | P1 | **locally_verified** | src/app/app/procurement/service-providers/page.tsx and src/app/app/procurement/service-providers/[id]/page.tsx | 22cc2730a800f4464b7936b93768e93f2c4b5835 | — |
 | CRM-004 | Counterparty performance, reliability and history | P2 | **absent** | none | none | — |
 | CRM-005 | Compliance and insurance status per counterparty | P1 | **locally_verified** | src/app/app/procurement/purchase-orders/actions.ts (createPurchaseOrder gates blocked suppliers) | 7b939f10297cb122056c7a9400e879019f7668be | — |
+| CSA-001 | Customer-facing AI agents as a separate subsystem supervised through adapters | P2 | **blocked_owner** | none | none | OWNER GATE — legal and privacy review; explicitly NOT authorised for implementation |
+| CSA-002 | Shared customer identity, controlled agent memory and human handover | P2 | **blocked_owner** | none | none | OWNER GATE — legal and privacy review; NOT authorised for implementation |
 | CTL-001 | Exception-led operational overview | P0 | **locally_verified** | src/app/app/command/page.tsx | 707761c | — |
 | CTL-002 | Cross-company portfolio overview | P2 | **locally_verified** | src/app/app/portfolio/page.tsx | 76e98a8 | — |
 | CTL-003 | Integration and AI/model health on the control surface | P1 | **locally_verified** | src/app/app/admin/health/page.tsx | 8b90057 | — |
@@ -98,6 +109,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | FIN-006 | Budget versus actual and scenario analysis | P1 | **locally_verified** | src/app/app/finance/budgets/page.tsx and src/app/app/finance/budgets/[id]/page.tsx | d514bf1242cc4fba4fcd464c8aec1f47958a2b4d | — |
 | FIN-007 | Funding requirements and investments | P2 | **locally_verified** | src/app/app/finance/funding/page.tsx | ae3ce17 | — |
 | FIN-008 | Payment intelligence and evidence | P0 | **locally_verified** | src/app/app/finance/reconciliation/page.tsx | 0a1737a | — |
+| FIN-009 | Internally-owned double-entry accounting core as the accounting source of truth | P0 | **implemented_unverified** | src/app/app/finance/journals/new/page.tsx | none | none — QuickBooks dependency already voided by D-011 |
 | FOUND-001 | Durable inbound processing with leases, bounded retry and dead-letter | P0 | **locally_verified** | src/app/api/cron/inbound-sweeper/route.ts | 707761c | hosted migration application |
 | FOUND-002 | Worker fairness by eligibility rather than ordering | P0 | **locally_verified** | src/app/api/cron/inbound-sweeper/route.ts | 707761c | — |
 | FOUND-003 | Production-reachable staff and finance intake | P0 | **blocked_owner** | src/app/api/webhooks/whatsapp/route.ts and src/inngest/functions.ts (both dispatch through src/lib/inbound/dispatch.ts via the shared src/lib/inbound/production-deps.ts) | 1fd50b2 | a model provider credential for finance classification; mapping each receiving WhatsApp number to its company in channel_accounts; granting operations.inbound.review to the people who should work the queue; hosted migration application |
@@ -110,13 +122,21 @@ operating-mode claim that depends on it. Blocked is not done.
 | GOV-004 | Board-reserved matters and emergency suspension | P0 | **absent** | none | none | definition of the reserved-matter list |
 | GOV-005 | Human override, appeal and separation of duties | P0 | **locally_verified** | src/app/app/finance/approvals/actions.ts; src/app/app/finance/approvals/page.tsx | c3c0b71 | — |
 | GOV-006 | Governance audit trail | P1 | **locally_verified** | src/app/app/admin/audit/page.tsx | 079a459 | — |
+| GTD-001 | GPS location capability (future owner-gated) | P3 | **deliberately_deferred** | none | none | OWNER GATE — notices, retention policy and legal review; NOT authorised |
+| GTD-002 | CCTV capability (future owner-gated) | P3 | **deliberately_deferred** | none | none | OWNER GATE — notices, retention policy and legal review; NOT authorised |
+| GTD-003 | Attendance device integration (future owner-gated) | P3 | **deliberately_deferred** | none | none | OWNER GATE — notices, retention policy and legal review; NOT authorised |
 | IMP-001 | Outcome recording against recommendations | P1 | **absent** | none | none | — |
 | IMP-002 | Staff feedback and lessons learned | P2 | **absent** | none | none | — |
 | IMP-003 | Versioned playbooks and prompt/evaluation improvement with human approval | P1 | **absent** | none | none | private repository/package decision for proprietary playbooks |
 | INT-001 | Integration Gateway and connector registry | P1 | **locally_verified** | src/app/app/admin/integrations/page.tsx | 4b5bbb3 | — |
-| IP-001 | Public-repository IP boundary | P1 | **locally_verified** | scripts/autonomy/check-ip-boundary.mjs | c72b2fe | decision on a private repository or package for proprietary prompts and evaluation data |
+| IP-001 | Public-repository IP boundary | P1 | **locally_verified** | scripts/autonomy/check-ip-boundary.mjs | f86eb97 | decision on a private repository or package for proprietary prompts and evaluation data |
+| KRN-001 | One domain-agnostic management kernel | P0 | **absent** | none | none | owner approval of the target architecture (granted 2026-09-02, D-10) plus phase gate — implementation is NOT authorised before R4 |
+| KRN-002 | Observation sources across every managed domain | P0 | **absent** | none | none | phase gate — not authorised before R4 |
+| KRN-003 | Registered domain action catalogue | P0 | **absent** | none | none | phase gate — not authorised before R4 |
 | LNG-001 | Multilingual English / Sinhala / Tamil | P2 | **specified** | none | none | approval of the specification before implementation |
+| LNG-002 | Per-staff language preference with meaning, permission and audit invariance | P1 | **absent** | none | none | OWNER GATE — approval of the multilingual specification before implementation (inherited from LNG-001) |
 | MEM-001 | Organizational memory and evidence provenance | P1 | **locally_verified** | src/app/app/command/memory/page.tsx | 82b6ce9 | — |
+| MKT-001 | Campaigns, audiences and marketing outcomes | P2 | **foundation_only** | src/app/app/marketing/campaigns/page.tsx | none | OWNER GATE before any customer-facing campaign execution |
 | MOB-001 | Responsive mobile experience | P1 | **locally_verified** | src/app/layout.tsx; src/app/globals.css | 046991c | — |
 | MOB-002 | Progressive web app with offline-safe behaviour | P2 | **locally_verified** | public/manifest.webmanifest; src/app/manifest.ts; public/sw.js | 7c3942b56c6898f26dcef2ec3545619b0b8476c0 | — |
 | MOB-003 | Versioned mobile APIs and push-notification readiness | P2 | **locally_verified** | src/app/api/v1/mobile/health/route.ts; src/app/api/v1/mobile/config/route.ts; src/app/api/v1/mobile/vapid-public-key/route.ts; src/app/api/v1/mobile/notifications/route.ts; src/app/api/v1/mobile/push/subscribe/route.ts; src/app/api/v1/mobile/push-subscription/route.ts | 1254855 | — |
@@ -132,6 +152,8 @@ operating-mode claim that depends on it. Blocked is not done.
 | OPS-006 | Model and provider configuration with cost monitoring | P1 | **foundation_only** | src/ai/gateway.ts MODEL_ROUTES | none | provider selection and credentials |
 | OPS-007 | Incident response and business continuity | P1 | **absent** | none | none | — |
 | OPS-008 | Monitored production pilot | P0 | **blocked_owner** | none | none | owner approval of merge, hosted migration, flags and promotion |
+| PRC-001 | Purchase requisition, order and receipt lifecycle | P1 | **implemented_unverified** | src/app/app/procurement/purchase-orders/actions.ts | none | none for the existing surface; verification only |
+| PRC-002 | Procurement as a managed domain in the management loop | P1 | **absent** | none | none | phase gate — not authorised before R6 |
 | PRJ-001 | Reusable project registry with lifecycle states | P1 | **locally_verified** | src/app/app/operations/projects/page.tsx | f227fef | — |
 | PRJ-002 | Objectives, milestones and stage gates | P1 | **locally_verified** | src/app/app/admin/objectives/page.tsx | e759c10 | — |
 | PRJ-003 | Project budgets, forecasts and resource requirements | P1 | **locally_verified** | src/app/app/operations/projects/[id]/page.tsx | 4ca0f227ec0b3c928bd42b077ed08622c2f7920f | — |
@@ -149,11 +171,17 @@ operating-mode claim that depends on it. Blocked is not done.
 | SCH-004 | Escalation and missed-response recovery | P1 | **locally_verified** | src/app/api/cron/follow-ups/route.ts | 52547a2c68d622807d641134dc597e114fe5d028 | — |
 | SCH-005 | Handovers and meeting-action extraction | P2 | **absent** | none | none | — |
 | SCH-006 | Overdue evidence enforcement | P1 | **locally_verified** | src/app/app/operations/tasks/actions.ts | 707761c | — |
+| UX-001 | Spatial workspace as the primary experience with flat, reduced-motion and mobile fallbacks | P1 | **implementation_in_progress** | src/app/app/spatial/page.tsx | none | OWNER GATE (D-5) — must NOT become production-default until connected to real management cases AND passing human usability testing |
+| WMP-001 | Work marketplace of open tasks for staff, AI bots and approved external consultants | P1 | **absent** | none | none | owner approval of the marketplace model and of external-party exposure before implementation |
+| WMP-002 | Point/credit-based opportunity, bidding and ranking window | P1 | **absent** | none | none | OWNER GATE — explicit approval of the points/credit model, its inputs and its visibility, before any implementation. Owner instruction 2026-09-02 requires it must not become punitive surveillance or an uncontrolled social-credit system. |
+| WMP-003 | Marketplace fairness and anti-surveillance guardrails | P0 | **absent** | none | none | OWNER GATE — approval required before WMP-002 may be implemented |
 | WRK-001 | Attendance, availability, leave, sickness and travel | P1 | **locally_verified** | src/app/app/hr/leave/page.tsx | af81ed8 | — |
 | WRK-002 | Current and future workload with historical capacity | P1 | **locally_verified** | src/app/app/hr/capacity/page.tsx | 56dcee2 | — |
 | WRK-003 | Skills, certifications and expiry | P1 | **locally_verified** | src/app/app/hr/staff/page.tsx; src/app/app/hr/staff/[id]/page.tsx | 1b494e6 | — |
 | WRK-004 | Strengths, development needs and coaching | P2 | **absent** | none | none | privacy review of private-versus-manager-visible coaching |
 | WRK-005 | Fair assignment and internal/external team formation | P1 | **absent** | none | none | flag activation |
+| WRK-006 | Explainability and fairness in people analytics | P0 | **absent** | none | none | OWNER GATE — privacy review of the private-versus-manager-visible model (inherited from WRK-004) |
+| WRK-007 | Advisor, delegate and external-consultant recommendation | P1 | **absent** | none | none | phase gate — not authorised before R5 |
 
 ## Groups not yet expanded into individual records
 
@@ -167,5 +195,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **25**; blocked (owner): **4**;
-deferred: **1**; unexpanded groups: **0**.
+mode. Incomplete and implementable: **40**; blocked (owner): **6**;
+deferred: **4**; unexpanded groups: **0**.

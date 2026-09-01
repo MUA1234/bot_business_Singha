@@ -1,7 +1,27 @@
 # 9. Dependency-ordered recovery roadmap, phases and verification criteria
 
-> Covers deliverables 9 and 11. **Nothing here begins until the owner approves the audit
-> and the target architecture.**
+> Covers deliverables 9 and 11.
+>
+> **Status 2026-09-02: the audit and target architecture are approved (D-10). Only
+> Phase R0 is authorised.** R1, R2 and all new capability remain unauthorised. Every
+> production boundary is a full stop requiring separate owner approval, and **each phase
+> requires an independent Codex review before the next begins** (safeguard 6).
+>
+> **Owner-set ordering constraints:**
+>
+> - **D-7** — **finance** proves the complete kernel; the first extension after the loop
+>   closes successfully **must be work/projects**, because staff assignment, supervision
+>   and progress management are central to the product.
+> - **D-8** — channel order is **email second, Google Sheets third**; voice notes, images
+>   and documents stay gated pending provider, privacy and retention decisions.
+> - **D-6** — **no paid model calls during R0–R3** without separate approval. Budgets:
+>   staging USD 25/month total; pilot USD 50/company/month; alert 70%, warn 90%, **fail
+>   closed at 100%**.
+> - **D-3** — the Meta webhook change is **deferred to later owner-controlled provider
+>   work** and is no longer part of R1. Hosted migration state and the exact deployed
+>   Railway SHA remain **open production gates**.
+> - **D-4** — the RLS cutover needs staging reconciliation, isolation tests, a rehearsed
+>   rollback **and** a final production approval.
 
 ## 9.1 Ordering principle
 
@@ -41,8 +61,8 @@ Small, high-value, entirely within the deployed line. Nothing architectural.
 
 | Task | Closes |
 |---|---|
-| Repoint the Meta webhook to Railway; confirm the in-process scheduler runs the outbox drain, follow-ups and `ai-monitor` against live traffic | PR-F-005 |
-| Retire or neutralise the second origin so two hosts cannot schedule against one database | PR-F-005 |
+| ~~Repoint the Meta webhook to Railway~~ — **DEFERRED by D-3 (2026-09-02)** to later owner-controlled provider work. Not part of R1. | PR-F-005, R0-F-001 |
+| ~~Retire the second origin~~ — **superseded by D-1**: Vercel is **retained as preview-only** and must never run a production scheduler or receive the production webhook | PR-F-005 |
 | Expose the build SHA on `/api/health` | PR-F-014 |
 | Add `.gitattributes`; convert the 12 source-text test assertions to behavioural ones | PR-F-013 |
 | Harden the migration runner: key the ledger on version **and** filename/content hash, fail closed on mismatch | PR-F-001 (detection) |
@@ -129,11 +149,21 @@ Without this, R4 generates work nobody is given and nothing improves.
 
 | Task | Closes |
 |---|---|
-| Work allocation service: candidates, availability, workload, fairness, reasons | PR-F-008, OF-008, WRK-005 |
-| Skills / competency model | WRK-004 |
+| Work allocation service: candidates, availability, workload, fairness, reasons | PR-F-008, OF-008, **WRK-005** |
+| Advisor, delegate and external-consultant recommendation | **WRK-007** |
+| Skills / competency model | **WRK-003, WRK-004** |
+| **Fairness and anti-surveillance guardrails — BEFORE any points model** | **WMP-003** |
+| Work marketplace for staff, AI bots and approved external consultants | **WMP-001** |
+| Points/credit opportunity and bidding/ranking window — **blocked on WMP-003 and an explicit owner gate** | **WMP-002** |
+| Explainability and fairness for every people inference | **WRK-006** |
+| Staff-initiated Ask-AI guidance, with an owner-approved visibility model | **AIM-009** |
 | Outcome verification by **re-observation** | loop step 10b |
-| Learning store: recommendation outcomes, decision reasons, assignment overrides, detector precision | PR-F-007, AIM-008, IMP-001/002 |
-| Learning **proposals** requiring human approval; versioned playbooks and prompts | IMP-003 |
+| Learning store: recommendation outcomes, decision reasons, assignment overrides, detector precision | PR-F-007, **AIM-008, IMP-001, IMP-002** |
+| Learning **proposals** requiring human approval; versioned playbooks and prompts | **IMP-003** |
+
+**Ordering within R5 is not free.** WMP-003 (guardrails) is a registered *blocker* on
+WMP-002 (points and ranking), and WRK-003 (verified skills) is a prerequisite input to
+WRK-007 — recommending from unverified skill data produces confident, wrong suggestions.
 
 **Verification:** a task assigned by the allocator, completed, and re-observed as
 resolved closes its case as `verified`; one that is completed but whose condition
