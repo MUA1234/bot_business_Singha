@@ -8,7 +8,44 @@
 > This file is the single place to track applied-state. Update it whenever a migration
 > is run against any environment, and cite who confirmed it and when.
 
-_Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, WP18)._
+_Last reviewed: 2026-09-02 (Product Recovery Phase R0 — see
+`docs/product-recovery/12-R0-EVIDENCE.md`). Previous review: 2026-08-15 (Phase 1 WP18)._
+
+> ## ⚠️ R0 CORRECTION BANNER — READ BEFORE APPLYING ANY MIGRATION
+>
+> Phase R0 of the product recovery found three defects in this record itself. They are
+> stated here rather than silently patched, because two of them can destroy data.
+>
+> **1. This record contradicts the deployed code (PR-F-004 — UNRESOLVED).**
+> The rows below state that nothing after 0041 was applied to a hosted database. But the
+> deployed `main` code **requires migration 0069** — `src/lib/whatsapp-inbound.ts`
+> resolves the inbound company from `companies.whatsapp_phone_number_id`, a column only
+> `main`'s 0069 creates, and that code is live on Railway. Exactly one of these is true:
+> (a) migrations 0042–0069 were applied and this record was never updated, or (b) live
+> code is running ahead of its schema. **The repository cannot tell which.** Until an
+> operator resolves it (§R0 commands below), the production starting point is UNKNOWN and
+> **no migration may be applied to production.**
+>
+> **2. Two different migrations are numbered `0069` (PR-F-001 — P0).**
+>
+> | Line | File |
+> |---|---|
+> | `main` (deployed) | `0069_company_routing_and_catalogue_department.sql` |
+> | `claude/hard-scenario-testing` and descendants | `0069_durable_inbound_processing.sql` |
+>
+> `scripts/migrate.mjs` keys `schema_migrations` on the **four-character numeric prefix
+> only** (`const version = (f) => f.slice(0, 4)`), and never compares the stored filename.
+> On a database where `main`'s 0069 is applied, the branch's 0069 is therefore filtered out
+> of `pending` and **silently skipped — not reported, not failed** — after which 0070–0109
+> run against a schema missing the durable-inbound objects several of them depend on.
+> This is a silent-corruption path. It must be resolved by renumbering the branch line
+> above the deployed high-water mark (Phase R2), and the runner should be hardened to key
+> on version **and** filename/content hash first.
+>
+> **3. 41 migrations had no state record at all (PR-F-011 — now corrected below).**
+> This file previously stopped at 0068 while the branch line had reached 0109.
+
+
 
 > **WP18 authority note.** This file is **the** authoritative migration-state document. The five
 > states below are tracked **separately** and never conflated — in particular, *file exists* and
@@ -21,9 +58,14 @@ _Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, W
 
 ## Migration source of truth
 
-- **Canonical migrations:** `src/db/migrations/0001_*.sql` … `0068_*.sql` (forward-only,
-  sequential; `migration-lint` confirms 0001–0068, no gaps). This directory is the **one**
-  migration source of truth.
+- **Canonical migrations:** `src/db/migrations/0001_*.sql` … `0109_*.sql` (forward-only,
+  sequential; `migration-lint` confirms 0001–0109, no gaps **within this line**). This
+  directory is the **one** migration source of truth.
+  - ⚠️ **Two lines exist.** `origin/main` (deployed) carries 0001–**0069** and its 0069 is
+    `0069_company_routing_and_catalogue_department.sql`. This branch line carries 0001–0109
+    and its 0069 is `0069_durable_inbound_processing.sql`. `migration-lint` checks numeric
+    sequence within one checkout and therefore **cannot detect this collision** — see the
+    R0 correction banner above.
 - **⚠️ Divergence risk (flag for WP6):** duplicate/aggregate runnable copies exist and
   can drift from canonical migrations. They must not be treated as authoritative:
   - `docs/architecture-v2/RUN_0014_*.sql` … `RUN_0022_*.sql`
@@ -114,6 +156,62 @@ _Last reviewed: 2026-08-15 (Phase 1 — 0048+ Security/Accounting Corrections, W
 | 0066 | wp12_snapshot_and_delete_boundary (8th review: (a) `_is_quotation_delivery_owner()` is **signature-exact** — resolves the owner from the EXACT 9-arg `enqueue_quotation_outbox` identity, with a migration-time fail-closed assertion that enqueue/complete/reconcile all exist, are SECURITY DEFINER, share ONE owner, and are unreachable (SET ROLE) by anon/authenticated/service_role; a like-named overload with a different owner cannot flip it. (b) a BEFORE DELETE trigger refuses a non-trusted delete of a quotation that is queued/terminal OR has ANY outbox delivery history — closing the claim-then-delete race; the trusted owner keeps a maintenance override. (c) a whole-row BEFORE UPDATE freeze + `quotation_items` INSERT/UPDATE/DELETE triggers make a queued/terminal quotation and its items immutable to non-trusted writers except a pure `sent→accepted`/`sent→rejected` decision; pre-queue editing stays functional. The `quotation_items` parent-status read uses a self-gating SECURITY DEFINER helper so RLS visibility cannot bypass the freeze, without becoming a cross-company oracle. The eighth review's own security pass added `search_path`/`pg_temp` hardening — every function schema-qualifies relations + pins `search_path = pg_catalog, public, pg_temp`, the WP12 delivery RPCs are re-pinned via ALTER FUNCTION — and a `message_outbox` CONTENT freeze (recipient/body/template/source immutable to `service_role`; delivery-state stays worker-mutable) + TRUNCATE/DELETE guards. Documented residual: a full-codebase search_path audit of other-domain SECURITY DEFINER functions is a recommended systemic follow-up, out of WP12 scope) | ⛔ **owner confirmation required** (added 2026-08-16; dev-verified on disposable PostgreSQL 16, fresh + upgrade, incl. a GENUINE two-connection claim-vs-delete/mutate race, a fake-overload adversarial test, and pg_temp-shadowing-resistance tests) |
 | 0067 | systemic_search_path_and_enqueue_item_boundary (9th + 10th review — the 10th being the SECOND AND FINAL bounded correction loop, edited in place after reconfirming 0067 was never applied outside disposable databases: (a) a CATALOG-DRIVEN `ALTER FUNCTION` re-pins EVERY non-extension SECURITY DEFINER function and every trigger function in `public` (selected by `pg_has_role(current_user, proowner, 'USAGE')`, NOT a strict owner match) to `search_path = pg_catalog, extensions, public, pg_temp`, closing the `pg_temp` relation-shadowing class across identity-RLS/approvals/journals/settlement/reimbursement/bank-change/fingerprint/integrity — bodies unchanged, ONLY search_path. Fails closed if anon/authenticated/service_role has CREATE — direct or SET-ROLE-reachable — on public/extensions (reports; does not revoke blindly), and SELF-VERIFIES owner-agnostically with a STRICT-CANONICAL predicate: any in-scope function whose parsed path is not EXACTLY `pg_catalog, extensions, public, pg_temp` ABORTS the migration naming it (10th review: pg_temp-last alone was insufficient — a path can LEAD with an attacker-writable schema that wins relation resolution; strict equality also subsumes `$user` and duplicated-pg_temp). The permanent owner-agnostic integration gate — `search-path-safety.test.ts` — enforces the same strict-canonical predicate. (b) closes the quotation-item vs atomic-enqueue race at a SINGLE linearization lock: `_quotation_status_for_guard()` reads the parent quotation FOR UPDATE (serializing every non-trusted item write with `enqueue_quotation_outbox`'s parent lock), enqueue takes NO item-row locks (the target item row is locked BEFORE its row trigger fires, so child-row locking would form an AB-BA deadlock — one lock object cannot cycle) and requires UNCONDITIONALLY that `p_expected_total` equal the live SUM(line_total) — NO item-count exemption (delete-to-zero → `stale`) — refusing any INCOMPLETE snapshot line (10th review: `status<>'priced'`, NULL `unit_price`, NULL `line_total` [SUM skips NULL], or item currency ≠ the LOCKED quotation currency; mirrored 1:1 by `refreshQuotationStatus`/`priceQuotation`/`resolvePriceConfirmation` — no float, no conversion); `quotation_items_enforce_frozen` FAILS CLOSED on a NULL guard result (raw `service_role` with no JWT claims — BYPASSRLS, no RLS backstop). (c) 10th review: the predicted draft-deletion cascade regression does NOT occur — RI cascade queries run as the `quotation_items` TABLE OWNER (= the trusted delivery owner; observed live: current_user=owner, depth=2), so authorised pre-queue deletes of itemised quotations cascade cleanly; that ownership invariant (quotations/quotation_items owner == exact 9-arg enqueue owner) is ASSERTED fail-closed by the migration. enqueue keeps its exact signature/SECURITY DEFINER owner/service-role-only EXECUTE/result semantics) | ⛔ **owner confirmation required** (added 2026-08-17; dev-verified on disposable PostgreSQL 16, fresh + upgrade, incl. genuine two-connection enqueue-vs-item-mutation races [both commit orders + a deterministic AB-BA-window no-deadlock proof + delete-to-zero + unpriced/NULL-line_total/wrong-currency items + no-claims fail-closed UPDATE and DELETE + the draft/awaiting_price-with-items cascade pin] and cross-domain pg_temp-shadowing adversarial tests; fail-closed/self-verify paths empirically simulated: foreign-owner residual ABORTS naming the function, attacker-schema-leading pg_temp-last path ABORTS naming the function, SET-ROLE-reachable CREATE ABORTS naming the path, table-ownership divergence ABORTS naming table+owners). Prepared, NOT executed: `hosted_secdef_searchpath_check.sql` (read-only, strict-canonical) + `hosted_secdef_searchpath_hardening.sql` (owner-approved, self-verifying, strict-canonical) for the already-hosted 0038–0041 functions. |
 | 0068 | ai_atomic_case_persistence (completion program P1B: `management_cases.idempotency_key` UNIQUE per company + `tasks.management_case_id` linkage + the service-only SECURITY DEFINER RPC `create_management_case_atomic` — the AI-manager analysis paths now persist the case + ALL captured tasks + the audit event in ONE transaction; any invalid row rolls everything back; replaying the same (company, idempotency_key) returns the ORIGINAL result; task status is FORCED to `captured` at the boundary; ≤20 tasks; canonical search_path; signature-exact `service_role`-only EXECUTE with an in-function `caller_jwt_role()` fail-closed gate. The manual path's identity is a company+content hash — the constant "manual" identity is gone; the WhatsApp path's is conversation+transcript hash. Persistence failure now FAILS the analysis; the log-and-continue helper was removed) | ⛔ **owner confirmation required** (added 2026-08-17, completion program; dev-verified on disposable PostgreSQL 16 fresh 0001→0068 + upgrade 0058→0068, incl. two-connection identical-submission concurrency, atomic-rollback, forced-status, hostile-role 42501 tests) |
+
+
+### Branch-line migrations 0069–0109 (PR-F-011 — previously unrecorded)
+
+These 41 migrations exist on `claude/hard-scenario-testing` and its descendants.
+**None is on `origin/main`, so none is deployed.** None has been applied to any hosted
+database by this development process. Each was verified only on disposable PostgreSQL 16.
+
+⚠️ **The `0069` in this table is NOT the `0069` on `main`.** See the R0 correction
+banner at the top of this file. Applying this line to a database that already ran
+`main`'s `0069_company_routing_and_catalogue_department.sql` will **silently skip** this
+migration and then run 0070–0109 against a schema missing its objects.
+
+| Migration | Purpose (first header line of the migration file) | Hosted state |
+|---|---|---|
+| 0069 | `durable inbound processing` — durable inbound processing: leases, bounded retry, dead-letter, fair eligibility. | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0070 | `channel identity resolution` — trusted channel identity resolution (FOUND-003 prerequisite). | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0071 | `task identity dedup` — durable, server-generated task identity and deduplication (AIM-002). | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0072 | `task routing state` — durable task ROUTING state (AIM-003). | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0073 | `case tasks through dedup` — the AI analysis path now creates tasks THROUGH the AIM-002 deduplication boundary. | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0074 | `channel account company resolution` — resolve the RECEIVING company from trusted channel configuration (FOUND-003). | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0075 | `inbound review queue` — the manual-review queue an inbound message actually lands in (FOUND-003). | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0076 | `inbound boundary correction` — inbound boundary correction (correction loop 1 for AIM-002 / AIM-003 / FOUND-003). | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0077 | `inbound boundary correction 2` — inbound boundary, correction loop 2. | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0078 | `routing provenance split` — a routing decision's provenance is DERIVED, never asserted (remediation R1 §2, OF-007). | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0079 | `dispatch release` — hand a leased dispatch back instead of burning it (remediation R1 §3, OF-001). | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0080 | `owner configuration surface` — owner configuration as an audited workflow, not hand-edited SQL (R1 §5, OF-004/OF-005). | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0081 | `approval submitter provenance` — 0081_approval_submitter_provenance.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0082 | `review loop corrections` — the database half of R1 review loop 1. | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0083 | `loop2 corrections` — correction loop 2. The LAST correction loop this package gets. | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0084 | `caller trust boundary` — FOUND-006: a caller's database PRIVILEGE decides service authority, never its request text. | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0085 | `trust boundary corrections` — FOUND-006 correction loop 1. An independent security review returned CHANGES REQUESTED. | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0086 | `actor privilege not claim` — 0086_actor_privilege_not_claim.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0087 | `duplicate review resolution` — 0087_duplicate_review_resolution.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0088 | `duplicate review boundary corrections` — 0088_duplicate_review_boundary_corrections.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0089 | `duplicate review sibling and budget` — 0089_duplicate_review_sibling_and_budget.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0090 | `inbound review grant authority` — OF-018: inbound-review service authority is the EXECUTE grant, not request text. | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0091 | `model gateway telemetry` — 0091_model_gateway_telemetry.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0092 | `model gateway budget policy rls` — MOD-003: configuration is human-governed; attempt telemetry remains worker-only. | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0093 | `risk register` — 0093_risk_register.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0094 | `insurance register` — 0094_insurance_register.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0095 | `integration gateway` — 0095_integration_gateway.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0096 | `management directives` — 0096_management_directives.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0097 | `ai guide messages` — 0097_ai_guide_messages.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0098 | `conflicting directive resolution` — 0098_conflicting_directive_resolution.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0099 | `directive escalation` — 0099_directive_escalation.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0100 | `commitment expected payments` — 0100_commitment_expected_payments.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0101 | `service provider registry` — 0101_service_provider_registry.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0102 | `counterparty compliance` — 0102_counterparty_compliance.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0103 | `task escalation chain` — 0103_task_escalation_chain.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0104 | `communication preferences` — 0104_communication_preferences.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0105 | `funding requirements and investments` — 0105_funding_requirements_and_investments.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0106 | `incidents and statutory obligations` — 0106_incidents_and_statutory_obligations.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0107 | `project risks decisions scenarios` — 0107_project_risks_decisions_scenarios.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0108 | `push subscriptions` — 0108_push_subscriptions.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0109 | `bounded user text` — 0109_bounded_user_text.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
 
 > **Correction-phase note (0044–0047):** authored 2026-08-08, **not** applied to any hosted
 > DB. Verified on a disposable local **PostgreSQL 16** (Supabase-compat shim) from a clean

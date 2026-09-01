@@ -27,6 +27,16 @@
 | 10 | Retain / adapt / replace / retire | [10-COMPONENT-DISPOSITION.md](10-COMPONENT-DISPOSITION.md) |
 | 12 | Owner decisions genuinely required | [11-OWNER-DECISIONS.md](11-OWNER-DECISIONS.md) |
 
+## Phase R0 (authorised 2026-09-02)
+
+| Document | Purpose |
+|---|---|
+| [13-OWNER-DECISIONS-RECORD.md](13-OWNER-DECISIONS-RECORD.md) | **The owner's rulings D-1…D-10**, amendments, safeguards and the R0 permission boundary. Authoritative — overrides conflicting guidance elsewhere. |
+| [12-R0-EVIDENCE.md](12-R0-EVIDENCE.md) | R0 evidence, findings and completion status. **Contains R0-F-001 (P0): the Vercel origin is `DEPLOYMENT_DISABLED`** — if Meta still points there, inbound messaging is down. |
+
+**Authorised work is Phase R0 only.** R1, R2 and all new management capability are not
+authorised. Every production boundary is a full stop.
+
 ## Executive summary
 
 **The owner's diagnosis is correct about the deployed product and incorrect about the

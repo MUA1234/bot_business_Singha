@@ -10,10 +10,39 @@
 > (current counts in `docs/CURRENT_IMPLEMENTATION_STATUS.md`). Do NOT
 > treat this repo as greenfield. See `docs/CURRENT_IMPLEMENTATION_STATUS.md`.
 >
-> **Active target / current approved phase:** the **Production Control Foundation**
-> defined in `docs/architecture-v2/NEXT_PHASE_DEVELOPER_BRIEF.md` (work packages
-> WP0–WP6, executed strictly in order). It refines the target architecture in
-> `docs/architecture-v2/CHANGE_PLAN.md` + `docs/architecture-v2/Singha_AI_Management_Architecture_V2.puml`.
+> **Active target / current approved phase (as of 2026-09-02): PRODUCT RECOVERY — PHASE R0 ONLY.**
+>
+> The owner conditionally approved the product-recovery audit
+> (`docs/product-recovery/`, audited at `bdf6435e`) on 2026-09-02 and authorised
+> **Phase R0 — establish truth — and nothing else.** An agent working in this repository
+> MUST NOT begin R1, R2 or any new management capability. Read
+> `docs/product-recovery/README.md` and `docs/product-recovery/09-RECOVERY-ROADMAP.md`
+> first, and `docs/product-recovery/12-R0-EVIDENCE.md` for current R0 status.
+>
+> Standing constraints from the owner's decisions (full text:
+> `docs/product-recovery/13-OWNER-DECISIONS-RECORD.md`):
+>
+> - **Railway is the canonical production runtime.** Vercel is preview-only and must never
+>   run a competing production scheduler or receive the production Meta webhook.
+> - **Every production boundary is a full stop.** Webhook changes, migrations, DDL, any
+>   write to production, deployments and configuration changes require separate owner
+>   approval, each time. R0 is **read-only**.
+> - **No paid model calls during R0–R3** without separate approval.
+> - **The kernel's autonomy ceiling is `automatic` authority only** — catalogue-registered,
+>   low-risk, reversible internal actions. Customer messages, quotations with unconfirmed
+>   prices, payments, material journals, contracts, permission changes, HR decisions,
+>   external commitments and irreversible actions **always** require a human.
+> - **Never silently default an unresolved inbound message** to Sales or to any company.
+> - **No percentages or file presence may be reported as completion.** A verified capability
+>   requires a runtime path, discriminating test evidence, a deployment axis and an exact SHA.
+> - **Each phase requires an independent Codex review before the next begins.**
+>
+> The previous active target — the **Production Control Foundation** (`WP0–WP6`) in
+> `docs/architecture-v2/NEXT_PHASE_DEVELOPER_BRIEF.md`, refining
+> `docs/architecture-v2/CHANGE_PLAN.md` + `Singha_AI_Management_Architecture_V2.puml` —
+> remains the architectural reference but is **no longer the active phase**. Where it
+> conflicts with the recovery roadmap, the recovery roadmap wins (owner instruction is the
+> highest precedence under the conflict rule below).
 >
 > **V3.1 program (added 2026-08):** A V3.1 senior-management-intelligence evolution is scoped in
 > `docs/architecture-v3.1/` (`00_BASELINE_ASSESSMENT.md`, `01_V3_1_EXECUTION_SPEC.md`,
@@ -21,7 +50,19 @@
 > + proposal contracts `src/schemas/v3_1/*`) plus the **`0048+` security/accounting correction (pack
 > WP10–WP18) are IMPLEMENTED** as controlled draft PRs — migrations **0048–0067** — and verified on a
 > disposable PostgreSQL 16 (fresh + upgrade). They are the **blocking prerequisite** for any V3.1
-> finance/RLS/outbox cutover and are **NOT merged, NOT deployed, hosted DB NOT migrated, all flags
+> finance/RLS/outbox cutover.
+>
+> > **⚠️ CORRECTED 2026-09-02 (Product Recovery Phase R0).** The paragraph below previously
+> > stated that 0048–0067 were "NOT merged, NOT deployed". **That is no longer true and had
+> > not been true for weeks.** Migrations **0048–0069 are on `origin/main`, which is the
+> > deployed branch** (Railway service `singha-web`, D-021). What remains true: **no
+> > migration state on the hosted database has been confirmed by this development process**
+> > — and the record in `docs/architecture-v2/MIGRATION_STATE.md` now openly contradicts the
+> > deployed code, which requires 0069. See PR-F-004 and
+> > `docs/product-recovery/12-R0-EVIDENCE.md`. **Do not apply any migration to production
+> > until the real hosted state is established.**
+>
+> Their historical status was: **NOT merged, NOT deployed, hosted DB NOT migrated, all flags
 > OFF**. (Note: "hosted DB NOT migrated" — not the flags — is what keeps these off the live system;
 > the WP12 delivery path runs with `WHATSAPP_ASYNC` OFF and `decide_approval`/FKs/catalogue enforce for
 > any caller once migrated, so they are **not** uniformly "inert while flags OFF".) Nine external
@@ -97,10 +138,18 @@
 > of itemised quotations cascade cleanly; that ownership invariant (tables owner == exact 9-arg
 > `enqueue_quotation_outbox` owner) is now ASSERTED fail-closed by the migration and pinned by regression
 > tests) on
-> `feature/v3-1-phase-1-external-review-fixes`, now **awaiting the FINAL external approval** — do not
-> begin V3.1 Phase 2 until it is granted. Verified counts: **unit 419 (79 files); integration 41
-> files / 321 tests.** See `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and
-> `PHASE1_CORRECTIONS_LEDGER.md`.
+> `feature/v3-1-phase-1-external-review-fixes`. See
+> `docs/architecture-v3.1/PHASE1_CONSOLIDATION_REPORT.md` and `PHASE1_CORRECTIONS_LEDGER.md`.
+>
+> > **⚠️ CORRECTED 2026-09-02 (Product Recovery Phase R0).** Two claims here were stale.
+> > (1) "Awaiting the FINAL external approval — do not begin V3.1 Phase 2": this work is
+> > **merged to `main` and deployed**; the V3.1 Phase 2 gate is superseded by the owner's
+> > product-recovery decisions of 2026-09-02, which authorise **Phase R0 only**.
+> > (2) The counts "unit 419 (79 files); integration 41 files / 321 tests" are wrong by a
+> > wide margin. **Measured on `abc7767e` (2026-09-01): unit 1362 passed / 1 failed /
+> > 2 skipped across 184 files; 75 integration test files.** The single failure is a
+> > CRLF-sensitive source-text assertion (PR-F-013). Counts in this file are advisory only —
+> > **run the suite; do not quote this paragraph as evidence.**
 >
 > **Superseded-document rule:** A coding agent MUST NOT rely on any instruction that
 > conflicts with the document precedence below. Where a document is marked superseded
