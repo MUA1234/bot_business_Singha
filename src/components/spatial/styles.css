@@ -935,3 +935,59 @@
     transition: none;
   }
 }
+
+/* ── R1 management queue (checkpoint 5) ──────────────────────────────────────────────────
+   Uses the existing spatial tokens; introduces no new design system. */
+
+.mq-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
+
+.mq-row {
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--radius);
+  /* Long ids and codes must wrap rather than push the window sideways. Horizontal overflow
+     inside a spatial window is not a cosmetic problem: it hides the action buttons. */
+  min-width: 0; overflow-wrap: anywhere;
+}
+.mq-row-focused { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.mq-row-main { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: baseline; min-width: 0; }
+.mq-summary { font-weight: 600; min-width: 0; }
+.mq-badges { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+
+.mq-facts {
+  display: grid; grid-template-columns: minmax(0, 10rem) minmax(0, 1fr);
+  gap: var(--sp-1) var(--sp-3); margin: 0; min-width: 0;
+}
+.mq-facts dt { font-size: 0.8rem; color: var(--muted); }
+.mq-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.mq-unrouted { color: var(--warn, #b45309); }
+
+.mq-evidence, .mq-timeline { min-width: 0; }
+.mq-evidence ul, .mq-timeline ol { margin: var(--sp-2) 0 0; padding-left: var(--sp-4); min-width: 0; }
+
+/* 48x48 minimum for every primary touch target, per the checkpoint-5 requirement.
+   `summary` needs display set before min-height applies. */
+.mq-touch-target {
+  min-height: 48px; min-width: 48px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 var(--sp-3); cursor: pointer;
+}
+.mq-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+
+/* Focus must be visible for keyboard users on every interactive element here. */
+.mq-row a:focus-visible, .mq-row button:focus-visible, .mq-row summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+
+/* Narrow viewports (390px): a single column, and the label/value grid collapses so nothing
+   is pushed off-screen. */
+@media (max-width: 640px) {
+  .mq-facts { grid-template-columns: minmax(0, 1fr); gap: 0 0; }
+  .mq-facts dt { margin-top: var(--sp-2); }
+  .mq-actions .btn { width: 100%; }
+}
+
+/* Reduced motion: no transitions on the queue at all. */
+@media (prefers-reduced-motion: reduce) {
+  .mq-row, .mq-row-focused { transition: none !important; animation: none !important; }
+}

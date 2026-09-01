@@ -6,6 +6,18 @@ import type { WindowTypeSpec } from "./types";
 
 export const WINDOW_SPECS: WindowTypeSpec[] = [
   {
+    // R1 checkpoint 5. ONE registry entry: the management queue reuses the existing
+    // window shell, chrome, docking, priority and fallbacks rather than a new UI system.
+    type: "management-queue",
+    label: "Management Queue",
+    icon: "inbox",
+    requiredCapabilities: [],
+    singleton: true,
+    defaultWidth: 780,
+    defaultHeight: 620,
+    defaultPriority: "critical",
+  },
+  {
     type: "command",
     label: "Command Centre",
     icon: "gauge",

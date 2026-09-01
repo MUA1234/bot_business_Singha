@@ -6,6 +6,7 @@ import { CommandCentrePanel } from "@/components/spatial/panels/CommandCentrePan
 import { TasksPanel } from "@/components/spatial/panels/TasksPanel";
 import { ApprovalsPanel } from "@/components/spatial/panels/ApprovalsPanel";
 import { AIRecommendationsPanel } from "@/components/spatial/panels/AIRecommendationsPanel";
+import { ManagementQueuePanel } from "@/components/spatial/panels/ManagementQueuePanel";
 import FinancePanel from "@/components/spatial/panels/FinancePanel";
 import SystemHealthPanel from "@/components/spatial/panels/SystemHealthPanel";
 
@@ -51,6 +52,31 @@ export async function SpatialWorkspaceShell({ __previewAdmin }: SpatialWorkspace
         error: null,
       },
       content: <CommandCentrePanel companyId={admin.companyId} embedded />,
+    },
+    {
+      // R1 checkpoint 5 — the cross-department management queue, opened beside the
+      // Command Centre because together they are the owner cockpit.
+      state: {
+        id: "win-management-queue",
+        type: "management-queue",
+        title: "Management Queue",
+        x: 60,
+        y: 60,
+        width: 780,
+        height: 620,
+        z: 2,
+        pinned: false,
+        minimised: false,
+        maximised: false,
+        docked: null,
+        priority: "critical",
+        urgency: "interrupt",
+        loading: false,
+        stale: false,
+        permissionDenied: false,
+        error: null,
+      },
+      content: <ManagementQueuePanel companyId={admin.companyId} embedded />,
     },
     {
       state: {

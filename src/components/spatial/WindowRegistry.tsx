@@ -13,12 +13,14 @@ const CommandCentreWindow = lazy(() => import("./windows/CommandCentreWindow"));
 const TasksWorkspaceWindow = lazy(() => import("./windows/TasksWorkspaceWindow"));
 const ApprovalsWindow = lazy(() => import("./windows/ApprovalsWindow"));
 const AIRecommendationsWindow = lazy(() => import("./windows/AIRecommendationsWindow"));
+const ManagementQueueWindow = lazy(() => import("./windows/ManagementQueueWindow"));
 
 const RENDERERS: Record<string, ComponentType<WindowContentProps>> = {
   command: CommandCentreWindow,
   tasks: TasksWorkspaceWindow,
   approvals: ApprovalsWindow,
   "ai-recommendations": AIRecommendationsWindow,
+  "management-queue": ManagementQueueWindow,
   finance: ModuleWindow,
   staff: ModuleWindow,
   projects: ModuleWindow,
