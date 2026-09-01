@@ -49,7 +49,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/procurement/purchase-orders/actions.ts:80 | `const total = decSum(rows.map((l: any) => dec(l.unit_price).times(Math.max(0, Math.trunc(Number(l.qu` |
 | src/app/app/sales/opportunities/page.tsx:49 | `const summary = summarizePipeline(deals.map((r): Opportunity => ({ amount: String(r.amount ?? "0"), ` |
 | src/components/os/ConditionInstrument.tsx:123 | `const gapBetween = total > 0 ? Math.min(4, usable / Math.max(segments.length, 1) / 6) : 0;` |
-| src/lib/money.ts:189 | `* `Number(v).toLocaleString()` — the latter both floats the amount and hides its currency scale.` |
+| src/lib/money.ts:236 | `* `Number(v).toLocaleString()` — the latter both floats the amount and hides its currency scale.` |
 | src/modules/finance/reconcile.ts:66 | `reason: `${best.c.kind} of equal amount, ${Math.round(best.days)}d apart`,` |
 | src/modules/management/health-score.ts:62 | `return clamp(60 + 40 * Math.min(1, amount.div(1_000_000).toNumber()));` |
 | src/modules/procurement/three-way-match.ts:30 | `const amtTol = Math.max(input.amountTolerancePct ?? 0, 0);` |
@@ -161,7 +161,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/procurement/service-providers/page.tsx:36 | `error-discarding destructure` |
 | src/app/app/sales/accounts/page.tsx:33 | `[]` |
 | src/app/app/sales/leads/page.tsx:38 | `error-discarding destructure` |
-| src/components/spatial/WorkspaceProvider.tsx:56 | `null` |
+| src/components/spatial/WorkspaceProvider.tsx:76 | `null` |
 | src/components/spatial/panels/AIRecommendationsPanel.tsx:31 | `error-discarding destructure` |
 | src/components/spatial/panels/AIRecommendationsPanel.tsx:50 | `error-discarding destructure` |
 | src/components/spatial/panels/AIRecommendationsPanel.tsx:69 | `error-discarding destructure` |

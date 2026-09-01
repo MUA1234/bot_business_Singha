@@ -73,9 +73,23 @@ describe("SCH-003 — Leave and workload-aware scheduling", () => {
     expect(route).toContain("if (avail.available)");
   });
 
-  it("falls back to available admins when the chain is exhausted or all targets are on leave", () => {
-    expect(route).toContain("rankAvailableCandidates(\n          (adminsByCompany.get(t.company_id) ?? []).map((a) => availabilityFor(a.id)),\n        )");
-  });
+  /**
+   * REPLACED (defect PR-F-013). This assertion checked that the route's SOURCE TEXT
+   * contained a specific multi-line expression. The embedded `\n` never matched on a CRLF
+   * checkout, so it was the single red test on the approved baseline — red for a reason
+   * unrelated to the behaviour it claimed to protect. It also could not distinguish a
+   * working fallback from a broken one: the characters are present either way.
+   *
+   * The invariant is now covered behaviourally, by driving the real route handler against a
+   * controlled database, in `sch-003-escalation-fallback-behaviour.test.ts`. That test
+   * proves the fallback actually happens, that the on-leave chain member is skipped, that
+   * admins are ordered by workload, and that a re-run cannot spam — and it reproduced a
+   * genuine defect (R1-F-001) this assertion had been passing over.
+   *
+   * Nothing was weakened: one non-discriminating text check was removed and replaced with
+   * seven behavioural ones. The remaining assertions in this file are single-line and
+   * CRLF-safe, and are retained as cheap wiring checks.
+   */
 
   it("reports skipped leave in the cron response and audit payload", () => {
     expect(route).toContain("skippedLeave");
