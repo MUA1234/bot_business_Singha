@@ -24,6 +24,7 @@ import { inboundEventKey } from "@/events/outbox";
 import { sha256 } from "@/lib/ids";
 import { newCorrelationId, log } from "@/lib/log";
 import { inngest, WHATSAPP_INBOUND_EVENT } from "@/inngest/client";
+import { extractTextMessages } from "@/lib/whatsapp-inbound";
 
 /** §WP4: async, persist-first webhook. When on, the webhook only persists + enqueues +
  *  returns 200; a durable Inngest worker does the AI/order/reply. Requires INNGEST_*
@@ -106,7 +107,12 @@ export async function POST(req: Request): Promise<Response> {
   const results: string[] = [];
   for (const msg of messages) {
     try {
-      const res = await handleCustomerMessage({ from: msg.from, text: msg.text, waMessageId: msg.id });
+      const res = await handleCustomerMessage({
+        from: msg.from,
+        text: msg.text,
+        waMessageId: msg.id,
+        phoneNumberId: msg.phoneNumberId,
+      });
       results.push(res.status);
     } catch (e) {
       log("error", "handleCustomerMessage failed", { event: "wa.handle_failed", error: (e as Error).message });
@@ -114,32 +120,4 @@ export async function POST(req: Request): Promise<Response> {
     }
   }
   return NextResponse.json({ ok: true, processed: results });
-}
-
-interface InboundText {
-  id: string;
-  from: string;
-  text: string;
-}
-
-/** Pull inbound text messages (id, sender, body) from Meta's batched payload. */
-function extractTextMessages(payload: unknown): InboundText[] {
-  const out: InboundText[] = [];
-  const p = payload as {
-    entry?: {
-      changes?: {
-        value?: { messages?: { id?: string; from?: string; type?: string; text?: { body?: string } }[] };
-      }[];
-    }[];
-  };
-  for (const entry of p.entry ?? []) {
-    for (const change of entry.changes ?? []) {
-      for (const message of change.value?.messages ?? []) {
-        if (message.id && message.from && message.type === "text" && message.text?.body) {
-          out.push({ id: message.id, from: message.from, text: message.text.body });
-        }
-      }
-    }
-  }
-  return out;
 }

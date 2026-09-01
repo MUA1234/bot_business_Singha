@@ -17,8 +17,34 @@ import { withPendingFooter } from "@/lib/whatsapp";
 import { enqueueOutbox } from "@/lib/outbox-enqueue";
 import { drainOutbox } from "@/events/outbox-drain";
 import { createQuotationFromItems, tryFinalizeAndSend } from "@/lib/quotations";
-import { DEFAULT_COMPANY_ID } from "@/lib/constants";
-import { log } from "@/lib/log";
+import { log, newCorrelationId } from "@/lib/log";
+import { writeAudit } from "@/lib/audit";
+import { makeSupabaseCostLedger } from "@/db/consumer-store";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+/**
+ * Resolve the company that owns the Meta business number a customer messaged.
+ *
+ * Replaces the compiled-in `DEFAULT_COMPANY_ID`. Returns null when the number is not
+ * mapped (migration 0069 `companies.whatsapp_phone_number_id`) so the caller can fail
+ * closed rather than guess. Exported for testing.
+ */
+export async function resolveCompanyByPhoneNumberId(
+  db: SupabaseClient,
+  phoneNumberId: string | null | undefined,
+): Promise<string | null> {
+  if (!phoneNumberId) return null;
+  const { data, error } = await db
+    .from("companies")
+    .select("id")
+    .eq("whatsapp_phone_number_id", phoneNumberId)
+    .maybeSingle();
+  if (error) {
+    log("error", "company lookup by phone number failed", { event: "wa.company_lookup_failed", error: error.message });
+    return null;
+  }
+  return (data?.id as string | undefined) ?? null;
+}
 
 interface ConvState {
   name?: string | null;
@@ -32,11 +58,27 @@ export async function handleCustomerMessage(input: {
   from: string; // customer WA id (digits, no '+')
   text: string;
   waMessageId: string;
+  /** Meta business number that received the message — resolves the company (0069). */
+  phoneNumberId?: string | null;
   companyId?: string;
 }): Promise<{ status: string }> {
   const db = supabaseAdmin();
-  const companyId = input.companyId ?? DEFAULT_COMPANY_ID;
   const from = input.from.replace(/^\+/, "");
+
+  // Company comes from the number the customer messaged — never a compiled-in default.
+  // A message we cannot attribute is NOT processed: writing it into an assumed company is
+  // exactly the cross-company leakage the constitution calls a critical failure. The source
+  // event is already persisted at the webhook boundary, so an unmapped number loses nothing
+  // — map it and replay. The error is loud because silence here looks like a healthy system.
+  const companyId = input.companyId ?? (await resolveCompanyByPhoneNumberId(db, input.phoneNumberId));
+  if (!companyId) {
+    log("error", "inbound WhatsApp message could not be attributed to a company", {
+      event: "wa.company_unresolved",
+      phoneNumberId: input.phoneNumberId ?? null,
+      waMessageId: input.waMessageId,
+    });
+    return { status: "company_unresolved" };
+  }
 
   // Idempotency + resume-safety (§WP-C): treat as a duplicate ONLY if a prior run fully
   // HANDLED this message (reply sent). If a prior attempt crashed after logging the
@@ -108,11 +150,18 @@ export async function handleCustomerMessage(input: {
     .eq("is_active", true);
   const catalogNames = (catalog ?? []).map((c: any) => c.name);
 
-  const turn = await runQuotationTurn(makeOpenAiTransport(), {
-    message: input.text,
-    state: { name: state.name, address: state.address, email: state.email, items: state.items },
-    catalogNames,
-  });
+  const correlationId = newCorrelationId();
+  const turn = await runQuotationTurn(
+    makeOpenAiTransport(),
+    {
+      message: input.text,
+      companyId,
+      correlationId,
+      state: { name: state.name, address: state.address, email: state.email, items: state.items },
+      catalogNames,
+    },
+    makeSupabaseCostLedger(db), // persist model/tokens/cost/latency per customer turn
+  );
 
   let reply: string;
   const awaitingAlready = status === "awaiting_price";
@@ -159,6 +208,24 @@ export async function handleCustomerMessage(input: {
         items: state.items!,
       });
       state.quotationId = quotationId;
+
+      // AUDIT. A customer-initiated order and quotation are business records created with no
+      // human in the loop, and until now the WhatsApp path wrote NOTHING to audit_events while
+      // every dashboard action did. The actor is the system, on evidence of this exact message.
+      await writeAudit({
+        companyId,
+        actorId: null, // system actor (0049): actor_type='system' carries actor_id NULL
+        actorType: "system",
+        action: "quotation.created_from_whatsapp",
+        entityType: "quotation",
+        entityId: quotationId,
+        payload: {
+          conversation_id: conversationId,
+          wa_message_id: input.waMessageId,
+          items: (state.items ?? []).length,
+          awaiting_price: awaitingPrice,
+        },
+      });
 
       if (awaitingPrice) {
         status = "awaiting_price";

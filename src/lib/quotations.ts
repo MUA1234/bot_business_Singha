@@ -17,6 +17,8 @@ import { outboundIdempotencyKey } from "@/events/outbox";
 import { drainOutbox, type DrainResult } from "@/events/outbox-drain";
 import { log } from "@/lib/log";
 import { env } from "@/config/env";
+import { createNotification } from "@/lib/notify";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface DraftItem {
   description: string;
@@ -94,7 +96,13 @@ export async function createQuotationFromItems(input: {
   routeDepartment?: string;
 }): Promise<{ quotationId: string; orderId: string; awaitingPrice: boolean }> {
   const db = supabaseAdmin();
-  const currency = (input.currency ?? "LKR").toUpperCase().slice(0, 3);
+  // The company's own base currency governs the quotation — not a compiled-in "LKR".
+  // An explicit caller currency still wins; the literal is only the last resort when a
+  // company row has somehow lost its base_currency (the column is NOT NULL, so this is
+  // defence, not an expected path).
+  const currency = (input.currency ?? (await companyBaseCurrency(db, input.companyId)) ?? "LKR")
+    .toUpperCase()
+    .slice(0, 3);
 
   const { data: order, error: orderErr } = await db
     .from("orders")
@@ -139,8 +147,92 @@ export async function createQuotationFromItems(input: {
     if (error) throw new Error(`items insert failed: ${error.message}`);
   }
 
-  const awaitingPrice = await priceQuotation(input.companyId, quote.id, input.routeDepartment ?? "sales");
+  const awaitingPrice = await priceQuotation(input.companyId, quote.id, input.routeDepartment);
   return { quotationId: quote.id, orderId: order.id, awaitingPrice };
+}
+
+/**
+ * Notify every active member of the department that a price request is waiting.
+ *
+ * Best-effort: a notification failure must never block the quotation, and the request row
+ * is already durable. Admins are included because they are the escalation path when a
+ * department has no active member — otherwise the request would reach nobody at all.
+ */
+async function notifyDepartmentOfPriceRequest(input: {
+  companyId: string;
+  department: string;
+  description: string;
+  quantity: number;
+  confirmationId: string | null;
+}): Promise<void> {
+  try {
+    const db = supabaseAdmin();
+    const { data: staff } = await db
+      .from("profiles")
+      .select("id, department, is_admin")
+      .eq("company_id", input.companyId)
+      .eq("is_active", true);
+    const recipients = (staff ?? []).filter(
+      (p: any) => p.department === input.department || p.is_admin === true,
+    );
+    if (recipients.length === 0) {
+      log("error", "price request has no recipient", {
+        event: "quotation.price_request_unstaffed",
+        companyId: input.companyId,
+        department: input.department,
+      });
+      return;
+    }
+    await Promise.all(
+      recipients.map((p: any) =>
+        createNotification({
+          companyId: input.companyId,
+          recipientId: p.id as string,
+          type: "price_confirmation_requested",
+          title: "A price is needed for a customer quotation",
+          body: `${input.quantity} × ${input.description}`,
+          link: `/app/${input.department}/price-requests`,
+        }),
+      ),
+    );
+  } catch (e) {
+    log("error", "price request notification failed", {
+      event: "quotation.price_request_notify_failed",
+      error: (e as Error).message,
+    });
+  }
+}
+
+/** The company's base currency (migration 0002 `companies.base_currency`). */
+export async function companyBaseCurrency(db: SupabaseClient, companyId: string): Promise<string | null> {
+  const { data } = await db.from("companies").select("base_currency").eq("id", companyId).maybeSingle();
+  return (data?.base_currency as string | undefined) ?? null;
+}
+
+/**
+ * Which department should price this item.
+ *
+ * Was the constant `"sales"`, so a fleet part and a legal service both landed in the Sales
+ * queue. Resolution order, most specific first (migration 0069):
+ *   1. the matched catalogue product's `department` — the item's own routing;
+ *   2. the company's `default_price_confirmation_department`;
+ *   3. an explicit caller override (dashboards pricing on behalf of a department);
+ *   4. `"sales"` — the historical default, so a company that configures nothing keeps
+ *      exactly today's behaviour.
+ * The department is validated against the live catalogue before use: routing to a queue no
+ * dashboard renders would strand the customer silently.
+ */
+export function resolveRouteDepartment(
+  catalogueDepartment: string | null | undefined,
+  companyDefault: string | null | undefined,
+  override: string | null | undefined,
+  activeDepartmentKeys: readonly string[],
+): string {
+  const ok = (d: string | null | undefined): d is string => !!d && activeDepartmentKeys.includes(d);
+  if (ok(catalogueDepartment)) return catalogueDepartment;
+  if (ok(companyDefault)) return companyDefault;
+  if (ok(override)) return override;
+  return "sales";
 }
 
 /**
@@ -151,9 +243,18 @@ export async function createQuotationFromItems(input: {
 export async function priceQuotation(
   companyId: string,
   quotationId: string,
-  routeDepartment = "sales",
+  routeDepartment?: string,
 ): Promise<boolean> {
   const db = supabaseAdmin();
+
+  // Routing inputs, read once: the company default, and the department keys that actually
+  // exist. A price confirmation addressed to a non-existent department is invisible work.
+  const [{ data: companyRow }, { data: deptRows }] = await Promise.all([
+    db.from("companies").select("default_price_confirmation_department").eq("id", companyId).maybeSingle(),
+    db.from("departments_catalog").select("key").eq("is_active", true),
+  ]);
+  const companyDefaultDept = (companyRow?.default_price_confirmation_department as string | null) ?? null;
+  const activeDepartments = (deptRows ?? []).map((d: any) => d.key as string);
 
   // The quotation's currency governs the whole document: the public quotation renders every item in it,
   // and the enqueue guard (migration 0067) refuses any item whose currency disagrees with it.
@@ -167,7 +268,7 @@ export async function priceQuotation(
 
   const { data: catalog } = await db
     .from("product_catalog")
-    .select("id, name, unit_price, currency")
+    .select("id, name, unit_price, currency, department")
     .eq("company_id", companyId)
     .eq("is_active", true)
     .not("unit_price", "is", null);
@@ -222,15 +323,38 @@ export async function priceQuotation(
         .eq("status", "open")
         .maybeSingle();
       if (!existing) {
-        await db.from("price_confirmations").insert({
-          company_id: companyId,
-          quotation_id: quotationId,
-          quotation_item_id: it.id,
-          department: routeDepartment,
-          description: it.description,
+        // Route by the ITEM, not by a constant: a matched catalogue entry names the team that
+        // prices it (a fleet part → fleet, a service → sales), then the company default, then
+        // the caller's override, then the historical "sales".
+        const department = resolveRouteDepartment(
+          (match as { department?: string | null } | undefined)?.department,
+          companyDefaultDept,
+          routeDepartment,
+          activeDepartments,
+        );
+        const { data: inserted } = await db
+          .from("price_confirmations")
+          .insert({
+            company_id: companyId,
+            quotation_id: quotationId,
+            quotation_item_id: it.id,
+            department,
+            description: it.description,
+            quantity: it.quantity || 1,
+            currency: qCurrency || (it.currency ?? "LKR"),
+            status: "open",
+          })
+          .select("id")
+          .maybeSingle();
+
+        // Tell the department. Without this a price request sits open until someone happens to
+        // open the page — the customer waits behind work nobody was told about.
+        await notifyDepartmentOfPriceRequest({
+          companyId,
+          department,
+          description: String(it.description ?? "item"),
           quantity: it.quantity || 1,
-          currency: qCurrency || (it.currency ?? "LKR"),
-          status: "open",
+          confirmationId: (inserted?.id as string | undefined) ?? null,
         });
       }
     }

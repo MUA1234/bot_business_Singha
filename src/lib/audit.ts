@@ -19,7 +19,8 @@ import { log } from "@/lib/log";
 
 export interface AuditEntry {
   companyId: string | null;
-  actorId: string;
+  /** NULL for actor_type 'system' — the convention migration 0049 established. */
+  actorId: string | null;
   actorType?: "user" | "system" | "ai";
   action: string; // e.g. "employee.deactivated", "employee.password_reset"
   entityType: string; // e.g. "profile", "product_catalog"

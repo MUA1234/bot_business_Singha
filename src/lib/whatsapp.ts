@@ -9,7 +9,10 @@
  */
 import { log } from "@/lib/log";
 
-const GRAPH_VERSION = "v20.0";
+// Meta deprecates Graph versions on a rolling ~2-year schedule, so this must be changeable
+// without a code release. Default matches what the app was pinned to; override with
+// WHATSAPP_GRAPH_VERSION when Meta retires it.
+const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_VERSION?.trim() || "v20.0";
 
 /** The exact footer appended while a quotation is being priced (owner rule, D-017). */
 export const QUOTE_PENDING_FOOTER = "(Quotation is being generated. Please wait)";

@@ -11,7 +11,8 @@
  * `MODEL_ROUTES.quotation` and calls the injected transport.
  */
 import { z } from "zod";
-import { MODEL_ROUTES, type CompletionTransport } from "./gateway";
+import { randomUUID } from "node:crypto";
+import { MODEL_ROUTES, type CompletionTransport, type CostLedger, type AiRunRecord } from "./gateway";
 import { wrapUntrusted } from "./prompts";
 
 export const QuotationTurnSchema = z.object({
@@ -116,6 +117,9 @@ export const QUOTATION_TURN_JSON_SCHEMA = {
 
 export interface QuotationTurnInput {
   message: string;
+  /** Company the run is billed to, and the correlation id, for the cost ledger. */
+  companyId?: string;
+  correlationId?: string;
   state: {
     name?: string | null;
     address?: string | null;
@@ -125,11 +129,37 @@ export interface QuotationTurnInput {
   catalogNames?: string[];
 }
 
+/** Prompt version — bump whenever SYSTEM_PROMPT or the output contract changes. */
+export const QUOTATION_PROMPT_VERSION = "quotation-1.1";
+
 export async function runQuotationTurn(
   transport: CompletionTransport,
   input: QuotationTurnInput,
+  ledger?: CostLedger,
 ): Promise<{ ok: true; turn: QuotationTurn } | { ok: false; reason: string }> {
   const { model, maxTokens } = MODEL_ROUTES.quotation;
+
+  // Cost/observability trail. This is the highest-volume AI path in the system and it was
+  // recording NOTHING — zero ai_runs rows for four live customer turns — so model spend,
+  // latency and failure rate on customer intake were invisible. Mirrors the management
+  // route's ledger contract; the ledger stays optional so existing callers are unaffected.
+  const base: Omit<AiRunRecord, "validation_ok" | "confidence_overall"> = {
+    ai_run_id: `ai_${randomUUID()}`,
+    route: "quotation",
+    model,
+    prompt_version: QUOTATION_PROMPT_VERSION,
+    input_tokens: 0,
+    output_tokens: 0,
+    cost_usd: "0",
+    correlation_id: input.correlationId ?? `cor_${randomUUID().slice(0, 8)}`,
+    company_id: input.companyId,
+    latency_ms: 0,
+  };
+  const startedAt = Date.now();
+  const finish = async (validation_ok: boolean, issues?: string[]) => {
+    base.latency_ms = Date.now() - startedAt;
+    await ledger?.record({ ...base, validation_ok, confidence_overall: null, validation_issues: issues });
+  };
 
   const context = {
     collected_so_far: input.state,
@@ -144,18 +174,30 @@ export async function runQuotationTurn(
   try {
     const resp = await transport.complete({ model, system: SYSTEM_PROMPT, user, maxTokens, jsonSchema: QUOTATION_TURN_JSON_SCHEMA });
     text = resp.text;
+    base.input_tokens = resp.usage.input_tokens;
+    base.output_tokens = resp.usage.output_tokens;
+    base.cost_usd = resp.cost_usd;
   } catch (e) {
-    return { ok: false, reason: `transport_error: ${(e as Error).message}` };
+    const reason = `transport_error: ${(e as Error).message}`;
+    await finish(false, [reason]);
+    return { ok: false, reason };
   }
 
   const raw = safeJson(text);
   if (raw === null) {
     // Empty/!JSON body — e.g. a reasoning model that spent its whole output budget before
     // emitting the message item. Say so precisely; "validation_failed" hid this before.
-    return { ok: false, reason: `no_json_output: ${text.length} chars` };
+    const reason = `no_json_output: ${text.length} chars`;
+    await finish(false, [reason]);
+    return { ok: false, reason };
   }
   const parsed = QuotationTurnSchema.safeParse(normalizeTurnShape(raw));
-  if (!parsed.success) return { ok: false, reason: `validation_failed: ${parsed.error.message}` };
+  if (!parsed.success) {
+    const reason = `validation_failed: ${parsed.error.message}`;
+    await finish(false, [parsed.error.issues[0]?.message ?? "invalid"]);
+    return { ok: false, reason };
+  }
+  await finish(true);
   return { ok: true, turn: parsed.data };
 }
 
