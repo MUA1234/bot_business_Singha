@@ -14,6 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { readdirSync } from "node:fs";
 import pg from "pg";
 
 const URL = process.env.DATABASE_URL ?? "";
@@ -87,8 +88,11 @@ describe.skipIf(!enabled)("R1 draft schema — live disposable PostgreSQL", () =
   });
 
   it("records the draft units in its OWN ledger and never in schema_migrations", async () => {
+    // Derived from the directory, not hard-coded: adding a draft unit must not fail a test
+    // that is about the LEDGER rather than about how many units happen to exist.
+    const unitCount = readdirSync("src/db/draft-migrations-r1").filter((f) => f.endsWith(".up.sql")).length;
     const { rows } = await db.query(`select count(*)::int as n from r1_draft_migrations`);
-    expect(rows[0].n).toBe(8);
+    expect(rows[0].n).toBe(unitCount);
 
     // The strongest possible form of the assertion: applying every draft unit did not even
     // CREATE the production ledger, so it cannot have written to it. (If a future run does
