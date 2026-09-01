@@ -2283,7 +2283,7 @@ requirements:
     test_evidence: tests/kernel/lifecycle.test.ts; tests/kernel/invariants.test.ts; tests/kernel/interpretation.test.ts; tests/integration/r1-draft-schema.test.ts (31 live)
     security_evidence: capability-aware RLS matrix (R1_DRAFT_007) + accountable-owner composite FK and assignment guard (R1_DRAFT_008); 30 live role tests in tests/integration/r1-security-baseline.test.ts
     audit_health_evidence: none
-    last_verified_sha: 5962a14
+    last_verified_sha: b01da86
     last_verified_at: 2026-09-02
     authority_restrictions: The kernel may act unattended ONLY within automatic authority per owner decision D-9; every higher level stops at the deterministic authority ladder and requires a recorded human decision.
     privacy_restrictions: Context packs are company-scoped and bounded; untrusted external content is fenced and labelled and can never instruct the kernel; no cross-company data may enter a pack.
@@ -2313,7 +2313,7 @@ requirements:
     test_evidence: tests/kernel/adapters.test.ts (41); tests/integration/r1-adapter-ingest.test.ts (6 live)
     security_evidence: company identity resolved from the scan context and never from a payload; sensitive-fact keys refused; minimum-safe-summary bands instead of amounts, names, message bodies or config values
     audit_health_evidence: none
-    last_verified_sha: 5962a14
+    last_verified_sha: b01da86
     last_verified_at: 2026-09-02
     authority_restrictions: A detector observes and reports; it may never create a case, task or action itself.
     privacy_restrictions: Observations carry evidence references, not copied personal content; people-related sources obey the WRK-006 fairness and visibility model.
@@ -2343,7 +2343,7 @@ requirements:
     test_evidence: tests/kernel/invariants.test.ts INV-4/INV-5; tests/kernel/adapters.test.ts category assertions
     security_evidence: none
     audit_health_evidence: none
-    last_verified_sha: 5962a14
+    last_verified_sha: b01da86
     last_verified_at: 2026-09-02
     authority_restrictions: Each entry declares its capability and authority floor; the kernel cannot execute above automatic authority without a recorded human decision.
     privacy_restrictions: An action's input schema must not accept raw untrusted text as an authority, identity or scope input.

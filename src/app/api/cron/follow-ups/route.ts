@@ -18,7 +18,12 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { evaluateFollowUp, selectEscalationTarget, type FollowUpAction } from "@/modules/work/follow-up";
-import { evaluateAvailability, rankAvailableCandidates, type AvailabilityResult } from "@/modules/work/availability";
+import {
+  evaluateAvailability,
+  rankAvailableCandidates,
+  selectBestAvailable,
+  type AvailabilityResult,
+} from "@/modules/work/availability";
 import { InternalTemplates, type BuiltMessage } from "@/lib/whatsapp-templates";
 import { enqueueOutbox } from "@/lib/outbox-enqueue";
 import { writeAudit } from "@/lib/audit";
@@ -287,17 +292,44 @@ export async function GET(req: Request): Promise<Response> {
           await send(t.company_id, t.id, "escalation", targetProfile.id, phone, targetProfile.full_name ?? targetProfile.username ?? "there", task);
         }
       } else {
-        // Chain exhausted or all targets on leave — fall back to available company admins.
-        const availableAdmins = rankAvailableCandidates(
+        // Chain exhausted, or every chain member on leave. Fall back to ONE suitable
+        // administrator OF THIS COMPANY — never to all of them, and never to somebody who
+        // cannot act on it.
+        //
+        // DEFECT R1-F-001, corrected here. This previously iterated
+        // `rankAvailableCandidates(...)` and notified every entry. That helper only SORTS
+        // ("most available first"); it does not filter, so administrators on APPROVED LEAVE
+        // were notified — the precise opposite of the SCH-003 invariant, and invisible
+        // because the covering test asserted on source text rather than behaviour. Its
+        // sibling, the ordinary reminder path below, had the guard all along.
+        //
+        // `selectBestAvailable` is the EXISTING helper that filters to available candidates
+        // and returns the best one. Using it fixes three things at once: nobody on leave is
+        // contacted, the notification is batched to a single recipient instead of being
+        // broadcast to every administrator in the company, and the choice remains
+        // workload-ranked. No new staff-selection mechanism is introduced.
+        //
+        // Company scope, active status and authority are already enforced upstream:
+        // `adminsByCompany` is keyed by company, the profiles query filters `is_active`,
+        // and only `is_admin` profiles are collected into it.
+        const fallback = selectBestAvailable(
           (adminsByCompany.get(t.company_id) ?? []).map((a) => availabilityFor(a.id)),
         );
-        for (const adminAvail of availableAdmins) {
-          const admin = profileById.get(adminAvail.profileId);
-          if (!admin) continue;
-          const phone = cleanPhone(admin.phone);
+        const fallbackProfile = fallback ? profileById.get(fallback.profileId) : null;
+        if (fallbackProfile) {
+          const phone = cleanPhone(fallbackProfile.phone);
           if (phone) {
-            await send(t.company_id, t.id, "escalation", admin.id, phone, admin.full_name ?? admin.username ?? "there", task);
+            await send(t.company_id, t.id, "escalation", fallbackProfile.id, phone, fallbackProfile.full_name ?? fallbackProfile.username ?? "there", task);
+            targetId = fallbackProfile.id;
+            reason = "fallback_available_admin";
           }
+        }
+
+        if (!targetId) {
+          // NOBODY suitable is available. Record that truthfully and escalate to no one: a
+          // task that claims an escalation which never happened is worse than one that
+          // openly says it is waiting for a person. The next sweep re-evaluates.
+          reason = "no_available_authorised_target";
         }
       }
 
