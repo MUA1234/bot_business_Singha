@@ -13,10 +13,10 @@ Generated at: 2026-09-01
 | locally_verified | 60 |
 | absent | 26 |
 | blocked_owner | 6 |
+| implementation_in_progress | 5 |
 | specified | 5 |
-| implementation_in_progress | 4 |
 | deliberately_deferred | 4 |
-| foundation_only | 3 |
+| foundation_only | 2 |
 | implemented_unverified | 2 |
 
 ## Completion accounting
@@ -130,9 +130,9 @@ operating-mode claim that depends on it. Blocked is not done.
 | IMP-003 | Versioned playbooks and prompt/evaluation improvement with human approval | P1 | **absent** | none | none | private repository/package decision for proprietary playbooks |
 | INT-001 | Integration Gateway and connector registry | P1 | **locally_verified** | src/app/app/admin/integrations/page.tsx | 4b5bbb3 | — |
 | IP-001 | Public-repository IP boundary | P1 | **locally_verified** | scripts/autonomy/check-ip-boundary.mjs | f86eb97 | decision on a private repository or package for proprietary prompts and evaluation data |
-| KRN-001 | One domain-agnostic management kernel | P0 | **implementation_in_progress** | none | b01da86 | owner approval of the target architecture (granted 2026-09-02, D-10) plus phase gate — implementation is NOT authorised before R4 |
-| KRN-002 | Observation sources across every managed domain | P0 | **implementation_in_progress** | none | b01da86 | phase gate — not authorised before R4 |
-| KRN-003 | Registered domain action catalogue | P0 | **foundation_only** | none | b01da86 | phase gate — not authorised before R4 |
+| KRN-001 | One domain-agnostic management kernel | P0 | **implementation_in_progress** | none | 6b01602 | owner approval of the target architecture (granted 2026-09-02, D-10) plus phase gate — implementation is NOT authorised before R4 |
+| KRN-002 | Observation sources across every managed domain | P0 | **implementation_in_progress** | none | 6b01602 | phase gate — not authorised before R4 |
+| KRN-003 | Registered domain action catalogue | P0 | **implementation_in_progress** | none | 6b01602 | phase gate — not authorised before R4 |
 | LNG-001 | Multilingual English / Sinhala / Tamil | P2 | **specified** | none | none | approval of the specification before implementation |
 | LNG-002 | Per-staff language preference with meaning, permission and audit invariance | P1 | **absent** | none | none | OWNER GATE — approval of the multilingual specification before implementation (inherited from LNG-001) |
 | MEM-001 | Organizational memory and evidence provenance | P1 | **locally_verified** | src/app/app/command/memory/page.tsx | 82b6ce9 | — |
