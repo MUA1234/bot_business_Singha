@@ -25,7 +25,7 @@ export default async function CampaignsPage() {
   let rows: any[] = [];
   let audiences: any[] = [];
   try {
-    rows = (await db.from("campaigns").select("id, name, channel, status, budget, currency, sent_count, audiences(name)").eq("company_id", p.companyId).order("created_at", { ascending: false }).limit(200)).data ?? [];
+    rows = (await db.from("campaigns").select("id, name, channel, status, budget, currency, sent_count, audiences!campaigns_audience_id_company_fk(name)").eq("company_id", p.companyId).order("created_at", { ascending: false }).limit(200)).data ?? [];
     audiences = (await db.from("audiences").select("id, name").eq("company_id", p.companyId).order("name")).data ?? [];
   } catch {
     rows = [];

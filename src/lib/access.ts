@@ -41,7 +41,11 @@ export async function getMembership(companyId?: string): Promise<Membership | nu
 
   let q = db
     .from("memberships")
-    .select("id, user_id, company_id, status, membership_roles(role_key)")
+    // Disambiguated embed: two FK paths exist to membership_roles (a plain one and the
+// company-scoped composite from migration 0024). Unqualified, PostgREST refuses with
+// PGRST201 and the query returns nothing. Pin the COMPANY-SCOPED path — it constrains
+// the join to the same company, which is the isolation property this resolver exists for.
+    .select("id, user_id, company_id, status, membership_roles!membership_roles_membership_id_company_fk(role_key)")
     .eq("user_id", user.id)
     .eq("status", "active");
   if (companyId) q = q.eq("company_id", companyId);

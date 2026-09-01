@@ -31,9 +31,23 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Bound the auth round-trip. This call runs on EVERY /app and /login request, and with no
+  // timeout a slow or sleeping database turns every page into a hang — observed in production
+  // as four "function stopped, no initial response within 25s" errors on /middleware affecting
+  // real users. On a timeout we treat the request as unauthenticated: a signed-in user is sent
+  // to /login (recoverable, and the page itself re-checks) rather than left staring at a
+  // spinner. Failing closed is also the safe direction for an auth gate.
+  const AUTH_TIMEOUT_MS = 5_000;
+  let user: { id: string } | null = null;
+  try {
+    const result = await Promise.race([
+      supabase.auth.getUser(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("auth_timeout")), AUTH_TIMEOUT_MS)),
+    ]);
+    user = result.data.user;
+  } catch {
+    user = null;
+  }
 
   const path = request.nextUrl.pathname;
   if (path.startsWith("/app") && !user) {
