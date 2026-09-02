@@ -108,6 +108,14 @@ export function gateAuthority(c: CandidateEvidence, req: CandidateRequest): Gate
   if (req.requiredAuthority === "automatic" && !req.authorityAmount) {
     return ok("authority_not_required", "this work requires no approval authority");
   }
+  // A DELEGATE's authority comes FROM the delegation — that is what a delegation IS. Testing a
+  // delegate against their own ceiling would refuse exactly the people delegation exists to
+  // enable, and would hide the delegation's own failure behind a misleading reason. Their
+  // authority is established instead by evaluateDelegation, which is stricter: it checks scope,
+  // window, AND the delegator's own ceiling (R2B-F-001).
+  if (c.candidateType === "delegate") {
+    return ok("authority_by_delegation", "authority is established by the delegation, which is checked separately");
+  }
   if (!isVerified(c.authorityLevel)) {
     return unknown("authority_unknown", "authority level is not established from company rules");
   }

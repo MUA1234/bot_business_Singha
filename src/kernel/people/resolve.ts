@@ -23,11 +23,30 @@ import {
   type CandidateEvidence, type CandidateRequest, type CandidateResolution, type CandidateRole,
   type EligibleCandidate, type Reason, type RejectedCandidate,
 } from "./candidate";
+import { evaluateDelegation, refuseRedelegation, type DelegatorAuthority } from "./delegation-scope";
 import { evaluateEligibility } from "./eligibility";
+import { assertRoleBoundaries } from "./roles";
 import { orderCandidates, scoreSuitability, type SuitabilitySignal } from "./suitability";
 
 /** How the caller supplies derived outcome signals. Keyed by membership AND task kind. */
 export type SignalLookup = (membershipId: string, taskKind: string) => SuitabilitySignal | null;
+
+/**
+ * Everything the resolver needs from the outside. All optional and all defaulting to the SAFE
+ * answer: no signal, and an unknown delegator (which refuses the delegation) rather than an
+ * assumed one.
+ */
+export interface ResolveDeps {
+  signalFor?: SignalLookup;
+  /** The delegator's OWN authority, resolved from company rules — never from the delegation. */
+  delegatorFor?: (fromMembershipId: string) => DelegatorAuthority | null;
+  /**
+   * Does the delegator hold this authority in their own right? False means it is borrowed, and
+   * borrowed authority may not be delegated onward. Defaults to true so that callers with no
+   * chain information are not silently refused — the ceiling check still applies.
+   */
+  delegatorHoldsOwnAuthority?: (fromMembershipId: string) => boolean;
+}
 
 /** The rule version reported when no learning is consulted at all. */
 export const NO_LEARNING_RULE_VERSION = "none";
@@ -46,11 +65,12 @@ const ROLE_TYPES: Record<CandidateRole, ReadonlySet<string>> = {
 export function resolveCandidates(
   req: CandidateRequest,
   evidence: readonly CandidateEvidence[],
-  signalFor: SignalLookup = () => null,
+  deps: ResolveDeps = {},
 ): CandidateResolution {
   if (req.roles.length === 0) {
     throw new Error("resolveCandidates: at least one role must be requested");
   }
+  const signalFor = deps.signalFor ?? (() => null);
 
   const eligible: EligibleCandidate[] = [];
   const rejected: RejectedCandidate[] = [];
@@ -95,11 +115,28 @@ export function resolveCandidates(
     // One entry per role the candidate can fill: an advisor recommendation and an assignee
     // recommendation are different proposals even when they name the same person.
     for (const role of roles) {
-      eligible.push({
+      // A delegate is only a candidate if the delegation itself survives scrutiny — scope,
+      // window, and (R2B-F-001) the delegator's own authority.
+      if (role === "delegate") {
+        const verdict = checkDelegation(c, req, deps);
+        if (!verdict.ok) {
+          rejected.push({
+            membershipId: c.membershipId,
+            candidateType: c.candidateType,
+            reasons: verdict.reasons,
+            // A delegation that does not apply is a fact about the DELEGATION, not the person.
+            neutral: true,
+          });
+          continue;
+        }
+      }
+
+      const candidate: EligibleCandidate = {
         membershipId: c.membershipId,
         candidateType: c.candidateType,
         role,
-        relevantCapabilities: relevantCapabilities(c, req),
+        // Being recommended is never authorisation: a consultant carries no internal capability.
+        relevantCapabilities: c.candidateType === "external_consultant" ? [] : relevantCapabilities(c, req),
         relevantSkills: s.matchedSkills,
         availability: c.available.value,
         confidence: s.confidence,
@@ -108,9 +145,13 @@ export function resolveCandidates(
         reasons: [...outcome.passed, ...s.reasons],
         missingInformation: [...outcome.missing, ...s.missingInformation],
         requiresHumanReview: s.requiresHumanReview,
-        delegationScope: c.delegationScope.value,
+        // An advisor owns nothing, so no delegation rides along with the recommendation.
+        delegationScope: role === "advisor" ? null : c.delegationScope.value,
         engagementScope: c.engagementScope.value,
-      });
+      };
+      // Loud, not filtered: a boundary violation here is a loader or resolver bug.
+      assertRoleBoundaries(candidate);
+      eligible.push(candidate);
     }
   }
 
@@ -139,6 +180,46 @@ export function resolveCandidates(
     humanDecisionRequired: true,
     signalRuleVersion: ruleVersion,
   };
+}
+
+/**
+ * Validate a delegate candidate's delegation.
+ *
+ * Fails closed at every step: no delegation record, an unknown delegator, or a delegator whose
+ * authority is itself borrowed all refuse. The delegation is NEVER taken as evidence of the
+ * delegator's authority — that is the whole point of R2B-F-001.
+ */
+function checkDelegation(
+  c: CandidateEvidence,
+  req: CandidateRequest,
+  deps: ResolveDeps,
+): { ok: true } | { ok: false; reasons: Reason[] } {
+  const scope = c.delegationScope.value;
+  if (!scope) {
+    return {
+      ok: false,
+      reasons: [{ code: "no_delegation_record", detail: "no delegation exists for this person", evidence: null }],
+    };
+  }
+
+  const holdsOwn = deps.delegatorHoldsOwnAuthority?.(scope.fromMembership) ?? true;
+  const chain = refuseRedelegation(holdsOwn);
+  if (chain && !chain.valid) return { ok: false, reasons: chain.reasons };
+
+  const delegator = deps.delegatorFor?.(scope.fromMembership) ?? null;
+  const verdict = evaluateDelegation(
+    scope,
+    delegator,
+    {
+      companyId: req.companyId,
+      authorityDomain: req.authorityDomain,
+      authorityAmount: req.authorityAmount,
+      requiredAuthority: req.requiredAuthority,
+      now: req.now,
+    },
+    c.companyId,
+  );
+  return verdict.valid ? { ok: true } : { ok: false, reasons: verdict.reasons };
 }
 
 /** The capabilities this candidate holds that the request actually cares about. */

@@ -273,11 +273,11 @@ describe("no universal employee rank", () => {
     };
     const lookup: SignalLookup = (_m, kind) => signals[kind] ?? null;
 
-    const good = resolveCandidates(request({ taskKind: "finance.receivable_followup" }), [person], lookup);
+    const good = resolveCandidates(request({ taskKind: "finance.receivable_followup" }), [person], { signalFor: lookup });
     const bad = resolveCandidates(
       request({ taskKind: "legal.obligation_review", department: "legal" }),
       [person],
-      lookup,
+      { signalFor: lookup },
     );
 
     expect(good.candidates[0]!.suitability).toBeGreaterThan(bad.candidates[0]!.suitability);
@@ -291,7 +291,7 @@ describe("no universal employee rank", () => {
       outcomeCount: 20, verifiedOutcomeCount: 20, onTimeCount: 20, distinctDeciderCount: 5,
       weightedSuccessRate: 1, contradictory: false, ruleVersion: "r2b.1",
     };
-    const withSignal = resolveCandidates(request(), [staff("m1")], () => otherWork);
+    const withSignal = resolveCandidates(request(), [staff("m1")], { signalFor: () => otherWork });
     const without = resolveCandidates(request(), [staff("m1")]);
     expect(withSignal.candidates[0]!.suitability).toBe(without.candidates[0]!.suitability);
     expect(withSignal.candidates[0]!.missingInformation.map((m) => m.code))
@@ -308,7 +308,7 @@ describe("cold start and missing information never penalise", () => {
       outcomeCount: 10, verifiedOutcomeCount: 10, onTimeCount: 5, distinctDeciderCount: 3,
       weightedSuccessRate: 0.5, contradictory: false, ruleVersion: "r2b.1",
     };
-    const r = resolveCandidates(request(), [coldStart, known], (m) => (m === "m2" ? averageHistory : null));
+    const r = resolveCandidates(request(), [coldStart, known], { signalFor: (m) => (m === "m2" ? averageHistory : null) });
     const a = r.candidates.find((c) => c.membershipId === "m1")!;
     const b = r.candidates.find((c) => c.membershipId === "m2")!;
     expect(a.suitability).toBe(b.suitability);
