@@ -34,6 +34,58 @@ export interface QueueEvidenceRef {
   facts: Record<string, string | number | boolean | null>;
 }
 
+/**
+ * Who the system suggests, and why (R2B checkpoint 5).
+ *
+ * ── Two deliberate omissions ─────────────────────────────────────────────────────────────
+ *
+ * There is NO numeric suitability score for a person on this surface, and no percentage
+ * beside anyone's name. The resolver's `suitability` is an ordering value for one request;
+ * printed next to a face it becomes a rating, and a rating printed often enough becomes the
+ * universal employee rank the owner forbade. Order and reasons are shown instead — a manager
+ * can act on "holds the capability, 20h free, four verified outcomes", and cannot act on 0.78.
+ *
+ * `confidence` IS shown, because it is a statement about the EVIDENCE, not about the person,
+ * and hiding it would make a thin recommendation look as solid as a well-supported one.
+ */
+export type QueueCandidateRole = "assignee" | "advisor" | "delegate" | "external_consultant";
+
+export interface QueueCandidate {
+  membershipId: string;
+  /** Resolved by the caller. The panel never invents or derives a name. */
+  displayName: string;
+  role: QueueCandidateRole;
+  candidateType: string;
+  confidence: number;
+  availability: {
+    available: boolean;
+    onLeave: boolean;
+    availableHours: number;
+    capacityStatus: string;
+  } | null;
+  capabilities: string[];
+  /** Each skill carries whether anyone actually verified it. */
+  skills: Array<{ skill: string; verified: boolean }>;
+  reasons: string[];
+  missingInformation: string[];
+  requiresHumanReview: string[];
+  evidence: Array<{ sourceTable: string; sourceId: string }>;
+  /** Delegates only — scope and expiry are always shown together. */
+  delegation: { fromMembership: string; domain: string | null; endsAt: string } | null;
+  /** External consultants only. */
+  engagement: { domains: string[]; endsAt: string | null } | null;
+}
+
+export interface QueueRecommendation {
+  outcome: "candidates" | "needs_routing";
+  candidates: QueueCandidate[];
+  /** Populated on `needs_routing` — a department and a precise reason, never a person. */
+  routing: { department: string; reasonCode: string; detail: string } | null;
+  missingInformation: string[];
+  /** The rule version behind any outcome history used, so the suggestion can be challenged. */
+  signalRuleVersion: string;
+}
+
 export interface QueueItem {
   id: string;
   department: string;
@@ -56,6 +108,8 @@ export interface QueueItem {
   reviewPolicyConfigured: boolean;
   monitoringState: string | null;
   timeline: Array<{ at: string; from: string | null; to: string; actorType: string; reason: string | null }>;
+  /** Absent when no resolution has been run for this item — distinct from "nobody suitable". */
+  recommendation?: QueueRecommendation | null;
 }
 
 export interface ManagementQueueData {
@@ -312,6 +366,8 @@ function QueueRow({ item, focused }: { item: QueueItem; focused: boolean }) {
         </ol>
       </details>
 
+      <CandidateSection item={item} />
+
       {/* Actions are LINKS to the review surface, not in-place executions. The panel itself
           performs nothing. */}
       <div className="mq-actions">
@@ -320,5 +376,216 @@ function QueueRow({ item, focused }: { item: QueueItem; focused: boolean }) {
         </a>
       </div>
     </li>
+  );
+}
+
+const ROLE_LABEL: Record<QueueCandidateRole, string> = {
+  assignee: "Suggested assignee — accountable for delivery",
+  advisor: "Suggested advisor — guidance only, owns no delivery and holds no authority",
+  delegate: "Suggested delegate — exercises delegated authority within scope, until expiry",
+  external_consultant: "External consultant — approved scope only, NO internal access",
+};
+
+/**
+ * Who the system suggests, and everything a manager needs to disagree with it.
+ *
+ * Three distinct states, never collapsed into one, because they call for different actions:
+ *   no resolution run    nothing has been asked yet
+ *   needs_routing        the question was asked and NOBODY is suitable, with the reason
+ *   candidates           suggestions, every one of which the manager may ignore
+ */
+function CandidateSection({ item }: { item: QueueItem }) {
+  const rec = item.recommendation;
+
+  if (!rec) {
+    return (
+      <div className="mq-candidates" data-testid="mq-candidates-none-run">
+        <p className="muted">No capability recommendation has been run for this item.</p>
+      </div>
+    );
+  }
+
+  if (rec.outcome === "needs_routing") {
+    return (
+      <div className="mq-candidates" data-testid="mq-candidates">
+        <div className="note note-warn" role="status" data-testid="mq-no-candidate">
+          <strong>No suitable candidate.</strong>{" "}
+          <span data-testid="mq-no-candidate-reason">
+            {rec.routing ? rec.routing.detail : "no reason was recorded"}
+          </span>
+          {rec.routing && (
+            <>
+              {" "}
+              Queued to the <strong data-testid="mq-routing-department">{rec.routing.department}</strong>{" "}
+              department for a human to route.
+            </>
+          )}
+        </div>
+        <MissingList items={rec.missingInformation} testId="mq-candidates-missing" />
+        <HumanOverride itemId={item.id} label="Assign someone" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mq-candidates" data-testid="mq-candidates">
+      <details open>
+        <summary className="mq-touch-target">
+          Suggested people ({rec.candidates.length}) — suggestions only, you decide
+        </summary>
+
+        <ol className="mq-candidate-list" data-testid="mq-candidate-list">
+          {rec.candidates.map((c) => (
+            <li
+              key={`${c.membershipId}:${c.role}`}
+              className="mq-candidate"
+              data-testid="mq-candidate"
+              data-role={c.role}
+              data-candidate-type={c.candidateType}
+            >
+              <div className="mq-candidate-head">
+                <strong data-testid="mq-candidate-name">{c.displayName}</strong>
+                <Badge variant={c.role === "external_consultant" ? "warn" : "info"}>
+                  {ROLE_LABEL[c.role]}
+                </Badge>
+                {/* Confidence describes the EVIDENCE, never the person. */}
+                <span className="t-label" data-testid="mq-candidate-confidence">
+                  evidence confidence {Math.round(c.confidence * 100)}%
+                </span>
+              </div>
+
+              <dl className="mq-facts">
+                <dt>Availability</dt>
+                <dd data-testid="mq-candidate-availability">
+                  {c.availability
+                    ? `${c.availability.availableHours}h free (${c.availability.capacityStatus})`
+                    : "not recorded"}
+                </dd>
+
+                <dt>Capabilities</dt>
+                <dd data-testid="mq-candidate-capabilities">
+                  {c.capabilities.length > 0 ? c.capabilities.join(", ") : "none relevant to this work"}
+                </dd>
+
+                <dt>Skills</dt>
+                <dd data-testid="mq-candidate-skills">
+                  {c.skills.length === 0 ? (
+                    <span className="muted">none recorded</span>
+                  ) : (
+                    c.skills.map((s) => (
+                      <span key={s.skill} className="mq-skill">
+                        {s.skill}{" "}
+                        <span className={s.verified ? "mq-verified" : "mq-unverified"}>
+                          {/* Provenance is never dropped: an unverified claim must not read as fact. */}
+                          {s.verified ? "(verified)" : "(unverified claim)"}
+                        </span>
+                      </span>
+                    ))
+                  )}
+                </dd>
+
+                {c.delegation && (
+                  <>
+                    <dt>Delegation</dt>
+                    <dd data-testid="mq-candidate-delegation">
+                      from {c.delegation.fromMembership}, scope {c.delegation.domain ?? "none"}, expires{" "}
+                      {c.delegation.endsAt}
+                    </dd>
+                  </>
+                )}
+
+                {c.engagement && (
+                  <>
+                    <dt>Engagement</dt>
+                    <dd data-testid="mq-candidate-engagement">
+                      scope {c.engagement.domains.join(", ") || "none"}
+                      {c.engagement.endsAt ? `, until ${c.engagement.endsAt}` : ""} — no internal access
+                    </dd>
+                  </>
+                )}
+              </dl>
+
+              <details>
+                <summary className="mq-touch-target">Why ({c.reasons.length})</summary>
+                <ul data-testid="mq-candidate-reasons">
+                  {c.reasons.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                </ul>
+              </details>
+
+              {c.evidence.length > 0 && (
+                <details>
+                  <summary className="mq-touch-target">Evidence ({c.evidence.length})</summary>
+                  <ul data-testid="mq-candidate-evidence">
+                    {c.evidence.map((e, i) => (
+                      <li key={i}>
+                        <code>
+                          {e.sourceTable}:{e.sourceId}
+                        </code>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+
+              <MissingList items={c.missingInformation} testId="mq-candidate-missing" />
+
+              {c.requiresHumanReview.length > 0 && (
+                <div className="note note-warn" role="status" data-testid="mq-candidate-review">
+                  <strong>Needs your judgement:</strong> {c.requiresHumanReview.join("; ")}
+                </div>
+              )}
+            </li>
+          ))}
+        </ol>
+
+        <MissingList items={rec.missingInformation} testId="mq-candidates-missing" />
+
+        <p className="muted" data-testid="mq-rule-version">
+          Ordering rule <code>{rec.signalRuleVersion}</code> — ask for the evidence behind any
+          suggestion if you disagree with it.
+        </p>
+      </details>
+
+      <HumanOverride itemId={item.id} label="Choose someone else" />
+    </div>
+  );
+}
+
+/** What we do not know. Shown plainly rather than filled in with a guess. */
+function MissingList({ items, testId }: { items: string[]; testId: string }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mq-missing" data-testid={testId}>
+      <span className="t-label">Missing information</span>
+      <ul>
+        {items.map((m, i) => (
+          <li key={i}>{m}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * The override. It is ALWAYS present, on every state, and it is a link to the review surface —
+ * this panel performs nothing. The wording states the rule rather than implying it.
+ */
+function HumanOverride({ itemId, label }: { itemId: string; label: string }) {
+  return (
+    <div className="mq-actions">
+      <a
+        className="btn mq-touch-target"
+        href={`/app/command/queue/${itemId}/assign`}
+        data-action="override-assignee"
+        data-testid="mq-human-override"
+      >
+        {label}
+      </a>
+      <span className="muted" data-testid="mq-human-decides">
+        Suggestions only — the assignment is yours to make.
+      </span>
+    </div>
   );
 }
