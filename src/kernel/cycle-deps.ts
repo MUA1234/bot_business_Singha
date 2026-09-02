@@ -10,6 +10,7 @@
  * never loaded cannot leak into a management item.
  */
 import { randomUUID } from "node:crypto";
+import Decimal from "decimal.js";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { writeAudit } from "@/lib/audit";
 import {
@@ -31,6 +32,30 @@ import type { AuthorityContext } from "@/policy/authority-engine";
 // handle, so this is intentionally loose and confined to this one wiring module.
 // eslint-disable-next-line
 type Db = any;
+
+/**
+ * Normalise a temporal column to an ISO string — DEFECT R2S-F-005.
+ *
+ * `pg` returns `date` and `timestamptz` columns as JavaScript Date objects, while every adapter
+ * declares those fields as `string | null`. Six loaders returned raw rows, so the detectors were
+ * handed Dates: `Date.parse` happens to coerce them, but `.slice(0, 10)` yields undefined and an
+ * ISO comparison compares "Mon Sep 02 2026 …" against "2026-09-02". The result is a detector that
+ * quietly produces NOTHING — the same failure mode as a missing column, and just as silent.
+ *
+ * Returns null for an absent or unreadable value rather than a fabricated date.
+ */
+const iso = (v: unknown): string | null => {
+  if (v === null || v === undefined) return null;
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v.toISOString();
+  const t = Date.parse(String(v));
+  return Number.isNaN(t) ? null : new Date(t).toISOString();
+};
+
+/** Same, but for a DATE column where the calendar day is the meaning and the time is noise. */
+const isoDate = (v: unknown): string | null => {
+  const full = iso(v);
+  return full === null ? null : full.slice(0, 10);
+};
 
 const rowsOf = async (run: Promise<{ data: unknown; error: unknown }>): Promise<any[]> => {
   const { data, error } = await run;
@@ -153,7 +178,7 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
           .eq("company_id", companyId),
       ).catch(() => [] as any[]);
       const todayIso = now().toISOString().slice(0, 10);
-      const isoDay = (v: unknown) => new Date(v as string).toISOString().slice(0, 10);
+      const isoDay = (v: unknown) => isoDate(v) ?? "";
       const verifiedByMembership = new Map<string, string[]>();
       const recordedByMembership = new Map<string, string[]>();
       for (const r of skillRows) {
@@ -522,20 +547,59 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
       const limit = 500;
       switch (source) {
         case FINANCE_SOURCE: {
+          // ── CONTRACT ────────────────────────────────────────────────────────────────────
+          // customer_invoices (migration 0003). No updated_at column exists; R2C-F-003 fixed a
+          // loader that selected one. `amount_settled` is numeric(20,4) and `total_amount` is
+          // numeric(20,4), both returned as STRINGS by pg, which is why the subtraction below is
+          // done in Decimal and not with JS numbers (defect R2S-F-002).
+          //
+          // FRESHNESS (defect R2S-F-001). The previous fix passed created_at as `updated_at`,
+          // and that is semantically wrong in the UNSAFE direction: an invoice raised six months
+          // ago that only just became overdue would be read as STALE evidence, and
+          // priorityFor(warn, stale) DOWNGRADES it from high to normal. A genuinely urgent
+          // receivable would be quietly de-prioritised because the row was created a while ago.
+          //
+          // The honest anchor for "when did this invoice last change" is the last PAYMENT
+          // ALLOCATION against it — real evidence of a mutation, not a fabricated timestamp.
+          // Where an invoice has never been paid against, the answer is NULL, which
+          // freshnessFor reads as "unknown" and priorityFor treats as NOT stale. Unknown is the
+          // truth, and it happens to be the safe reading too.
+          //
+          // Mutations to an existing invoice ARE observed: this is a FULL SCAN each cycle, not
+          // an incremental cursor, so a status change or a payment is picked up on the next run
+          // regardless of any timestamp.
           const rows = await rowsOf(
             db.from("customer_invoices")
-              // DEFECT R2C-F-003: this selected `updated_at`, which customer_invoices DOES NOT
-              // HAVE (migration 0003 defines created_at only), so the finance source failed on
-              // every real read. created_at is the honest freshness anchor for an invoice.
-              .select("id, due_date, total_amount, amount_settled, currency, created_at, status")
+              .select("id, due_date, total_amount, amount_settled, currency, status")
               .eq("company_id", companyId).limit(limit),
           );
+          if (rows.length === 0) return [];
+
+          const allocations = await rowsOf(
+            db.from("payment_allocations")
+              .select("target_id, target_type, created_at")
+              .eq("company_id", companyId)
+              .eq("target_type", "customer_invoice"),
+          ).catch(() => [] as any[]);
+          const lastPaidAt = new Map<string, string>();
+          for (const a of allocations) {
+            const at = iso(a.created_at);
+            if (!at) continue;
+            const prev = lastPaidAt.get(a.target_id);
+            if (!prev || at > prev) lastPaidAt.set(a.target_id, at);
+          }
+
           return rows.map((r) => ({
             id: r.id,
-            due_date: r.due_date,
-            outstanding: String(Number(r.total_amount ?? 0) - Number(r.amount_settled ?? 0)),
+            due_date: isoDate(r.due_date),
+            // EXACT decimal. numeric(20,4) arrives as a string and a JS subtraction would lose
+            // precision above 2^53 minor units and introduce binary-fraction error below it.
+            outstanding: new Decimal(String(r.total_amount ?? "0"))
+              .minus(new Decimal(String(r.amount_settled ?? "0")))
+              .toString(),
             currency: r.currency ?? "LKR",
-            updated_at: r.created_at,
+            // Genuine mutation evidence, or an honest null. NEVER created_at.
+            updated_at: lastPaidAt.get(r.id) ?? null,
             status: r.status,
           }));
         }
@@ -547,15 +611,37 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
               // spelling) and `created_at`. The workforce source therefore failed on every real
               // read, and the domain has been UNOBSERVED at runtime since the loader was written.
               // No test caught it because none exercised this loader against a real row.
-              .select("id, membership_id, utilization_pct, status, created_at")
-              .eq("company_id", companyId).limit(limit),
+              .select("id, membership_id, utilization_pct, status, created_at, week_start")
+              .eq("company_id", companyId)
+              // Newest week first, so the reduction below keeps the CURRENT snapshot.
+              .order("week_start", { ascending: false })
+              .limit(limit),
           );
-          return rows.map((r) => ({
+
+          // DEFECT R2S-F-003: every snapshot was passed to the detector, so an OBSOLETE
+          // "overloaded" week kept raising an exception even when the newest week said healthy —
+          // exactly the "do not infer current workload from an obsolete snapshot" failure. Only
+          // the LATEST snapshot per membership is current workload; the older ones are history.
+          const latest = new Map<string, any>();
+          for (const r of rows) {
+            const prev = latest.get(r.membership_id);
+            if (!prev) { latest.set(r.membership_id, r); continue; }
+            // Explicit comparison rather than trusting the ORDER BY: a client that ignores it
+            // would otherwise silently reintroduce the defect.
+            const a = r.week_start ? new Date(r.week_start).getTime() : 0;
+            const b = prev.week_start ? new Date(prev.week_start).getTime() : 0;
+            if (a > b) latest.set(r.membership_id, r);
+          }
+
+          return [...latest.values()].map((r) => ({
             snapshotId: r.id,
             membershipId: r.membership_id,
             utilizationPct: Number(r.utilization_pct ?? 0),
             status: r.status ?? "healthy",
-            capturedAt: r.created_at,
+            // `created_at` is when the snapshot ROW was written, which is the honest answer to
+            // "how old is this reading". `week_start` is the period it describes, and the two
+            // are different questions — freshness needs the former.
+            capturedAt: iso(r.created_at),
           }));
         }
         case OPERATIONS_SOURCE: {
@@ -570,13 +656,25 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
             // never copies it into an observation.
             title: r.title,
             status: r.status,
-            dueDate: r.due_date,
-            lastCheckInAt: r.updated_at,
+            dueDate: isoDate(r.due_date),
+            lastCheckInAt: iso(r.updated_at),
             estimateHours: r.estimate_hours,
-            updatedAt: r.updated_at,
+            updatedAt: iso(r.updated_at),
           }));
         }
         case CRM_SOURCE: {
+          // ── CONTRACT ────────────────────────────────────────────────────────────────────
+          // wa_conversations has last_inbound_at but NO outbound timestamp (R2C-F-003 fixed a
+          // loader that selected one). R2C then hard-nulled it, which was honest but incomplete:
+          // a genuine outbound time IS derivable, from wa_messages.direction = 'outbound'.
+          //
+          // DEFECT R2S-F-004: with outbound permanently null, every conversation with any
+          // inbound message looked un-replied-to for ever, so a customer who HAD been answered
+          // kept generating follow-up work. The fix uses real outbound evidence.
+          //
+          // A DRAFT OR FAILED SEND IS NOT A SENT MESSAGE. message_outbox holds queued and failed
+          // deliveries and is deliberately NOT consulted here — only wa_messages, which records
+          // messages that actually exist on the conversation.
           const rows = await rowsOf(
             db.from("wa_conversations")
               // DEFECT R2C-F-003: this selected `last_outbound_at`, which wa_conversations DOES
@@ -588,12 +686,32 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
               .select("id, last_inbound_at, status")
               .eq("company_id", companyId).limit(limit),
           );
-          // Mapped EXPLICITLY rather than returned raw, so the missing outbound timestamp is a
-          // stated null instead of an absent property that happens to be falsy.
+          if (rows.length === 0) return [];
+
+          const outbound = await rowsOf(
+            db.from("wa_messages")
+              .select("conversation_id, direction, created_at")
+              .eq("company_id", companyId)
+              .eq("direction", "outbound")
+              .limit(5000),
+          ).catch(() => [] as any[]);
+
+          // Latest genuine outbound per conversation. Compared explicitly rather than relying on
+          // row order, so an out-of-order or replayed message cannot move the answer backwards.
+          const lastOut = new Map<string, string>();
+          for (const m of outbound) {
+            if (m.direction !== "outbound") continue;   // belt and braces on the filter
+            const at = iso(m.created_at);
+            if (!at) continue;
+            const prev = lastOut.get(m.conversation_id);
+            if (!prev || at > prev) lastOut.set(m.conversation_id, at);
+          }
+
           return rows.map((r) => ({
             id: r.id,
-            last_inbound_at: r.last_inbound_at,
-            last_outbound_at: null,
+            last_inbound_at: iso(r.last_inbound_at),
+            // Null means "no outbound message exists", which is the truth and the safe reading.
+            last_outbound_at: lastOut.get(r.id) ?? null,
             status: r.status,
           }));
         }
@@ -635,37 +753,69 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
           return rows.map((r) => ({
             id: r.id,
             status: r.status,
-            response_required_by: r.response_required_by,
+            response_required_by: iso(r.response_required_by),
             escalation_chain: r.escalation_chain ?? null,
             escalation_level: Number(r.escalation_level ?? 0),
-            acknowledged_at: r.acknowledged_at,
-            updatedAt: r.updated_at,
+            acknowledged_at: iso(r.acknowledged_at),
+            updatedAt: iso(r.updated_at),
           }));
         }
-        case OBJECTIVES_SOURCE:
-          return rowsOf(
+        case OBJECTIVES_SOURCE: {
+          const rows = await rowsOf(
             db.from("objectives")
               .select("id, target_value, current_value, period_start, period_end, status")
               .eq("company_id", companyId).limit(limit),
           );
-        case MARKETING_SOURCE:
-          return rowsOf(
+          return rows.map((r) => ({
+            id: r.id,
+            target_value: r.target_value,
+            current_value: r.current_value,
+            period_start: isoDate(r.period_start),
+            period_end: isoDate(r.period_end),
+            status: r.status,
+          }));
+        }
+        case MARKETING_SOURCE: {
+          const rows = await rowsOf(
             db.from("campaigns")
               .select("id, status, audience_id, sent_count, created_at")
               .eq("company_id", companyId).limit(limit),
           );
-        case PROCUREMENT_SOURCE:
-          return rowsOf(
+          return rows.map((r) => ({
+            id: r.id,
+            status: r.status,
+            audience_id: r.audience_id ?? null,
+            sent_count: r.sent_count === null || r.sent_count === undefined ? null : Number(r.sent_count),
+            created_at: iso(r.created_at),
+          }));
+        }
+        case PROCUREMENT_SOURCE: {
+          const rows = await rowsOf(
             db.from("inventory_items")
               .select("id, quantity_on_hand, reorder_level, created_at")
               .eq("company_id", companyId).limit(limit),
           );
-        case ASSETS_SOURCE:
-          return rowsOf(
+          return rows.map((r) => ({
+            id: r.id,
+            quantity_on_hand: r.quantity_on_hand,
+            reorder_level: r.reorder_level,
+            created_at: iso(r.created_at),
+          }));
+        }
+        case ASSETS_SOURCE: {
+          const rows = await rowsOf(
             db.from("vehicle_documents")
               .select("id, vehicle_id, doc_type, expiry_date, created_at")
               .eq("company_id", companyId).limit(limit),
           );
+          return rows.map((r) => ({
+            id: r.id,
+            vehicle_id: r.vehicle_id ?? null,
+            doc_type: r.doc_type ?? null,
+            expiry_date: isoDate(r.expiry_date),
+            created_at: iso(r.created_at),
+          }));
+        }
         case LEGAL_SOURCE: {
           // Four record types, one detector. Each is read separately because they are
           // separate tables, and tagged with its kind so the queue can tell them apart.
@@ -676,18 +826,27 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
             rowsOf(db.from("obligations").select("id, due_date, status").eq("company_id", companyId).limit(limit)).catch(() => []),
           ]);
           return [
-            ...licences.map((r) => ({ id: r.id, kind: "licence", due_date: r.expiry_date, status: r.status })),
-            ...contracts.map((r) => ({ id: r.id, kind: "contract", due_date: r.end_date, status: r.status })),
-            ...insurances.map((r) => ({ id: r.id, kind: "insurance", due_date: r.expiry_date, status: r.status })),
-            ...obligations.map((r) => ({ id: r.id, kind: "obligation", due_date: r.due_date, status: r.status })),
+            ...licences.map((r) => ({ id: r.id, kind: "licence", due_date: isoDate(r.expiry_date), status: r.status })),
+            ...contracts.map((r) => ({ id: r.id, kind: "contract", due_date: isoDate(r.end_date), status: r.status })),
+            ...insurances.map((r) => ({ id: r.id, kind: "insurance", due_date: isoDate(r.expiry_date), status: r.status })),
+            ...obligations.map((r) => ({ id: r.id, kind: "obligation", due_date: isoDate(r.due_date), status: r.status })),
           ];
         }
-        case PROVIDERS_SOURCE:
-          return rowsOf(
+        case PROVIDERS_SOURCE: {
+          const rows = await rowsOf(
             db.from("service_providers")
               .select("id, status, compliance_status, insurance_status, insurance_expiry, updated_at")
               .eq("company_id", companyId).limit(limit),
           );
+          return rows.map((r) => ({
+            id: r.id,
+            status: r.status,
+            compliance_status: r.compliance_status,
+            insurance_status: r.insurance_status,
+            insurance_expiry: isoDate(r.insurance_expiry),
+            updated_at: iso(r.updated_at),
+          }));
+        }
 
         default:
           throw new Error(`no loader registered for ${source}`);

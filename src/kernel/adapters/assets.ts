@@ -59,7 +59,17 @@ export function detectAssetObservations(input: AssetsScanInput): Observation[] {
     if (!row) continue;
 
     const severity: Severity = a.status === "expired" ? "critical" : "warn";
-    const freshness = freshnessFor(row.created_at ?? row.expiry_date, now);
+    // R2S-F-006, and the PRINCIPLE behind it. The stale_source skip in ingest exists for a good
+    // reason: acting on a month-old SAMPLE without re-reading it is how an automated system
+    // produces confidently wrong instructions. But that reasoning only holds for a SAMPLED
+    // MEASUREMENT whose value decays — a capacity snapshot, a health probe.
+    //
+    // This condition is derived from a stored DATE that the loader re-reads EVERY cycle. The
+    // expiry either has passed or it has not; that fact does not decay, and the row was read
+    // moments ago. Anchoring freshness to when the row was FILED conflated "the record is old"
+    // with "our information is old", and suppressed the longest-overdue cases entirely.
+    // Freshness is honestly unknown, which never suppresses and never downgrades.
+    const freshness = freshnessFor(null, now);
 
     const facts = {
       renewal_status: a.status,

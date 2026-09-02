@@ -68,7 +68,17 @@ export function detectProviderObservations(input: ProvidersScanInput): Observati
     const severity = SEVERITY[health];
     if (!severity) continue; // verified — nothing needs attention
 
-    const freshness = freshnessFor(p.updated_at ?? p.insurance_expiry, now);
+    // R2S-F-006, and the PRINCIPLE behind it. The stale_source skip in ingest exists for a good
+    // reason: acting on a month-old SAMPLE without re-reading it is how an automated system
+    // produces confidently wrong instructions. But that reasoning only holds for a SAMPLED
+    // MEASUREMENT whose value decays — a capacity snapshot, a health probe.
+    //
+    // This condition is derived from a stored DATE that the loader re-reads EVERY cycle. The
+    // expiry either has passed or it has not; that fact does not decay, and the row was read
+    // moments ago. Anchoring freshness to when the row was FILED conflated "the record is old"
+    // with "our information is old", and suppressed the longest-overdue cases entirely.
+    // Freshness is honestly unknown, which never suppresses and never downgrades.
+    const freshness = freshnessFor(null, now);
 
     // Classification and the two status flags only. NOT the provider's name, its pricing, its
     // capacity notes or its capabilities — all commercially sensitive, and all one row

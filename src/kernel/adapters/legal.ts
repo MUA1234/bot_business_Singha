@@ -79,7 +79,17 @@ export function detectLegalObservations(input: LegalScanInput): Observation[] {
     if (!row) continue;
 
     const severity: Severity = a.status === "expired" ? "critical" : "warn";
-    const freshness = freshnessFor(row.updated_at ?? row.due_date, now);
+    // DEFECT R2S-F-006. The freshness anchor answers ONE question: when did we last CONFIRM
+    // this condition? A DUE OR EXPIRY DATE is not evidence freshness. A licence that expired 400 days ago is the
+    // most urgent case there is, and this made it the most certainly discarded one.
+    // Using it made `freshnessFor` return "stale", and ingest SKIPS a stale observation that has
+    // no existing item — so the very conditions this detector exists to find were silently
+    // discarded, and the worse the condition got the more certainly it was dropped.
+    //
+    // There is no genuine "last changed" timestamp on licences, contracts, insurances or obligations, so the honest answer is NULL,
+    // which freshnessFor reads as "unknown". Unknown is not stale: the observation is raised and
+    // its priority is not downgraded.
+    const freshness = freshnessFor(row.updated_at ?? null, now);
 
     const facts = {
       renewal_status: a.status,

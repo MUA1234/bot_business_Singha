@@ -67,7 +67,17 @@ export function detectObjectiveObservations(input: ObjectivesScanInput): Observa
     const severity = SEVERITY[assessment.status];
     if (!severity) continue; // on_track or done — nothing needs attention
 
-    const freshness = freshnessFor(o.updated_at ?? o.period_start, now);
+    // DEFECT R2S-F-006. The freshness anchor answers ONE question: when did we last CONFIRM
+    // this condition? `period_start` is when the measurement WINDOW OPENED — an objective in month
+    // three of a quarter is not stale evidence, it is a live objective.
+    // Using it made `freshnessFor` return "stale", and ingest SKIPS a stale observation that has
+    // no existing item — so the very conditions this detector exists to find were silently
+    // discarded, and the worse the condition got the more certainly it was dropped.
+    //
+    // There is no genuine "last changed" timestamp on this table, so the honest answer is NULL,
+    // which freshnessFor reads as "unknown". Unknown is not stale: the observation is raised and
+    // its priority is not downgraded.
+    const freshness = freshnessFor(o.updated_at ?? null, now);
 
     // Bands, not the raw metric: a management queue is read across a company, and the exact
     // value of a commercially sensitive KPI is not something every manager needs in order to

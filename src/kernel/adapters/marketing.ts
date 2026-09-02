@@ -60,7 +60,14 @@ export function detectMarketingObservations(input: MarketingScanInput): Observat
 
     // No audience at all is the worse of the two: the campaign cannot run.
     const severity: Severity = noAudience ? "warn" : "info";
-    const freshness = freshnessFor(c.created_at, now);
+    // DEFECT R2S-F-006, and here it was self-defeating: a campaign is STALLED precisely BECAUSE
+    // it is old, and `created_at` was then used as the evidence-freshness anchor — so every
+    // campaign that qualified as stalled was immediately classified as stale evidence and
+    // skipped. The condition and the reason for discarding it were the same fact.
+    //
+    // `campaigns` has no update timestamp, so freshness is honestly unknown. The AGE still
+    // drives the condition; it just no longer disqualifies it.
+    const freshness = freshnessFor(null, now);
 
     const facts = {
       campaign_status: c.status ?? "unknown",
