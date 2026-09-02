@@ -76,7 +76,34 @@ export interface QueueCandidate {
   engagement: { domains: string[]; endsAt: string | null } | null;
 }
 
+/** Capability coverage for a proposed team (R2C). */
+export interface QueueTeamCoverage {
+  /** Capabilities the proposed team covers between them. */
+  covered: string[];
+  /** Required capabilities NOBODY on the team holds. Shown, never omitted. */
+  missing: string[];
+  /** The one member proposed as accountable, or null when nobody qualifies. */
+  leadMembershipId: string | null;
+  /** Why there is no lead, when there is none. */
+  leadReason: string | null;
+  requestedMinimum: number;
+  understaffed: boolean;
+}
+
 export interface QueueRecommendation {
+  /** WHICH ROLE this recommendation is for. One role is never shown as another (R2C). */
+  role?: QueueCandidateRole;
+  /**
+   * True when the work cannot proceed as proposed without this role.
+   *
+   * An OPTIONAL role that found nobody is reported as a gap and nothing more — a missing
+   * advisor must not make a valid assignee recommendation look broken.
+   */
+  mandatory?: boolean;
+  /** Why this role was asked for at all. */
+  requirementReason?: string;
+  /** Present only for a team proposal. */
+  team?: QueueTeamCoverage | null;
   outcome: "candidates" | "needs_routing";
   candidates: QueueCandidate[];
   /** Populated on `needs_routing` — a department and a precise reason, never a person. */
@@ -131,6 +158,11 @@ export interface QueueItem {
   timeline: Array<{ at: string; from: string | null; to: string; actorType: string; reason: string | null }>;
   /** Absent when no resolution has been run for this item — distinct from "nobody suitable". */
   recommendation?: QueueRecommendation | null;
+  /**
+   * One recommendation PER ROLE (R2C). When present this supersedes `recommendation`, which is
+   * kept so every existing caller keeps working unchanged.
+   */
+  recommendations?: QueueRecommendation[];
   /** Append-only human feedback recorded against this item, oldest first. */
   feedback?: QueueFeedbackEntry[];
   /**
@@ -410,6 +442,185 @@ function QueueRow({ item, focused }: { item: QueueItem; focused: boolean }) {
   );
 }
 
+/**
+ * One role's recommendation, headed so it can never be mistaken for another.
+ *
+ * A MANDATORY role that found nobody is called out as blocking; an OPTIONAL one is reported as a
+ * gap and explicitly says the rest of the recommendation stands. That distinction is the whole
+ * reason roles are resolved separately.
+ */
+function RoleSection({ item, rec }: { item: QueueItem; rec: QueueRecommendation }) {
+  const role = rec.role ?? "assignee";
+  const mayDecide = item.viewerMayDecide !== false;
+
+  return (
+    <section className="mq-role" data-testid="mq-role" data-role={role}>
+      <h4 className="mq-role-head">
+        {ROLE_LABEL[role]}{" "}
+        <Badge variant={rec.mandatory ? "warn" : "default"}>
+          {rec.mandatory ? "required for this work" : "optional"}
+        </Badge>
+      </h4>
+      {rec.requirementReason && <p className="muted" data-testid="mq-role-reason">{rec.requirementReason}</p>}
+
+      {rec.team && <TeamCoverage team={rec.team} />}
+
+      {rec.outcome === "needs_routing" ? (
+        <div
+          className={`note ${rec.mandatory ? "note-warn" : ""}`}
+          role="status"
+          data-testid="mq-role-unfilled"
+        >
+          <strong>Nobody suitable for this role.</strong>{" "}
+          {rec.routing ? rec.routing.detail : "no reason was recorded"}
+          {rec.mandatory ? (
+            <> This work cannot proceed as proposed until the role is filled.</>
+          ) : (
+            <> This role is optional — the rest of the recommendation still stands.</>
+          )}
+        </div>
+      ) : (
+        <ol className="mq-candidate-list" data-testid="mq-role-candidates">
+          {rec.candidates.map((c) => (
+            <li key={`${c.membershipId}:${c.role}`} className="mq-candidate" data-testid="mq-candidate" data-role={c.role}>
+              <div className="mq-candidate-head">
+                <strong data-testid="mq-candidate-name">{c.displayName}</strong>
+                <span className="t-label">evidence confidence {Math.round(c.confidence * 100)}%</span>
+              </div>
+              <dl className="mq-facts">
+                <dt>Availability</dt>
+                <dd>
+                  {c.availability
+                    ? `${c.availability.availableHours}h free (${c.availability.capacityStatus})`
+                    : "not recorded"}
+                </dd>
+                <dt>Skills</dt>
+                <dd data-testid="mq-role-skills">
+                  {c.skills.length === 0 ? (
+                    <span className="muted">none recorded</span>
+                  ) : (
+                    c.skills.map((sk) => (
+                      <span key={sk.skill} className="mq-skill">
+                        {sk.skill}{" "}
+                        <span className={sk.verified ? "mq-verified" : "mq-unverified"}>
+                          {sk.verified ? "(verified)" : "(unverified claim)"}
+                        </span>
+                      </span>
+                    ))
+                  )}
+                </dd>
+                {c.delegation && (
+                  <>
+                    <dt>Proposed delegation</dt>
+                    <dd data-testid="mq-role-delegation">
+                      scope {c.delegation.domain ?? "none"}, expires {c.delegation.endsAt} — proposed
+                      only; no delegation exists until a human creates one
+                    </dd>
+                  </>
+                )}
+                {c.engagement && (
+                  <>
+                    <dt>Engagement</dt>
+                    <dd data-testid="mq-role-engagement">
+                      scope {c.engagement.domains.join(", ") || "none"}
+                      {c.engagement.endsAt ? `, until ${c.engagement.endsAt}` : ""} — no internal access,
+                      and nobody has been contacted
+                    </dd>
+                  </>
+                )}
+              </dl>
+              <details>
+                <summary className="mq-touch-target">Why ({c.reasons.length})</summary>
+                <ul>{c.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
+              </details>
+              <MissingList items={c.missingInformation} testId="mq-role-missing" />
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <RoleControls itemId={item.id} role={role} mayDecide={mayDecide} canAccept={rec.outcome === "candidates"} />
+    </section>
+  );
+}
+
+/** Capability coverage for a proposed team. What is NOT covered is shown, never omitted. */
+function TeamCoverage({ team }: { team: QueueTeamCoverage }) {
+  return (
+    <div className="mq-team" data-testid="mq-team-coverage">
+      <dl className="mq-facts">
+        <dt>Covers</dt>
+        <dd data-testid="mq-team-covered">{team.covered.join(", ") || "nothing recorded"}</dd>
+        <dt>Not covered</dt>
+        <dd data-testid="mq-team-missing">
+          {team.missing.length === 0
+            ? "everything required is covered"
+            : team.missing.join(", ")}
+        </dd>
+        <dt>Accountable lead</dt>
+        <dd data-testid="mq-team-lead">
+          {team.leadMembershipId ?? (
+            <span className="mq-unrouted">
+              nobody proposed{team.leadReason ? ` — ${team.leadReason}` : ""}
+            </span>
+          )}
+        </dd>
+      </dl>
+      {team.understaffed && (
+        <div className="note note-warn" role="status" data-testid="mq-team-understaffed">
+          Fewer people than the {team.requestedMinimum} this work asked for.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Per-role human controls: accept, replace, reject, or LEAVE UNFILLED.
+ *
+ * "Leave unfilled" is a deliberate option rather than an omission. Without it the only way to
+ * decline a suggested advisor is to ignore the item, and an ignored item looks the same as an
+ * unseen one. Every control is a link; the panel performs nothing.
+ */
+function RoleControls({
+  itemId, role, mayDecide, canAccept,
+}: { itemId: string; role: QueueCandidateRole; mayDecide: boolean; canAccept: boolean }) {
+  if (!mayDecide) {
+    return (
+      <div className="mq-actions" data-testid="mq-no-decision-rights">
+        <span className="muted">You can see this recommendation but may not act on it.</span>
+      </div>
+    );
+  }
+  return (
+    <div className="mq-actions" data-testid="mq-role-controls">
+      {canAccept && (
+        <a className="btn mq-touch-target" href={`/app/command/queue/${itemId}/${role}/accept`}
+           data-action="accept-role" data-testid="mq-role-accept">
+          Accept
+        </a>
+      )}
+      <a className="btn mq-touch-target" href={`/app/command/queue/${itemId}/${role}/replace`}
+         data-action="replace-role" data-testid="mq-role-replace">
+        Choose someone else
+      </a>
+      {canAccept && (
+        <a className="btn mq-touch-target" href={`/app/command/queue/${itemId}/${role}/reject`}
+           data-action="reject-role" data-testid="mq-role-reject">
+          Reject
+        </a>
+      )}
+      <a className="btn mq-touch-target" href={`/app/command/queue/${itemId}/${role}/leave-unfilled`}
+         data-action="leave-role-unfilled" data-testid="mq-role-leave-unfilled">
+        Leave unfilled
+      </a>
+      <span className="muted">
+        Suggestions only — nobody is assigned, delegated authority or engaged until you decide.
+      </span>
+    </div>
+  );
+}
+
 const ROLE_LABEL: Record<QueueCandidateRole, string> = {
   assignee: "Suggested assignee — accountable for delivery",
   advisor: "Suggested advisor — guidance only, owns no delivery and holds no authority",
@@ -426,7 +637,25 @@ const ROLE_LABEL: Record<QueueCandidateRole, string> = {
  *   candidates           suggestions, every one of which the manager may ignore
  */
 function CandidateSection({ item }: { item: QueueItem }) {
-  const rec = item.recommendation;
+  // R2C: one section per role. A single `recommendation` is treated as a one-element list, so
+  // nothing about the existing single-role callers changes.
+  // The R2C shape is `recommendations`, and it takes the role-section path even with ONE entry:
+  // a single-role recommendation may still carry team coverage, and switching layout on the
+  // COUNT would have hidden it. The legacy single `recommendation` keeps the original path so
+  // every existing caller is untouched.
+  const perRole = item.recommendations ?? [];
+  if (perRole.length > 0) {
+    return (
+      <div className="mq-roles" data-testid="mq-roles">
+        {perRole.map((r, i) => (
+          <RoleSection key={`${r.role ?? "assignee"}:${i}`} item={item} rec={r} />
+        ))}
+        <FeedbackHistory entries={item.feedback ?? []} mayDecide={item.viewerMayDecide !== false} />
+      </div>
+    );
+  }
+
+  const rec = item.recommendation ?? null;
 
   if (!rec) {
     return (

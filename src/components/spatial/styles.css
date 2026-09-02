@@ -992,6 +992,12 @@
 .mq-verified { color: var(--ok, inherit); }
 .mq-unverified { color: var(--muted); font-style: italic; }
 .mq-missing { margin-top: var(--sp-2); }
+/* R2C: one section per resource role. Each is visually separated so a role can never be
+   read as another. */
+.mq-roles { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.mq-role { min-width: 0; border-top: 1px solid var(--border); padding-top: var(--sp-2); }
+.mq-role-head { margin: 0 0 var(--sp-1); font-size: 0.9rem; display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: baseline; }
+.mq-team { margin: var(--sp-2) 0; }
 .mq-feedback { min-width: 0; margin-top: var(--sp-2); }
 .mq-feedback ol { margin: var(--sp-2) 0 0; padding-left: var(--sp-4); min-width: 0; }
 /* A comment is written by a person: it wraps, it never overflows, and it is always text. */
