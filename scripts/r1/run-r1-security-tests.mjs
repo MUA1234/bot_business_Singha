@@ -83,6 +83,7 @@ try {
     "tests/integration/r1-security-baseline.test.ts",
     "tests/integration/r1-adapter-ingest.test.ts",
     "tests/integration/r1-vertical-slice-campaign.test.ts",
+    "tests/integration/r1-runtime-e2e.test.ts",
   ], { env: { ...process.env, DATABASE_URL: URL, R1_DRAFT_CONFIRM: "disposable-local-only" } });
 } catch {
   code = 1;
