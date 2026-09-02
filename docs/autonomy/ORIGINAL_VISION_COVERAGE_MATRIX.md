@@ -10,12 +10,12 @@ Generated at: 2026-09-02
 
 | Status | Count |
 |---|---|
-| locally_verified | 60 |
+| locally_verified | 62 |
 | absent | 26 |
 | blocked_owner | 6 |
-| implementation_in_progress | 5 |
 | specified | 5 |
 | deliberately_deferred | 4 |
+| implementation_in_progress | 3 |
 | foundation_only | 2 |
 | implemented_unverified | 2 |
 
@@ -26,8 +26,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **60** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **40** |
+| **Verified** (locally / preview / staging / production) | **62** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **38** |
 | **Blocked — owner** | **6** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **4** |
@@ -53,7 +53,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | IMP | 3 | 0 | 3 |
 | INT | 1 | 1 | 0 |
 | IP | 1 | 1 | 0 |
-| KRN | 3 | 0 | 3 |
+| KRN | 3 | 2 | 1 |
 | LNG | 2 | 0 | 2 |
 | MEM | 1 | 1 | 0 |
 | MKT | 1 | 0 | 1 |
@@ -130,9 +130,9 @@ operating-mode claim that depends on it. Blocked is not done.
 | IMP-003 | Versioned playbooks and prompt/evaluation improvement with human approval | P1 | **absent** | none | none | private repository/package decision for proprietary playbooks |
 | INT-001 | Integration Gateway and connector registry | P1 | **locally_verified** | src/app/app/admin/integrations/page.tsx | 4b5bbb3 | — |
 | IP-001 | Public-repository IP boundary | P1 | **locally_verified** | scripts/autonomy/check-ip-boundary.mjs | f86eb97 | decision on a private repository or package for proprietary prompts and evaluation data |
-| KRN-001 | One domain-agnostic management kernel | P0 | **implementation_in_progress** | none | 6b01602 | owner approval of the target architecture (granted 2026-09-02, D-10) plus phase gate — implementation is NOT authorised before R4 |
-| KRN-002 | Observation sources across every managed domain | P0 | **implementation_in_progress** | none | 6b01602 | phase gate — not authorised before R4 |
-| KRN-003 | Registered domain action catalogue | P0 | **implementation_in_progress** | none | 6b01602 | phase gate — not authorised before R4 |
+| KRN-001 | One domain-agnostic management kernel | P0 | **locally_verified** | src/app/api/management/cycle/route.ts (authorised manual invocation) -> src/kernel/cycle.ts runManagementCycle | abb49f5 | owner approval of the target architecture (granted 2026-09-02, D-10) plus phase gate — implementation is NOT authorised before R4 |
+| KRN-002 | Observation sources across every managed domain | P0 | **implementation_in_progress** | src/app/api/management/cycle/route.ts -> src/kernel/cycle.ts (loads and runs the five registered sources) | abb49f5 | phase gate — not authorised before R4 |
+| KRN-003 | Registered domain action catalogue | P0 | **locally_verified** | src/app/api/management/cycle/route.ts -> src/kernel/recommend.ts buildRecommendation (selects only from src/kernel/catalogue.ts) | abb49f5 | phase gate — not authorised before R4 |
 | LNG-001 | Multilingual English / Sinhala / Tamil | P2 | **specified** | none | none | approval of the specification before implementation |
 | LNG-002 | Per-staff language preference with meaning, permission and audit invariance | P1 | **absent** | none | none | OWNER GATE — approval of the multilingual specification before implementation (inherited from LNG-001) |
 | MEM-001 | Organizational memory and evidence provenance | P1 | **locally_verified** | src/app/app/command/memory/page.tsx | 82b6ce9 | — |
@@ -195,5 +195,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **40**; blocked (owner): **6**;
+mode. Incomplete and implementable: **38**; blocked (owner): **6**;
 deferred: **4**; unexpanded groups: **0**.
