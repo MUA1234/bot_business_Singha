@@ -46,6 +46,21 @@ import { fixtureInterpreter, interpretWithGuards } from "./interpretation";
 import type { Observation } from "./observation";
 import type { Department } from "./types";
 import type { AuthorityContext } from "@/policy/authority-engine";
+import {
+  rotate, RowBudget, withOverlap, PAGE_SIZE, PRIORITY_PAGE, type Cursor, type Page,
+} from "./pagination";
+import { isPagedSource } from "./source-queries";
+
+/** Cursor state as it is stored and returned. Position and counts only — never content. */
+export interface StoredCursor {
+  cursor: Cursor | null;
+  generation: number;
+  sweepCompleteAt: string | null;
+  rowsInspected: number;
+  pagesProcessed: number;
+  pageFailures: number;
+  status: "idle" | "in_progress" | "complete" | "failed" | "blocked";
+}
 
 export type TriggerMode = "manual" | "scheduled" | "test";
 
@@ -74,6 +89,27 @@ export interface CycleSummary {
    * a truncated sweep cannot be reported as `completed`.
    */
   truncatedSources: string[];
+
+  // ── R2S-P: bounded paging, honestly reported. ──────────────────────────────────────────
+  /** Rows actually inspected across every source this cycle. */
+  recordsInspected: number;
+  /** Pages read across every source this cycle. */
+  pagesProcessed: number;
+  /**
+   * Sources with more to read, and where each resumes. A cycle carrying any of these is
+   * `partial` with a continuation — never "all clear".
+   */
+  continuation: Array<{ source: string; generation: number; hasMore: boolean }>;
+  /** True when the whole-cycle row budget stopped the sweep before every source was served. */
+  budgetExhausted: boolean;
+  /**
+   * Whether a resolve-on-absence decision would be SAFE right now — true only when every source
+   * completed a failure-free sweep this cycle.
+   *
+   * Nothing resolves items on absence today; this exists so that when it is built it cannot be
+   * built unsafely. It is never a claim that resolution happened.
+   */
+  resolutionPermitted: boolean;
   failureReason: string | null;
   durationMs: number;
 }
@@ -106,6 +142,28 @@ export interface CycleDeps {
   /** Verified outcome history for the same company, folded into a task-specific signal. */
   loadSignals?(companyId: string): Promise<SignalLookup>;
   /**
+   * Read ONE bounded page of a source, resuming from `cursor` (R2S-P).
+   *
+   * Optional: a deployment without it falls back to `loadFor`, which is a single bounded read.
+   * When present it replaces the 500-row cap with a cursored sweep, so every authorised record
+   * is eventually observable while each cycle stays bounded.
+   */
+  loadPage?(source: string, companyId: string, cursor: Cursor | null, limit: number): Promise<Page<unknown>>;
+  /**
+   * The MOST OVERDUE rows for a source, read ahead of the sweep and never advancing its cursor.
+   *
+   * A keyset sweep by uuid is stable but arbitrary, so without this an ancient expired licence
+   * could sit behind thousands of newer rows for several cycles.
+   */
+  loadPriority?(source: string, companyId: string, limit: number): Promise<unknown>;
+  /** Where each source's sweep left off. */
+  readCursor?(companyId: string, source: string): Promise<StoredCursor | null>;
+  /**
+   * Commit a page's position. Called ONLY after the page's items and evidence are persisted, so
+   * a failure leaves the cursor where it was and the page is retried.
+   */
+  writeCursor?(companyId: string, source: string, state: StoredCursor): Promise<void>;
+  /**
    * Sources whose read hit the row cap during this cycle (defect R2S-F-008).
    *
    * Every loader is a bounded full scan. A company with more rows than the cap in one domain was
@@ -134,6 +192,126 @@ export interface CycleRequest {
   trigger: TriggerMode;
   /** Ties every item, transition and audit row of this cycle together. */
   correlationId?: string;
+}
+
+/** What one page of one source produced, and everything the cursor commit needs. */
+interface PageOutcome {
+  rows: unknown;
+  inspected: number;
+  pages: number;
+  complete: boolean;
+  next: Cursor | null;
+  previousCursor: Cursor | null;
+  generation: number;
+  sweepCompleteAt: string | null;
+  rowsInspectedTotal: number;
+  pagesProcessedTotal: number;
+  pageFailuresTotal: number;
+  pageFailed: boolean;
+}
+
+/**
+ * The sweep generation to rotate the visit order by.
+ *
+ * Read from any one source's stored state — the exact value does not matter, only that it
+ * advances over time so the rotation moves and no source is starved for ever.
+ */
+async function seedGeneration(deps: CycleDeps, companyId: string): Promise<number> {
+  try {
+    const first = SOURCES[0];
+    if (!first || !deps.readCursor) return 0;
+    const state = await deps.readCursor(companyId, first.source);
+    return state?.generation ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Read one bounded page of a source, plus the priority pre-pass.
+ *
+ * The PRE-PASS reads the most overdue rows first and never advances the cursor, so an ancient
+ * expired licence is surfaced promptly without disturbing stable pagination. Its rows are
+ * combined with the page's; duplicates between them are absorbed by identity-key deduplication
+ * in `ingest`, which is what that mechanism exists for.
+ */
+async function readOnePage(
+  deps: CycleDeps,
+  source: string,
+  companyId: string,
+  budget: RowBudget,
+): Promise<PageOutcome> {
+  // An UNPAGED source (the system-health probe) is a bounded aggregate, not a row list: there
+  // is nothing to page and no cursor to hold, so it is read whole through the ordinary loader
+  // and reported as complete.
+  if (!isPagedSource(source)) {
+    const rows = await deps.loadFor(source, companyId);
+    return {
+      rows, inspected: 0, pages: 1, complete: true, next: null, previousCursor: null,
+      generation: 0, sweepCompleteAt: null,
+      rowsInspectedTotal: 0, pagesProcessedTotal: 0, pageFailuresTotal: 0, pageFailed: false,
+    };
+  }
+
+  const stored = (await deps.readCursor?.(companyId, source)) ?? null;
+  const previousCursor = stored?.cursor ?? null;
+
+  const allowance = budget.allow(PAGE_SIZE);
+  if (allowance === 0) {
+    // The cycle budget is spent. This source is NOT read, its cursor does NOT move, and the
+    // rotation will put it nearer the front next time.
+    return {
+      rows: [], inspected: 0, pages: 0, complete: false, next: previousCursor,
+      previousCursor,
+      generation: stored?.generation ?? 0,
+      sweepCompleteAt: stored?.sweepCompleteAt ?? null,
+      rowsInspectedTotal: stored?.rowsInspected ?? 0,
+      pagesProcessedTotal: stored?.pagesProcessed ?? 0,
+      pageFailuresTotal: stored?.pageFailures ?? 0,
+      pageFailed: false,
+    };
+  }
+
+  const page = await deps.loadPage!(source, companyId, withOverlap(previousCursor), allowance);
+  budget.spend(page.inspected);
+
+  let rows: unknown = page.rows;
+  let inspected = page.inspected;
+
+  // The priority pre-pass. Bounded, cursor-free, and only where a source has a condition date.
+  if (deps.loadPriority) {
+    const priorityAllowance = budget.allow(PRIORITY_PAGE);
+    if (priorityAllowance > 0) {
+      try {
+        const urgent = await deps.loadPriority(source, companyId, priorityAllowance);
+        if (Array.isArray(urgent) && Array.isArray(page.rows)) {
+          const seen = new Set((page.rows as Array<{ id?: unknown }>).map((r) => String(r?.id)));
+          const extra = (urgent as Array<{ id?: unknown }>).filter((r) => !seen.has(String(r?.id)));
+          rows = [...(page.rows as unknown[]), ...extra];
+          inspected += extra.length;
+          budget.spend(extra.length);
+        }
+      } catch {
+        // The pre-pass is an accelerator, not a requirement. Losing it delays urgent rows to
+        // their natural place in the sweep; it never loses them.
+      }
+    }
+  }
+
+  return {
+    rows,
+    inspected,
+    pages: 1,
+    complete: page.complete,
+    next: page.next,
+    previousCursor,
+    generation: stored?.generation ?? 0,
+    sweepCompleteAt: stored?.sweepCompleteAt ?? null,
+    rowsInspectedTotal: stored?.rowsInspected ?? 0,
+    pagesProcessedTotal: stored?.pagesProcessed ?? 0,
+    pageFailuresTotal: stored?.pageFailures ?? 0,
+    pageFailed: false,
+  };
 }
 
 /**
@@ -431,6 +609,11 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     recommendationsRecorded: 0,
     itemsNeedingRouting: 0,
     truncatedSources: [],
+    recordsInspected: 0,
+    pagesProcessed: 0,
+    continuation: [],
+    budgetExhausted: false,
+    resolutionPermitted: false,
     unobservedDepartments: [],
     failureReason: null,
     durationMs: 0,
@@ -512,10 +695,32 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     // of the company (see resolveForItem).
     const peopleCache: PeopleCache = {};
 
-    for (const s of SOURCES) {
+    // R2S-P is active only when the deployment supplies a paged reader; otherwise the cycle
+    // behaves exactly as before, so every existing caller and test is untouched.
+    const paged = typeof deps.loadPage === "function";
+
+    // R2S-P. Sources are visited in a ROTATING order seeded by the sweep generation, so when
+    // the whole-cycle row budget runs out the same sources are not starved every time. The
+    // rotation is deterministic, so a cycle remains reproducible.
+    const budget = new RowBudget();
+    const generationSeed = paged ? await seedGeneration(deps, req.companyId) : 0;
+    let allSweepsComplete = paged;
+
+    for (const s of rotate(SOURCES, generationSeed)) {
       let observations: Observation[];
+      let pageState: PageOutcome | null = null;
+
       try {
-        const rows = await deps.loadFor(s.source, req.companyId);
+        let rows: unknown;
+        if (paged) {
+          pageState = await readOnePage(deps, s.source, req.companyId, budget);
+          rows = pageState.rows;
+          summary.recordsInspected += pageState.inspected;
+          summary.pagesProcessed += pageState.pages;
+          if (!pageState.complete) allSweepsComplete = false;
+        } else {
+          rows = await deps.loadFor(s.source, req.companyId);
+        }
         const produced = s.detect(rows, ctx);
         // 5. VALIDATE the adapter result. A detector that returns a non-array is a
         //    failure, not an empty result.
@@ -523,12 +728,16 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
         observations = produced;
       } catch (e) {
         // A failing adapter marks ITS department unobserved and the cycle partial. It never
-        // becomes a silent success, and it never aborts the other four.
+        // becomes a silent success, and it never aborts the other sources.
         summary.sourcesFailed++;
         summary.unobservedDepartments.push(s.department);
+        allSweepsComplete = false;
         continue;
       }
       summary.sourcesSucceeded++;
+      // A page whose items did not all persist must NOT advance the cursor: the unpersisted rows
+      // would never be read again.
+      let failedThisSource = false;
 
       for (const o of observations) {
         // 6. DEDUPLICATE, and fail closed on anything unsafe.
@@ -584,24 +793,68 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
           if (snapshots.length > 0) summary.recommendationsRecorded += snapshots.length;
           if (snapshots.some((s) => s.outcome === "needs_routing")) summary.itemsNeedingRouting++;
         } catch {
-          // A persistence failure for one observation must not lose the other four
-          // departments' work, and must not be reported as success.
+          // A persistence failure for one observation must not lose the other departments'
+          // work, and must not be reported as success.
+          failedThisSource = true;
           summary.observationsRejected++;
           if (!summary.unobservedDepartments.includes(s.department)) {
             summary.unobservedDepartments.push(s.department);
           }
         }
       }
+
+      // ── ATOMICITY. The cursor advances ONLY here: after every observation on this page has
+      //    been ingested and persisted. A failure above leaves the cursor exactly where it was
+      //    and the page is retried — idempotently, because item creation is keyed on the
+      //    identity key and returns the original item for a repeat.
+      if (paged && pageState) {
+        const pageFailed = pageState.pageFailed || failedThisSource;
+        try {
+          await deps.writeCursor?.(req.companyId, s.source, {
+            // A failed page does not move the position.
+            cursor: pageFailed ? pageState.previousCursor : pageState.next,
+            generation: pageState.complete && !pageFailed
+              ? pageState.generation + 1
+              : pageState.generation,
+            // A completion time is recorded ONLY for a generation that finished with no page
+            // failure. Any future resolve-on-absence logic gates on exactly this.
+            sweepCompleteAt: pageState.complete && !pageFailed
+              ? deps.now().toISOString()
+              : pageState.sweepCompleteAt,
+            rowsInspected: pageState.rowsInspectedTotal + pageState.inspected,
+            pagesProcessed: pageState.pagesProcessedTotal + pageState.pages,
+            pageFailures: pageState.pageFailuresTotal + (pageFailed ? 1 : 0),
+            status: pageFailed ? "failed" : pageState.complete ? "complete" : "in_progress",
+          });
+        } catch {
+          // Losing the cursor write is not a reason to lose the cycle: the page's items are
+          // already persisted, and the next sweep re-reads from the old position. Re-reading is
+          // absorbed by identity-key deduplication; the alternative is skipping rows.
+          summary.truncatedSources.push(s.source);
+        }
+        if (pageFailed) allSweepsComplete = false;
+        summary.continuation.push({
+          source: s.source,
+          generation: pageState.generation,
+          hasMore: !pageState.complete,
+        });
+      }
     }
+
+    summary.budgetExhausted = budget.exhausted;
+    summary.resolutionPermitted = paged && allSweepsComplete && summary.sourcesFailed === 0;
 
     // 13. A cycle that did not observe everything it registered is PARTIAL, never complete.
     //     A TRUNCATED read counts: looking at the first 500 rows of a domain and reporting
     //     "completed" claims a sweep that did not happen.
     summary.truncatedSources = [...(deps.truncatedSources?.() ?? [])];
+    const hasMore = summary.continuation.some((c) => c.hasMore);
     summary.status =
       summary.sourcesFailed > 0 ||
       summary.unobservedDepartments.length > 0 ||
-      summary.truncatedSources.length > 0
+      summary.truncatedSources.length > 0 ||
+      hasMore ||
+      summary.budgetExhausted
         ? "partial"
         : "completed";
     if (summary.status === "partial") {
@@ -611,6 +864,13 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
       }
       if (summary.truncatedSources.length > 0) {
         parts.push(`truncated (row cap reached): ${summary.truncatedSources.join(", ")}`);
+      }
+      const more = summary.continuation.filter((c) => c.hasMore).map((c) => c.source);
+      if (more.length > 0) {
+        parts.push(`more to read (continuation pending): ${more.join(", ")}`);
+      }
+      if (summary.budgetExhausted) {
+        parts.push("cycle row budget exhausted; remaining sources continue next cycle");
       }
       summary.failureReason = parts.join("; ") || "incomplete sweep";
     }

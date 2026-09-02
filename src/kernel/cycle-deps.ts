@@ -12,8 +12,12 @@
 import { randomUUID } from "node:crypto";
 import Decimal from "decimal.js";
 import { iso, isoDate } from "./temporal";
+import { parseCursor, type Cursor } from "./pagination";
+import { loadSourcePage, loadPrioritySlice } from "./source-queries";
+import type { StoredCursor } from "./cycle";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { writeAudit } from "@/lib/audit";
+import { log } from "@/lib/log";
 import {
   FINANCE_SOURCE, WORKFORCE_SOURCE, OPERATIONS_SOURCE, CRM_SOURCE, SYSTEM_SOURCE,
   GOVERNANCE_SOURCE, OBJECTIVES_SOURCE, MARKETING_SOURCE, PROCUREMENT_SOURCE,
@@ -58,6 +62,78 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
     now,
 
     truncatedSources: () => [...truncated].sort(),
+
+    // ── R2S-P: bounded paging, priority pre-pass and cursor state. ────────────────────────
+    async loadPage(source, companyId, cursor, limit) {
+      return loadSourcePage(db, source, companyId, cursor, limit);
+    },
+
+    async loadPriority(source, companyId, limit) {
+      return loadPrioritySlice(db, source, companyId, limit);
+    },
+
+    /**
+     * Where this source's sweep left off.
+     *
+     * A cursor that cannot be parsed is treated as ABSENT, which restarts the sweep from the
+     * beginning. That is the safe direction: a corrupt or tampered cursor repositioned to the end
+     * would make a whole domain look empty, and "look again from the start" costs a sweep period
+     * while "silently observe nothing" costs everything.
+     */
+    async readCursor(companyId: string, source: string): Promise<StoredCursor | null> {
+      const { data, error } = await db
+        .from("observation_source_cursors")
+        .select("cursor, generation, sweep_complete_at, rows_inspected, pages_processed, page_failures, status")
+        .eq("company_id", companyId)
+        .eq("source", source)
+        .maybeSingle();
+      if (error || !data) return null;
+
+      let parsed: Cursor | null = null;
+      try {
+        parsed = parseCursor(data.cursor);
+      } catch (e) {
+        log("warn", "unusable observation cursor - restarting the sweep", {
+          event: "observation_cursor.unusable",
+          company: companyId,
+          source,
+          reason: (e as Error).message,
+        });
+        parsed = null;
+      }
+
+      return {
+        cursor: parsed,
+        generation: Number(data.generation ?? 0),
+        sweepCompleteAt: data.sweep_complete_at ? new Date(data.sweep_complete_at).toISOString() : null,
+        rowsInspected: Number(data.rows_inspected ?? 0),
+        pagesProcessed: Number(data.pages_processed ?? 0),
+        pageFailures: Number(data.page_failures ?? 0),
+        status: (data.status ?? "idle") as StoredCursor["status"],
+      };
+    },
+
+    /** Commit a page's position. The cycle calls this only after the page's items are persisted. */
+    async writeCursor(companyId: string, source: string, state: StoredCursor): Promise<void> {
+      const { error } = await db
+        .from("observation_source_cursors")
+        .upsert(
+          {
+            company_id: companyId,
+            source,
+            cursor: state.cursor,
+            generation: state.generation,
+            sweep_complete_at: state.sweepCompleteAt,
+            rows_inspected: state.rowsInspected,
+            pages_processed: state.pagesProcessed,
+            page_failures: state.pageFailures,
+            status: state.status,
+            last_page_at: new Date().toISOString(),
+          },
+          { onConflict: "company_id,source" },
+        );
+      if (error) throw new Error(error.message);
+    },
 
     async isCompanyEnabled(companyId) {
       const { data, error } = await db

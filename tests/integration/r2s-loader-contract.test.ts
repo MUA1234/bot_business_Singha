@@ -18,6 +18,7 @@ import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { runManagementCycle, type CycleDeps } from "@/kernel/cycle";
 import { makeCycleDeps, LOADER_ROW_CAP } from "@/kernel/cycle-deps";
+import { PAGE_SIZE } from "@/kernel/pagination";
 import { pgSupabase } from "./helpers/pg-supabase";
 import {
   FINANCE_SOURCE, WORKFORCE_SOURCE, OPERATIONS_SOURCE, CRM_SOURCE, SYSTEM_SOURCE,
@@ -111,11 +112,13 @@ describe.skipIf(!enabled)("loader contract and semantic integrity — twelve dom
     it("a loader failure is LOUD — the cycle reports the department unobserved, never all-clear", async () => {
       // A source whose query fails must never look like "nothing needs attention". This is the
       // exact shape that let three broken loaders go unnoticed.
+      // R2S-P: the cycle reads through loadPage, so the failure has to be injected THERE —
+      // stubbing loadFor would exercise a path production no longer takes and prove nothing.
       const broken: CycleDeps = {
         ...deps,
-        async loadFor(source, companyId) {
+        async loadPage(source, companyId, cursor, limit) {
           if (source === FINANCE_SOURCE) throw new Error("relation does not exist");
-          return deps.loadFor(source, companyId);
+          return deps.loadPage!(source, companyId, cursor, limit);
         },
       };
       const summary = await runManagementCycle(broken, { companyId: CO, actorId: null, trigger: "test" });
@@ -741,7 +744,7 @@ describe.skipIf(!enabled)("loader contract and semantic integrity — twelve dom
       expect(rows[0].n).toBe(0);
     });
 
-    it("R2S-F-008 — a TRUNCATED read is reported, never silently partial", async () => {
+    it("R2S-P — a large source reports a CONTINUATION rather than truncating", async () => {
       // A bounded read is deliberate. A SILENT bounded read is the defect: a company with more
       // rows than the cap in one domain had the remainder read as though it did not exist, and
       // the cycle still reported "completed" — the queue looks calm because the system did not
@@ -753,25 +756,36 @@ describe.skipIf(!enabled)("loader contract and semantic integrity — twelve dom
       await q("insert into tasks (company_id, title, status, due_date) values " + values, [CO]);
 
       const summary = await cycle();
-      expect(summary.truncatedSources).toContain(OPERATIONS_SOURCE);
+      // R2S-F-008 made truncation loud; R2S-P removes the truncation entirely. The source now
+      // says "there is more" and where to resume, and the cycle is partial WITH A CONTINUATION
+      // rather than partial because it gave up.
+      const ops = summary.continuation.find((c) => c.source === OPERATIONS_SOURCE);
+      expect(ops, JSON.stringify(summary)).toBeTruthy();
+      expect(ops!.hasMore).toBe(true);
       expect(summary.status).toBe("partial");
-      expect(summary.failureReason).toMatch(/row cap reached/);
+      expect(summary.failureReason).toMatch(/continuation pending/);
+      expect(summary.truncatedSources).toEqual([]);
+      expect(summary.recordsInspected).toBeGreaterThan(0);
     });
 
-    it("the row cap HOLDS — a bounded read is never an unbounded scan", async () => {
+    it("a PAGE is bounded — a sweep is never an unbounded scan", async () => {
       // The previous version of this test asserted that inserting more rows returned more
       // rows, which is only true until the cap is actually reached. It measured the absence
       // of a limit rather than the presence of one.
-      const rows = (await deps.loadFor(OPERATIONS_SOURCE, CO)) as any[];
+      const page = await deps.loadPage!(OPERATIONS_SOURCE, CO, null, PAGE_SIZE);
+      expect(page.rows as unknown[]).toHaveLength(Math.min(PAGE_SIZE, (page.rows as unknown[]).length));
+      expect((page.rows as unknown[]).length).toBeLessThanOrEqual(PAGE_SIZE);
+      // And the legacy single read is still bounded, for a deployment without paging.
+      const rows = (await deps.loadFor(OPERATIONS_SOURCE, CO)) as unknown[];
       expect(rows.length).toBeLessThanOrEqual(LOADER_ROW_CAP);
     });
 
     it("a DATABASE ERROR marks the domain unobserved and is never reported as all-clear", async () => {
       const failing: CycleDeps = {
         ...deps,
-        async loadFor(source, companyId) {
+        async loadPage(source, companyId, cursor, limit) {
           if (source === LEGAL_SOURCE) throw new Error("connection reset");
-          return deps.loadFor(source, companyId);
+          return deps.loadPage!(source, companyId, cursor, limit);
         },
       };
       const summary = await runManagementCycle(failing, { companyId: CO, actorId: null, trigger: "test" });
