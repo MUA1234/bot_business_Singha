@@ -2303,24 +2303,24 @@ requirements:
     phase: recovery-r4
     priority: P0
     dependencies: [KRN-001]
-    status: implementation_in_progress
+    status: locally_verified
     gap: PR-F-006 — exactly ONE signal class is observed (wa_conversations, by /api/cron/ai-monitor). Every domain detector already exists as a tested pure function (renewals, exceptions, objective-status, forecast, ageing, budget-vs-actual, capacity, three-way match, availability) and NONE reaches the loop.
     feature_flag: none
-    runtime_entrypoint: src/app/api/management/cycle/route.ts -> src/kernel/cycle.ts (loads and runs the five registered sources)
-    database_evidence: src/db/draft-migrations-r1/R1_DRAFT_005_observation_sources (QUARANTINED draft)
-    service_evidence: src/kernel/adapters/{finance,workforce,operations,crm,system-health}.ts wrapping the existing tested detectors; src/kernel/adapters/index.ts registry; src/kernel/observation.ts contract; src/kernel/ingest.ts
+    runtime_entrypoint: src/app/api/management/cycle/route.ts -> src/kernel/cycle.ts (loads and runs all TWELVE registered sources)
+    database_evidence: src/db/draft-migrations-r1/R1_DRAFT_005_observation_sources + R1_DRAFT_013_twelve_domains (QUARANTINED drafts)
+    service_evidence: src/kernel/adapters/{finance,workforce,operations,crm,system-health,governance,objectives,marketing,procurement,assets,legal,providers}.ts wrapping the existing tested detectors; src/kernel/adapters/index.ts registry; src/kernel/observation.ts contract; src/kernel/ingest.ts; loaders in src/kernel/cycle-deps.ts
     ui_evidence: none
-    test_evidence: tests/kernel/adapters.test.ts (41); tests/kernel/cycle.test.ts; tests/integration/r1-adapter-ingest.test.ts; tests/integration/r1-runtime-e2e.test.ts (live)
+    test_evidence: tests/kernel/adapters.test.ts (41); tests/kernel/adapters-r2a.test.ts (31); tests/kernel/cycle.test.ts; tests/integration/r1-adapter-ingest.test.ts; tests/integration/r1-runtime-e2e.test.ts; tests/integration/r1-atomic-create.test.ts asserts all twelve domains accepted live
     security_evidence: company identity resolved from the scan context and never from a payload; sensitive-fact keys refused; minimum-safe-summary bands instead of amounts, names, message bodies or config values
     audit_health_evidence: none
-    last_verified_sha: abb49f5
+    last_verified_sha: 5a59adb
     last_verified_at: 2026-09-02
     authority_restrictions: A detector observes and reports; it may never create a case, task or action itself.
     privacy_restrictions: Observations carry evidence references, not copied personal content; people-related sources obey the WRK-006 fairness and visibility model.
     acceptance_scenarios: An overdue invoice, an expiring vehicle document and an inbound message each produce an observation through the same contract; a scan that throws is recorded as a scan failure and the health surface reports the domain as UNOBSERVED rather than silently returning zero.
     owner_gate: phase gate — not authorised before R4
     blocker: KRN-001
-    residual_risks: NOT locally_verified because the requirement is sources across EVERY managed domain and only FIVE of twelve are covered (finance, workforce, operations, crm, system). The runtime entrypoint now exists and exercises those five end to end. Event-triggered intake is declared for CRM but not wired; no scheduler is registered.
+    residual_risks: ALL TWELVE managed domains now have a registered observation source wrapping real, tested detection logic. LOCAL ONLY - zero staging, zero production. FOUR domains are PARTIAL by data availability, not by omission: marketing has no attribution table so no ROI condition; procurement covers stock reorder but not three-way-match variance; assets covers vehicle documents only (AST-001 registry remains specified/unbuilt); providers covers compliance and insurance only (CRM-004 performance history is absent). No scheduler is registered and event-triggered intake is declared for CRM but not wired.
     verified_local: no
     verified_staging: no
     verified_production: no
