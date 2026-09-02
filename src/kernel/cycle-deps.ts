@@ -18,6 +18,10 @@ import {
   ASSETS_SOURCE, LEGAL_SOURCE, PROVIDERS_SOURCE,
 } from "./adapters";
 import type { CycleDeps, CycleSummary, PersistRecommendation } from "./cycle";
+import { candidateEvidence } from "./people/candidate";
+import { fact } from "./people/evidence";
+import { RESOLVER_VERSION, type RecommendationSnapshot } from "./people/snapshot";
+import { SIGNAL_RULE_VERSION, signalLookupFrom, type OutcomeRecord } from "./people/learning";
 import type { Observation } from "./observation";
 import type { ExistingItem } from "./ingest";
 import type { AuthorityContext } from "@/policy/authority-engine";
@@ -73,6 +77,183 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
       };
     },
 
+    /**
+     * Candidate evidence, built ENTIRELY from server-side reads (R2B, owner Decision 2).
+     *
+     * The company comes from the authorised call, and every identity comes from the row it was
+     * read from. Nothing here accepts supplied evidence, so there is no path by which a caller
+     * could substitute a membership, a company or a candidate identity — the R2B-F-002 class of
+     * defect is closed by the loader having no input other than the company id.
+     *
+     * ONLY the columns the gates need are selected. No name, no contact detail, no salary, no
+     * date of birth, no address: what is never loaded cannot leak into a recommendation, and the
+     * protected-attribute allowlist would refuse it anyway.
+     */
+    async loadCandidates(companyId: string) {
+      const members = await rowsOf(
+        db.from("memberships").select("id, user_id, status").eq("company_id", companyId),
+      );
+      if (members.length === 0) return [];
+
+      const ids = members.map((m) => m.id);
+
+      const roleRows = await rowsOf(
+        db.from("membership_roles").select("membership_id, role_key").in("membership_id", ids),
+      ).catch(() => [] as any[]);
+      const roleKeys = [...new Set(roleRows.map((r) => r.role_key))];
+      const permRows = roleKeys.length
+        ? await rowsOf(
+            db.from("role_permissions").select("role_key, permission_key").in("role_key", roleKeys),
+          ).catch(() => [] as any[])
+        : [];
+      const permsByRole = new Map<string, string[]>();
+      for (const p of permRows) {
+        const list = permsByRole.get(p.role_key) ?? [];
+        list.push(p.permission_key);
+        permsByRole.set(p.role_key, list);
+      }
+      const capsByMembership = new Map<string, Set<string>>();
+      const rolesByMembership = new Map<string, string[]>();
+      for (const r of roleRows) {
+        const caps = capsByMembership.get(r.membership_id) ?? new Set<string>();
+        for (const p of permsByRole.get(r.role_key) ?? []) caps.add(p);
+        capsByMembership.set(r.membership_id, caps);
+        rolesByMembership.set(r.membership_id, [...(rolesByMembership.get(r.membership_id) ?? []), r.role_key]);
+      }
+
+      // `employee_profiles.skills` is a bare text[] with no verifier and no expiry, so it is
+      // SELF-DECLARED and can never satisfy a mandatory skill (finding F-R2B-2).
+      const profiles = await rowsOf(
+        db.from("employee_profiles").select("membership_id, skills").eq("company_id", companyId),
+      ).catch(() => [] as any[]);
+      const skillsByMembership = new Map<string, string[]>(
+        profiles.map((p) => [p.membership_id, (p.skills ?? []) as string[]]),
+      );
+
+      // Approved leave is a recorded HUMAN DECISION with a decider and a date — verified.
+      const today = now().toISOString().slice(0, 10);
+      const leave = await rowsOf(
+        db.from("leave_requests")
+          .select("profile_id, start_date, end_date")
+          .eq("company_id", companyId)
+          .eq("status", "approved")
+          .lte("start_date", today)
+          .gte("end_date", today),
+      ).catch(() => [] as any[]);
+      const onLeaveUserIds = new Set(leave.map((l) => l.profile_id));
+
+      // Capacity is a weekly snapshot, so it is INFERRED and routinely a few days old. The
+      // as-of date travels with it and the resolver decides whether it is still usable.
+      const capacity = await rowsOf(
+        db.from("capacity_snapshots")
+          .select("membership_id, available_hours, status, week_start")
+          .eq("company_id", companyId)
+          .order("week_start", { ascending: false }),
+      ).catch(() => [] as any[]);
+      const capByMembership = new Map<string, any>();
+      for (const c of capacity) if (!capByMembership.has(c.membership_id)) capByMembership.set(c.membership_id, c);
+
+      return members.map((m) => {
+        const cap = capByMembership.get(m.id);
+        const onLeave = m.user_id ? onLeaveUserIds.has(m.user_id) : false;
+        const caps = [...(capsByMembership.get(m.id) ?? new Set<string>())];
+        const declared = skillsByMembership.get(m.id);
+
+        return candidateEvidence(
+          { membershipId: m.id, companyId, candidateType: "staff" },
+          {
+            active: fact(m.status === "active", "verified", { sourceRef: { table: "memberships", id: m.id } }),
+            roles: fact(rolesByMembership.get(m.id) ?? [], "verified"),
+            capabilities: fact(caps, "verified", { sourceRef: { table: "membership_roles", id: m.id } }),
+            // The cycle proposes internal, catalogue-registered work; it never commits money,
+            // so no monetary ceiling is resolved here and none is claimed.
+            authorityLevel: fact("automatic", "verified"),
+            declaredSkills:
+              declared === undefined
+                ? undefined
+                : fact(declared, "self_declared", { sourceRef: { table: "employee_profiles", id: m.id } }),
+            available: fact(
+              {
+                available: !onLeave,
+                onLeave,
+                availableHours: Number(cap?.available_hours ?? 0),
+                capacityStatus: (cap?.status ?? "healthy") as "overloaded" | "healthy" | "underallocated",
+              },
+              "inferred",
+              {
+                // No snapshot ⇒ no as-of date ⇒ the resolver reports the age as unknown
+                // (R2B-F-004) rather than treating a guess as current.
+                asOf: cap?.week_start ? new Date(cap.week_start).toISOString() : null,
+                sourceRef: cap ? { table: "capacity_snapshots", id: m.id } : null,
+              },
+            ),
+          },
+        );
+      });
+    },
+
+    /**
+     * Verified outcome history for this company, folded into task-specific signals.
+     *
+     * Deciders are normalised to MEMBERSHIP ids. `management_item_transitions.actor_id` may hold
+     * either a membership id or a user id depending on the caller, while
+     * `accountable_owner_id` is always a membership — comparing the two raw would make the
+     * self-verification check silently never fire, which is precisely the guard that stops a
+     * person confirming their own outcomes.
+     */
+    async loadSignals(companyId: string) {
+      const items = await rowsOf(
+        db.from("management_items")
+          .select("id, accountable_owner_id, proposed_action_id")
+          .eq("company_id", companyId)
+          .not("accountable_owner_id", "is", null),
+      ).catch(() => [] as any[]);
+      if (items.length === 0) return () => null;
+
+      const byItem = new Map<string, any>(items.map((i) => [i.id, i]));
+      const transitions = await rowsOf(
+        db.from("management_item_transitions")
+          .select("id, item_id, to_state, actor_id, actor_type, created_at")
+          .eq("company_id", companyId)
+          .in("item_id", [...byItem.keys()])
+          .in("to_state", ["verified", "reopened"]),
+      ).catch(() => [] as any[]);
+      if (transitions.length === 0) return () => null;
+
+      const members = await rowsOf(
+        db.from("memberships").select("id, user_id").eq("company_id", companyId),
+      ).catch(() => [] as any[]);
+      const membershipByUser = new Map<string, string>(members.filter((m) => m.user_id).map((m) => [m.user_id, m.id]));
+      const membershipIds = new Set(members.map((m) => m.id));
+      const asMembership = (actorId: string | null) =>
+        actorId === null ? null : membershipIds.has(actorId) ? actorId : (membershipByUser.get(actorId) ?? null);
+
+      const records: OutcomeRecord[] = [];
+      for (const t of transitions) {
+        const item = byItem.get(t.item_id);
+        if (!item?.proposed_action_id) continue; // no task kind ⇒ nothing task-specific to learn
+        records.push({
+          outcomeId: t.id,
+          companyId,
+          membershipId: item.accountable_owner_id,
+          taskKind: item.proposed_action_id,
+          itemId: t.item_id,
+          outcome: t.to_state === "verified" ? "verified" : "reopened",
+          deciderId: asMembership(t.actor_id),
+          deciderType: (t.actor_type ?? "system") as "user" | "system" | "ai",
+          occurredAt: new Date(t.created_at).toISOString(),
+          businessDeadline: null,
+          // Task-level deadline performance is NOT COMPUTABLE (finding F-R2B-1): `tasks` has no
+          // completion timestamp. Null is the honest answer, and it is never read as lateness.
+          metOnTime: null,
+          correctsOutcomeId: null,
+          source: "transition",
+        });
+      }
+
+      return signalLookupFrom(records, companyId, now());
+    },
+
     async findByIdentity(companyId, identityKey) {
       const { data } = await db
         .from("management_items")
@@ -93,10 +274,17 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
      * is service-only, validates company, actor, adapter registration and evidence, enforces
      * the initial state, and returns the ORIGINAL item for a repeated identity key.
      */
-    async persist(o: Observation, rec: PersistRecommendation | null, actorId: string | null = null) {
-      const { data, error } = await db.rpc("r1_draft_create_management_item", {
+    async persist(
+      o: Observation,
+      rec: PersistRecommendation | null,
+      snapshots: readonly RecommendationSnapshot[] = [],
+    ) {
+      // R2B: the v2 entry point adds the append-only recommendation snapshots to the SAME
+      // transaction. It CALLS the original RPC rather than reimplementing it, so item,
+      // evidence, opening transition, audit row and snapshots are still all-or-nothing.
+      const { data, error } = await db.rpc("r1_draft_create_management_item_v2", {
         p_company: o.companyId,
-        p_actor: actorId,
+        p_actor: null,
         p_department: o.department,
         p_kind: o.kind,
         p_observation_source: o.observationSource,
@@ -117,6 +305,9 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
           source_id: e.sourceId,
           facts: e.facts,
         })),
+        p_recommendations: snapshots,
+        p_resolver_version: snapshots.length > 0 ? RESOLVER_VERSION : null,
+        p_signal_rule_version: snapshots.length > 0 ? SIGNAL_RULE_VERSION : null,
       });
       if (error) throw new Error(error.message);
       const result = data as { ok: boolean; result: string; item_id: string };

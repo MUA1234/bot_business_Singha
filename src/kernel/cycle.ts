@@ -35,6 +35,10 @@ import {
   ASSETS_SOURCE, LEGAL_SOURCE, PROVIDERS_SOURCE,
 } from "./adapters";
 import { ingestObservation, type ExistingItem, type IngestDecision } from "./ingest";
+import { actionById } from "./catalogue";
+import type { CandidateEvidence } from "./people/candidate";
+import { resolveCandidates, type SignalLookup } from "./people/resolve";
+import { buildSnapshots, RESOLVER_VERSION, type RecommendationSnapshot } from "./people/snapshot";
 import { buildRecommendation } from "./recommend";
 import { fixtureInterpreter, interpretWithGuards } from "./interpretation";
 import type { Observation } from "./observation";
@@ -57,6 +61,10 @@ export interface CycleSummary {
   itemsReused: number;
   observationsSkipped: number;
   observationsRejected: number;
+  /** Recommendation snapshot rows written this cycle (R2B). Advice, never assignment. */
+  recommendationsRecorded: number;
+  /** Items for which NOBODY was suitable, recorded truthfully rather than force-assigned. */
+  itemsNeedingRouting: number;
   /** Departments whose adapter failed. A cycle with any of these can never be `completed`. */
   unobservedDepartments: Department[];
   failureReason: string | null;
@@ -75,7 +83,21 @@ export interface CycleDeps {
   /** Existing item for an identity key, or null. */
   findByIdentity(companyId: string, identityKey: string): Promise<ExistingItem | null>;
   /** Persists item + evidence + opening transition in ONE transaction. */
-  persist(o: Observation, rec: PersistRecommendation | null): Promise<string>;
+  persist(
+    o: Observation,
+    rec: PersistRecommendation | null,
+    snapshots?: readonly RecommendationSnapshot[],
+  ): Promise<string>;
+  /**
+   * Candidate evidence for one company, built ENTIRELY from server-side reads (R2B, Decision 2).
+   *
+   * Optional: a deployment without it simply produces no candidate recommendation, which the
+   * surface reports honestly. Throwing is treated as "evidence unavailable" and recorded as a
+   * routing reason — never as "nobody is suitable", which is a different and much stronger claim.
+   */
+  loadCandidates?(companyId: string): Promise<readonly CandidateEvidence[]>;
+  /** Verified outcome history for the same company, folded into a task-specific signal. */
+  loadSignals?(companyId: string): Promise<SignalLookup>;
   /** Records the run. Called for cycles that actually RAN — never for a disabled one. */
   recordRun(summary: CycleSummary, actorId: string | null): Promise<void>;
   /** Company authority context for the existing authority engine. */
@@ -96,6 +118,94 @@ export interface CycleRequest {
   trigger: TriggerMode;
   /** Ties every item, transition and audit row of this cycle together. */
   correlationId?: string;
+}
+
+/**
+ * Who could hold this work (R2B, owner Decision 2). **RECOMMENDATION ONLY.**
+ *
+ * The cycle never assigns anyone, grants authority, alters workload, notifies a consultant,
+ * sends a message, approves anything or performs the work. That is structural, not a
+ * convention: this function returns snapshot ROWS, and the create RPC it feeds accepts no
+ * accountable owner at all, so there is no shape in which a cycle can make an assignment.
+ *
+ * EVERY failure mode below produces a TRUTHFUL `needs_routing` snapshot with an exact reason
+ * rather than a candidate. The owner's rule — "never select an unchecked candidate to keep the
+ * cycle moving" — is enforced by there being no branch that returns one.
+ */
+async function resolveForItem(
+  deps: CycleDeps,
+  o: Observation,
+  rec: PersistRecommendation,
+  action: { capability: string | null; department: Department } | null,
+): Promise<RecommendationSnapshot[]> {
+  // No loader configured: no recommendation is made, and the surface says exactly that.
+  // This is NOT "nobody is suitable" — a claim we have no evidence for.
+  if (!deps.loadCandidates) return [];
+
+  const routed = (reasonCode: string, detail: string): RecommendationSnapshot[] => [{
+    purpose: "assignee", outcome: "needs_routing",
+    candidate_ref: null, candidate_type: null, rank_position: null,
+    capabilities_used: [], skills_used: [], availability: null, confidence: null,
+    reason_codes: [reasonCode], reasons: [{ code: reasonCode, detail }], missing_codes: [],
+    routing_department: o.department, routing_reason_code: reasonCode,
+    evidence_refs: [],
+  }];
+
+  // An unregistered action means we do not know what capability the work needs. Resolving
+  // without that would offer someone for work whose requirements were never established.
+  if (!action) return routed("action_not_registered", `proposed action ${rec.actionId} is not in the catalogue`);
+
+  let candidates: readonly CandidateEvidence[];
+  try {
+    candidates = await deps.loadCandidates(o.companyId);
+  } catch (e) {
+    return routed("candidate_evidence_unavailable", `candidate evidence could not be read: ${(e as Error).message}`);
+  }
+
+  let signalFor: SignalLookup | undefined;
+  try {
+    signalFor = await deps.loadSignals?.(o.companyId);
+  } catch {
+    // Learning is an ORDERING input. Losing it is not a reason to refuse to recommend, and it
+    // is not a reason to pretend history exists — the resolver simply proceeds without it.
+    signalFor = undefined;
+  }
+
+  try {
+    const resolution = resolveCandidates(
+      {
+        companyId: o.companyId,
+        department: o.department,
+        // Keyed on the ACTION, so outcome history is specific to this kind of work.
+        taskKind: rec.actionId,
+        roles: ["assignee"],
+        requiredCapability: action.capability,
+        // `automatic`, deliberately, and NOT rec.requiredAuthority.
+        //
+        // The item's required authority is the level needed to APPROVE the proposed action. The
+        // assignee is the person who would DO the work once a human has approved it. Conflating
+        // the two would mean only people senior enough to approve something could ever be
+        // recommended to do it — a manager approving and then performing every task — and would
+        // route ordinary work to `needs_routing` for want of an approval right the doer does not
+        // need. Approval authority is checked separately, against the approver, at approval time.
+        requiredAuthority: "automatic",
+        authorityAmount: null,
+        authorityDomain: null,
+        requiredVerifiedSkills: [],
+        preferredSkills: [],
+        requiredLanguage: null,
+        onDateIso: deps.now().toISOString().slice(0, 10),
+        estimateHours: null,
+        now: deps.now(),
+      },
+      candidates,
+      signalFor ? { signalFor } : {},
+    );
+    return buildSnapshots(resolution);
+  } catch (e) {
+    // A resolver that throws must never be reported as "nobody qualified".
+    return routed("resolver_failed", `candidate resolution failed: ${(e as Error).message}`);
+  }
 }
 
 /** The global switch. Server-side only — never `NEXT_PUBLIC_`. */
@@ -187,6 +297,8 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     itemsReused: 0,
     observationsSkipped: 0,
     observationsRejected: 0,
+    recommendationsRecorded: 0,
+    itemsNeedingRouting: 0,
     unobservedDepartments: [],
     failureReason: null,
     durationMs: 0,
@@ -320,11 +432,21 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
           rec = null;
         }
 
-        // 7 + 12. Persist item, evidence and the opening transition in ONE transaction,
-        //         carrying the correlation id.
+        // 11. WHO could hold this work (R2B, owner Decision 2). RECOMMENDATION ONLY: the
+        //     resolver returns candidates, nothing is assigned, no authority is granted, no
+        //     workload changes and nobody is notified. The accountable owner stays NULL until
+        //     an authorised human accepts, which the create RPC guarantees by not accepting it.
+        const snapshots = rec
+          ? await resolveForItem(deps, o, rec, actionById(rec.actionId) ?? null)
+          : [];
+
+        // 7 + 12. Persist item, evidence, the opening transition and the recommendation
+        //         snapshots in ONE transaction, carrying the correlation id.
         try {
-          await deps.persist(o, rec);
+          await deps.persist(o, rec, snapshots);
           summary.itemsCreated++;
+          if (snapshots.length > 0) summary.recommendationsRecorded += snapshots.length;
+          if (snapshots.some((s) => s.outcome === "needs_routing")) summary.itemsNeedingRouting++;
         } catch {
           // A persistence failure for one observation must not lose the other four
           // departments' work, and must not be reported as success.
