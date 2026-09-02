@@ -32,9 +32,16 @@ export interface SuitabilitySignal {
   /** Keyed on the task kind — never on the person alone. */
   taskKind: string;
   membershipId: string;
-  /** Verified outcomes that reached a terminal, human-confirmed state. */
+  /** Outcomes considered at all, before recency and anti-poisoning filtering. */
   outcomeCount: number;
-  verifiedOutcomeCount: number;
+  /**
+   * Outcomes a HUMAN CONFIRMED, whether the work stood (verified) or was sent back (reopened).
+   *
+   * NOT "verified outcomes" — defect R2B-F-005. It was called verifiedOutcomeCount and rendered
+   * to managers as "5 verified outcome(s)" on a history of five REOPENED items, which reads as
+   * praise for a record of rework. The count is the evidence base, not the good news in it.
+   */
+  confirmedOutcomeCount: number;
   /** Of the verified outcomes, how many met a recorded business deadline. */
   onTimeCount: number;
   /** How many DISTINCT humans contributed the decisions. One decider is not a consensus. */
@@ -240,11 +247,11 @@ function applyLearningSignal(signal: SuitabilitySignal | null, req: CandidateReq
 
   const delta = signal.weightedSuccessRate - BASELINE;
   const threshold = delta >= 0 ? MIN_OUTCOMES_TO_PROMOTE : MIN_OUTCOMES_TO_DEMOTE;
-  if (signal.verifiedOutcomeCount < threshold) {
+  if (signal.confirmedOutcomeCount < threshold) {
     missing.push({
       code: "insufficient_outcome_history",
       detail:
-        `${signal.verifiedOutcomeCount} verified outcome(s) for "${req.taskKind}"; ` +
+        `${signal.confirmedOutcomeCount} confirmed outcome(s) for "${req.taskKind}"; ` +
         `${threshold} are required before history may ${delta >= 0 ? "support" : "count against"} a candidate`,
       evidence: null,
     });
@@ -255,8 +262,8 @@ function applyLearningSignal(signal: SuitabilitySignal | null, req: CandidateReq
   reasons.push({
     code: delta >= 0 ? "outcome_history_supports" : "outcome_history_counts_against",
     detail:
-      `${signal.verifiedOutcomeCount} verified outcome(s) on "${req.taskKind}" from ` +
-      `${signal.distinctDeciderCount} decision-makers, ${signal.onTimeCount} on time ` +
+      `${signal.confirmedOutcomeCount} confirmed outcome(s) on "${req.taskKind}" from ` +
+      `${signal.distinctDeciderCount} decision-makers, ${signal.onTimeCount} completed on time ` +
       `(rule ${signal.ruleVersion})`,
     evidence: null,
   });
@@ -283,7 +290,7 @@ function computeConfidence(
   if (isVerified(c.authorityLevel)) conf += 0.1;
   if (isPresent(c.available) && c.available.evidenceClass !== "stale") conf += 0.15;
   if (req.requiredVerifiedSkills.length > 0 && isVerified(c.verifiedSkills)) conf += 0.1;
-  if (signal && signal.taskKind === req.taskKind && signal.verifiedOutcomeCount >= MIN_OUTCOMES_TO_PROMOTE) conf += 0.1;
+  if (signal && signal.taskKind === req.taskKind && signal.confirmedOutcomeCount >= MIN_OUTCOMES_TO_PROMOTE) conf += 0.1;
 
   conf -= 0.05 * gapCount;
   return clamp01(Number(conf.toFixed(4)));
@@ -292,17 +299,22 @@ function computeConfidence(
 /**
  * Order candidates for human consideration.
  *
- * Ties are broken by membership id, NOT left to sort stability. Two genuinely equal candidates
- * must produce the same order on every run and on every machine, or a "deterministic rebuild"
- * claim is untestable — and a manager who reloads the page must not see a different name first.
+ * Ties are broken by membership id AND THEN BY ROLE, never left to sort stability. Two equal
+ * candidates must produce the same order on every run and on every machine, or a "deterministic
+ * rebuild" claim is untestable — and a manager who reloads must not see a different name first.
+ *
+ * The role tie-break closes defect R2B-F-003: one request may return the SAME person as both a
+ * suggested assignee and a suggested advisor, and those two entries share a membership id, so
+ * membership alone left their order decided by the order the caller happened to list the roles.
  */
-export function orderCandidates<T extends { suitability: number; confidence: number; membershipId: string }>(
-  candidates: T[],
-): T[] {
+export function orderCandidates<
+  T extends { suitability: number; confidence: number; membershipId: string; role?: string },
+>(candidates: T[]): T[] {
+  const cmp = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
   return [...candidates].sort((a, b) => {
     if (b.suitability !== a.suitability) return b.suitability - a.suitability;
     if (b.confidence !== a.confidence) return b.confidence - a.confidence;
-    return a.membershipId < b.membershipId ? -1 : a.membershipId > b.membershipId ? 1 : 0;
+    return cmp(a.membershipId, b.membershipId) || cmp(a.role ?? "", b.role ?? "");
   });
 }
 

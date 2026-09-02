@@ -105,7 +105,7 @@ describe("THE OWNER'S BAR: a verified outcome changes a later recommendation, ex
     // EXPLAINABLE: the reason names the evidence, the deciders and the rule version.
     const why = after.candidates[0]!.reasons.find((r) => r.code === "outcome_history_supports");
     expect(why).toBeDefined();
-    expect(why!.detail).toContain("verified outcome");
+    expect(why!.detail).toContain("confirmed outcome");
     expect(why!.detail).toContain("decision-makers");
     expect(why!.detail).toContain(SIGNAL_RULE_VERSION);
     expect(after.signalRuleVersion).toBe(SIGNAL_RULE_VERSION);
@@ -246,7 +246,7 @@ describe("resisting feedback poisoning and bias", () => {
 
     // 200 fabricated records counted as ONE. The signal moves a little, as one genuine
     // dissenting outcome would — and nowhere near enough to invert it.
-    expect(poisoned.verifiedOutcomeCount).toBe(clean.verifiedOutcomeCount + 1);
+    expect(poisoned.confirmedOutcomeCount).toBe(clean.confirmedOutcomeCount + 1);
     expect(poisoned.weightedSuccessRate).toBeGreaterThan(0.7);
     expect(poisoned.contradictory).toBe(false);
   });
@@ -321,7 +321,7 @@ describe("documented corrections", () => {
     expect(uncorrected.weightedSuccessRate).toBeLessThan(1);
     expect(corrected.weightedSuccessRate).toBe(1);
     // The corrected record is gone, not double-counted.
-    expect(corrected.verifiedOutcomeCount).toBe(3);
+    expect(corrected.confirmedOutcomeCount).toBe(3);
   });
 
   it("explains what was counted and what was refused, so a manager can challenge it", () => {

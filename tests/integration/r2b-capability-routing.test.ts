@@ -462,7 +462,7 @@ describe.skipIf(!enabled)("R2B capability routing on a live database", () => {
 
       const signal = buildSignal(outcomes, worker, kind, CO_A, new Date());
       expect(signal).not.toBeNull();
-      expect(signal!.verifiedOutcomeCount).toBe(3);
+      expect(signal!.confirmedOutcomeCount).toBe(3);
       expect(signal!.distinctDeciderCount).toBe(3);
 
       // Self-verified history yields nothing, however much of it there is.

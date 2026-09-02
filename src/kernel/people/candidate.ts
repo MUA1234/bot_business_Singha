@@ -114,7 +114,12 @@ export function candidateEvidence(
     Record<string, unknown> = {},
 ): CandidateEvidence {
   assertNoProtectedAttributes(supplied, `candidate evidence for ${identity.membershipId}`);
-  return { ...identity, ...emptyEvidence(), ...(supplied as object) } as CandidateEvidence;
+  // IDENTITY IS APPLIED LAST, and that ordering is the point (defect R2B-F-002). Identity keys
+  // are legitimately on the permitted-signal allowlist, so the guard lets them through — which
+  // meant a loader that put `companyId` or `membershipId` in `supplied` silently REPLACED the
+  // authorised identity. The company binding is the least of it: a replaced membershipId makes
+  // the outcome-history lookup fetch a DIFFERENT PERSON's record. The caller's identity wins.
+  return { ...emptyEvidence(), ...(supplied as object), ...identity } as CandidateEvidence;
 }
 
 /**

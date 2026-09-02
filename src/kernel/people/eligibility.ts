@@ -160,22 +160,33 @@ export function gateAvailability(c: CandidateEvidence, req: CandidateRequest): G
     return unknown("availability_stale", "the capacity snapshot is out of date and was not trusted");
   }
   const a = f.value!;
+
+  // Defect R2B-F-004. A fact with NO as-of time cannot be aged, so withFreshness leaves it
+  // alone — and it was therefore treated as fresh, silently, forever. It is still USED (refusing
+  // it outright would exclude people for a loader's omission, which is a penalty for missing
+  // data), but the human is told we do not know how old it is.
+  const ageUnknown: Reason[] = f.asOf
+    ? []
+    : [{ code: "capacity_age_unknown", detail: "the workload reading carries no timestamp, so its age is unknown", evidence: null }];
   if (a.onLeave) {
-    return neutralNo("on_approved_leave", "on approved leave on the requested date — excluded from this request only");
+    return { ...neutralNo("on_approved_leave", "on approved leave on the requested date — excluded from this request only"), missing: ageUnknown };
   }
   if (!a.available) {
-    return neutralNo("not_available", "not available on the requested date — excluded from this request only");
+    return { ...neutralNo("not_available", "not available on the requested date — excluded from this request only"), missing: ageUnknown };
   }
   if (a.capacityStatus === "overloaded") {
-    return neutralNo("overloaded", "already overloaded — excluded from this request only");
+    return { ...neutralNo("overloaded", "already overloaded — excluded from this request only"), missing: ageUnknown };
   }
   if (req.estimateHours !== null && a.availableHours < req.estimateHours) {
-    return neutralNo(
-      "insufficient_capacity",
-      `has ${a.availableHours}h free, which does not cover an estimate of ${req.estimateHours}h`,
-    );
+    return {
+      ...neutralNo(
+        "insufficient_capacity",
+        `has ${a.availableHours}h free, which does not cover an estimate of ${req.estimateHours}h`,
+      ),
+      missing: ageUnknown,
+    };
   }
-  return ok("available_ok", `available with ${a.availableHours}h free`, f.sourceRef);
+  return { ...ok("available_ok", `available with ${a.availableHours}h free`, f.sourceRef), missing: ageUnknown };
 }
 
 /**

@@ -211,7 +211,7 @@ export function buildSignal(
   let positive = 0;
   let negative = 0;
   let onTimeCount = 0;
-  let verifiedOutcomeCount = 0;
+  let confirmedOutcomeCount = 0;
   let lastOutcomeAt = "";
 
   for (const [, list] of byDecider) {
@@ -222,7 +222,7 @@ export function buildSignal(
     for (const w of list) {
       const weight = w.weight * scale;
       if (w.polarity === 1) positive += weight; else negative += weight;
-      verifiedOutcomeCount += 1;
+      confirmedOutcomeCount += 1;
       if (w.record.metOnTime === true) onTimeCount += 1;
       if (w.record.occurredAt > lastOutcomeAt) lastOutcomeAt = w.record.occurredAt;
     }
@@ -238,7 +238,7 @@ export function buildSignal(
     taskKind,
     membershipId,
     outcomeCount: relevant.length,
-    verifiedOutcomeCount,
+    confirmedOutcomeCount,
     onTimeCount,
     distinctDeciderCount: byDecider.size,
     // Rounded so a rebuild compares equal across platforms rather than by float luck.
@@ -279,14 +279,23 @@ export function explainSignal(
   membershipId: string,
   taskKind: string,
   companyId: string,
+  now: Date = new Date(),
 ): { counted: number; excluded: Array<{ outcomeId: string; why: string }> } {
   const superseded = new Set<string>();
   for (const r of records) if (r.correctsOutcomeId) superseded.add(r.correctsOutcomeId);
 
   const excluded: Array<{ outcomeId: string; why: string }> = [];
+  const perDeciderDay = new Map<string, number>();
   let counted = 0;
 
-  for (const r of records) {
+  // Same order as the fold, so burst suppression names the same records.
+  const ordered = [...records].sort((a, b) =>
+    a.occurredAt === b.occurredAt
+      ? (a.outcomeId < b.outcomeId ? -1 : a.outcomeId > b.outcomeId ? 1 : 0)
+      : (a.occurredAt < b.occurredAt ? -1 : 1),
+  );
+
+  for (const r of ordered) {
     if (r.membershipId !== membershipId) continue;
     if (superseded.has(r.outcomeId)) {
       excluded.push({ outcomeId: r.outcomeId, why: "superseded by a documented correction" });
@@ -303,7 +312,32 @@ export function explainSignal(
     } else if (r.deciderId === r.membershipId) {
       excluded.push({ outcomeId: r.outcomeId, why: "self-verified" });
     } else {
-      counted += 1;
+      // Defect R2B-F-006: this used to stop here, so a manager challenging a suggestion was told
+      // "10 counted" while the fold had actually used 3 — the obsolete, future-dated and
+      // burst-suppressed records were silently absent from the explanation. The time rules are
+      // applied here too, so "counted" means what the fold counted.
+      const t = Date.parse(r.occurredAt);
+      const ageDays = Number.isFinite(t) ? (now.getTime() - t) / DAY_MS : NaN;
+      if (!Number.isFinite(ageDays)) {
+        excluded.push({ outcomeId: r.outcomeId, why: "its date could not be read" });
+      } else if (ageDays < 0) {
+        excluded.push({ outcomeId: r.outcomeId, why: "dated in the future" });
+      } else if (ageDays > OBSOLETE_AFTER_DAYS) {
+        excluded.push({ outcomeId: r.outcomeId, why: `older than ${OBSOLETE_AFTER_DAYS} days — obsolete` });
+      } else {
+        const day = r.occurredAt.slice(0, 10);
+        const key = `${r.deciderId}|${day}`;
+        const seen = perDeciderDay.get(key) ?? 0;
+        if (seen >= MAX_OUTCOMES_PER_DECIDER_PER_DAY) {
+          excluded.push({
+            outcomeId: r.outcomeId,
+            why: `more than ${MAX_OUTCOMES_PER_DECIDER_PER_DAY} outcome from this decision-maker on ${day}`,
+          });
+        } else {
+          perDeciderDay.set(key, seen + 1);
+          counted += 1;
+        }
+      }
     }
   }
   return { counted, excluded };
