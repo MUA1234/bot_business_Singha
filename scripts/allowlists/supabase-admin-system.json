@@ -8,6 +8,7 @@
   "src/app/api/cron/outbox/route.ts",
   "src/app/api/health/route.ts",
   "src/app/api/management/cycle/route.ts",
+  "src/app/api/management/feedback/route.ts",
   "src/app/api/v1/mobile/push-subscription/route.ts",
   "src/app/api/webhooks/whatsapp/route.ts",
   "src/app/app/admin/employees/actions.ts",

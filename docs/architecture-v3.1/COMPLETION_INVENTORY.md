@@ -3,7 +3,7 @@
 > Regenerate with `node scripts/completion-inventory.mjs`. Deterministic: changes only when code changes.
 > Suspect lists are HEURISTIC work lists (each entry needs triage), not verdicts.
 
-## 1. supabaseAdmin() usage — 25 file(s)
+## 1. supabaseAdmin() usage — 26 file(s)
 
 | file | refs |
 |---|---|
@@ -16,6 +16,7 @@
 | src/app/api/cron/outbox/route.ts | 2 |
 | src/app/api/health/route.ts | 2 |
 | src/app/api/management/cycle/route.ts | 2 |
+| src/app/api/management/feedback/route.ts | 2 |
 | src/app/api/v1/mobile/push-subscription/route.ts | 2 |
 | src/app/api/webhooks/whatsapp/route.ts | 2 |
 | src/app/app/admin/employees/actions.ts | 4 |
@@ -51,7 +52,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/procurement/purchase-orders/actions.ts:80 | `const total = decSum(rows.map((l: any) => dec(l.unit_price).times(Math.max(0, Math.trunc(Number(l.qu` |
 | src/app/app/sales/opportunities/page.tsx:49 | `const summary = summarizePipeline(deals.map((r): Opportunity => ({ amount: String(r.amount ?? "0"), ` |
 | src/components/os/ConditionInstrument.tsx:123 | `const gapBetween = total > 0 ? Math.min(4, usable / Math.max(segments.length, 1) / 6) : 0;` |
-| src/kernel/cycle-deps.ts:182 | `outstanding: String(Number(r.total_amount ?? 0) - Number(r.amount_settled ?? 0)),` |
+| src/kernel/cycle-deps.ts:379 | `outstanding: String(Number(r.total_amount ?? 0) - Number(r.amount_settled ?? 0)),` |
 | src/kernel/people/learning.ts:234 | `const weakerShare = Math.min(positive, negative) / totalWeight;` |
 | src/kernel/people/learning.ts:245 | `weightedSuccessRate: Number((positive / totalWeight).toFixed(6)),` |
 | src/lib/money.ts:236 | `* `Number(v).toLocaleString()` — the latter both floats the amount and hides its currency scale.` |
@@ -93,7 +94,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 
 - src/app/api/webhooks/email/route.ts
 
-## 7. Error-masking suspects (catch → empty return) — 100 (Phase-1C triage list)
+## 7. Error-masking suspects (catch → empty return) — 101 (Phase-1C triage list)
 
 | file:line | returns |
 |---|---|
@@ -180,7 +181,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/components/spatial/panels/TasksPanel.tsx:65 | `error-discarding destructure` |
 | src/components/spatial/panels/VehiclesPanel.tsx:15 | `error-discarding destructure` |
 | src/db/consumer-store.ts:124 | `error-discarding destructure` |
-| src/kernel/cycle-deps.ts:77 | `error-discarding destructure` |
+| src/kernel/cycle-deps.ts:264 | `error-discarding destructure` |
 | src/kernel/people/delegation-scope.ts:64 | `null` |
 | src/lib/access.ts:54 | `error-discarding destructure` |
 | src/lib/access.ts:108 | `error-discarding destructure` |
@@ -197,3 +198,4 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/lib/task-access.ts:27 | `error-discarding destructure` |
 | src/lib/task-access.ts:38 | `error-discarding destructure` |
 | src/lib/task-access.ts:48 | `error-discarding destructure` |
+| src/modules/identity/delegation-authority.ts:130 | `null` |
