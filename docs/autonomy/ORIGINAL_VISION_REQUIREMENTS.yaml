@@ -2320,7 +2320,7 @@ requirements:
     acceptance_scenarios: An overdue invoice, an expiring vehicle document and an inbound message each produce an observation through the same contract; a scan that throws is recorded as a scan failure and the health surface reports the domain as UNOBSERVED rather than silently returning zero.
     owner_gate: phase gate — not authorised before R4
     blocker: KRN-001
-    residual_risks: ALL TWELVE managed domains now have a registered observation source wrapping real, tested detection logic. LOCAL ONLY - zero staging, zero production. FOUR domains are PARTIAL by data availability, not by omission: marketing has no attribution table so no ROI condition; procurement covers stock reorder but not three-way-match variance; assets covers vehicle documents only (AST-001 registry remains specified/unbuilt); providers covers compliance and insurance only (CRM-004 performance history is absent). No scheduler is registered and event-triggered intake is declared for CRM but not wired.
+    residual_risks: SCOPE OF THE VERIFIED CLAIM (owner-restricted, 2026-09-02). locally_verified certifies ONE invariant and nothing more - 'At least one real, tested observation source is connected across every one of the twelve managed domains.' It does NOT certify that any domain is functionally complete. FOUR domains are PARTIAL by data availability, not by omission, and each limitation is held by its OWN open requirement which this record must never be read as satisfying: MKT-001 (foundation_only) no attribution table exists so no marketing ROI or effectiveness condition can be observed; PRC-002 (absent) stock-reorder is observed but three-way-match variance, RFQ ageing and delivery performance are not; AST-001 (specified) vehicle documents are observed but the asset registry, custody, reservations and utilisation do not exist; CRM-004 (absent) provider compliance and insurance are observed but counterparty performance and reliability history do not exist. LOCAL ONLY - zero staging, zero production. No scheduler is registered and event-triggered intake is declared for CRM but not wired.
     verified_local: no
     verified_staging: no
     verified_production: no
@@ -2670,7 +2670,7 @@ requirements:
     priority: P1
     dependencies: [PRC-001, KRN-002, KRN-003]
     status: absent
-    gap: Detectors exist as tested pure functions (three-way match, quote comparison, inventory) and none reaches the loop — the PR-F-006 pattern.
+    gap: PARTIAL as of R2A (5a59adb). ONE of the four declared procurement signals reaches the loop - stock below reorder level, via src/kernel/adapters/procurement.ts. Three-way-match VARIANCE, RFQ ageing and delivery performance still do not: the match detector is exercised at page level rather than as a pure module function the adapter can wrap, and there is no delivery-performance source. Status stays absent because the requirement is procurement as a MANAGED DOMAIN, not one condition of it.
     feature_flag: none
     runtime_entrypoint: none
     database_evidence: none
