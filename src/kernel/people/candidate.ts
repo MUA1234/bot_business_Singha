@@ -119,7 +119,13 @@ export function candidateEvidence(
   // meant a loader that put `companyId` or `membershipId` in `supplied` silently REPLACED the
   // authorised identity. The company binding is the least of it: a replaced membershipId makes
   // the outcome-history lookup fetch a DIFFERENT PERSON's record. The caller's identity wins.
-  return { ...emptyEvidence(), ...(supplied as object), ...identity } as CandidateEvidence;
+  // Explicit `undefined` is STRIPPED. A loader that writes `declaredSkills: undefined` when a
+  // profile row is missing would otherwise overwrite the absent() default with a hole, and every
+  // reader would crash on `.evidenceClass`. "Absent" is a value; undefined is the lack of one.
+  const defined = Object.fromEntries(
+    Object.entries(supplied as Record<string, unknown>).filter(([, v]) => v !== undefined),
+  );
+  return { ...emptyEvidence(), ...defined, ...identity } as CandidateEvidence;
 }
 
 /**

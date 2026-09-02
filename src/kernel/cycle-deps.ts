@@ -168,10 +168,13 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
             // The cycle proposes internal, catalogue-registered work; it never commits money,
             // so no monetary ceiling is resolved here and none is claimed.
             authorityLevel: fact("automatic", "verified"),
-            declaredSkills:
-              declared === undefined
-                ? undefined
-                : fact(declared, "self_declared", { sourceRef: { table: "employee_profiles", id: m.id } }),
+            ...(declared === undefined
+              ? {}
+              : {
+                  declaredSkills: fact(declared, "self_declared", {
+                    sourceRef: { table: "employee_profiles", id: m.id },
+                  }),
+                }),
             available: fact(
               {
                 available: !onLeave,
@@ -202,12 +205,15 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
      * person confirming their own outcomes.
      */
     async loadSignals(companyId: string) {
-      const items = await rowsOf(
+      // Filtered in JS rather than with `.not(col,'is',null)`: that operator form is not
+      // supported by every client this runs against, and a filter that silently widens would
+      // make a company-isolation test pass for the wrong reason.
+      const allItems = await rowsOf(
         db.from("management_items")
           .select("id, accountable_owner_id, proposed_action_id")
-          .eq("company_id", companyId)
-          .not("accountable_owner_id", "is", null),
+          .eq("company_id", companyId),
       ).catch(() => [] as any[]);
+      const items = allItems.filter((i) => i.accountable_owner_id && i.proposed_action_id);
       if (items.length === 0) return () => null;
 
       const byItem = new Map<string, any>(items.map((i) => [i.id, i]));
