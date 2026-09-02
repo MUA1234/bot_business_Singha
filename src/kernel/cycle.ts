@@ -27,7 +27,12 @@ import { log } from "@/lib/log";
 import {
   detectFinanceObservations, detectWorkforceObservations, detectOperationsObservations,
   detectCrmObservations, detectSystemHealthObservations,
+  detectGovernanceObservations, detectObjectiveObservations, detectMarketingObservations,
+  detectProcurementObservations, detectAssetObservations, detectLegalObservations,
+  detectProviderObservations,
   FINANCE_SOURCE, WORKFORCE_SOURCE, OPERATIONS_SOURCE, CRM_SOURCE, SYSTEM_SOURCE,
+  GOVERNANCE_SOURCE, OBJECTIVES_SOURCE, MARKETING_SOURCE, PROCUREMENT_SOURCE,
+  ASSETS_SOURCE, LEGAL_SOURCE, PROVIDERS_SOURCE,
 } from "./adapters";
 import { ingestObservation, type ExistingItem, type IngestDecision } from "./ingest";
 import { buildRecommendation } from "./recommend";
@@ -124,6 +129,36 @@ const SOURCES: ReadonlyArray<{
     source: SYSTEM_SOURCE, department: "system",
     // The system-health adapter takes a shaped signal object rather than a row list.
     detect: (rows, ctx) => detectSystemHealthObservations({ ...ctx, ...(rows as object) } as never),
+  },
+
+  // ── R2A: the remaining seven managed domains ───────────────────────────────────────
+  {
+    source: GOVERNANCE_SOURCE, department: "governance",
+    detect: (rows, ctx) => detectGovernanceObservations({ ...ctx, directives: rows as never }),
+  },
+  {
+    source: OBJECTIVES_SOURCE, department: "objectives",
+    detect: (rows, ctx) => detectObjectiveObservations({ ...ctx, objectives: rows as never }),
+  },
+  {
+    source: MARKETING_SOURCE, department: "marketing",
+    detect: (rows, ctx) => detectMarketingObservations({ ...ctx, campaigns: rows as never }),
+  },
+  {
+    source: PROCUREMENT_SOURCE, department: "procurement",
+    detect: (rows, ctx) => detectProcurementObservations({ ...ctx, inventory: rows as never }),
+  },
+  {
+    source: ASSETS_SOURCE, department: "assets",
+    detect: (rows, ctx) => detectAssetObservations({ ...ctx, documents: rows as never }),
+  },
+  {
+    source: LEGAL_SOURCE, department: "legal",
+    detect: (rows, ctx) => detectLegalObservations({ ...ctx, records: rows as never }),
+  },
+  {
+    source: PROVIDERS_SOURCE, department: "providers",
+    detect: (rows, ctx) => detectProviderObservations({ ...ctx, providers: rows as never }),
   },
 ];
 

@@ -250,7 +250,29 @@ describe.skipIf(!enabled)("A — atomic management-item creation", () => {
   });
 
   it("FAILURE — an unmanaged department is refused", async () => {
-    await expect(callCreate(db, { p_department: "legal" })).rejects.toThrow(/not a managed domain/i);
+    // R2A widened the managed set to twelve, so this example uses a department that is
+    // genuinely NOT one of them. It previously used "legal", which R2A now manages — the
+    // constraint still worked; the example had simply become valid.
+    await expect(callCreate(db, { p_department: "facilities" })).rejects.toThrow(/not a managed domain/i);
+    await expect(callCreate(db, { p_department: null })).rejects.toThrow(/not a managed domain/i);
+  });
+
+  it("ACCEPTS all TWELVE managed domains, each with its own registered source", async () => {
+    const pairs = [
+      ["finance", "finance.receivable_overdue"], ["workforce", "workforce.capacity_exception"],
+      ["operations", "operations.task_exception"], ["crm", "crm.followup_due"],
+      ["system", "system.health_degraded"], ["governance", "governance.directive_overdue"],
+      ["objectives", "objectives.objective_at_risk"], ["marketing", "marketing.campaign_stalled"],
+      ["procurement", "procurement.stock_below_reorder"], ["assets", "assets.document_expiring"],
+      ["legal", "legal.obligation_expiring"], ["providers", "providers.provider_at_risk"],
+    ] as const;
+    for (const [dept, source] of pairs) {
+      const { rows } = await callCreate(db, { p_department: dept, p_observation_source: source });
+      expect(rows[0].r.result, dept).toBe("created");
+    }
+    const { rows } = await db.query(
+      `select count(distinct department)::int as n from management_items where company_id=$1`, [CO_A]);
+    expect(rows[0].n).toBe(12);
   });
 
   it("FAILURE — a non-existent company is refused", async () => {

@@ -47,6 +47,10 @@ function makeDeps(over: Partial<CycleDeps> = {}, rec: Recorded = { summaries: []
       if (source === "crm.followup_due") {
         return [{ id: "conv-1", last_inbound_at: "2026-09-01T09:00:00.000Z", last_outbound_at: null, status: "open" }];
       }
+      // The seven R2A domains are list-shaped and are given an empty list here: this fixture
+      // exercises the CYCLE, not those detectors, and handing them the system-health object
+      // below would make them throw for a reason unrelated to what is under test.
+      if (source !== "system.health_degraded") return [];
       return {
         oldestPendingOutboxMinutes: 240, failedOutboxCount: 3,
         ledger: { imbalancedJournals: 1, headerLineMismatch: 0, orphanedLines: 0, lockedPeriodPostings: 0 },

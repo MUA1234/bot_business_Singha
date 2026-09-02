@@ -14,6 +14,8 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { writeAudit } from "@/lib/audit";
 import {
   FINANCE_SOURCE, WORKFORCE_SOURCE, OPERATIONS_SOURCE, CRM_SOURCE, SYSTEM_SOURCE,
+  GOVERNANCE_SOURCE, OBJECTIVES_SOURCE, MARKETING_SOURCE, PROCUREMENT_SOURCE,
+  ASSETS_SOURCE, LEGAL_SOURCE, PROVIDERS_SOURCE,
 } from "./adapters";
 import type { CycleDeps, CycleSummary, PersistRecommendation } from "./cycle";
 import type { Observation } from "./observation";
@@ -249,6 +251,72 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
             sampledAt: new Date().toISOString(),
           };
         }
+        // ── R2A loaders ─────────────────────────────────────────────────────────────
+        // Each reads ONLY the columns its detector needs. Directive bodies, campaign copy,
+        // provider pricing and unit costs are never selected: what is not loaded cannot leak.
+        case GOVERNANCE_SOURCE: {
+          const rows = await rowsOf(
+            db.from("management_directives")
+              .select("id, status, response_required_by, escalation_chain, escalation_level, acknowledged_at, updated_at")
+              .eq("company_id", companyId).limit(limit),
+          );
+          return rows.map((r) => ({
+            id: r.id,
+            status: r.status,
+            response_required_by: r.response_required_by,
+            escalation_chain: r.escalation_chain ?? null,
+            escalation_level: Number(r.escalation_level ?? 0),
+            acknowledged_at: r.acknowledged_at,
+            updatedAt: r.updated_at,
+          }));
+        }
+        case OBJECTIVES_SOURCE:
+          return rowsOf(
+            db.from("objectives")
+              .select("id, target_value, current_value, period_start, period_end, status")
+              .eq("company_id", companyId).limit(limit),
+          );
+        case MARKETING_SOURCE:
+          return rowsOf(
+            db.from("campaigns")
+              .select("id, status, audience_id, sent_count, created_at")
+              .eq("company_id", companyId).limit(limit),
+          );
+        case PROCUREMENT_SOURCE:
+          return rowsOf(
+            db.from("inventory_items")
+              .select("id, quantity_on_hand, reorder_level, created_at")
+              .eq("company_id", companyId).limit(limit),
+          );
+        case ASSETS_SOURCE:
+          return rowsOf(
+            db.from("vehicle_documents")
+              .select("id, vehicle_id, doc_type, expiry_date, created_at")
+              .eq("company_id", companyId).limit(limit),
+          );
+        case LEGAL_SOURCE: {
+          // Four record types, one detector. Each is read separately because they are
+          // separate tables, and tagged with its kind so the queue can tell them apart.
+          const [licences, contracts, insurances, obligations] = await Promise.all([
+            rowsOf(db.from("licences").select("id, expiry_date, status").eq("company_id", companyId).limit(limit)).catch(() => []),
+            rowsOf(db.from("contracts").select("id, end_date, status").eq("company_id", companyId).limit(limit)).catch(() => []),
+            rowsOf(db.from("insurances").select("id, expiry_date, status").eq("company_id", companyId).limit(limit)).catch(() => []),
+            rowsOf(db.from("obligations").select("id, due_date, status").eq("company_id", companyId).limit(limit)).catch(() => []),
+          ]);
+          return [
+            ...licences.map((r) => ({ id: r.id, kind: "licence", due_date: r.expiry_date, status: r.status })),
+            ...contracts.map((r) => ({ id: r.id, kind: "contract", due_date: r.end_date, status: r.status })),
+            ...insurances.map((r) => ({ id: r.id, kind: "insurance", due_date: r.expiry_date, status: r.status })),
+            ...obligations.map((r) => ({ id: r.id, kind: "obligation", due_date: r.due_date, status: r.status })),
+          ];
+        }
+        case PROVIDERS_SOURCE:
+          return rowsOf(
+            db.from("service_providers")
+              .select("id, status, compliance_status, insurance_status, insurance_expiry, updated_at")
+              .eq("company_id", companyId).limit(limit),
+          );
+
         default:
           throw new Error(`no loader registered for ${source}`);
       }

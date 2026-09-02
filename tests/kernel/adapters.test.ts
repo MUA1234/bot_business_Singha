@@ -105,7 +105,8 @@ describe("all five departments observed in ONE company", () => {
   });
 
   it("every registered source is in the registry with a cadence", () => {
-    expect(OBSERVATION_SOURCES).toHaveLength(5);
+    // R2A: twelve managed domains, one registered source each.
+    expect(OBSERVATION_SOURCES).toHaveLength(12);
     for (const s of [FINANCE_SOURCE, WORKFORCE_SOURCE, OPERATIONS_SOURCE, CRM_SOURCE, SYSTEM_SOURCE]) {
       const spec = specFor(s);
       expect(spec, `${s} is not registered`).not.toBeNull();

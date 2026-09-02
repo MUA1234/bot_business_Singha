@@ -6,8 +6,18 @@
  * DomainActions — never by adding a branch to the kernel.
  */
 
-export type Department = "finance" | "workforce" | "operations" | "crm" | "system";
-export const DEPARTMENTS: readonly Department[] = ["finance", "workforce", "operations", "crm", "system"] as const;
+/**
+ * The twelve managed domains. Five were connected in R1; R2A adds the remaining seven.
+ * The database CHECK constraints in draft unit 013 mirror this list exactly.
+ */
+export type Department =
+  | "finance" | "workforce" | "operations" | "crm" | "system"
+  | "governance" | "objectives" | "marketing" | "procurement" | "assets" | "legal" | "providers";
+
+export const DEPARTMENTS: readonly Department[] = [
+  "finance", "workforce", "operations", "crm", "system",
+  "governance", "objectives", "marketing", "procurement", "assets", "legal", "providers",
+] as const;
 
 export type Priority = "critical" | "high" | "normal" | "low";
 export type ResourceType = "staff" | "bot" | "external";

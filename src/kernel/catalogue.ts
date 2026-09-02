@@ -88,6 +88,81 @@ export const ACTION_CATALOGUE: readonly DomainAction[] = [
     internalOnly: true,
     description: "Review how work is allocated for an overloaded membership.",
   },
+  // ── R2A: one internal, reversible action per newly connected domain ────────────────
+  // Each keeps its department's own capability so authority resolves through the existing
+  // matrix, and every one is internal-only: none chases an owner, launches a campaign,
+  // raises a purchase order, renews a licence or engages a provider. They open internal work
+  // for a person who already holds the relevant capability.
+  {
+    id: "governance.directive.chase_internal",
+    department: "governance",
+    capability: "admin.directive.manage",
+    authorityFloor: "manager_approval",
+    reversible: true,
+    automaticSafe: false,
+    internalOnly: true,
+    description: "Raise an internal task to chase an unanswered owner directive. Never answers or closes it.",
+  },
+  {
+    id: "objectives.objective.review_internal",
+    department: "objectives",
+    capability: "operations.objective.manage",
+    authorityFloor: "manager_approval",
+    reversible: true,
+    automaticSafe: false,
+    internalOnly: true,
+    description: "Raise an internal review of an objective that is slipping. Changes no target.",
+  },
+  {
+    id: "marketing.campaign.review_internal",
+    department: "marketing",
+    capability: "marketing.campaign.manage",
+    authorityFloor: "manager_approval",
+    reversible: true,
+    automaticSafe: false,
+    internalOnly: true,
+    description: "Raise an internal review of a stalled campaign. Sends nothing and launches nothing.",
+  },
+  {
+    id: "procurement.stock.review_internal",
+    department: "procurement",
+    capability: "procurement.request.create",
+    authorityFloor: "manager_approval",
+    reversible: true,
+    automaticSafe: false,
+    internalOnly: true,
+    description: "Raise an internal review of low stock. Creates no purchase order and commits no spend.",
+  },
+  {
+    id: "assets.document.schedule_renewal_internal",
+    department: "assets",
+    capability: "operations.fleet.manage",
+    authorityFloor: "manager_approval",
+    reversible: true,
+    automaticSafe: false,
+    internalOnly: true,
+    description: "Raise an internal task to renew an expiring vehicle document. Renews nothing itself.",
+  },
+  {
+    id: "legal.obligation.escalate_internal",
+    department: "legal",
+    capability: "legal.compliance.manage",
+    authorityFloor: "specialist_approval",
+    reversible: true,
+    automaticSafe: false,
+    internalOnly: true,
+    description: "Raise an internal task for a human reviewer on an expiring legal obligation. Gives no legal advice.",
+  },
+  {
+    id: "providers.provider.review_internal",
+    department: "providers",
+    capability: "procurement.service_provider.manage",
+    authorityFloor: "manager_approval",
+    reversible: true,
+    automaticSafe: false,
+    internalOnly: true,
+    description: "Raise an internal review of a provider whose compliance or insurance has lapsed. Engages nobody.",
+  },
   {
     id: "system.health.investigate_internal",
     department: "system",
@@ -107,11 +182,26 @@ export const ACTION_CATALOGUE: readonly DomainAction[] = [
  * kernel domain-agnostic. Adding a department means adding entries, never editing the kernel.
  */
 const CATEGORY_ACTIONS: Record<ActionCategory, readonly string[]> = {
-  review: ["finance.invoice.flag_for_review", "workforce.capacity.review_allocation", "ops.task.create_internal"],
-  chase: ["ops.task.request_progress_update", "crm.followup.draft_for_human", "finance.invoice.flag_for_review"],
+  review: [
+    "finance.invoice.flag_for_review", "workforce.capacity.review_allocation",
+    "objectives.objective.review_internal", "marketing.campaign.review_internal",
+    "procurement.stock.review_internal", "providers.provider.review_internal",
+    "ops.task.create_internal",
+  ],
+  chase: [
+    "ops.task.request_progress_update", "crm.followup.draft_for_human",
+    "governance.directive.chase_internal", "finance.invoice.flag_for_review",
+  ],
   reassign: ["workforce.capacity.review_allocation"],
-  escalate: ["ops.task.escalate_internal", "finance.invoice.flag_for_review"],
-  schedule: ["ops.task.create_internal"],
+  escalate: [
+    "ops.task.escalate_internal", "governance.directive.chase_internal",
+    "legal.obligation.escalate_internal", "assets.document.schedule_renewal_internal",
+    "finance.invoice.flag_for_review",
+  ],
+  schedule: [
+    "assets.document.schedule_renewal_internal", "legal.obligation.escalate_internal",
+    "ops.task.create_internal",
+  ],
   investigate: ["system.health.investigate_internal", "ops.task.create_internal"],
   none: [],
 };

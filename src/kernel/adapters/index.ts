@@ -14,12 +14,26 @@ import { WORKFORCE_SOURCE } from "./workforce";
 import { OPERATIONS_SOURCE } from "./operations";
 import { CRM_SOURCE } from "./crm";
 import { SYSTEM_SOURCE } from "./system-health";
+import { GOVERNANCE_SOURCE } from "./governance";
+import { OBJECTIVES_SOURCE } from "./objectives";
+import { MARKETING_SOURCE } from "./marketing";
+import { PROCUREMENT_SOURCE } from "./procurement";
+import { ASSETS_SOURCE } from "./assets";
+import { LEGAL_SOURCE } from "./legal";
+import { PROVIDERS_SOURCE } from "./providers";
 
 export { detectFinanceObservations, FINANCE_SOURCE } from "./finance";
 export { detectWorkforceObservations, WORKFORCE_SOURCE } from "./workforce";
 export { detectOperationsObservations, OPERATIONS_SOURCE } from "./operations";
 export { detectCrmObservations, CRM_SOURCE } from "./crm";
 export { detectSystemHealthObservations, SYSTEM_SOURCE } from "./system-health";
+export { detectGovernanceObservations, GOVERNANCE_SOURCE } from "./governance";
+export { detectObjectiveObservations, OBJECTIVES_SOURCE } from "./objectives";
+export { detectMarketingObservations, MARKETING_SOURCE } from "./marketing";
+export { detectProcurementObservations, PROCUREMENT_SOURCE } from "./procurement";
+export { detectAssetObservations, ASSETS_SOURCE } from "./assets";
+export { detectLegalObservations, LEGAL_SOURCE } from "./legal";
+export { detectProviderObservations, PROVIDERS_SOURCE } from "./providers";
 
 const MINUTE = 60;
 const HOUR = 60 * MINUTE;
@@ -66,6 +80,55 @@ export const OBSERVATION_SOURCES: readonly (ObservationSourceSpec & { source: st
     department: "system",
     kind: "health_degraded",
     supportsEvent: false, supportsScheduled: true, supportsManual: true, cadenceSeconds: 15 * MINUTE,
+  },
+
+  // ── R2A: the remaining seven managed domains ───────────────────────────────────────
+  {
+    source: GOVERNANCE_SOURCE,
+    department: "governance",
+    kind: "directive_overdue",
+    // An unanswered owner instruction should surface the same day, not the same week.
+    supportsEvent: false, supportsScheduled: true, supportsManual: true, cadenceSeconds: 4 * HOUR,
+  },
+  {
+    source: OBJECTIVES_SOURCE,
+    department: "objectives",
+    kind: "objective_at_risk",
+    // Objective progress is owner-maintained and moves slowly; scanning faster observes nothing new.
+    supportsEvent: false, supportsScheduled: true, supportsManual: true, cadenceSeconds: 24 * HOUR,
+  },
+  {
+    source: MARKETING_SOURCE,
+    department: "marketing",
+    kind: "campaign_stalled",
+    // A campaign is only judged stalled after seven days, so a daily sweep is ample.
+    supportsEvent: false, supportsScheduled: true, supportsManual: true, cadenceSeconds: 24 * HOUR,
+  },
+  {
+    source: PROCUREMENT_SOURCE,
+    department: "procurement",
+    kind: "stock_below_reorder",
+    // Stock moves during a working day; six hours balances cost against lead time.
+    supportsEvent: false, supportsScheduled: true, supportsManual: true, cadenceSeconds: 6 * HOUR,
+  },
+  {
+    source: ASSETS_SOURCE,
+    department: "assets",
+    kind: "document_expiring",
+    // Expiry dates change by the day at most.
+    supportsEvent: false, supportsScheduled: true, supportsManual: true, cadenceSeconds: 24 * HOUR,
+  },
+  {
+    source: LEGAL_SOURCE,
+    department: "legal",
+    kind: "obligation_expiring",
+    supportsEvent: false, supportsScheduled: true, supportsManual: true, cadenceSeconds: 24 * HOUR,
+  },
+  {
+    source: PROVIDERS_SOURCE,
+    department: "providers",
+    kind: "provider_at_risk",
+    supportsEvent: false, supportsScheduled: true, supportsManual: true, cadenceSeconds: 24 * HOUR,
   },
 ] as const;
 
