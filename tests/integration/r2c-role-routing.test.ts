@@ -363,4 +363,50 @@ describe.skipIf(!enabled)("R2C — collaborative resource routing, live", () => 
     );
     expect(access.rows[0].n).toBe(0);
   });
+
+  describe("R2C-F-001 — a TEAM is formed through the real cycle, not just in a unit test", () => {
+    it("produces a complementary team with ONE lead, and records what it cannot cover", async () => {
+      // workforce.capacity.review_allocation declares teamOfAtLeast: 2 covering
+      // operations.task.manage and hr.staff.manage.
+      await raw.query(
+        `insert into capacity_snapshots
+           (company_id, membership_id, week_start, total_hours, net_capacity_hours,
+            allocated_hours, available_hours, utilization_pct, status)
+         values ($1,$2, date_trunc('week', current_date)::date, 40, 36, 50, 0, 138, 'overloaded')
+         on conflict (membership_id, week_start) do nothing`,
+        [CO_A, mem.get(WORKER)!],
+      );
+
+      await runManagementCycle(deps, { companyId: CO_A, actorId: null, trigger: "test" });
+
+      const { rows } = await raw.query(
+        `select r.purpose, r.outcome, r.candidate_ref, r.rank_position, r.reason_codes, r.missing_codes
+           from management_item_recommendations r
+           join management_items i on i.id = r.item_id
+          where r.company_id = $1 and i.proposed_action_id = 'workforce.capacity.review_allocation'
+            and r.outcome = 'candidates'
+          order by r.rank_position`,
+        [CO_A],
+      );
+
+      expect(rows.length).toBeGreaterThan(0);
+
+      // Exactly ONE lead, and it is position 1.
+      const leads = rows.filter((r) => (r.reason_codes as string[]).includes("team_lead"));
+      expect(leads).toHaveLength(1);
+      expect(leads[0]!.rank_position).toBe(1);
+
+      // Everyone else is explicitly a member, not accountable.
+      const members = rows.filter((r) => (r.reason_codes as string[]).includes("team_member"));
+      expect(members.every((m) => m.rank_position > 1)).toBe(true);
+
+      // Nobody appears twice.
+      const refs = rows.map((r) => r.candidate_ref);
+      expect(new Set(refs).size).toBe(refs.length);
+
+      // Coverage reasoning travelled into the snapshot.
+      const allReasons = rows.flatMap((r) => r.reason_codes as string[]);
+      expect(allReasons.some((c) => c === "added_for_coverage" || c === "added_without_new_coverage")).toBe(true);
+    });
+  });
 });

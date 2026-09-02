@@ -76,6 +76,9 @@ try {
     env: { ...process.env, DATABASE_URL: URL, R1_DRAFT_CONFIRM: "disposable-local-only" },
   });
 
+  console.log("▶ auditing that every loader column actually exists …");
+  run("node", ["scripts/r1/check-loader-columns.mjs"], { env: { ...process.env } });
+
   console.log("▶ running the full R1 + R2B live campaign …");
   run("node", [
     "node_modules/vitest/vitest.mjs", "run",

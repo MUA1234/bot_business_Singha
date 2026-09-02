@@ -39,6 +39,7 @@ import { actionById } from "./catalogue";
 import type { CandidateEvidence } from "./people/candidate";
 import { resolveCandidates, type SignalLookup } from "./people/resolve";
 import { requiredRolesFor, roleSpecOf, type ActionWithRoles, type RoleRequirement } from "./people/roles-required";
+import { formTeam } from "./people/team";
 import { buildSnapshots, RESOLVER_VERSION, type RecommendationSnapshot } from "./people/snapshot";
 import { buildRecommendation } from "./recommend";
 import { fixtureInterpreter, interpretWithGuards } from "./interpretation";
@@ -263,6 +264,55 @@ async function resolveOneRole(
       candidates,
       signalFor ? { signalFor } : {},
     );
+
+    // A TEAM is not "the top N candidates" (defect R2C-F-001: formTeam existed, was tested, and
+    // nothing on the runtime path called it — the same shape as WRK-007 being held back). When
+    // the action asks for a team, the eligible pool goes through complementary selection and the
+    // snapshots carry the coverage, the gaps and the ONE accountable lead.
+    if ((need.minimum ?? 1) > 1 && resolution.outcome === "candidates") {
+      const team = formTeam(resolution.candidates, {
+        minimum: need.minimum!,
+        mustCover: spec.teamMustCover.length > 0
+          ? spec.teamMustCover
+          : (action.capability ? [action.capability] : []),
+        leadCapability: action.capability,
+      });
+
+      const teamReasons = team.reasons.map((r) => r.code);
+      return team.members.map((m, i) => {
+        const base = buildSnapshots({ ...resolution, candidates: [m] })[0]!;
+        const isLead = team.lead?.membershipId === m.membershipId;
+        return {
+          ...base,
+          purpose: need.role,
+          // Position 1 is the accountable LEAD. It is an order, not a score.
+          rank_position: i + 1,
+          reason_codes: [
+            ...base.reason_codes,
+            isLead ? "team_lead" : "team_member",
+            ...teamReasons,
+          ],
+          reasons: [
+            ...base.reasons,
+            {
+              code: isLead ? "team_lead" : "team_member",
+              detail: isLead
+                ? "proposed as the accountable lead for this team"
+                : "proposed as a team member; not accountable for delivery",
+            },
+            ...team.reasons,
+          ],
+          // What the team CANNOT cover travels with every member, so the gap is visible
+          // wherever the proposal is read rather than only on one row.
+          missing_codes: [
+            ...base.missing_codes,
+            ...team.missingCapabilities.map((c) => `team_missing:${c}`),
+            ...(team.understaffed ? ["team_understaffed"] : []),
+            ...(team.lead ? [] : ["team_without_lead"]),
+          ],
+        };
+      });
+    }
 
     const snaps = buildSnapshots(resolution);
     // buildSnapshots labels everything "assignee" because it cannot know which role was asked

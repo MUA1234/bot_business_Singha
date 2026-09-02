@@ -524,7 +524,10 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
         case FINANCE_SOURCE: {
           const rows = await rowsOf(
             db.from("customer_invoices")
-              .select("id, due_date, total_amount, amount_settled, currency, updated_at, status")
+              // DEFECT R2C-F-003: this selected `updated_at`, which customer_invoices DOES NOT
+              // HAVE (migration 0003 defines created_at only), so the finance source failed on
+              // every real read. created_at is the honest freshness anchor for an invoice.
+              .select("id, due_date, total_amount, amount_settled, currency, created_at, status")
               .eq("company_id", companyId).limit(limit),
           );
           return rows.map((r) => ({
@@ -532,22 +535,27 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
             due_date: r.due_date,
             outstanding: String(Number(r.total_amount ?? 0) - Number(r.amount_settled ?? 0)),
             currency: r.currency ?? "LKR",
-            updated_at: r.updated_at,
+            updated_at: r.created_at,
             status: r.status,
           }));
         }
         case WORKFORCE_SOURCE: {
           const rows = await rowsOf(
             db.from("capacity_snapshots")
-              .select("id, membership_id, utilisation_pct, status, captured_at")
+              // DEFECT R2C-F-002: this selected `utilisation_pct` and `captured_at`, and
+              // NEITHER COLUMN EXISTS — migration 0013 defines `utilization_pct` (American
+              // spelling) and `created_at`. The workforce source therefore failed on every real
+              // read, and the domain has been UNOBSERVED at runtime since the loader was written.
+              // No test caught it because none exercised this loader against a real row.
+              .select("id, membership_id, utilization_pct, status, created_at")
               .eq("company_id", companyId).limit(limit),
           );
           return rows.map((r) => ({
             snapshotId: r.id,
             membershipId: r.membership_id,
-            utilizationPct: Number(r.utilisation_pct ?? 0),
+            utilizationPct: Number(r.utilization_pct ?? 0),
             status: r.status ?? "healthy",
-            capturedAt: r.captured_at,
+            capturedAt: r.created_at,
           }));
         }
         case OPERATIONS_SOURCE: {
@@ -571,10 +579,23 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
         case CRM_SOURCE: {
           const rows = await rowsOf(
             db.from("wa_conversations")
-              .select("id, last_inbound_at, last_outbound_at, status")
+              // DEFECT R2C-F-003: this selected `last_outbound_at`, which wa_conversations DOES
+              // NOT HAVE, so the CRM source failed on every real read. There is no outbound
+              // timestamp on the conversation at all, so NULL is the truthful value — the
+              // detector already treats an unknown outbound time as "nothing sent", which is the
+              // safe reading, and inventing one from updated_at would be a guess about whether a
+              // customer was replied to.
+              .select("id, last_inbound_at, status")
               .eq("company_id", companyId).limit(limit),
           );
-          return rows;
+          // Mapped EXPLICITLY rather than returned raw, so the missing outbound timestamp is a
+          // stated null instead of an absent property that happens to be falsy.
+          return rows.map((r) => ({
+            id: r.id,
+            last_inbound_at: r.last_inbound_at,
+            last_outbound_at: null,
+            status: r.status,
+          }));
         }
         case SYSTEM_SOURCE: {
           const outbox = await rowsOf(
