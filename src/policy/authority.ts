@@ -8,7 +8,13 @@
 import { Money } from "@/lib/money";
 import type { AiExtraction } from "@/schemas/ai-extraction";
 import type { ApprovalPolicy, ApprovalRule, Permission, Role } from "@/schemas/approval-policy";
-import { delegationPermits, type Delegation } from "@/modules/identity/delegation";
+import type { Delegation } from "@/modules/identity/delegation";
+import {
+  resolveDelegatedAuthority,
+  type Ceiling,
+  type DelegateStatus,
+  type DelegatorAuthority,
+} from "@/modules/identity/delegation-authority";
 
 export interface PolicyDecision {
   outcome: "auto_approve" | "require_approval" | "reject";
@@ -158,7 +164,13 @@ export interface DelegatedAuthorityInput {
   approver: Approver;
   requiredRoles: Role[];
   ctx: SoDContext;
-  /** Optional delegation context; when present it can substitute for a missing role. */
+  /**
+   * Optional delegation context; when present it can substitute for a missing role.
+   *
+   * `delegatorFor` and `delegateStatus` are REQUIRED whenever this is supplied. Without them the
+   * delegator's own authority cannot be established, and unknown authority is never permission —
+   * so the delegation is refused rather than honoured (defect R2B-F-001).
+   */
   delegation?: {
     membershipId: string;
     companyId: string;
@@ -167,12 +179,36 @@ export interface DelegatedAuthorityInput {
     currency: string;
     delegations: Delegation[];
     now?: Date;
+    /** The delegator's OWN authority, resolved from company rules — never from the delegation. */
+    delegatorFor?: (fromMembershipId: string) => DelegatorAuthority | null;
+    /** The delegate's live membership standing, revalidated at the moment of exercise. */
+    delegateStatus?: DelegateStatus | null;
   };
 }
 
-export function checkAuthority(
-  input: DelegatedAuthorityInput,
-): { allowed: boolean; via: "own" | "delegation" | null; reasons: string[] } {
+/**
+ * The authority path that justified the decision. `null` when nothing did.
+ *
+ * The owner requires direct and delegated authority to be DISTINGUISHED and RECORDED — an audit
+ * that says only "approved" cannot answer "on whose authority", which is the first question
+ * asked when a payment turns out to be wrong.
+ */
+export interface AuthorityDecision {
+  allowed: boolean;
+  via: "own" | "delegation" | null;
+  reasons: string[];
+  /** Populated only when `via === "delegation"`. */
+  delegation?: {
+    delegationId: string;
+    effectiveCeiling: Ceiling | null;
+    /** Which side of MIN(delegation, delegator) actually bound. */
+    boundBy: "delegation" | "delegator" | "none";
+  };
+  /** A machine-readable refusal code when a delegation was offered and refused. */
+  refusalCode?: string;
+}
+
+export function checkAuthority(input: DelegatedAuthorityInput): AuthorityDecision {
   const { approver, requiredRoles, ctx, delegation } = input;
 
   // Hard separation-of-duties blocks — never overridable by a delegation.
@@ -185,34 +221,68 @@ export function checkAuthority(
   }
   if (hard.length) return { allowed: false, via: null, reasons: hard };
 
-  // Own authority: holds `approve` and (if required) one of the required roles.
+  // ── DIRECT authority first, and it is INDEPENDENT of any delegation.
+  //    A delegate who also holds the role in their own right is authorised on the direct path,
+  //    and a bad or expired delegation cannot take that away from them.
   const ownOk =
     approver.permissions.includes("approve") &&
     (requiredRoles.length === 0 || requiredRoles.some((r) => approver.roles.includes(r)));
   if (ownOk) return { allowed: true, via: "own", reasons: ["authorised by own role/permission"] };
 
-  // Otherwise an active delegation within its ceiling may grant the authority.
-  if (
-    delegation &&
-    delegationPermits(
-      {
-        membershipId: delegation.membershipId,
-        companyId: delegation.companyId,
-        domain: delegation.domain,
-        amount: delegation.amount,
-        currency: delegation.currency,
-      },
-      delegation.delegations,
-      delegation.now,
-    )
-  ) {
-    return { allowed: true, via: "delegation", reasons: ["authorised by active delegation within its ceiling"] };
+  if (!delegation) {
+    return {
+      allowed: false,
+      via: null,
+      reasons: ["approver lacks required role/permission and no delegation was offered"],
+    };
+  }
+
+  // ── DELEGATED authority. FAILS CLOSED without live delegator and delegate evidence.
+  if (!delegation.delegatorFor || delegation.delegateStatus === undefined) {
+    return {
+      allowed: false,
+      via: null,
+      refusalCode: "delegator_evidence_absent",
+      reasons: [
+        "a delegation was offered but the delegator's own authority and the delegate's membership " +
+          "standing were not supplied; unknown authority is never permission (R2B-F-001)",
+      ],
+    };
+  }
+
+  const verdict = resolveDelegatedAuthority(
+    {
+      companyId: delegation.companyId,
+      membershipId: delegation.membershipId,
+      domain: delegation.domain,
+      amount: delegation.amount,
+      currency: delegation.currency,
+      now: delegation.now ?? new Date(),
+    },
+    delegation.delegations,
+    delegation.delegatorFor,
+    delegation.delegateStatus,
+    delegation.now ?? new Date(),
+  );
+
+  if (!verdict.ok) {
+    return {
+      allowed: false,
+      via: null,
+      refusalCode: verdict.code,
+      reasons: ["approver lacks required role/permission and no valid delegation applies", ...verdict.reasons],
+    };
   }
 
   return {
-    allowed: false,
-    via: null,
-    reasons: ["approver lacks required role/permission and no valid delegation applies"],
+    allowed: true,
+    via: "delegation",
+    reasons: ["authorised by an active delegation within the EFFECTIVE ceiling", ...verdict.reasons],
+    delegation: {
+      delegationId: verdict.delegationId,
+      effectiveCeiling: verdict.effectiveCeiling,
+      boundBy: verdict.boundBy,
+    },
   };
 }
 
