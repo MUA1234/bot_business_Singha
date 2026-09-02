@@ -68,7 +68,7 @@ export function buildSnapshots(resolution: CandidateResolution): RecommendationS
         evidence_refs: [],
       }];
     }
-    return [{
+    const routed: RecommendationSnapshot = {
       purpose: "assignee",
       outcome: "needs_routing",
       candidate_ref: null, candidate_type: null, rank_position: null,
@@ -79,10 +79,16 @@ export function buildSnapshots(resolution: CandidateResolution): RecommendationS
       routing_department: routing.department,
       routing_reason_code: routing.reasonCode,
       evidence_refs: [],
-    }];
+    };
+    assertSnapshotSafe(routed);
+    return [routed];
   }
 
-  return resolution.candidates.slice(0, MAX_CANDIDATES_PERSISTED).map((c, i) => one(c, i + 1));
+  const snaps = resolution.candidates.slice(0, MAX_CANDIDATES_PERSISTED).map((c, i) => one(c, i + 1));
+  // ACTUALLY CALLED. This guard existed and nothing invoked it — a check nobody runs is a
+  // comment with a function signature.
+  for (const s of snaps) assertSnapshotSafe(s);
+  return snaps;
 }
 
 function one(c: EligibleCandidate, rankPosition: number): RecommendationSnapshot {

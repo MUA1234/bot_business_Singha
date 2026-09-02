@@ -137,6 +137,17 @@ describe.skipIf(!enabled)("R2B feedback runtime, enforced at the database", () =
         .rejects.toThrow(/not an active authorised member/);
     });
 
+    it("REFUSES a SUBJECT membership from another company", async () => {
+      // Feedback names WHO IT IS ABOUT. Without a company check on that field, a manager could
+      // record an unsuccessful outcome against someone in a company they have no relationship
+      // with, and it would feed that company's learning fold.
+      const item = await seedItem(CO_A);
+      await expect(record({
+        p_item: item, p_actor: mem.get("manager")!, p_feedback_type: "outcome_unsuccessful",
+        p_subject: mem.get("foreign")!,
+      })).rejects.toThrow(/subject .* is not a member of company|not a member/i);
+    });
+
     it("records the actor as a HUMAN — there is no parameter to claim otherwise", async () => {
       const item = await seedItem(CO_A);
       await record({ p_item: item, p_actor: mem.get("manager")! });

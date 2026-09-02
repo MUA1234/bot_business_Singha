@@ -287,3 +287,54 @@ describe("the snapshot is a NARROWING, not a serialisation", () => {
     expect(snaps[0]!.routing_reason_code).toBeTruthy();
   });
 });
+
+describe("R2B-F-008 — candidate evidence and history are loaded ONCE PER CYCLE", () => {
+  it("does not re-read every membership and the whole outcome history per observation", async () => {
+    let candidateLoads = 0;
+    let signalLoads = 0;
+    const rec: Recorded = { persisted: [] };
+
+    await run(makeDeps({
+      async loadCandidates() { candidateLoads++; return [member("m1"), member("m2")]; },
+      async loadSignals() { signalLoads++; return () => null; },
+    }, rec));
+
+    // A twelve-domain sweep produces many observations. Re-reading memberships, roles,
+    // capabilities, leave, capacity and the entire transition history for each of them turned
+    // one recommendation into dozens of full scans.
+    expect(rec.persisted.length).toBeGreaterThan(1);
+    expect(candidateLoads).toBe(1);
+    expect(signalLoads).toBe(1);
+  });
+
+  it("judges every item in one sweep against the SAME picture of the company", async () => {
+    // The cache is not only an efficiency measure: without it, two items in one sweep could be
+    // judged against a company that changed between them, and the sweep would be internally
+    // inconsistent for no reason a reader could see.
+    let call = 0;
+    const rec: Recorded = { persisted: [] };
+    await run(makeDeps({
+      async loadCandidates() {
+        call++;
+        return call === 1 ? [member("m1")] : [member("m2")];
+      },
+    }, rec));
+    const refs = rec.persisted
+      .flatMap((p) => p.snapshots)
+      .filter((s) => s.outcome === "candidates")
+      .map((s) => s.candidate_ref);
+    expect(new Set(refs).size).toBeLessThanOrEqual(1);
+  });
+
+  it("a failed load is cached too — it is not retried per observation", async () => {
+    let loads = 0;
+    const rec: Recorded = { persisted: [] };
+    await run(makeDeps({
+      async loadCandidates() { loads++; throw new Error("membership read timed out"); },
+    }, rec));
+    expect(loads).toBe(1);
+    const routed = rec.persisted.flatMap((p) => p.snapshots).filter((s) => s.outcome === "needs_routing");
+    expect(routed.length).toBeGreaterThan(0);
+    expect(routed.every((s) => s.routing_reason_code === "candidate_evidence_unavailable")).toBe(true);
+  });
+});

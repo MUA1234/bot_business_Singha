@@ -156,6 +156,20 @@ begin
       using errcode = 'insufficient_privilege';
   end if;
 
+  -- ── THE SUBJECT must belong to the SAME company (defect R2B-F-007).
+  --    Feedback names WHO IT IS ABOUT, and that field had no company check at all: a manager
+  --    could record an unsuccessful outcome against a person in a company they have no
+  --    relationship with, and it would feed THAT company's learning fold. The actor check does
+  --    not cover this — the actor and the subject are different people.
+  if p_subject is not null then
+    if not exists (
+      select 1 from public.memberships m where m.id = p_subject and m.company_id = p_company
+    ) then
+      raise exception 'subject % is not a member of company %', p_subject, p_company
+        using errcode = 'insufficient_privilege';
+    end if;
+  end if;
+
   -- ── A VERIFIED OUTCOME REQUIRES THE LIFECYCLE EVIDENCE.
   --    "It went well" is only a verified outcome if the item actually reached `verified`.
   --    Otherwise it is an opinion, and opinions must not feed the learning fold as outcomes.

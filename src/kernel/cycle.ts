@@ -132,11 +132,17 @@ export interface CycleRequest {
  * rather than a candidate. The owner's rule — "never select an unchecked candidate to keep the
  * cycle moving" — is enforced by there being no branch that returns one.
  */
+interface PeopleCache {
+  candidates?: { ok: true; value: readonly CandidateEvidence[] } | { ok: false; error: string };
+  signals?: SignalLookup | null;
+}
+
 async function resolveForItem(
   deps: CycleDeps,
   o: Observation,
   rec: PersistRecommendation,
   action: { capability: string | null; department: Department } | null,
+  cache: PeopleCache,
 ): Promise<RecommendationSnapshot[]> {
   // No loader configured: no recommendation is made, and the surface says exactly that.
   // This is NOT "nobody is suitable" — a claim we have no evidence for.
@@ -155,21 +161,34 @@ async function resolveForItem(
   // without that would offer someone for work whose requirements were never established.
   if (!action) return routed("action_not_registered", `proposed action ${rec.actionId} is not in the catalogue`);
 
-  let candidates: readonly CandidateEvidence[];
-  try {
-    candidates = await deps.loadCandidates(o.companyId);
-  } catch (e) {
-    return routed("candidate_evidence_unavailable", `candidate evidence could not be read: ${(e as Error).message}`);
+  // LOADED ONCE PER CYCLE, not once per observation. A twelve-domain sweep can produce dozens
+  // of observations, and re-reading every membership, role, capability, leave row, capacity
+  // snapshot and the entire outcome history for each of them turned one recommendation into
+  // dozens of full table scans. The cache also makes the cycle self-consistent: every item in
+  // one sweep is judged against the SAME picture of the company, rather than against whatever
+  // the database happened to look like a few milliseconds apart.
+  if (!cache.candidates) {
+    try {
+      cache.candidates = { ok: true, value: await deps.loadCandidates(o.companyId) };
+    } catch (e) {
+      cache.candidates = { ok: false, error: (e as Error).message };
+    }
   }
+  if (!cache.candidates.ok) {
+    return routed("candidate_evidence_unavailable", `candidate evidence could not be read: ${cache.candidates.error}`);
+  }
+  const candidates = cache.candidates.value;
 
-  let signalFor: SignalLookup | undefined;
-  try {
-    signalFor = await deps.loadSignals?.(o.companyId);
-  } catch {
-    // Learning is an ORDERING input. Losing it is not a reason to refuse to recommend, and it
-    // is not a reason to pretend history exists — the resolver simply proceeds without it.
-    signalFor = undefined;
+  if (cache.signals === undefined) {
+    try {
+      cache.signals = (await deps.loadSignals?.(o.companyId)) ?? null;
+    } catch {
+      // Learning is an ORDERING input. Losing it is not a reason to refuse to recommend, and it
+      // is not a reason to pretend history exists — the resolver simply proceeds without it.
+      cache.signals = null;
+    }
   }
+  const signalFor = cache.signals ?? undefined;
 
   try {
     const resolution = resolveCandidates(
@@ -376,6 +395,10 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     const ctx = { companyId: req.companyId, correlationId, now: deps.now() };
 
     // ── 3-11. Each registered source, bounded and independent ─────────────────────────
+    // Loaded once per cycle, so every item in one sweep is judged against the SAME picture
+    // of the company (see resolveForItem).
+    const peopleCache: PeopleCache = {};
+
     for (const s of SOURCES) {
       let observations: Observation[];
       try {
@@ -437,7 +460,7 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
         //     workload changes and nobody is notified. The accountable owner stays NULL until
         //     an authorised human accepts, which the create RPC guarantees by not accepting it.
         const snapshots = rec
-          ? await resolveForItem(deps, o, rec, actionById(rec.actionId) ?? null)
+          ? await resolveForItem(deps, o, rec, actionById(rec.actionId) ?? null, peopleCache)
           : [];
 
         // 7 + 12. Persist item, evidence, the opening transition and the recommendation
