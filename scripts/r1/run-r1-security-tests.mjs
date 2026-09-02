@@ -86,6 +86,7 @@ try {
     "tests/integration/r1-runtime-e2e.test.ts",
     "tests/integration/r1-atomic-create.test.ts",
     "tests/integration/r2b-capability-routing.test.ts",
+    "tests/integration/r2b-feedback-runtime.test.ts",
   ], { env: { ...process.env, DATABASE_URL: URL, R1_DRAFT_CONFIRM: "disposable-local-only" } });
 } catch {
   code = 1;

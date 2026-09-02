@@ -244,15 +244,40 @@ describe.skipIf(!enabled)("R1 security baseline — RLS and authority matrix", (
   });
 
   it("ORDINARY STAFF MAY record feedback — the learning signal needs the person who did the work", async () => {
+    // CHANGED BY R2B (owner Decision 3). Feedback used to be a direct INSERT under an RLS
+    // policy. It is now RPC-ONLY, which is strictly stronger: the rules a feedback row must
+    // satisfy — the item's company boundary, an active authorised actor, the lifecycle evidence
+    // a verified outcome requires, the refusal to call reopened work successful, and the limit
+    // that stops one person fabricating hundreds of outcomes — cannot be expressed as an RLS
+    // policy at all. The INTENT of this test is unchanged and still asserted: an ordinary
+    // member of staff may record feedback.
     const id = await newItem(CO_A);
-    await asUser(STAFF, async () => {
-      const r = await db.query(
-        `insert into management_item_feedback (company_id, item_id, feedback_type, reason)
-         values ($1,$2,'decision_reason','it was already handled') returning id`,
-        [CO_A, id],
+    const staffMembership = membershipOf.get(STAFF)!;
+    // The RPC is a SERVICE-ONLY boundary, so the call presents service_role claims exactly as
+    // the server route does. The staff member is the ACTOR inside it, not the caller — which is
+    // the point: the trusted server records feedback ON BEHALF of an identified human, and the
+    // RPC checks that human's membership and capability itself.
+    await db.query("begin");
+    try {
+      await db.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+      const { rows } = await db.query(
+        `select public.r1_draft_record_feedback($1,$2,$3,'decision_reason',null,null,null,$4,null,null) as r`,
+        [CO_A, id, staffMembership, "it was already handled"],
       );
-      expect(r.rows).toHaveLength(1);
-    });
+      expect(rows[0].r.ok).toBe(true);
+    } finally {
+      await db.query("commit");
+    }
+  });
+
+  it("a DIRECT feedback insert by an API role is refused — the RPC is the only door", async () => {
+    const id = await newItem(CO_A);
+    await refusalFor(
+      STAFF,
+      `insert into management_item_feedback (company_id, item_id, feedback_type, reason)
+       values ($1,$2,'decision_reason','bypassing the rules')`,
+      [CO_A, id],
+    );
   });
 
   it("ORDINARY STAFF may NOT write a transition", async () => {
