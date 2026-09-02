@@ -2316,14 +2316,14 @@ requirements:
     test_evidence: tests/kernel/adapters.test.ts (41); tests/kernel/adapters-r2a.test.ts (31); tests/kernel/cycle.test.ts; tests/integration/r1-adapter-ingest.test.ts; tests/integration/r1-runtime-e2e.test.ts; tests/integration/r1-atomic-create.test.ts asserts all twelve domains accepted live
     security_evidence: company identity resolved from the scan context and never from a payload; sensitive-fact keys refused; minimum-safe-summary bands instead of amounts, names, message bodies or config values
     audit_health_evidence: none
-    last_verified_sha: 5a59adb
+    last_verified_sha: b06e4a0
     last_verified_at: 2026-09-02
     authority_restrictions: A detector observes and reports; it may never create a case, task or action itself.
     privacy_restrictions: Observations carry evidence references, not copied personal content; people-related sources obey the WRK-006 fairness and visibility model.
     acceptance_scenarios: An overdue invoice, an expiring vehicle document and an inbound message each produce an observation through the same contract; a scan that throws is recorded as a scan failure and the health surface reports the domain as UNOBSERVED rather than silently returning zero.
     owner_gate: phase gate — not authorised before R4
     blocker: KRN-001
-    residual_risks: SCOPE OF THE VERIFIED CLAIM (owner-restricted, 2026-09-02). locally_verified certifies ONE invariant and nothing more - 'At least one real, tested observation source is connected across every one of the twelve managed domains.' It does NOT certify that any domain is functionally complete. FOUR domains are PARTIAL by data availability, not by omission, and each limitation is held by its OWN open requirement which this record must never be read as satisfying: MKT-001 (foundation_only) no attribution table exists so no marketing ROI or effectiveness condition can be observed; PRC-002 (absent) stock-reorder is observed but three-way-match variance, RFQ ageing and delivery performance are not; AST-001 (specified) vehicle documents are observed but the asset registry, custody, reservations and utilisation do not exist; CRM-004 (absent) provider compliance and insurance are observed but counterparty performance and reliability history do not exist. LOCAL ONLY - zero staging, zero production. No scheduler is registered and event-triggered intake is declared for CRM but not wired.
+    residual_risks: SCOPE OF THE VERIFIED CLAIM (owner-restricted, 2026-09-02). locally_verified certifies ONE invariant and nothing more - 'At least one real, tested observation source is connected across every one of the twelve managed domains.' It does NOT certify that any domain is functionally complete. CORRECTION, R2C b06e4a0: R2A's twelve-domain claim was true of the ADAPTERS and FALSE OF THREE LOADERS. The workforce, finance and CRM loaders each selected columns that DO NOT EXIST (utilisation_pct/captured_at, updated_at, last_outbound_at), so those three sources failed on every real read and those domains were UNOBSERVED AT RUNTIME from R2A until this fix (defects R2C-F-002 and R2C-F-003). No test caught it because the adapter tests call the detectors directly. A permanent gate (scripts/r1/check-loader-columns.mjs, run by the live campaign) now verifies every loader column against information_schema. FOUR domains remain PARTIAL by data availability, each held by its OWN open requirement: MKT-001 (no attribution table); PRC-002 (stock-reorder only); AST-001 (vehicle documents only); CRM-004 (compliance only). LOCAL ONLY - zero staging, zero production. No scheduler is registered.
     verified_local: no
     verified_staging: no
     verified_production: no
@@ -2488,24 +2488,24 @@ requirements:
     phase: recovery-r5
     priority: P1
     dependencies: [AIM-006, WRK-005, WRK-003, CRM-003, CRM-004, FOUND-004]
-    status: implementation_in_progress
-    gap: The three roles are implemented and enforced, and R2B-F-001 is CLOSED ON BOTH PATHS at 75a0010 - the financial approval path now enforces effective ceiling = MIN(delegation, delegator's valid DIRECT ceiling), validated at grant AND revalidated at exercise, with re-delegation refused and a 72-cell matrix test proving the financial and routing implementations agree. HOWEVER the MANAGEMENT CYCLE REQUESTS ONLY roles:['assignee'], so advisor, delegate and external-consultant recommendation is NOT on a runtime path. That is why this record stays implementation_in_progress while WRK-005 does not.
+    status: locally_verified
+    gap: CLOSED at b06e4a0. The management cycle now determines WHICH ROLES the work needs from the catalogue entry and the observation's structured facts - never from a model - and resolves each role SEPARATELY, persisting one explainable snapshot per role. Three real catalogue entries declare roles, so this is exercised by real actions and not a test-only fixture: legal.obligation.escalate_internal requires a MANDATORY advisor and may propose a delegate; providers.provider.review_internal treats advice as helpful and is opened to approved external providers; workforce.capacity.review_allocation forms a team of two. Proven live through the real runtime in tests/integration/r2c-role-routing.test.ts: more than one role requested with a separate snapshot for each, an advisor chosen on EVIDENCED experience rather than mere capability, a delegate snapshot that CREATES NO DELEGATION, and a consultant offered only from an APPROVED engagement on a compliant provider.
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: none
-    service_evidence: src/kernel/people/delegation-scope.ts (delegator-ceiling and scope checks); src/kernel/people/roles.ts (role boundaries, asserted not filtered); src/kernel/people/resolve.ts
-    ui_evidence: src/components/spatial/panels/ManagementQueuePanelContent.tsx renders the three roles with distinct wording; tests/spatial/management-queue-candidates.test.tsx (22)
-    test_evidence: tests/kernel/people-roles.test.ts (33)
-    security_evidence: a delegation may never exceed the delegator (R2B-F-001); no currency conversion; unscoped delegation refused; expiry exclusive; recommendation grants no capability and no access
+    runtime_entrypoint: src/app/api/management/cycle/route.ts -> src/kernel/cycle.ts runManagementCycle -> requiredRolesFor -> resolveOneRole -> src/kernel/people/resolve.ts; snapshots persisted per role by r1_draft_create_management_item_v2
+    database_evidence: src/db/draft-migrations-r1/R1_DRAFT_017_advisors_engagements (advisor_relationships; consultant_engagements with internal_access FORBIDDEN by CHECK) + R1_DRAFT_014_recommendation_snapshot (QUARANTINED drafts, no production numbers)
+    service_evidence: src/kernel/people/roles-required.ts (roles from the catalogue, mandatory vs optional); src/kernel/people/team.ts (complementary formation, one accountable lead); src/kernel/people/delegation-scope.ts; src/kernel/people/roles.ts; src/modules/identity/delegation-authority.ts
+    ui_evidence: src/components/spatial/panels/ManagementQueuePanelContent.tsx renders one section per role with team coverage, proposed delegation scope and expiry, engagement scope, and accept/replace/reject/leave-unfilled controls; tests/spatial/management-queue-roles.test.tsx (17)
+    test_evidence: tests/kernel/people-roles.test.ts (33); tests/kernel/people-roles-team.test.ts (24); tests/kernel/people-r2c-adversarial.test.ts (18); tests/integration/r2c-role-routing.test.ts (live, 16 including team formation through the real cycle)
+    security_evidence: an advisor requires EVIDENCED experience and gains no authority; a delegate recommendation creates no delegation and cannot exceed the delegator (R2B-F-001, closed on both the routing and financial paths); a consultant needs an APPROVED engagement on a compliant provider, receives no capability, and internal_access is FORBIDDEN BY DATABASE CHECK; cross-company engagements are unrepresentable via composite FK; outcomes never cross roles
     audit_health_evidence: none
-    last_verified_sha: 75a0010
+    last_verified_sha: b06e4a0
     last_verified_at: 2026-09-02
     authority_restrictions: A recommended delegate must already be within the delegator's own authority (delegation is a subset, never an expansion); engaging an external provider is an external commitment and always requires human approval under D-9.
     privacy_restrictions: Recommendation reasons exposed to a requester must not disclose another person's private coaching, health or personal circumstances.
     acceptance_scenarios: A delegate recommendation outside the delegator's authority is refused with a reason; an external-consultant recommendation surfaces compliance and insurance status from CRM-005 and is blocked for a non-compliant provider; every recommendation carries its evidence and can be overridden with a recorded reason.
     owner_gate: phase gate — not authorised before R5
     blocker: WRK-003 verified skills are a prerequisite input
-    residual_risks: LOCAL ONLY - zero staging, zero production. THE CYCLE DOES NOT YET REQUEST THESE ROLES, so nothing in production recommends an advisor, a delegate or an external consultant. R2B-F-001 is now fixed on the financial approval path as well as in routing.
+    residual_risks: LOCAL ONLY - zero staging, zero production. Draft units 014, 016 and 017 have no production migration numbers (R1-D-1). A recommendation still grants nothing: creating a delegation, assigning a person and engaging or granting access to a consultant all remain separate human acts that R2C does not perform.
     verified_local: no
     verified_staging: no
     verified_production: no

@@ -10,12 +10,12 @@ Generated at: 2026-09-02
 
 | Status | Count |
 |---|---|
-| locally_verified | 66 |
+| locally_verified | 67 |
 | absent | 22 |
 | blocked_owner | 6 |
 | specified | 5 |
 | deliberately_deferred | 4 |
-| implementation_in_progress | 3 |
+| implementation_in_progress | 2 |
 | foundation_only | 2 |
 | implemented_unverified | 2 |
 
@@ -26,8 +26,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **66** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **34** |
+| **Verified** (locally / preview / staging / production) | **67** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **33** |
 | **Blocked — owner** | **6** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **4** |
@@ -66,7 +66,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | SCH | 6 | 5 | 1 |
 | UX | 1 | 0 | 1 |
 | WMP | 3 | 0 | 3 |
-| WRK | 7 | 4 | 3 |
+| WRK | 7 | 5 | 2 |
 
 ## Requirements
 
@@ -131,7 +131,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | INT-001 | Integration Gateway and connector registry | P1 | **locally_verified** | src/app/app/admin/integrations/page.tsx | 4b5bbb3 | — |
 | IP-001 | Public-repository IP boundary | P1 | **locally_verified** | scripts/autonomy/check-ip-boundary.mjs | f86eb97 | decision on a private repository or package for proprietary prompts and evaluation data |
 | KRN-001 | One domain-agnostic management kernel | P0 | **locally_verified** | src/app/api/management/cycle/route.ts (authorised manual invocation) -> src/kernel/cycle.ts runManagementCycle | abb49f5 | owner approval of the target architecture (granted 2026-09-02, D-10) plus phase gate — implementation is NOT authorised before R4 |
-| KRN-002 | Observation sources across every managed domain | P0 | **locally_verified** | src/app/api/management/cycle/route.ts -> src/kernel/cycle.ts (loads and runs all TWELVE registered sources) | 5a59adb | phase gate — not authorised before R4 |
+| KRN-002 | Observation sources across every managed domain | P0 | **locally_verified** | src/app/api/management/cycle/route.ts -> src/kernel/cycle.ts (loads and runs all TWELVE registered sources) | b06e4a0 | phase gate — not authorised before R4 |
 | KRN-003 | Registered domain action catalogue | P0 | **locally_verified** | src/app/api/management/cycle/route.ts -> src/kernel/recommend.ts buildRecommendation (selects only from src/kernel/catalogue.ts) | abb49f5 | phase gate — not authorised before R4 |
 | LNG-001 | Multilingual English / Sinhala / Tamil | P2 | **specified** | none | none | approval of the specification before implementation |
 | LNG-002 | Per-staff language preference with meaning, permission and audit invariance | P1 | **absent** | none | none | OWNER GATE — approval of the multilingual specification before implementation (inherited from LNG-001) |
@@ -181,7 +181,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | WRK-004 | Strengths, development needs and coaching | P2 | **absent** | none | none | privacy review of private-versus-manager-visible coaching |
 | WRK-005 | Fair assignment and internal/external team formation | P1 | **locally_verified** | src/app/api/management/cycle/route.ts -> src/kernel/cycle.ts runManagementCycle -> resolveForItem -> src/kernel/people/resolve.ts resolveCandidates; snapshots persisted by r1_draft_create_management_item_v2 | 75a0010 | flag activation |
 | WRK-006 | Explainability and fairness in people analytics | P0 | **absent** | none | none | OWNER GATE — privacy review of the private-versus-manager-visible model (inherited from WRK-004) |
-| WRK-007 | Advisor, delegate and external-consultant recommendation | P1 | **implementation_in_progress** | none | 75a0010 | phase gate — not authorised before R5 |
+| WRK-007 | Advisor, delegate and external-consultant recommendation | P1 | **locally_verified** | src/app/api/management/cycle/route.ts -> src/kernel/cycle.ts runManagementCycle -> requiredRolesFor -> resolveOneRole -> src/kernel/people/resolve.ts; snapshots persisted per role by r1_draft_create_management_item_v2 | b06e4a0 | phase gate — not authorised before R5 |
 
 ## Groups not yet expanded into individual records
 
@@ -195,5 +195,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **34**; blocked (owner): **6**;
+mode. Incomplete and implementable: **33**; blocked (owner): **6**;
 deferred: **4**; unexpanded groups: **0**.
