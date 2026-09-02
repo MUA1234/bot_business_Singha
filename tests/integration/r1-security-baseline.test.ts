@@ -193,17 +193,19 @@ describe.skipIf(!enabled)("R1 security baseline — RLS and authority matrix", (
   });
 
   // ── capability-gated writes ──────────────────────────────────────────────────────────
-  it("a MANAGER may insert a management item", async () => {
+  it("NOBODY may insert a management item directly — creation is RPC-only (unit 012)", async () => {
+    // Before unit 012 a manager holding operations.task.manage could INSERT directly. That
+    // door is now closed: management items are created only through the atomic RPC, so an
+    // item can never exist without its evidence and opening transition.
     const key = `mgr-${randomUUID()}`;
-    await asUser(MANAGER, async () => {
-      await db.query(
-        `insert into management_items (company_id, department, kind, subject_table, subject_id, identity_key)
-         values ($1,'operations','task_stalled','tasks','t1',$2)`,
-        [CO_A, key],
-      );
-      const { rows } = await db.query(`select count(*)::int as n from management_items where identity_key=$1`, [key]);
-      expect(rows[0].n).toBe(1);
-    });
+    await refusalFor(
+      MANAGER,
+      `insert into management_items (company_id, department, kind, subject_table, subject_id, identity_key)
+       values ($1,'operations','task_stalled','tasks','t1',$2)`,
+      [CO_A, key],
+    );
+    const { rows } = await db.query(`select count(*)::int as n from management_items where identity_key=$1`, [key]);
+    expect(rows[0].n).toBe(0);
   });
 
   it("ORDINARY STAFF may NOT insert a management item", async () => {

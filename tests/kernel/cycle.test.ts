@@ -118,12 +118,52 @@ describe("both switches are required", () => {
     expect(rec.persisted).toEqual([]);
   });
 
-  it("DISABLED still RECORDS the run — 'nothing looked' is not 'nothing needed attention'", async () => {
+  it("DISABLED writes NOTHING — not even a run record", async () => {
+    // CORRECTED. This previously asserted that a disabled cycle still recorded a run. The
+    // owner's instruction is that disabled means zero database writes: recording a run row
+    // would be a write performed by a cycle that never ran, and would let a reader believe
+    // the business had been observed.
     delete process.env.MANAGEMENT_KERNEL;
     const rec: Recorded = { summaries: [], persisted: [], locks: [] };
-    await run(makeDeps({}, rec));
-    expect(rec.summaries).toHaveLength(1);
-    expect(rec.summaries[0]!.status).toBe("skipped_disabled");
+    const s = await run(makeDeps({}, rec));
+    expect(s.status).toBe("skipped_disabled");
+    expect(rec.summaries).toEqual([]);   // recordRun was never called
+    expect(rec.persisted).toEqual([]);
+    expect(rec.locks).toEqual([]);
+  });
+
+  it("the DISTINCTION survives in the returned status, not in a database write", async () => {
+    // "kernel disabled" and "nothing needed attention" must stay tellable apart.
+    delete process.env.MANAGEMENT_KERNEL;
+    const globalOff = await run(makeDeps());
+    expect(globalOff.status).toBe("skipped_disabled");
+    expect(globalOff.failureReason).toMatch(/global flag/i);
+
+    process.env.MANAGEMENT_KERNEL = "on";
+    const companyOff = await run(makeDeps({ async isCompanyEnabled() { return false; } }));
+    expect(companyOff.status).toBe("skipped_disabled");
+    expect(companyOff.failureReason).toMatch(/company enablement/i);
+
+    // "Observed everything, found nothing": empty lists for the four list-shaped sources and
+    // a HEALTHY system signal (the system adapter takes a shaped object, not a list — handing
+    // it an array starves it and the cycle goes partial for the wrong reason).
+    const ran = await run(makeDeps({
+      async loadFor(source) {
+        if (source === "system.health_degraded") {
+          return {
+            oldestPendingOutboxMinutes: 0, failedOutboxCount: 0,
+            ledger: { imbalancedJournals: 0, headerLineMismatch: 0, orphanedLines: 0, lockedPeriodPostings: 0 },
+            providerFailures: 0, missingConfigKeys: [], sampledAt: "2026-09-02T08:55:00.000Z",
+          };
+        }
+        return [];
+      },
+    }));
+    expect(ran.status).toBe("completed");   // observed everything, found nothing
+    expect(ran.itemsCreated).toBe(0);
+
+    // Three different, distinguishable outcomes.
+    expect(new Set([globalOff.failureReason, companyOff.failureReason, ran.failureReason]).size).toBe(3);
   });
 
   it("ONE COMPANY ENABLED, ANOTHER DISABLED → correctly isolated", async () => {

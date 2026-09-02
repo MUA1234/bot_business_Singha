@@ -51,7 +51,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/procurement/purchase-orders/actions.ts:80 | `const total = decSum(rows.map((l: any) => dec(l.unit_price).times(Math.max(0, Math.trunc(Number(l.qu` |
 | src/app/app/sales/opportunities/page.tsx:49 | `const summary = summarizePipeline(deals.map((r): Opportunity => ({ amount: String(r.amount ?? "0"), ` |
 | src/components/os/ConditionInstrument.tsx:123 | `const gapBetween = total > 0 ? Math.min(4, usable / Math.max(segments.length, 1) / 6) : 0;` |
-| src/kernel/cycle-deps.ts:201 | `outstanding: String(Number(r.total_amount ?? 0) - Number(r.amount_settled ?? 0)),` |
+| src/kernel/cycle-deps.ts:180 | `outstanding: String(Number(r.total_amount ?? 0) - Number(r.amount_settled ?? 0)),` |
 | src/lib/money.ts:236 | `* `Number(v).toLocaleString()` — the latter both floats the amount and hides its currency scale.` |
 | src/modules/finance/reconcile.ts:66 | `reason: `${best.c.kind} of equal amount, ${Math.round(best.days)}d apart`,` |
 | src/modules/management/health-score.ts:62 | `return clamp(60 + 40 * Math.min(1, amount.div(1_000_000).toNumber()));` |

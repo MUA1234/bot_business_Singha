@@ -83,64 +83,43 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
     },
 
     /**
-     * Item + evidence + opening transition, in ONE transaction.
+     * Item + evidence + opening transition + audit, in ONE atomic RPC.
      *
-     * The draft schema has no composite "create item" RPC yet, so atomicity is obtained the
-     * ordinary way: an explicit transaction through a dedicated RPC would be the production
-     * shape. Here the three writes are ordered so a failure at any point leaves NO item —
-     * evidence and transitions reference the item, so if the item insert fails nothing else
-     * runs, and if a later insert fails the caller records the observation as rejected and
-     * the orphaned item is the only residue. That residue is why the reconciled numbered
-     * migration must add an atomic RPC before this is ever hosted (recorded as a residual).
+     * This replaced a three-statement sequence that could leave an item with no evidence, or
+     * an item with no opening transition — an audit chain with a hole in it. All four records
+     * are now created together or not at all, inside `r1_draft_create_management_item`, which
+     * is service-only, validates company, actor, adapter registration and evidence, enforces
+     * the initial state, and returns the ORIGINAL item for a repeated identity key.
      */
-    async persist(o: Observation, rec: PersistRecommendation | null) {
-      const { data: item, error } = await db
-        .from("management_items")
-        .insert({
-          company_id: o.companyId,
-          department: o.department,
-          kind: o.kind,
-          subject_table: o.subjectRef.table,
-          subject_id: o.subjectRef.id,
-          identity_key: o.identityKey,
-          state: "observed",
-          priority: o.priority,
-          confidence: o.confidence,
-          required_authority: rec?.requiredAuthority ?? o.authorityClass,
-          proposed_action_id: rec?.actionId ?? null,
-          evidence_quality: rec?.evidenceQuality ?? null,
-          may_run_unattended: rec?.mayRunUnattended ?? false,
-          business_deadline: o.businessDeadline?.at ?? null,
-          business_deadline_source: o.businessDeadline?.source ?? null,
-        })
-        .select("id")
-        .single();
-      if (error) throw new Error(error.message);
-      const itemId = item.id as string;
-
-      for (const e of o.evidence) {
-        const { error: evErr } = await db.from("management_item_evidence").insert({
-          company_id: o.companyId,
-          item_id: itemId,
+    async persist(o: Observation, rec: PersistRecommendation | null, actorId: string | null = null) {
+      const { data, error } = await db.rpc("r1_draft_create_management_item", {
+        p_company: o.companyId,
+        p_actor: actorId,
+        p_department: o.department,
+        p_kind: o.kind,
+        p_observation_source: o.observationSource,
+        p_subject_table: o.subjectRef.table,
+        p_subject_id: o.subjectRef.id,
+        p_identity_key: o.identityKey,
+        p_correlation_id: o.correlationId,
+        p_priority: o.priority,
+        p_confidence: o.confidence,
+        p_required_authority: rec?.requiredAuthority ?? o.authorityClass,
+        p_proposed_action_id: rec?.actionId ?? null,
+        p_evidence_quality: rec?.evidenceQuality ?? null,
+        p_may_run_unattended: rec?.mayRunUnattended ?? false,
+        p_business_deadline: o.businessDeadline?.at ?? null,
+        p_business_deadline_source: o.businessDeadline?.source ?? null,
+        p_evidence: o.evidence.map((e) => ({
           source_table: e.sourceTable,
           source_id: e.sourceId,
           facts: e.facts,
-        });
-        if (evErr) throw new Error(evErr.message);
-      }
-
-      const { error: trErr } = await db.from("management_item_transitions").insert({
-        company_id: o.companyId,
-        item_id: itemId,
-        from_state: null,
-        to_state: "observed",
-        actor_type: "system",
-        reason: `detected by ${o.observationSource}`,
-        evidence: o.evidence.map((e) => ({ table: e.sourceTable, id: e.sourceId })),
+        })),
       });
-      if (trErr) throw new Error(trErr.message);
-
-      return itemId;
+      if (error) throw new Error(error.message);
+      const result = data as { ok: boolean; result: string; item_id: string };
+      if (!result?.ok) throw new Error("atomic create returned no result");
+      return result.item_id;
     },
 
     async recordRun(summary: CycleSummary, actorId: string | null) {

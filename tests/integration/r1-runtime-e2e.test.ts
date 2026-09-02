@@ -61,6 +61,9 @@ describe.skipIf(!enabled)("R1 runtime — live end-to-end", () => {
 
     raw = new pg.Client({ connectionString: URL, ssl: false });
     await raw.connect();
+    // The atomic create RPC is a service-only boundary. In production the service-role key
+    // sets this claim; here the harness sets it explicitly for the same effect.
+    await raw.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
 
     for (const co of [CO_A, CO_B]) {
       await raw.query(`insert into companies (id,name,base_currency) values ($1,$2,'LKR')
@@ -93,10 +96,12 @@ describe.skipIf(!enabled)("R1 runtime — live end-to-end", () => {
       `select count(*)::int as n from management_items where company_id=$1`, [CO_A]);
     expect(rows[0].n).toBe(0);
 
-    // The skipped run is still recorded — "nothing looked" is a fact worth keeping.
+    // CORRECTED: a disabled cycle now writes NOTHING AT ALL — not even a run row. It did
+    // not run, so recording that it did would be a write by a cycle that never happened.
+    // The distinction survives in the returned status and in server logging.
     const { rows: runs } = await raw.query(
-      `select status from management_cycle_runs where company_id=$1 order by started_at desc limit 1`, [CO_A]);
-    expect(runs[0].status).toBe("skipped_disabled");
+      `select count(*)::int as n from management_cycle_runs where company_id=$1`, [CO_A]);
+    expect(runs[0].n).toBe(0);
   }, 60_000);
 
   it("GLOBAL FLAG OFF: even an enabled company is skipped", async () => {
