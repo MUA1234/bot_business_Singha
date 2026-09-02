@@ -38,6 +38,7 @@ import { ingestObservation, type ExistingItem, type IngestDecision } from "./ing
 import { actionById } from "./catalogue";
 import type { CandidateEvidence } from "./people/candidate";
 import { resolveCandidates, type SignalLookup } from "./people/resolve";
+import { requiredRolesFor, roleSpecOf, type ActionWithRoles, type RoleRequirement } from "./people/roles-required";
 import { buildSnapshots, RESOLVER_VERSION, type RecommendationSnapshot } from "./people/snapshot";
 import { buildRecommendation } from "./recommend";
 import { fixtureInterpreter, interpretWithGuards } from "./interpretation";
@@ -161,6 +162,11 @@ async function resolveForItem(
   // without that would offer someone for work whose requirements were never established.
   if (!action) return routed("action_not_registered", `proposed action ${rec.actionId} is not in the catalogue`);
 
+  // WHICH ROLES this work needs — from the catalogue entry and the observation's structured
+  // facts, never from a model (R2C).
+  const required = requiredRolesFor(action as ActionWithRoles, o);
+  const spec = roleSpecOf(action as ActionWithRoles);
+
   // LOADED ONCE PER CYCLE, not once per observation. A twelve-domain sweep can produce dozens
   // of observations, and re-reading every membership, role, capability, leave row, capacity
   // snapshot and the entire outcome history for each of them turned one recommendation into
@@ -190,6 +196,42 @@ async function resolveForItem(
   }
   const signalFor = cache.signals ?? undefined;
 
+  // ONE RESOLUTION PER ROLE, and one snapshot set per role. Roles are resolved separately
+  // rather than in a single call because they have different requirements, different history
+  // and different failure consequences — and because a shared call would make it possible to
+  // return an advisor where an assignee was asked for. The owner's rule that one role is never
+  // silently substituted for another is enforced by them never sharing a result.
+  const out: RecommendationSnapshot[] = [];
+  for (const need of required) {
+    const roleSnapshots = await resolveOneRole(deps, o, rec, action, spec, need, candidates, signalFor);
+    // A MANDATORY role that found nobody means the work cannot proceed as proposed. An OPTIONAL
+    // one records its own truthful needs_routing and leaves everything else standing — a missing
+    // advisor must not invalidate a valid assignee (owner Decision, R2C).
+    out.push(...roleSnapshots);
+  }
+  return out;
+}
+
+/** Resolve exactly one role, and turn it into snapshots that name that role. */
+async function resolveOneRole(
+  deps: CycleDeps,
+  o: Observation,
+  rec: PersistRecommendation,
+  action: { capability: string | null; department: Department },
+  spec: ReturnType<typeof roleSpecOf>,
+  need: RoleRequirement,
+  candidates: readonly CandidateEvidence[],
+  signalFor: SignalLookup | undefined,
+): Promise<RecommendationSnapshot[]> {
+  const routedForRole = (reasonCode: string, detail: string): RecommendationSnapshot[] => [{
+    purpose: need.role, outcome: "needs_routing",
+    candidate_ref: null, candidate_type: null, rank_position: null,
+    capabilities_used: [], skills_used: [], availability: null, confidence: null,
+    reason_codes: [reasonCode], reasons: [{ code: reasonCode, detail }], missing_codes: [],
+    routing_department: o.department, routing_reason_code: reasonCode,
+    evidence_refs: [],
+  }];
+
   try {
     const resolution = resolveCandidates(
       {
@@ -197,8 +239,13 @@ async function resolveForItem(
         department: o.department,
         // Keyed on the ACTION, so outcome history is specific to this kind of work.
         taskKind: rec.actionId,
-        roles: ["assignee"],
-        requiredCapability: action.capability,
+        roles: [need.role],
+        requiredCapability: need.role === "assignee" ? action.capability : null,
+        requiredVerifiedSkills: spec.requiredVerifiedSkills,
+        preferredSkills: spec.preferredSkills,
+        requiredLanguage: spec.requiredLanguage ?? null,
+        authorityDomain: spec.domain ?? null,
+        allowExternalConsultants: need.role === "external_consultant",
         // `automatic`, deliberately, and NOT rec.requiredAuthority.
         //
         // The item's required authority is the level needed to APPROVE the proposed action. The
@@ -209,10 +256,6 @@ async function resolveForItem(
         // need. Approval authority is checked separately, against the approver, at approval time.
         requiredAuthority: "automatic",
         authorityAmount: null,
-        authorityDomain: null,
-        requiredVerifiedSkills: [],
-        preferredSkills: [],
-        requiredLanguage: null,
         onDateIso: deps.now().toISOString().slice(0, 10),
         estimateHours: null,
         now: deps.now(),
@@ -220,10 +263,15 @@ async function resolveForItem(
       candidates,
       signalFor ? { signalFor } : {},
     );
-    return buildSnapshots(resolution);
+
+    const snaps = buildSnapshots(resolution);
+    // buildSnapshots labels everything "assignee" because it cannot know which role was asked
+    // for. Stamping the role HERE, from the requirement, is what makes a substitution
+    // impossible: a snapshot can only ever carry the role its own resolution was run for.
+    return snaps.map((s) => ({ ...s, purpose: need.role }));
   } catch (e) {
     // A resolver that throws must never be reported as "nobody qualified".
-    return routed("resolver_failed", `candidate resolution failed: ${(e as Error).message}`);
+    return routedForRole("resolver_failed", `candidate resolution failed: ${(e as Error).message}`);
   }
 }
 

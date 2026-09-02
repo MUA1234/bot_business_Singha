@@ -25,6 +25,7 @@ import {
 } from "./candidate";
 import { evaluateDelegation, refuseRedelegation, type DelegatorAuthority } from "./delegation-scope";
 import { evaluateEligibility } from "./eligibility";
+import { isPresent } from "./evidence";
 import { assertRoleBoundaries } from "./roles";
 import { orderCandidates, scoreSuitability, type SuitabilitySignal } from "./suitability";
 
@@ -123,6 +124,23 @@ export function resolveCandidates(
       const s = scoreSuitability(c, req, signal, role);
       // A delegate is only a candidate if the delegation itself survives scrutiny — scope,
       // window, and (R2B-F-001) the delegator's own authority.
+      // An ADVISOR must have evidenced experience in this domain. Holding a capability and
+      // being free makes someone a candidate to DO the work; advising on it is a different
+      // claim, and one the system must be able to point at evidence for.
+      if (role === "advisor") {
+        const verdict = checkAdvisor(c, req);
+        if (!verdict.ok) {
+          rejected.push({
+            membershipId: c.membershipId,
+            candidateType: c.candidateType,
+            reasons: verdict.reasons,
+            // Never having advised on something is not a fault.
+            neutral: true,
+          });
+          continue;
+        }
+      }
+
       if (role === "delegate") {
         const verdict = checkDelegation(c, req, deps);
         if (!verdict.ok) {
@@ -228,6 +246,43 @@ function checkDelegation(
   return verdict.valid ? { ok: true } : { ok: false, reasons: verdict.reasons };
 }
 
+/**
+ * May this person advise on this work?
+ *
+ * An external consultant offered as an advisor is checked by the engagement gates instead —
+ * their scope is the evidence, and requiring a separate internal advisor relationship for
+ * somebody who is not a member of the company would refuse every consultant by construction.
+ */
+function checkAdvisor(
+  c: CandidateEvidence,
+  req: CandidateRequest,
+): { ok: true } | { ok: false; reasons: Reason[] } {
+  if (c.candidateType === "external_consultant") return { ok: true };
+
+  if (!isPresent(c.advisorDomains)) {
+    return {
+      ok: false,
+      reasons: [{
+        code: "no_advisory_experience_recorded",
+        detail: "no evidenced advisory experience is recorded for this person",
+        evidence: null,
+      }],
+    };
+  }
+  const domain = req.authorityDomain ?? req.department;
+  if (!c.advisorDomains.value!.includes(domain)) {
+    return {
+      ok: false,
+      reasons: [{
+        code: "advisory_experience_other_domain",
+        detail: `evidenced advisory experience covers ${c.advisorDomains.value!.join(", ")}, not ${domain}`,
+        evidence: null,
+      }],
+    };
+  }
+  return { ok: true };
+}
+
 /** The capabilities this candidate holds that the request actually cares about. */
 function relevantCapabilities(c: CandidateEvidence, req: CandidateRequest): string[] {
   if (!c.capabilities.value) return [];
@@ -276,6 +331,8 @@ function buildRouting(
     ["overloaded", "everyone who qualifies is already overloaded"],
     ["insufficient_capacity", "nobody who qualifies has enough free capacity for the estimate"],
     ["language_missing", `nobody considered has ${req.requiredLanguage} recorded, which this work requires`],
+    ["no_advisory_experience_recorded", "nobody considered has evidenced advisory experience recorded"],
+    ["advisory_experience_other_domain", "nobody considered has evidenced advisory experience in this domain"],
     ["provider_not_verified", "no external consultant considered has active approval and valid compliance"],
     ["inactive", "every candidate considered has an inactive or revoked membership"],
     ["company_mismatch", "every candidate considered belongs to a different company"],

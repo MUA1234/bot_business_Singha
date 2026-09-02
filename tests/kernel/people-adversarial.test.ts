@@ -78,7 +78,9 @@ describe("R2B-F-002 — supplied evidence must never override the authorised ide
 
 describe("R2B-F-003 — two roles for the same person must order deterministically", () => {
   it("gives the same order however the caller lists the roles", () => {
-    const p = staff("m1");
+    // R2C: an advisor also needs evidenced advisory experience, so this test can still exercise
+    // the ORDERING rule it was written for rather than the advisor-evidence gate.
+    const p = staff("m1", { advisorDomains: fact(["finance"], "verified") });
     const a = resolveCandidates(request({ roles: ["assignee", "advisor"] }), [p]);
     const b = resolveCandidates(request({ roles: ["advisor", "assignee"] }), [p]);
     // Both entries share a membership id, so membership alone left the order decided by input.

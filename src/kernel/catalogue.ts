@@ -15,9 +15,10 @@
  * only when they are also reversible.
  */
 import type { DomainAction, Department } from "./types";
+import type { ActionWithRoles } from "./people/roles-required";
 import type { ActionCategory } from "./observation";
 
-export const ACTION_CATALOGUE: readonly DomainAction[] = [
+export const ACTION_CATALOGUE: readonly ActionWithRoles[] = [
   {
     id: "ops.task.create_internal",
     department: "operations",
@@ -80,6 +81,13 @@ export const ACTION_CATALOGUE: readonly DomainAction[] = [
   },
   {
     id: "workforce.capacity.review_allocation",
+    roles: {
+      domain: "hr",
+      // Reallocating capacity across a department is not a one-person job: it needs someone who
+      // can manage the tasks and someone who can see the people side.
+      teamOfAtLeast: 2,
+      teamMustCover: ["operations.task.manage", "hr.staff.manage"],
+    },
     department: "workforce",
     capability: "operations.task.manage",
     authorityFloor: "manager_approval",
@@ -152,6 +160,16 @@ export const ACTION_CATALOGUE: readonly DomainAction[] = [
     automaticSafe: false,
     internalOnly: true,
     description: "Raise an internal task for a human reviewer on an expiring legal obligation. Gives no legal advice.",
+    roles: {
+      domain: "legal",
+      // RSK-006 records that human legal review is absent, so an expiring obligation is exactly
+      // the case where advice is not optional. The advisor is MANDATORY here — and, because it
+      // is, an item with no eligible advisor says so rather than proceeding quietly.
+      requiresAdvisor: true,
+      // The authority this needs is specialist_approval, which an existing delegation may
+      // already cover. Proposing a delegate never CREATES one.
+      mayProposeDelegate: true,
+    },
   },
   {
     id: "providers.provider.review_internal",
@@ -162,6 +180,15 @@ export const ACTION_CATALOGUE: readonly DomainAction[] = [
     automaticSafe: false,
     internalOnly: true,
     description: "Raise an internal review of a provider whose compliance or insurance has lapsed. Engages nobody.",
+    roles: {
+      domain: "procurement",
+      // Advice HELPS here and the work is perfectly valid without it, which is precisely the
+      // case the owner's mandatory/optional distinction protects.
+      advisorHelpful: true,
+      // Opened to approved external providers. A recommendation still engages nobody, grants no
+      // access and contacts no one.
+      mayUseExternalConsultant: true,
+    },
   },
   {
     id: "system.health.investigate_internal",

@@ -234,7 +234,11 @@ const req = (over: Partial<CandidateRequest> = {}): CandidateRequest => ({
 
 describe("the four roles stay distinct", () => {
   it("an ADVISOR never carries delegated authority, even when the person holds a delegation", () => {
-    const withDelegation = person("m1", { delegationScope: fact(scope(), "verified") });
+    // R2C: an advisor must also have EVIDENCED advisory experience in the domain.
+    const withDelegation = person("m1", {
+      delegationScope: fact(scope(), "verified"),
+      advisorDomains: fact(["legal"], "verified"),
+    });
     const r = resolveCandidates(req({ roles: ["advisor"] }), [withDelegation]);
     expect(r.candidates).toHaveLength(1);
     expect(r.candidates[0]!.role).toBe("advisor");
@@ -393,7 +397,8 @@ describe("delegate routing through the resolver", () => {
 
 describe("one request, several roles", () => {
   it("returns an assignee and an advisor as SEPARATE proposals for the same person", () => {
-    const r = resolveCandidates(req({ roles: ["assignee", "advisor"] }), [person("m1")]);
+    const both = person("m1", { advisorDomains: fact(["legal"], "verified") });
+    const r = resolveCandidates(req({ roles: ["assignee", "advisor"] }), [both]);
     expect(r.candidates).toHaveLength(2);
     expect(r.candidates.map((c) => c.role).sort()).toEqual(["advisor", "assignee"]);
     // Same person, two proposals — and the advisor one confers nothing.
@@ -401,7 +406,7 @@ describe("one request, several roles", () => {
   });
 
   it("still requires a human decision no matter how many roles were filled", () => {
-    const r = resolveCandidates(req({ roles: ["assignee", "advisor"] }), [person("m1")]);
+    const r = resolveCandidates(req({ roles: ["assignee", "advisor"] }), [person("m1", { advisorDomains: fact(["legal"], "verified") })]);
     expect(r.humanDecisionRequired).toBe(true);
   });
 });

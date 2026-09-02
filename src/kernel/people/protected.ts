@@ -34,6 +34,8 @@ export const PERMITTED_SIGNAL_KEYS: ReadonlySet<string> = new Set([
   "declaredSkills", "verifiedSkills", "languages",
   // Whether they can take it on right now.
   "available", "onLeave", "availableHours", "capacityStatus", "openAssignments",
+  // Advisory experience.
+  "advisorDomains",
   // Delegation.
   "delegatedFrom", "delegationScope", "delegationStartsAt", "delegationEndsAt",
   // External consultant.

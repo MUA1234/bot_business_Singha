@@ -18,6 +18,7 @@ import {
   ASSETS_SOURCE, LEGAL_SOURCE, PROVIDERS_SOURCE,
 } from "./adapters";
 import type { CycleDeps, CycleSummary, PersistRecommendation } from "./cycle";
+import { providerHealth } from "@/modules/crm/service-provider";
 import { candidateEvidence } from "./people/candidate";
 import { fact } from "./people/evidence";
 import { RESOLVER_VERSION, type RecommendationSnapshot } from "./people/snapshot";
@@ -142,6 +143,60 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
       ).catch(() => [] as any[]);
       const onLeaveUserIds = new Set(leave.map((l) => l.profile_id));
 
+      // VERIFIED SKILLS (R2C draft unit 016). Only an externally-certified or evidence-verified
+      // record that is ACTIVE and not past its expiry counts. Everything else is loaded as a
+      // DECLARED skill instead, so the distinction survives into the resolver rather than being
+      // decided here — the gate that refuses an unverified claim is the one place that rule lives.
+      const skillRows = await rowsOf(
+        db.from("skill_records")
+          .select("membership_id, skill_key, provenance, status, expires_at")
+          .eq("company_id", companyId),
+      ).catch(() => [] as any[]);
+      const todayIso = now().toISOString().slice(0, 10);
+      const isoDay = (v: unknown) => new Date(v as string).toISOString().slice(0, 10);
+      const verifiedByMembership = new Map<string, string[]>();
+      const recordedByMembership = new Map<string, string[]>();
+      for (const r of skillRows) {
+        const verified =
+          (r.provenance === "externally_certified" || r.provenance === "evidence_verified") &&
+          r.status === "active" &&
+          // Normalised through Date FIRST. A pg date column comes back as a Date object, and
+          // String(new Date(...)) is "Sat Jan 01 2020 …" — slicing that to ten characters and
+          // comparing it to an ISO date compares "Sat Jan 0" against "2026-09-02", which is
+          // not merely wrong but wrong in the UNSAFE direction: an expired skill read as valid.
+          (!r.expires_at || isoDay(r.expires_at) >= todayIso);
+        const target = verified ? verifiedByMembership : recordedByMembership;
+        target.set(r.membership_id, [...(target.get(r.membership_id) ?? []), r.skill_key]);
+      }
+
+      // LANGUAGES (draft unit 016). Loaded for every language the person can work in, not only
+      // their preferred one: a task that requires Tamil needs someone who can work in Tamil.
+      const langRows = await rowsOf(
+        db.from("membership_languages").select("membership_id, language").eq("company_id", companyId),
+      ).catch(() => [] as any[]);
+      const langByMembership = new Map<string, string[]>();
+      for (const r of langRows) {
+        langByMembership.set(r.membership_id, [...(langByMembership.get(r.membership_id) ?? []), r.language]);
+      }
+
+      // EVIDENCED ADVISORY EXPERIENCE (draft unit 017). Only ACTIVE relationships inside their
+      // window. Being capable and free makes someone a candidate to DO the work; advising on it
+      // is a separate claim that has to point at evidence.
+      const advisorRows = await rowsOf(
+        db.from("advisor_relationships")
+          .select("membership_id, domain, status, starts_at, ends_at")
+          .eq("company_id", companyId)
+          .eq("status", "active"),
+      ).catch(() => [] as any[]);
+      const nowMs = now().getTime();
+      const advisorByMembership = new Map<string, string[]>();
+      for (const r of advisorRows) {
+        const started = !r.starts_at || Date.parse(r.starts_at) <= nowMs;
+        const notEnded = !r.ends_at || Date.parse(r.ends_at) > nowMs;
+        if (!started || !notEnded) continue;
+        advisorByMembership.set(r.membership_id, [...(advisorByMembership.get(r.membership_id) ?? []), r.domain]);
+      }
+
       // Capacity is a weekly snapshot, so it is INFERRED and routinely a few days old. The
       // as-of date travels with it and the resolver decides whether it is still usable.
       const capacity = await rowsOf(
@@ -153,7 +208,7 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
       const capByMembership = new Map<string, any>();
       for (const c of capacity) if (!capByMembership.has(c.membership_id)) capByMembership.set(c.membership_id, c);
 
-      return members.map((m) => {
+      const staff = members.map((m) => {
         const cap = capByMembership.get(m.id);
         const onLeave = m.user_id ? onLeaveUserIds.has(m.user_id) : false;
         const caps = [...(capsByMembership.get(m.id) ?? new Set<string>())];
@@ -168,13 +223,41 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
             // The cycle proposes internal, catalogue-registered work; it never commits money,
             // so no monetary ceiling is resolved here and none is claimed.
             authorityLevel: fact("automatic", "verified"),
-            ...(declared === undefined
-              ? {}
-              : {
-                  declaredSkills: fact(declared, "self_declared", {
-                    sourceRef: { table: "employee_profiles", id: m.id },
+            // A declared skill is whatever employee_profiles said PLUS any skill_record whose
+            // provenance is not good enough to count as verified. Both are self-declared to the
+            // resolver, which is the honest reading of both.
+            ...(() => {
+              const recorded = recordedByMembership.get(m.id) ?? [];
+              const all = [...new Set([...(declared ?? []), ...recorded])];
+              return all.length === 0 && declared === undefined
+                ? {}
+                : {
+                    declaredSkills: fact(all, "self_declared", {
+                      sourceRef: { table: "employee_profiles", id: m.id },
+                    }),
+                  };
+            })(),
+            ...(verifiedByMembership.has(m.id)
+              ? {
+                  verifiedSkills: fact(verifiedByMembership.get(m.id)!, "verified", {
+                    sourceRef: { table: "skill_records", id: m.id },
                   }),
-                }),
+                }
+              : {}),
+            ...(langByMembership.has(m.id)
+              ? {
+                  languages: fact(langByMembership.get(m.id)!, "verified", {
+                    sourceRef: { table: "membership_languages", id: m.id },
+                  }),
+                }
+              : {}),
+            ...(advisorByMembership.has(m.id)
+              ? {
+                  advisorDomains: fact(advisorByMembership.get(m.id)!, "verified", {
+                    sourceRef: { table: "advisor_relationships", id: m.id },
+                  }),
+                }
+              : {}),
             available: fact(
               {
                 available: !onLeave,
@@ -193,6 +276,75 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
           },
         );
       });
+
+      // ── APPROVED EXTERNAL CONSULTANTS (draft unit 017).
+      //    Only an APPROVED engagement inside its window, on a provider whose own compliance and
+      //    insurance are healthy. The engagement carries the scope; it never carries access, and
+      //    internal_access is forbidden at the database, so a recommendation grants nothing.
+      const engagements = await rowsOf(
+        db.from("consultant_engagements")
+          .select("id, provider_id, scope_domains, scope_skills, status, starts_at, ends_at, internal_access")
+          .eq("company_id", companyId)
+          .eq("status", "approved"),
+      ).catch(() => [] as any[]);
+
+      const providers = engagements.length
+        ? await rowsOf(
+            db.from("service_providers")
+              .select("id, status, compliance_status, insurance_status, insurance_expiry")
+              .eq("company_id", companyId)
+              .in("id", [...new Set(engagements.map((e) => e.provider_id))]),
+          ).catch(() => [] as any[])
+        : [];
+      const providerById = new Map<string, any>(providers.map((p) => [p.id, p]));
+
+      const consultants = engagements
+        .filter((e) => {
+          const started = !e.starts_at || Date.parse(e.starts_at) <= nowMs;
+          const notEnded = !e.ends_at || Date.parse(e.ends_at) > nowMs;
+          return started && notEnded && providerById.has(e.provider_id);
+        })
+        .map((e) => {
+          const p = providerById.get(e.provider_id);
+          return candidateEvidence(
+            // The ENGAGEMENT is the candidate reference: the same provider may be engaged twice
+            // on different scopes, and those are different proposals.
+            { membershipId: e.id, companyId, candidateType: "external_consultant" },
+            {
+              active: fact(p.status === "active", "verified", {
+                sourceRef: { table: "service_providers", id: e.provider_id },
+              }),
+              providerId: fact(e.provider_id, "verified", {
+                sourceRef: { table: "service_providers", id: e.provider_id },
+              }),
+              providerStatus: fact(providerHealth(p), "verified", {
+                sourceRef: { table: "service_providers", id: e.provider_id },
+              }),
+              engagementScope: fact(
+                {
+                  domains: (e.scope_domains ?? []) as string[],
+                  // Forbidden at the database; asserted again here so a loader bug is loud.
+                  internalAccess: false as const,
+                  endsAt: e.ends_at ? new Date(e.ends_at).toISOString() : null,
+                },
+                "verified",
+                { sourceRef: { table: "consultant_engagements", id: e.id } },
+              ),
+              ...(((e.scope_skills ?? []) as string[]).length > 0
+                ? {
+                    verifiedSkills: fact((e.scope_skills ?? []) as string[], "verified", {
+                      sourceRef: { table: "consultant_engagements", id: e.id },
+                    }),
+                  }
+                : {}),
+              // A consultant has no internal availability and no capacity record. Absent is the
+              // honest answer; the availability gate reports the gap rather than inventing one.
+              authorityLevel: fact("automatic", "verified"),
+            },
+          );
+        });
+
+      return [...staff, ...consultants];
     },
 
     /**

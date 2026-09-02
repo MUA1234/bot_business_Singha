@@ -81,6 +81,15 @@ export interface CandidateEvidence {
   available: Fact<AvailabilitySignal>;
   openAssignments: Fact<number>;
 
+  /**
+   * Domains this person has EVIDENCED experience advising on (R2C).
+   *
+   * An advisor must have relevant evidenced experience — being available and holding a
+   * capability makes someone a candidate to DO the work, not to advise on it. Absent means
+   * nobody has recorded any advisory experience, and the advisor role is refused.
+   */
+  advisorDomains: Fact<string[]>;
+
   /** Delegates only. */
   delegationScope: Fact<DelegationScope>;
 
@@ -97,6 +106,7 @@ function emptyEvidence(): Omit<CandidateEvidence, "membershipId" | "companyId" |
     authorityCeiling: absent(), departmentIds: absent(),
     declaredSkills: absent(), verifiedSkills: absent(), languages: absent(),
     available: absent(), openAssignments: absent(),
+    advisorDomains: absent(),
     delegationScope: absent(),
     providerId: absent(), providerStatus: absent(), engagementScope: absent(),
   };

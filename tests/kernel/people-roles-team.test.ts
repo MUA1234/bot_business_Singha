@@ -236,6 +236,9 @@ describe("outcomes NEVER cross roles", () => {
           { available: true, onLeave: false, availableHours: 20, capacityStatus: "healthy" as const },
           "inferred", { asOf: "2026-09-01T00:00:00.000Z" },
         ),
+        // Evidenced advisory experience, so this test exercises the SIGNAL rule and not the
+        // advisor-evidence gate.
+        advisorDomains: fact(["operations"], "verified"),
       },
     );
     const req: CandidateRequest = {
