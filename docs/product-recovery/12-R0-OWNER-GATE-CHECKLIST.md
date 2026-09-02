@@ -17,60 +17,105 @@ the shortest path to the answer.
 
 | Gate | Priority | Status |
 |---|---|---|
-| Railway active deployment SHA | **1** | open |
+| Railway active deployment SHA | **1** | **INSPECTED — the SHA does not exist to be found (R0-F-007)** |
 | Hosted Supabase migration/schema truth | **2** | open |
 | Meta callback destination | 3 | **deferred by owner decision** |
 
-Roughly two minutes in Railway and two in Supabase closes Priorities 1 and 2. They gate more
-downstream work than anything else outstanding.
+Priority 2 is now the only remaining gate the owner can close by reading a dashboard, and it
+gates more downstream work than anything else outstanding. **Priority 1 has been inspected and
+cannot be closed** — see below; the answer is that no commit id exists for the running
+deployment.
 
 ---
 
-## 🔴 Priority 1 — Exact Railway deployment SHA
+## ⛔ Priority 1 — Exact Railway deployment SHA — **INSPECTED; UNAVAILABLE**
 
-### The unknown fact
+### OWNER EVIDENCE, 2026-09-02 — the deployed SHA is UNAVAILABLE and UNVERIFIED
 
-The deployed revision cannot be confirmed from outside: the running application exposes no
-commit identifier, and `/api/health` is authenticated. The audit bounded it to **≥ `19a8e9d`**
-by a public-page fingerprint (commit `19a8e9d` corrected the WhatsApp number shown on the
-legal pages, and the live site serves the corrected value), and D-021 records that Railway
-auto-deploys from `main` — so it is *probably* `acd9fbe`. **That is an inference, not a fact**,
-and it is not sufficient to plan a migration against.
+The owner inspected the active `singha-web` deployment. It reports:
 
-### 1. Where to look
+| Field | Value |
+|---|---|
+| Source | `railway up` |
+| Method | **CLI** |
+| Status | Active / Deployment successful |
+| Deployed | approximately 16 hours before inspection |
+| Git commit SHA | **none displayed, after expanding the deployment** |
+| GitHub source | **none displayed** |
 
-Railway → project **`singha-central`** → service **`singha-web`** → **Deployments** tab.
-The top entry marked **Active** is the running one. Click it: the commit SHA and message
-appear in the deployment header, and the **Source** row shows `main @ <sha>`.
+**The deployed SHA is therefore recorded as UNAVAILABLE / UNVERIFIED.** It is not "unknown
+pending a look" — it has been looked at, and **no commit id exists to record**. No Railway
+change was made during the inspection.
 
-### 2. What is needed
+**It must not be inferred.** Not from earlier GitHub-sourced deployments, not from the
+public-page fingerprint the audit used, not from nearby commits, and not from D-021. Any
+statement of the form "production is probably `acd9fbe`" is now withdrawn.
 
-- the **short commit SHA** of the *Active* deployment (7–10 hex characters, e.g. `acd9fbe`);
-- its **deploy timestamp**;
-- optionally a screenshot of the Deployments list — **crop out any Variables or Settings panel**.
+### Why this is worse than an unconfirmed SHA — finding R0-F-007
 
-### 3. SQL
+A `railway up` CLI deployment **uploads a local working directory**. It carries no git
+provenance by construction. Three consequences follow, and they are facts about the method,
+not speculation:
 
-Not applicable.
+1. **The running artifact may not correspond to any commit in this repository.** A CLI deploy
+   captures whatever was in that directory — which may have included uncommitted, unstaged or
+   unpushed changes.
+2. **What is running cannot be reproduced or audited from git.** There is no revision to check
+   out, diff, or review.
+3. **D-021 is contradicted.** The decision record states the service is *"deployed from GitHub
+   `MUA1234/bot_business_Singha`@`main`"*. The active deployment was not. Either the GitHub
+   integration was bypassed for this deploy, or it is not in force — and the record no longer
+   describes reality. This is the same class of defect as PR-F-004: an authoritative document
+   disagreeing with the live system.
 
-### 4. What to paste back
+### What this does NOT change
 
-```
-RAILWAY ACTIVE DEPLOYMENT
-sha:      <short sha>
-deployed: <date/time>
-```
+- The **schema** question (Priority 2) is a fact about the database and is unaffected by how
+  the code was deployed. It remains answerable and is now the priority.
+- The Vercel origin is still `402 DEPLOYMENT_DISABLED`, and inbound WhatsApp remains
+  **unverified** (Priority 3, deferred).
 
-### 5. What it unblocks
+### What it blocks, now firmly
 
-Which fixes are actually live. It gates the **R1-F-001 production hotfix decision** — whether
-the escalation-fallback defect is running in production cannot be judged without knowing the
-deployed commit — and any before/after comparison during R2.
+- **The R1-F-001 hotfix decision cannot be made on evidence.** Whether the
+  escalation-fallback defect is live is unknowable while the running code has no identity.
+  The hotfix stays recorded and uncreated.
+- **Any before/after comparison during R2** has no baseline to compare against.
+- **Case A of the decision tree loses part of its support.** Its "likely" label rested partly
+  on D-021's GitHub-deploy claim, which no longer holds for the active deployment. Priority 2's
+  query is now the *only* evidence that can decide the case.
 
-### 6. Safety
+### The only ways to recover a deployed identity (owner decision, not an action to take now)
 
-**Read-only.** Do **not** click Redeploy, Restart or Rollback, and do not open the Variables
-tab. **Do not paste any environment variable value.**
+None of these should be done without a separate decision; they are listed so the options are
+visible:
+
+- **Redeploy from GitHub** so the running artifact has a commit id again — this *changes
+  production* and is explicitly out of scope here.
+- **Inject the build SHA at build time** and expose it on `/api/health`, so the question can
+  never recur. A CLI deploy from a dirty tree should mark itself dirty rather than claim a
+  clean commit.
+- **Adopt GitHub-sourced deploys only**, matching what D-021 already claims, and correct D-021
+  either way.
+
+Until one is chosen, **"what is running in production" is not a knowable fact**, and every
+plan that depends on it must say so rather than assume.
+
+### For the record — where this was inspected
+
+Railway → project **`singha-central`** → service **`singha-web`** → **Deployments** → the
+entry marked **Active**, expanded. That is the correct place; it simply has no commit id to
+show for a CLI-sourced deployment.
+
+### Nothing further is requested for this gate
+
+There is no value to paste back and no SQL to run. The gate is closed as **inspected and
+unresolvable by inspection**, and it reopens only if the owner chooses one of the recovery
+options above.
+
+**Safety.** The inspection was read-only and no Railway change was made. Should this gate be
+revisited: do **not** click Redeploy, Restart or Rollback, and do **not** open the Variables
+tab or paste any environment variable value.
 
 ---
 
@@ -79,15 +124,24 @@ tab. **Do not paste any environment variable value.**
 ### The unknown fact
 
 `docs/architecture-v2/MIGRATION_STATE.md` — which declares itself the authoritative record —
-states that nothing after migration `0041` was applied to a hosted database. But the deployed
-`main` code **requires migration 0069**: `src/lib/whatsapp-inbound.ts` resolves the inbound
-company from `companies.whatsapp_phone_number_id`, a column only that migration creates.
+states that nothing after migration `0041` was applied to a hosted database.
 
-Exactly one of these is true, and the repository cannot tell which:
+The audit's counter-evidence was that the deployed code *appeared* to require migration 0069
+(`src/lib/whatsapp-inbound.ts` on `main` resolves the inbound company from
+`companies.whatsapp_phone_number_id`, a column only that migration creates). **That argument
+is now weaker, because R0-F-007 established that the running code has no verifiable identity**
+— it may or may not be `main`. The contradiction is no longer "record versus deployed code";
+it is simply "the record is unverified".
+
+This makes the query below **more** important, not less: it is now the *only* evidence about
+the hosted schema that does not depend on knowing what is deployed. Whatever it returns is a
+direct fact about the database.
+
+Two possibilities remain, and the repository cannot tell which:
 
 - **(a)** migrations 0042–0069 *were* applied and the record was never updated; or
-- **(b)** live code is running **ahead of its schema**, in which case inbound company
-  resolution is failing or silently falling back — which touches company attribution.
+- **(b)** the schema really is at `0041`, in which case any deployed code that expects the
+  0069 column is failing or silently falling back — which touches company attribution.
 
 There is a second question layered on top: **two different migrations are numbered `0069`**
 (`main`'s `0069_company_routing_and_catalogue_department.sql` and this line's
@@ -206,11 +260,19 @@ document.** Read `q2`'s markers from Priority 2.
 
 ## CASE A — `main_0069_marker = 1`, `branch_0069_marker = 0`
 
-> **Assessed as the LIKELY case — but this is an inference, not a finding.** It rests on
-> D-021 (Railway deploys from `main`) and on the live site serving `19a8e9d`'s corrected
-> phone number. **Neither proves the database state.** Case A must not be assumed, planned
-> against, or acted on until `q2` returns actual values. Every other case below remains live
-> until then.
+> **Assessed as the LIKELY case — but this is an inference, and its support has WEAKENED.**
+>
+> It originally rested on two things: D-021's statement that Railway deploys from `main`, and
+> the live site serving `19a8e9d`'s corrected phone number. **R0-F-007 has removed the first**
+> — the active deployment came from `railway up` via the CLI, with no commit id and no GitHub
+> source, so "production is running `main`" is no longer supported. The second was only ever a
+> statement about rendered content, and the owner has directed that public fingerprints not be
+> used to infer the deployed revision.
+>
+> **Neither ever proved the database state, and one of the two is now gone.** Case A must not
+> be assumed, planned against, or acted on until `q2` returns actual values. Every other case
+> below remains live until then, and Case C in particular is now relatively more plausible
+> than it was.
 
 Production ran **main's 0069**; the record was merely stale.
 
@@ -272,8 +334,12 @@ anything, and expect to rebuild the ledger by **baseline** rather than by replay
 
 ## Summary
 
-| Gate | Question | Where | Time | Blocks |
+| Gate | Question | Where | Status | Blocks |
 |---|---|---|---|---|
-| **Priority 1** | Which commit is the active Railway deployment? | Railway → `singha-central` → `singha-web` → Deployments | ~1 min | Knowing what is live; the R1-F-001 hotfix decision |
-| **Priority 2** | Which `0069` is applied, and what does the ledger say? | Supabase → SQL Editor | ~2 min | **Every** future migration; R2; selects the decision-tree branch |
-| **Priority 3** | Which host does Meta's webhook name? | *deferred by owner decision* | — | Whether inbound messaging works right now |
+| **Priority 1** | Which commit is the active Railway deployment? | Railway → `singha-central` → `singha-web` → Deployments | **INSPECTED — no commit id exists (R0-F-007).** Recorded UNAVAILABLE / UNVERIFIED | The R1-F-001 hotfix decision; any R2 before/after baseline. **Not closable by inspection** |
+| **Priority 2** | Which `0069` is applied, and what does the ledger say? | Supabase → SQL Editor | **OPEN — ~2 min** | **Every** future migration; R2; selects the decision-tree branch |
+| **Priority 3** | Which host does Meta's webhook name? | *deferred by owner decision* | deferred | Whether inbound messaging works right now |
+
+**Priority 2 is now the only gate answerable by reading a dashboard.** Priority 1 has been
+answered in the only sense available — the answer is that the running deployment has no
+identity — and Priority 3 is deferred by decision.

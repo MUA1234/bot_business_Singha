@@ -138,7 +138,25 @@ select to_regclass('public.channel_accounts')      as channel_accounts_0074,
 
 ---
 
-## R0-2 — Deployed Railway SHA: **BOUNDED, not exact**
+## R0-2 — Deployed Railway SHA: **SUPERSEDED — UNAVAILABLE (R0-F-007)**
+
+> **SUPERSEDED 2026-09-02 by owner inspection.** Everything in this section below the banner
+> is retained as the record of what was reasoned at the time, but its conclusion is WITHDRAWN.
+>
+> The owner inspected the active `singha-web` deployment: source `railway up`, method
+> **CLI**, Active / successful, deployed ~16 hours before inspection, and — after expanding
+> the deployment — **no Git commit SHA and no GitHub source displayed**.
+>
+> **The deployed SHA is recorded as UNAVAILABLE / UNVERIFIED.** The bound "≥ `19a8e9d`" and
+> the reading "consistent with `acc9fbe`/`acd9fbe`" are withdrawn and must not be quoted. A
+> CLI deploy uploads a local working directory and carries no git provenance, so the running
+> artifact may not correspond to any commit in this repository, cannot be reproduced from git,
+> and contradicts D-021's statement that the service deploys from GitHub `main`.
+>
+> See finding **R0-F-007** below and Priority 1 of
+> [12-R0-OWNER-GATE-CHECKLIST.md](12-R0-OWNER-GATE-CHECKLIST.md).
+
+### Original reasoning, retained for the record (conclusion withdrawn)
 
 No Railway API token exists here, so the dashboard could not be read. The application
 exposes no build SHA (PR-F-014), so the revision cannot be read from the running app
@@ -292,6 +310,7 @@ authorised edits.
 | **R0-F-003** | **P1** | The branch line still carries the **wrong public WhatsApp number** (`+94 76 096 3935`) that `main` corrected in `19a8e9d`. A fifth main-only fix the branch would regress. | Added to the R2 port list |
 | **R0-F-004** | **P2** | Deployed SHA bounded to **≥ `19a8e9d`** by public-page fingerprint, consistent with `acd9fbe`; exact confirmation needs the Railway dashboard. | Bounded; PR-F-014 stands |
 | **R0-F-005** | **P1** | **`npm run verify` FAILS on the approved baseline.** `autonomy:audit` rejects requirement **IP-001**: its `last_verified_sha` `c72b2fe` **is not a commit in this repository** (`git cat-file -t c72b2fe` → *not a valid object name*). The register's own evidence rule — a completion status requires a verified SHA — is therefore violated by a record currently marked `locally_verified`. Pre-existing; not introduced by this work. | **OPEN** |
+| **R0-F-007** | **P1** | **The active Railway deployment has NO commit identity.** Owner inspection shows source `railway up`, method CLI, and no Git SHA or GitHub source after expanding the deployment. A CLI deploy uploads a local directory: the running artifact may not correspond to any commit, cannot be reproduced or audited from git, and may contain uncommitted changes. It also **contradicts D-021**, which records the service as deployed from GitHub `main`. PR-F-014 is escalated from *unconfirmed* to **unverifiable by inspection**. | **OPEN — requires an owner decision on deployment provenance** |
 | **R0-F-006** | **P2** | `migration-lint` reports "109 migrations, sequential, no gaps or duplicates" while the cross-line `0069` collision exists. The lint validates one checkout and **cannot detect the collision** — a green result must not be read as "safe to apply". | Recorded; hardening deferred to R1 |
 
 ## R0 completion status
