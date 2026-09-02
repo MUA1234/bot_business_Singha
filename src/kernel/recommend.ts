@@ -14,6 +14,9 @@ import { ACTION_CATALOGUE, actionFor, actionById } from "./catalogue";
 import { assertActionRegistered, assertInternalOnly, InvariantViolation } from "./invariants";
 import { mayInfluenceRecommendation } from "./interpretation";
 import type { Observation } from "./observation";
+import { candidateEvidence } from "./people/candidate";
+import { fact } from "./people/evidence";
+import { resolveCandidates } from "./people/resolve";
 import type { DomainAction, Interpretation } from "./types";
 
 /** What a reviewer may do with a management item. */
@@ -307,25 +310,78 @@ export interface AssigneeCandidate {
   capabilities: readonly string[];
 }
 
+/**
+ * R2B: this now DELEGATES to the one shared candidate-resolution service
+ * (`src/kernel/people/resolve.ts`) instead of filtering inline. The owner requires a single
+ * resolver used by management recommendations, because two implementations of "eligible" is how
+ * two different answers to the same question appear.
+ *
+ * The contract is deliberately unchanged for existing callers. Two mapping notes:
+ *
+ *  - `requiredAuthority` is `automatic` — assignee selection never checked authority, and does
+ *    not start to here. The authority ladder is applied by `buildRecommendation` and the approval
+ *    lifecycle, which is where it belongs; deciding WHO may hold work and WHAT approval the work
+ *    needs are separate questions.
+ *  - `AssigneeCandidate` carries no leave/overload distinction, only a single `available` flag, so
+ *    it maps to `capacityStatus: "healthy"`. That preserves behaviour exactly: an unavailable
+ *    candidate is already excluded by the flag, and no overload signal exists to lose.
+ *
+ * Callers that DO have richer evidence — leave, capacity, verified skills, delegation, provider
+ * compliance — should call `resolveCandidates` directly and get the full explanation.
+ */
 export function selectAssignee(
   candidates: readonly AssigneeCandidate[],
   action: DomainAction,
   companyId: string,
 ): { membershipId: string } | { membershipId: null; reason: string } {
-  const eligible = candidates.filter(
-    (c) =>
-      c.companyId === companyId &&
-      c.active &&
-      c.available &&
-      (action.capability === null || c.capabilities.includes(action.capability)),
+  const evidence = candidates.map((c) =>
+    candidateEvidence(
+      { membershipId: c.membershipId, companyId: c.companyId, candidateType: "staff" },
+      {
+        active: fact(c.active, "verified"),
+        capabilities: fact([...c.capabilities], "verified"),
+        available: fact(
+          {
+            available: c.available,
+            onLeave: !c.available,
+            availableHours: c.availableHours,
+            capacityStatus: "healthy" as const,
+          },
+          "inferred",
+        ),
+      },
+    ),
   );
-  if (eligible.length === 0) {
+
+  const resolution = resolveCandidates(
+    {
+      companyId,
+      department: action.department,
+      taskKind: action.id,
+      roles: ["assignee"],
+      requiredCapability: action.capability,
+      requiredAuthority: "automatic",
+      authorityAmount: null,
+      authorityDomain: null,
+      requiredVerifiedSkills: [],
+      preferredSkills: [],
+      requiredLanguage: null,
+      onDateIso: new Date().toISOString().slice(0, 10),
+      estimateHours: null,
+      now: new Date(),
+    },
+    evidence,
+  );
+
+  if (resolution.outcome === "needs_routing") {
+    // The legacy wording is preserved and the resolver's PRECISE reason is appended, so callers
+    // that match on the old text keep working while humans get the better explanation.
     return {
       membershipId: null,
-      reason: `no active, available member of this company holds ${action.capability ?? "the required capability"}`,
+      reason:
+        `no active, available member of this company holds ${action.capability ?? "the required capability"}` +
+        ` — ${resolution.routing!.detail}`,
     };
   }
-  // Least-loaded first — the same ranking rule the follow-up loop uses.
-  const best = [...eligible].sort((a, b) => b.availableHours - a.availableHours)[0]!;
-  return { membershipId: best.membershipId };
+  return { membershipId: resolution.candidates[0]!.membershipId };
 }
