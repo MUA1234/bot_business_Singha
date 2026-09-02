@@ -845,20 +845,21 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: [WRK-002, WRK-003, CRM-003, AIM-006]
-    status: absent
+    status: implementation_in_progress
+    gap: R2B (bab7ad6) built the shared candidate-resolution service: src/kernel/people/ (evidence, protected, candidate, eligibility, suitability, resolve). Eligibility is company-scoped, capability-gated, authority-checked, leave- and capacity-aware and fails closed; fairness is structural (protected-attribute ALLOWLIST refused at construction; approved leave, overload and missing data excluded as NEUTRAL and never as a mark against a person; no persisted person-level score). The service is BUILT, TESTED and ADVERSARIALLY REVIEWED but is NOT ON A RUNTIME PATH: runManagementCycle creates items with a proposed action and never calls resolveCandidates, so no production code path produces a candidate recommendation. This is why the status is implementation_in_progress and NOT locally_verified. Team formation itself - composing a group rather than ranking individuals - is still absent.
     feature_flag: V3_1_TEAM_FORMATION
     runtime_entrypoint: none
     database_evidence: none
-    service_evidence: src/schemas/v3_1/team-formation.ts (contract only)
+    service_evidence: src/kernel/people/resolve.ts (the one shared resolver; src/kernel/recommend.ts selectAssignee delegates to it); eligibility.ts; suitability.ts; protected.ts; evidence.ts
     ui_evidence: none
-    test_evidence: tests/v3_1-contracts.test.ts
-    security_evidence: none
+    test_evidence: tests/kernel/people-resolve.test.ts (51); tests/kernel/people-adversarial.test.ts (11); tests/integration/r2b-capability-routing.test.ts (live, real memberships/role_permissions/leave_requests)
+    security_evidence: company taken from the authorised request and re-checked per candidate; assertSingleCompany makes a leaking loader loud; identity applied last so supplied evidence cannot override it (R2B-F-002); live tests prove the composite FK makes a cross-company owner unrepresentable and that revoked authority is refused at commit
     audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    last_verified_sha: bab7ad6
+    last_verified_at: 2026-09-02
     owner_gate: flag activation
     blocker: none
-    residual_risks: none
+    residual_risks: LOCAL ONLY - zero staging, zero production. NOT WIRED INTO THE MANAGEMENT CYCLE. No verified-skill source exists anywhere in the schema (F-R2B-2), so work mandating a verified skill yields needs_routing by design. No staff language source exists. Team formation is not implemented.
     verified_local: no
     verified_staging: no
     verified_production: no
@@ -1771,20 +1772,21 @@ requirements:
     phase: stage3
     priority: P2
     dependencies: [IMP-001]
-    status: absent
+    status: implementation_in_progress
+    gap: R2B (bab7ad6) built the deterministic fold that turns recorded feedback into influence: src/kernel/people/learning.ts. The owner explicit bar is MET BY TEST - two candidates identical to every gate rank equal with no history, and the one with confirmed outcomes from three distinct deciders is ordered first, with a reason naming the evidence and the rule version. Guards: promote at 3 outcomes, DEMOTE at 5 (adverse claims need more evidence), 2 distinct deciders minimum, one-outcome-per-decider-per-day anti-poisoning, per-decider weight cap, 90-day half-life, 540-day obsolescence, contradictory history makes NO adjustment. No new table: management_item_transitions and management_item_feedback are already append-only, and a derived signal is a pure fold over them. The service is BUILT, TESTED and ADVERSARIALLY REVIEWED but is NOT ON A RUNTIME PATH: runManagementCycle creates items with a proposed action and never calls resolveCandidates, so no production code path produces a candidate recommendation. This is why the status is implementation_in_progress and NOT locally_verified. Nothing WRITES management_item_feedback at runtime either.
     feature_flag: none
     runtime_entrypoint: none
     database_evidence: none
-    service_evidence: none
+    service_evidence: src/kernel/people/learning.ts (buildSignal, signalLookupFrom, explainSignal); consumed by src/kernel/people/suitability.ts, capped at 0.15 of an ordering value
     ui_evidence: none
-    test_evidence: none
-    security_evidence: none
+    test_evidence: tests/kernel/people-learning.test.ts (27, including the owner measurable-and-explainable bar and a deterministic-rebuild assertion); tests/kernel/people-adversarial.test.ts; tests/integration/r2b-capability-routing.test.ts derives a signal from REAL append-only transitions
+    security_evidence: never learns across companies; refuses AI-authored, system-authored, unattributed and self-verified outcomes; NEVER touches authority or permissions (asserted: a perfect record does not lift anyone over an authority gate or make an ineligible person eligible); emits no field that could carry a pay, discipline or rating meaning
     audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    last_verified_sha: bab7ad6
+    last_verified_at: 2026-09-02
     owner_gate: none
     blocker: none
-    residual_risks: none
+    residual_risks: LOCAL ONLY - zero staging, zero production. NOT WIRED: nothing reads the fold at runtime and nothing writes the feedback it folds. Task-level deadline performance is NOT COMPUTABLE (F-R2B-1): tasks has no completed_at/verified_at/verified_by, so on-time performance is derived only from management_item_transitions and is absent for ordinary tasks.
     verified_local: no
     verified_staging: no
     verified_production: no
@@ -2485,24 +2487,24 @@ requirements:
     phase: recovery-r5
     priority: P1
     dependencies: [AIM-006, WRK-005, WRK-003, CRM-003, CRM-004, FOUND-004]
-    status: absent
-    gap: AIM-006 (team formation and resource recommendation) is specified-not-built and its own residual notes that the observation's involved[] people and suppliers are collected then discarded. WRK-005 is absent. Delegation exists in the authority engine (delegation subset of delegator) but nothing RECOMMENDS a delegate.
+    status: implementation_in_progress
+    gap: R2B (bab7ad6) implemented the three roles as distinct, enforced concepts: an advisor carries NO delegated authority even when the person holds one; an external consultant can never be the accountable assignee, receives NO internal capability and carries internalAccess false by type AND runtime assertion; a delegate requires scope, start and expiry. R2B-F-001 was FOUND and closed for routing: delegationPermits never checked the delegation against the DELEGATOR own authority, so a manager with a 50,000 ceiling could grant 5,000,000. src/kernel/people/delegation-scope.ts caps the effective ceiling at the LOWER of the two and refuses onward re-delegation. The service is BUILT, TESTED and ADVERSARIALLY REVIEWED but is NOT ON A RUNTIME PATH: runManagementCycle creates items with a proposed action and never calls resolveCandidates, so no production code path produces a candidate recommendation. This is why the status is implementation_in_progress and NOT locally_verified.
     feature_flag: none
     runtime_entrypoint: none
     database_evidence: none
-    service_evidence: none
-    ui_evidence: none
-    test_evidence: none
-    security_evidence: none
+    service_evidence: src/kernel/people/delegation-scope.ts (delegator-ceiling and scope checks); src/kernel/people/roles.ts (role boundaries, asserted not filtered); src/kernel/people/resolve.ts
+    ui_evidence: src/components/spatial/panels/ManagementQueuePanelContent.tsx renders the three roles with distinct wording; tests/spatial/management-queue-candidates.test.tsx (22)
+    test_evidence: tests/kernel/people-roles.test.ts (33)
+    security_evidence: a delegation may never exceed the delegator (R2B-F-001); no currency conversion; unscoped delegation refused; expiry exclusive; recommendation grants no capability and no access
     audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    last_verified_sha: bab7ad6
+    last_verified_at: 2026-09-02
     authority_restrictions: A recommended delegate must already be within the delegator's own authority (delegation is a subset, never an expansion); engaging an external provider is an external commitment and always requires human approval under D-9.
     privacy_restrictions: Recommendation reasons exposed to a requester must not disclose another person's private coaching, health or personal circumstances.
     acceptance_scenarios: A delegate recommendation outside the delegator's authority is refused with a reason; an external-consultant recommendation surfaces compliance and insurance status from CRM-005 and is blocked for a non-compliant provider; every recommendation carries its evidence and can be overridden with a recorded reason.
     owner_gate: phase gate — not authorised before R5
     blocker: WRK-003 verified skills are a prerequisite input
-    residual_risks: Recommending from unverified skill data produces confident, wrong suggestions; WRK-003 must be real first.
+    residual_risks: LOCAL ONLY - zero staging, zero production. NOT WIRED INTO THE MANAGEMENT CYCLE. R2B-F-001 IS FIXED FOR ROUTING ONLY: the financial-approval call site (src/policy/authority.ts via delegationPermits) STILL honours a delegation that exceeds the delegator. That path was left unchanged deliberately - silently altering what approves a payment is outside R2B - and REQUIRES AN OWNER DECISION.
     verified_local: no
     verified_staging: no
     verified_production: no

@@ -11,11 +11,11 @@ Generated at: 2026-09-02
 | Status | Count |
 |---|---|
 | locally_verified | 63 |
-| absent | 26 |
+| absent | 23 |
 | blocked_owner | 6 |
+| implementation_in_progress | 5 |
 | specified | 5 |
 | deliberately_deferred | 4 |
-| implementation_in_progress | 2 |
 | foundation_only | 2 |
 | implemented_unverified | 2 |
 
@@ -126,7 +126,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | GTD-002 | CCTV capability (future owner-gated) | P3 | **deliberately_deferred** | none | none | OWNER GATE — notices, retention policy and legal review; NOT authorised |
 | GTD-003 | Attendance device integration (future owner-gated) | P3 | **deliberately_deferred** | none | none | OWNER GATE — notices, retention policy and legal review; NOT authorised |
 | IMP-001 | Outcome recording against recommendations | P1 | **absent** | none | none | — |
-| IMP-002 | Staff feedback and lessons learned | P2 | **absent** | none | none | — |
+| IMP-002 | Staff feedback and lessons learned | P2 | **implementation_in_progress** | none | bab7ad6 | — |
 | IMP-003 | Versioned playbooks and prompt/evaluation improvement with human approval | P1 | **absent** | none | none | private repository/package decision for proprietary playbooks |
 | INT-001 | Integration Gateway and connector registry | P1 | **locally_verified** | src/app/app/admin/integrations/page.tsx | 4b5bbb3 | — |
 | IP-001 | Public-repository IP boundary | P1 | **locally_verified** | scripts/autonomy/check-ip-boundary.mjs | f86eb97 | decision on a private repository or package for proprietary prompts and evaluation data |
@@ -179,9 +179,9 @@ operating-mode claim that depends on it. Blocked is not done.
 | WRK-002 | Current and future workload with historical capacity | P1 | **locally_verified** | src/app/app/hr/capacity/page.tsx | 56dcee2 | — |
 | WRK-003 | Skills, certifications and expiry | P1 | **locally_verified** | src/app/app/hr/staff/page.tsx; src/app/app/hr/staff/[id]/page.tsx | 1b494e6 | — |
 | WRK-004 | Strengths, development needs and coaching | P2 | **absent** | none | none | privacy review of private-versus-manager-visible coaching |
-| WRK-005 | Fair assignment and internal/external team formation | P1 | **absent** | none | none | flag activation |
+| WRK-005 | Fair assignment and internal/external team formation | P1 | **implementation_in_progress** | none | bab7ad6 | flag activation |
 | WRK-006 | Explainability and fairness in people analytics | P0 | **absent** | none | none | OWNER GATE — privacy review of the private-versus-manager-visible model (inherited from WRK-004) |
-| WRK-007 | Advisor, delegate and external-consultant recommendation | P1 | **absent** | none | none | phase gate — not authorised before R5 |
+| WRK-007 | Advisor, delegate and external-consultant recommendation | P1 | **implementation_in_progress** | none | bab7ad6 | phase gate — not authorised before R5 |
 
 ## Groups not yet expanded into individual records
 
