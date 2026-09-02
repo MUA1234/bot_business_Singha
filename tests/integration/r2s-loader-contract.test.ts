@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { runManagementCycle, type CycleDeps } from "@/kernel/cycle";
-import { makeCycleDeps } from "@/kernel/cycle-deps";
+import { makeCycleDeps, LOADER_ROW_CAP } from "@/kernel/cycle-deps";
 import { pgSupabase } from "./helpers/pg-supabase";
 import {
   FINANCE_SOURCE, WORKFORCE_SOURCE, OPERATIONS_SOURCE, CRM_SOURCE, SYSTEM_SOURCE,
@@ -741,15 +741,29 @@ describe.skipIf(!enabled)("loader contract and semantic integrity — twelve dom
       expect(rows[0].n).toBe(0);
     });
 
-    it("a LARGE dataset is bounded rather than unbounded", async () => {
-      // The loaders cap at 500 rows. Proving the cap exists matters more than its exact value:
-      // an unbounded scan on a real company is an outage, not a slow query.
-      const before = ((await deps.loadFor(OPERATIONS_SOURCE, CO)) as any[]).length;
-      const values = Array.from({ length: 60 }, (_, i) => `($1,'bulk ${i}','in_progress','2026-01-01')`).join(",");
-      await q(`insert into tasks (company_id, title, status, due_date) values ${values}`, [CO]);
-      const after = ((await deps.loadFor(OPERATIONS_SOURCE, CO)) as any[]).length;
-      expect(after).toBeGreaterThan(before);
-      expect(after).toBeLessThanOrEqual(500);
+    it("R2S-F-008 — a TRUNCATED read is reported, never silently partial", async () => {
+      // A bounded read is deliberate. A SILENT bounded read is the defect: a company with more
+      // rows than the cap in one domain had the remainder read as though it did not exist, and
+      // the cycle still reported "completed" — the queue looks calm because the system did not
+      // finish looking.
+      const values = Array.from(
+        { length: 520 },
+        (_, i) => "($1,'cap " + i + "','in_progress','2026-01-01')",
+      ).join(",");
+      await q("insert into tasks (company_id, title, status, due_date) values " + values, [CO]);
+
+      const summary = await cycle();
+      expect(summary.truncatedSources).toContain(OPERATIONS_SOURCE);
+      expect(summary.status).toBe("partial");
+      expect(summary.failureReason).toMatch(/row cap reached/);
+    });
+
+    it("the row cap HOLDS — a bounded read is never an unbounded scan", async () => {
+      // The previous version of this test asserted that inserting more rows returned more
+      // rows, which is only true until the cap is actually reached. It measured the absence
+      // of a limit rather than the presence of one.
+      const rows = (await deps.loadFor(OPERATIONS_SOURCE, CO)) as any[];
+      expect(rows.length).toBeLessThanOrEqual(LOADER_ROW_CAP);
     });
 
     it("a DATABASE ERROR marks the domain unobserved and is never reported as all-clear", async () => {

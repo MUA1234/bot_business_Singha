@@ -11,6 +11,7 @@
  */
 import { randomUUID } from "node:crypto";
 import Decimal from "decimal.js";
+import { iso, isoDate } from "./temporal";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { writeAudit } from "@/lib/audit";
 import {
@@ -33,39 +34,30 @@ import type { AuthorityContext } from "@/policy/authority-engine";
 // eslint-disable-next-line
 type Db = any;
 
-/**
- * Normalise a temporal column to an ISO string — DEFECT R2S-F-005.
- *
- * `pg` returns `date` and `timestamptz` columns as JavaScript Date objects, while every adapter
- * declares those fields as `string | null`. Six loaders returned raw rows, so the detectors were
- * handed Dates: `Date.parse` happens to coerce them, but `.slice(0, 10)` yields undefined and an
- * ISO comparison compares "Mon Sep 02 2026 …" against "2026-09-02". The result is a detector that
- * quietly produces NOTHING — the same failure mode as a missing column, and just as silent.
- *
- * Returns null for an absent or unreadable value rather than a fabricated date.
- */
-const iso = (v: unknown): string | null => {
-  if (v === null || v === undefined) return null;
-  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v.toISOString();
-  const t = Date.parse(String(v));
-  return Number.isNaN(t) ? null : new Date(t).toISOString();
-};
-
-/** Same, but for a DATE column where the calendar day is the meaning and the time is noise. */
-const isoDate = (v: unknown): string | null => {
-  const full = iso(v);
-  return full === null ? null : full.slice(0, 10);
-};
-
 const rowsOf = async (run: Promise<{ data: unknown; error: unknown }>): Promise<any[]> => {
   const { data, error } = await run;
   if (error) throw new Error((error as { message?: string }).message ?? "read failed");
   return (data ?? []) as any[];
 };
 
+/** The per-source row cap. Bounded reads are deliberate; SILENT bounded reads are the defect. */
+export const LOADER_ROW_CAP = 500;
+
 export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => new Date()): CycleDeps {
+  // Sources whose read hit the cap. Reset at the start of each loadFor sweep by the cycle asking
+  // for them only once, at the end — see CycleDeps.truncatedSources.
+  const truncated = new Set<string>();
+
+  /** Record a source as truncated when its read came back exactly at the cap. */
+  const capped = <T>(source: string, rows: T[]): T[] => {
+    if (rows.length >= LOADER_ROW_CAP) truncated.add(source);
+    return rows;
+  };
+
   return {
     now,
+
+    truncatedSources: () => [...truncated].sort(),
 
     async isCompanyEnabled(companyId) {
       const { data, error } = await db
@@ -544,7 +536,9 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
      * Per-source loaders. Company-scoped, column-minimal, bounded.
      */
     async loadFor(source, companyId) {
-      const limit = 500;
+      const limit = LOADER_ROW_CAP;
+      // A fresh sweep of this source: whatever it reported last time is not evidence now.
+      truncated.delete(source);
       switch (source) {
         case FINANCE_SOURCE: {
           // ── CONTRACT ────────────────────────────────────────────────────────────────────
@@ -589,6 +583,7 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
             if (!prev || at > prev) lastPaidAt.set(a.target_id, at);
           }
 
+          capped(source, rows);
           return rows.map((r) => ({
             id: r.id,
             due_date: isoDate(r.due_date),
@@ -633,6 +628,7 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
             if (a > b) latest.set(r.membership_id, r);
           }
 
+          capped(source, rows);
           return [...latest.values()].map((r) => ({
             snapshotId: r.id,
             membershipId: r.membership_id,
@@ -650,6 +646,7 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
               .select("id, title, status, due_date, estimate_hours, updated_at")
               .eq("company_id", companyId).limit(limit),
           );
+          capped(source, rows);
           return rows.map((r) => ({
             id: r.id,
             // The title is loaded because the detector's type requires it; the ADAPTER
@@ -707,6 +704,7 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
             if (!prev || at > prev) lastOut.set(m.conversation_id, at);
           }
 
+          capped(source, rows);
           return rows.map((r) => ({
             id: r.id,
             last_inbound_at: iso(r.last_inbound_at),
@@ -750,6 +748,7 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
               .select("id, status, response_required_by, escalation_chain, escalation_level, acknowledged_at, updated_at")
               .eq("company_id", companyId).limit(limit),
           );
+          capped(source, rows);
           return rows.map((r) => ({
             id: r.id,
             status: r.status,
@@ -766,6 +765,7 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
               .select("id, target_value, current_value, period_start, period_end, status")
               .eq("company_id", companyId).limit(limit),
           );
+          capped(source, rows);
           return rows.map((r) => ({
             id: r.id,
             target_value: r.target_value,
@@ -781,6 +781,7 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
               .select("id, status, audience_id, sent_count, created_at")
               .eq("company_id", companyId).limit(limit),
           );
+          capped(source, rows);
           return rows.map((r) => ({
             id: r.id,
             status: r.status,
@@ -795,6 +796,7 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
               .select("id, quantity_on_hand, reorder_level, created_at")
               .eq("company_id", companyId).limit(limit),
           );
+          capped(source, rows);
           return rows.map((r) => ({
             id: r.id,
             quantity_on_hand: r.quantity_on_hand,
@@ -808,6 +810,7 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
               .select("id, vehicle_id, doc_type, expiry_date, created_at")
               .eq("company_id", companyId).limit(limit),
           );
+          capped(source, rows);
           return rows.map((r) => ({
             id: r.id,
             vehicle_id: r.vehicle_id ?? null,
@@ -825,6 +828,7 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
             rowsOf(db.from("insurances").select("id, expiry_date, status").eq("company_id", companyId).limit(limit)).catch(() => []),
             rowsOf(db.from("obligations").select("id, due_date, status").eq("company_id", companyId).limit(limit)).catch(() => []),
           ]);
+          for (const part of [licences, contracts, insurances, obligations]) capped(source, part);
           return [
             ...licences.map((r) => ({ id: r.id, kind: "licence", due_date: isoDate(r.expiry_date), status: r.status })),
             ...contracts.map((r) => ({ id: r.id, kind: "contract", due_date: isoDate(r.end_date), status: r.status })),
@@ -838,6 +842,7 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
               .select("id, status, compliance_status, insurance_status, insurance_expiry, updated_at")
               .eq("company_id", companyId).limit(limit),
           );
+          capped(source, rows);
           return rows.map((r) => ({
             id: r.id,
             status: r.status,

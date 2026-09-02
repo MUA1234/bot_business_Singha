@@ -69,6 +69,11 @@ export interface CycleSummary {
   itemsNeedingRouting: number;
   /** Departments whose adapter failed. A cycle with any of these can never be `completed`. */
   unobservedDepartments: Department[];
+  /**
+   * Sources whose read hit the row cap, so the domain was only PARTLY looked at. Never silent:
+   * a truncated sweep cannot be reported as `completed`.
+   */
+  truncatedSources: string[];
   failureReason: string | null;
   durationMs: number;
 }
@@ -100,6 +105,15 @@ export interface CycleDeps {
   loadCandidates?(companyId: string): Promise<readonly CandidateEvidence[]>;
   /** Verified outcome history for the same company, folded into a task-specific signal. */
   loadSignals?(companyId: string): Promise<SignalLookup>;
+  /**
+   * Sources whose read hit the row cap during this cycle (defect R2S-F-008).
+   *
+   * Every loader is a bounded full scan. A company with more rows than the cap in one domain was
+   * having the remainder read as though it did not exist — a SILENT partial observation, which is
+   * the same class of failure as a broken loader: the queue looks calm because the system did not
+   * finish looking. Reported so the cycle can say so.
+   */
+  truncatedSources?(): readonly string[];
   /** Records the run. Called for cycles that actually RAN — never for a disabled one. */
   recordRun(summary: CycleSummary, actorId: string | null): Promise<void>;
   /** Company authority context for the existing authority engine. */
@@ -416,6 +430,7 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     observationsRejected: 0,
     recommendationsRecorded: 0,
     itemsNeedingRouting: 0,
+    truncatedSources: [],
     unobservedDepartments: [],
     failureReason: null,
     durationMs: 0,
@@ -580,10 +595,24 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     }
 
     // 13. A cycle that did not observe everything it registered is PARTIAL, never complete.
+    //     A TRUNCATED read counts: looking at the first 500 rows of a domain and reporting
+    //     "completed" claims a sweep that did not happen.
+    summary.truncatedSources = [...(deps.truncatedSources?.() ?? [])];
     summary.status =
-      summary.sourcesFailed > 0 || summary.unobservedDepartments.length > 0 ? "partial" : "completed";
+      summary.sourcesFailed > 0 ||
+      summary.unobservedDepartments.length > 0 ||
+      summary.truncatedSources.length > 0
+        ? "partial"
+        : "completed";
     if (summary.status === "partial") {
-      summary.failureReason = `unobserved: ${summary.unobservedDepartments.join(", ")}`;
+      const parts: string[] = [];
+      if (summary.unobservedDepartments.length > 0) {
+        parts.push(`unobserved: ${summary.unobservedDepartments.join(", ")}`);
+      }
+      if (summary.truncatedSources.length > 0) {
+        parts.push(`truncated (row cap reached): ${summary.truncatedSources.join(", ")}`);
+      }
+      summary.failureReason = parts.join("; ") || "incomplete sweep";
     }
     return await finish(summary);
   } catch (e) {
