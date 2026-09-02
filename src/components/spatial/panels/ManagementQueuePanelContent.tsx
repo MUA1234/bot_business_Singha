@@ -86,6 +86,27 @@ export interface QueueRecommendation {
   signalRuleVersion: string;
 }
 
+/**
+ * One recorded piece of human feedback (R2B, owner Decision 3).
+ *
+ * Deliberately NOT shown: the derived learning signal itself. A manager may see WHAT WAS
+ * RECORDED — which is evidence they can dispute — but the fold's output is not a number about a
+ * person that belongs on a queue row, and displaying it would recreate the universal rank by
+ * another route. The ordering rule version is shown instead, so a suggestion can be challenged.
+ */
+export interface QueueFeedbackEntry {
+  id: string;
+  event: string;
+  /** Who recorded it. Never rendered as a judgement of them. */
+  actorLabel: string;
+  at: string;
+  reason: string | null;
+  /** Bounded, and rendered as TEXT — never as markup. */
+  comment: string | null;
+  /** Set when a later correction supersedes this entry. The entry is still shown. */
+  supersededByCorrection: boolean;
+}
+
 export interface QueueItem {
   id: string;
   department: string;
@@ -110,6 +131,16 @@ export interface QueueItem {
   timeline: Array<{ at: string; from: string | null; to: string; actorType: string; reason: string | null }>;
   /** Absent when no resolution has been run for this item — distinct from "nobody suitable". */
   recommendation?: QueueRecommendation | null;
+  /** Append-only human feedback recorded against this item, oldest first. */
+  feedback?: QueueFeedbackEntry[];
+  /**
+   * May the current viewer record feedback and accept or reject a suggestion?
+   *
+   * Controls are HIDDEN rather than shown-and-refused when false: offering a person a button
+   * that will always fail is worse than not offering it, and the private learning inputs behind
+   * it are not theirs to see.
+   */
+  viewerMayDecide?: boolean;
 }
 
 export interface ManagementQueueData {
@@ -401,6 +432,7 @@ function CandidateSection({ item }: { item: QueueItem }) {
     return (
       <div className="mq-candidates" data-testid="mq-candidates-none-run">
         <p className="muted">No capability recommendation has been run for this item.</p>
+        <FeedbackHistory entries={item.feedback ?? []} mayDecide={item.viewerMayDecide !== false} />
       </div>
     );
   }
@@ -422,7 +454,8 @@ function CandidateSection({ item }: { item: QueueItem }) {
           )}
         </div>
         <MissingList items={rec.missingInformation} testId="mq-candidates-missing" />
-        <HumanOverride itemId={item.id} label="Assign someone" />
+        <HumanOverride itemId={item.id} label="Assign someone" mayDecide={item.viewerMayDecide !== false} />
+        <FeedbackHistory entries={item.feedback ?? []} mayDecide={item.viewerMayDecide !== false} />
       </div>
     );
   }
@@ -548,7 +581,13 @@ function CandidateSection({ item }: { item: QueueItem }) {
         </p>
       </details>
 
-      <HumanOverride itemId={item.id} label="Choose someone else" />
+      <HumanOverride
+        itemId={item.id}
+        label="Choose someone else"
+        mayDecide={item.viewerMayDecide !== false}
+        showAcceptReject
+      />
+      <FeedbackHistory entries={item.feedback ?? []} mayDecide={item.viewerMayDecide !== false} />
     </div>
   );
 }
@@ -572,9 +611,48 @@ function MissingList({ items, testId }: { items: string[]; testId: string }) {
  * The override. It is ALWAYS present, on every state, and it is a link to the review surface —
  * this panel performs nothing. The wording states the rule rather than implying it.
  */
-function HumanOverride({ itemId, label }: { itemId: string; label: string }) {
+/**
+ * The human decision controls.
+ *
+ * Every one is a LINK to the review surface. The panel performs nothing — it emits no form and
+ * no submit control — so a recommendation cannot be accepted by a stray click on a read-only
+ * queue, and the decision is always recorded through the authenticated feedback path.
+ */
+function HumanOverride({
+  itemId, label, mayDecide = true, showAcceptReject = false,
+}: { itemId: string; label: string; mayDecide?: boolean; showAcceptReject?: boolean }) {
+  if (!mayDecide) {
+    return (
+      <div className="mq-actions" data-testid="mq-no-decision-rights">
+        <span className="muted">
+          You can see this recommendation but may not act on it. Ask someone with the operations
+          capability to accept, reject or reassign it.
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="mq-actions">
+      {showAcceptReject && (
+        <>
+          <a
+            className="btn mq-touch-target"
+            href={`/app/command/queue/${itemId}/accept`}
+            data-action="accept-recommendation"
+            data-testid="mq-accept"
+          >
+            Accept suggestion
+          </a>
+          <a
+            className="btn mq-touch-target"
+            href={`/app/command/queue/${itemId}/reject`}
+            data-action="reject-recommendation"
+            data-testid="mq-reject"
+          >
+            Reject suggestion
+          </a>
+        </>
+      )}
       <a
         className="btn mq-touch-target"
         href={`/app/command/queue/${itemId}/assign`}
@@ -587,5 +665,40 @@ function HumanOverride({ itemId, label }: { itemId: string; label: string }) {
         Suggestions only — the assignment is yours to make.
       </span>
     </div>
+  );
+}
+
+/** Human feedback already recorded, oldest first. Evidence a manager can dispute. */
+function FeedbackHistory({ entries, mayDecide }: { entries: QueueFeedbackEntry[]; mayDecide: boolean }) {
+  if (!mayDecide) return null;
+  if (entries.length === 0) {
+    return (
+      <p className="muted" data-testid="mq-feedback-empty">
+        No outcome or feedback has been recorded for this item yet.
+      </p>
+    );
+  }
+  return (
+    <details className="mq-feedback">
+      <summary className="mq-touch-target">Feedback and outcomes ({entries.length})</summary>
+      <ol data-testid="mq-feedback-list">
+        {entries.map((f) => (
+          <li key={f.id} data-testid="mq-feedback-entry" data-event={f.event}>
+            <span className="t-label">{f.at}</span>{" "}
+            <strong>{f.event.replace(/_/g, " ")}</strong>{" "}
+            <span className="muted">by {f.actorLabel}</span>
+            {f.supersededByCorrection && (
+              <span className="mq-superseded" data-testid="mq-feedback-superseded">
+                {" "}
+                — later corrected; kept for the record
+              </span>
+            )}
+            {f.reason && <div className="muted">{f.reason}</div>}
+            {/* Rendered as TEXT. React escapes it; it is never inserted as markup. */}
+            {f.comment && <div className="mq-comment">{f.comment}</div>}
+          </li>
+        ))}
+      </ol>
+    </details>
   );
 }

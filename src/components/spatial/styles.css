@@ -992,6 +992,11 @@
 .mq-verified { color: var(--ok, inherit); }
 .mq-unverified { color: var(--muted); font-style: italic; }
 .mq-missing { margin-top: var(--sp-2); }
+.mq-feedback { min-width: 0; margin-top: var(--sp-2); }
+.mq-feedback ol { margin: var(--sp-2) 0 0; padding-left: var(--sp-4); min-width: 0; }
+/* A comment is written by a person: it wraps, it never overflows, and it is always text. */
+.mq-comment { overflow-wrap: anywhere; white-space: pre-wrap; }
+.mq-superseded { color: var(--muted); font-style: italic; }
 .mq-missing ul { margin: var(--sp-1) 0 0; padding-left: var(--sp-4); min-width: 0; }
 .mq-candidate a:focus-visible, .mq-candidate summary:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px;

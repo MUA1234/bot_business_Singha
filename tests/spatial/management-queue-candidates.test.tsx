@@ -13,6 +13,7 @@ import {
   type ManagementQueueData,
   type QueueCandidate,
   type QueueItem,
+  type QueueFeedbackEntry,
   type QueueRecommendation,
 } from "@/components/spatial/panels/ManagementQueuePanelContent";
 
@@ -280,5 +281,113 @@ describe("existing behaviour is unchanged", () => {
     const html = render(item({}));
     expect(html).toContain('data-testid="mq-item"');
     expect(html).toContain('data-testid="mq-candidates-none-run"');
+  });
+});
+
+describe("human accept, override and reject controls (R2B Decision 3)", () => {
+  const withRec = (over: Partial<QueueItem> = {}) =>
+    item({ recommendation: recommendation(), ...over });
+
+  it("offers ACCEPT, REJECT and OVERRIDE when a suggestion exists", () => {
+    const html = render(withRec());
+    expect(html).toContain('data-testid="mq-accept"');
+    expect(html).toContain('data-testid="mq-reject"');
+    expect(html).toContain('data-testid="mq-human-override"');
+  });
+
+  it("offers only an override when NOBODY is suitable — there is nothing to accept", () => {
+    const html = render(withRec({
+      recommendation: recommendation({
+        outcome: "needs_routing", candidates: [],
+        routing: { department: "finance", reasonCode: "capability_missing", detail: "nobody holds it" },
+      }),
+    }));
+    expect(html).toContain('data-testid="mq-human-override"');
+    expect(html).not.toContain('data-testid="mq-accept"');
+  });
+
+  it("every control is a LINK — the panel still performs nothing", () => {
+    const html = render(withRec());
+    expect(html).toContain('href="/app/command/queue/item-1/accept"');
+    expect(html).toContain('href="/app/command/queue/item-1/reject"');
+    expect(html).toContain('href="/app/command/queue/item-1/assign"');
+    expect(html).not.toContain("<form");
+    expect(html).not.toContain('type="submit"');
+    expect(html).not.toContain("<button");
+  });
+
+  it("HIDES the controls and the history from a viewer who may not decide", () => {
+    const html = render(withRec({ viewerMayDecide: false, feedback: [feedbackEntry()] }));
+    expect(html).toContain('data-testid="mq-no-decision-rights"');
+    expect(html).not.toContain('data-testid="mq-accept"');
+    expect(html).not.toContain('data-testid="mq-human-override"');
+    // Private learning inputs are not theirs to see.
+    expect(html).not.toContain('data-testid="mq-feedback-list"');
+    expect(html).not.toContain("slow to respond");
+  });
+});
+
+const feedbackEntry = (over: Partial<QueueFeedbackEntry> = {}): QueueFeedbackEntry => ({
+  id: "f1",
+  event: "outcome_successful",
+  actorLabel: "R. Fernando",
+  at: "2026-09-02T10:00:00Z",
+  reason: "confirmed by re-observation",
+  comment: null,
+  supersededByCorrection: false,
+  ...over,
+});
+
+describe("feedback and outcome history", () => {
+  it("lists what was recorded, oldest first, with who and when", () => {
+    const html = render(item({
+      recommendation: recommendation(),
+      feedback: [feedbackEntry(), feedbackEntry({ id: "f2", event: "recommendation_rejected" })],
+    }));
+    expect(html).toContain("Feedback and outcomes (2)");
+    expect(html).toContain("outcome successful");
+    expect(html).toContain("R. Fernando");
+    expect(html).toContain("2026-09-02T10:00:00Z");
+  });
+
+  it("keeps a superseded entry VISIBLE and marked, never deleted", () => {
+    const html = render(item({
+      recommendation: recommendation(),
+      feedback: [feedbackEntry({ supersededByCorrection: true, reason: "slow to respond" })],
+    }));
+    expect(html).toContain("later corrected; kept for the record");
+    expect(html).toContain("slow to respond");
+  });
+
+  it("renders a comment as TEXT — markup is escaped, never injected", () => {
+    const html = render(item({
+      recommendation: recommendation(),
+      feedback: [feedbackEntry({ comment: "<img src=x onerror=alert(1)>" })],
+    }));
+    expect(html).not.toContain("<img src=x");
+    expect(html).toContain("&lt;img");
+  });
+
+  it("says so plainly when nothing has been recorded", () => {
+    const html = render(item({ recommendation: recommendation(), feedback: [] }));
+    expect(html).toContain("No outcome or feedback has been recorded");
+  });
+
+  it("shows history even when no recommendation was ever run", () => {
+    const html = render(item({ feedback: [feedbackEntry()] }));
+    expect(html).toContain("No capability recommendation has been run");
+    expect(html).toContain("Feedback and outcomes (1)");
+  });
+
+  it("does NOT display the derived learning signal itself", () => {
+    const html = render(item({
+      recommendation: recommendation(),
+      feedback: [feedbackEntry()],
+    }));
+    // What was RECORDED is disputable evidence; the fold's output is a number about a person
+    // and would recreate the universal rank by another route.
+    for (const w of ["weightedSuccessRate", "successRate", "outcomeCount", "confirmedOutcome"]) {
+      expect(html).not.toContain(w);
+    }
   });
 });
