@@ -19,10 +19,10 @@ condition that does not decay* (freshness unknown, never suppressed). Both are t
 
 | Domain | Table(s) | `updated_at`? | Cursor type | Freshness type |
 |---|---|---|---|---|
-| **operations** | `tasks` | ✅ | **2** — keyset on `(updated_at, id)` | mutable record |
-| **governance** | `management_directives` | ✅ | **2** — keyset on `(updated_at, id)` | mutable record |
+| **operations** | `tasks` | ✅ | **2** — keyset on `(updated_at, id)` | **5** — overdue/blocked are stored conditions, do not decay (corrected, R2S-P-F-004) |
+| **governance** | `management_directives` | ✅ | **2** — keyset on `(updated_at, id)` | **5** — an unacknowledged directive is a stored condition (corrected, R2S-P-F-004) |
 | **providers** | `service_providers` | ✅ | **2** — keyset on `(updated_at, id)` | **5** — stored status, does not decay |
-| **crm** | `wa_conversations` | ✅ | **2** — keyset on `(updated_at, id)` | mutable record |
+| **crm** | `wa_conversations` | ✅ | **2** — keyset on `(updated_at, id)` | **5** — "waiting for a reply" is derived from stored timestamps (corrected, R2S-P-F-004) |
 | **crm** (outbound) | `wa_messages` | append-only | **1** — append with monotonic `created_at` | event evidence |
 | **finance** | `customer_invoices` | ❌ | **3** — bounded continuing sweep on `id` | **5** — overdue is a stored date condition |
 | **objectives** | `objectives` | ❌ | **3** — sweep on `id` | **5** |
@@ -38,21 +38,49 @@ condition that does not decay* (freshness unknown, never suppressed). Both are t
 
 ### Type 2 — keyset on `(updated_at, id)`, with an overlap
 
+A **compound** cursor, because `updated_at` is not unique: one bulk insert gives hundreds of
+rows a single timestamp, and a bare timestamp boundary is then either ambiguous or unable to
+move.
+
+The row-value comparison `(updated_at, id) > ($at, $id)` cannot be expressed as one filter
+through this client, so it is composed from the two ordinary filters that are equivalent to it:
+
+```
+-- 1. the REST of the current timestamp group
+where company_id = $1 and updated_at = $cursorUpdatedAt and id > $cursorId
+order by id limit $pageSize
+
+-- 2. then everything strictly after that timestamp
+where company_id = $1 and updated_at > $cursorUpdatedAt
+order by updated_at, id limit $remaining
+```
+
+Progress is guaranteed: each page either drains part of a tie group by `id` or steps past the
+timestamp entirely, so a tie group larger than a page cannot stall the sweep.
+
+**Overlap.** A writer whose transaction commits after a later-timestamped one has already been
+read would otherwise fall permanently behind the cursor — the classic late-writer loss. So the
+preceding `OVERLAP_MS` (60 s) is re-read, as a **separate bounded query that never moves the
+cursor**:
+
 ```
 where company_id = $1
-  and (updated_at, id) > ($cursorUpdatedAt, $cursorId)
-order by updated_at, id
-limit $pageSize
+  and updated_at >= $cursorUpdatedAt - 60s and updated_at < $cursorUpdatedAt
+order by updated_at, id limit 50
 ```
 
-A **compound** cursor, because `updated_at` is not unique: two rows written in the same
-millisecond would otherwise make the boundary ambiguous and one of them would be skipped forever.
+Duplicates are absorbed by identity-key deduplication in `ingest`, which is what that mechanism
+is for.
 
-**Overlap.** On resuming, the cursor is rewound by `OVERLAP_MS` (60 s) before it is used. A writer
-whose transaction commits after a later-timestamped one has already been read would otherwise fall
-permanently behind the cursor — the classic late-writer loss. Re-reading a minute of rows is
-cheap; losing one silently is not. Duplicates from the overlap are absorbed by the existing
-identity-key deduplication in `ingest`, which is what that mechanism is for.
+> **Corrected during checkpoint 6 (R2S-P-F-001).** This originally rewound the CURSOR itself by
+> the overlap before reading. Whenever more than one page of rows shared the overlap window —
+> any bulk write — every page then re-read the same first rows and the sweep never advanced.
+> 499 seeded tasks yielded 200 observed, unchanged across 30 cycles, while the cycle went on
+> reporting `hasMore`. A look-back must never be the progress bound.
+
+**Precision.** The boundary is carried EXACTLY as the database returned it. PostgreSQL stores
+microseconds; rounding the cursor to millisecond precision makes `updated_at = $cursor` match
+nothing, and the tie group is never drained (R2S-P-F-002).
 
 ### Type 3 — bounded continuing sweep on `id`
 

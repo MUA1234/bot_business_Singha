@@ -102,6 +102,15 @@ export async function POST(req: Request): Promise<Response> {
       observationsSkipped: summary.observationsSkipped,
       observationsRejected: summary.observationsRejected,
       unobservedDepartments: summary.unobservedDepartments,
+      truncatedSources: summary.truncatedSources,
+      cursorCommitFailed: summary.cursorCommitFailed,
+      // R2S-P: a partial cycle says WHAT it read and WHERE it resumes, so a caller can never
+      // mistake "I have more to read" for "nothing needs attention".
+      recordsInspected: summary.recordsInspected,
+      pagesProcessed: summary.pagesProcessed,
+      continuation: summary.continuation,
+      budgetExhausted: summary.budgetExhausted,
+      resolutionPermitted: summary.resolutionPermitted,
       failureReason: summary.failureReason,
       durationMs: summary.durationMs,
     },

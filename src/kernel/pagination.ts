@@ -121,23 +121,6 @@ export function parseCursor(raw: unknown): Cursor | null {
   }
 }
 
-/**
- * Rewind a `keyset_updated` cursor by the overlap window.
- *
- * The id half is cleared: after rewinding the timestamp, the id boundary no longer refers to a
- * meaningful position and keeping it would exclude rows the overlap exists to recover.
- */
-export function withOverlap(cursor: Cursor | null): Cursor | null {
-  if (!cursor || cursor.kind !== "keyset_updated") return cursor;
-  const t = Date.parse(cursor.updatedAt);
-  if (Number.isNaN(t)) return null;
-  return {
-    kind: "keyset_updated",
-    updatedAt: new Date(Math.max(0, t - OVERLAP_MS)).toISOString(),
-    id: "",
-  };
-}
-
 /** The cursor that resumes after this page, or null when the page exhausted the source. */
 export function nextCursorFrom<T extends Record<string, unknown>>(
   kind: CursorKind,

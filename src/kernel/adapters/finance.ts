@@ -13,7 +13,7 @@ import { bucketFor, type AgingBucket } from "@/modules/finance/aging";
 import type { EvidenceRef } from "../types";
 import {
   dayWindow,
-  freshnessFor,
+  STORED_STATE_FRESHNESS,
   identityKeyFor,
   priorityFor,
   type Observation,
@@ -68,7 +68,10 @@ export function detectFinanceObservations(input: FinanceScanInput): Observation[
     const severity = SEVERITY_BY_BUCKET[bucket];
     if (!severity) continue; // not overdue
 
-    const freshness = freshnessFor(inv.updated_at, now);
+    // Stored state, re-read in full this cycle: our information is current however long ago
+    // the row was last edited. Anchoring on the record's age discarded the longest-neglected
+    // conditions — the ones that most need raising (R2S-P-F-004).
+    const freshness = STORED_STATE_FRESHNESS;
 
     const evidence: EvidenceRef[] = [
       {

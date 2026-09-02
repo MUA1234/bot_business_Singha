@@ -212,6 +212,27 @@ export function freshnessFor(evidenceAt: string | null, now: Date): Freshness {
   return "stale";
 }
 
+/**
+ * Freshness for a STORED-STATE source — one the loader re-reads IN FULL every cycle.
+ *
+ * `freshnessFor` answers "how old is this measurement". That question only has meaning for a
+ * SAMPLE whose value decays between readings: a capacity snapshot, a health probe. For a
+ * stored date or status — an invoice's due date, a task's status, a licence's expiry — the
+ * row was read MOMENTS AGO, so our information is current no matter how long ago the record
+ * was last edited.
+ *
+ * Conflating the two inverts the system's priorities, because `ingest` SKIPS a stale
+ * observation that has no existing item. R2S-F-006 found five adapters anchoring freshness to
+ * a due or expiry date and removed those anchors — but substituted `updated_at`, which
+ * reproduces the same failure at a different threshold: a task overdue since January and
+ * untouched since June reads as stale, and the LONGEST-NEGLECTED work is exactly what the
+ * system silently refuses to raise (R2S-P-F-004; 0 of 300 such tasks were observed).
+ *
+ * The age of the record is still real and still recorded — as `evidenceAt`, which is what
+ * out-of-order protection compares. It is simply not a statement about our information.
+ */
+export const STORED_STATE_FRESHNESS: Freshness = "fresh";
+
 /** Severity → queue priority. One mapping, so departments cannot disagree about urgency. */
 export function priorityFor(severity: Severity, freshness: Freshness): Priority {
   if (severity === "critical") return "critical";

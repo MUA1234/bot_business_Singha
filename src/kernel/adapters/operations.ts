@@ -13,7 +13,7 @@ import { isTerminal, type TaskState } from "@/modules/work/task-lifecycle";
 import type { EvidenceRef } from "../types";
 import {
   dayWindow,
-  freshnessFor,
+  STORED_STATE_FRESHNESS,
   identityKeyFor,
   priorityFor,
   type ActionCategory,
@@ -61,7 +61,10 @@ export function detectOperationsObservations(input: OperationsScanInput): Observ
     if (!row) continue;
 
     const severity = mapSeverity(ex.severity);
-    const freshness = freshnessFor(row.updatedAt, now);
+    // Stored state, re-read in full this cycle: our information is current however long ago
+    // the row was last edited. Anchoring on the record's age discarded the longest-neglected
+    // conditions — the ones that most need raising (R2S-P-F-004).
+    const freshness = STORED_STATE_FRESHNESS;
 
     const evidence: EvidenceRef[] = [
       {

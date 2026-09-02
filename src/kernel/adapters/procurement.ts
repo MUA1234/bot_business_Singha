@@ -17,7 +17,7 @@
 import { needsReorder } from "@/modules/procurement/inventory";
 import type { EvidenceRef } from "../types";
 import {
-  dayWindow, freshnessFor, identityKeyFor, priorityFor,
+  dayWindow, STORED_STATE_FRESHNESS, identityKeyFor, priorityFor,
   type Observation, type Severity,
 } from "../observation";
 
@@ -55,7 +55,11 @@ export function detectProcurementObservations(input: ProcurementScanInput): Obse
     // Out of stock is materially worse than merely low.
     const severity: Severity = onHand <= 0 ? "critical" : "warn";
     const evidenceAt = i.updated_at ?? i.created_at ?? null;
-    const freshness = freshnessFor(evidenceAt, now);
+    // Stored state, re-read in full this cycle: our information is current however long ago
+    // the row was last edited. Anchoring freshness on the record's age discarded the
+    // longest-neglected conditions — the ones that most need raising (R2S-P-F-004). The age
+    // itself is still carried, as evidenceAt, which is what out-of-order protection compares.
+    const freshness = STORED_STATE_FRESHNESS;
 
     // A COVER BAND, not the quantity: exact stock levels and unit costs are commercially
     // sensitive, and the item reference carries anyone authorised to the real numbers.

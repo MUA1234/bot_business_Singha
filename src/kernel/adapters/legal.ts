@@ -15,7 +15,7 @@
 import { detectRenewals, type RenewalItem } from "@/management/ai-manager/renewals";
 import type { EvidenceRef } from "../types";
 import {
-  dayWindow, freshnessFor, identityKeyFor, priorityFor,
+  dayWindow, STORED_STATE_FRESHNESS, identityKeyFor, priorityFor,
   type Observation, type Severity,
 } from "../observation";
 
@@ -79,17 +79,17 @@ export function detectLegalObservations(input: LegalScanInput): Observation[] {
     if (!row) continue;
 
     const severity: Severity = a.status === "expired" ? "critical" : "warn";
-    // DEFECT R2S-F-006. The freshness anchor answers ONE question: when did we last CONFIRM
-    // this condition? A DUE OR EXPIRY DATE is not evidence freshness. A licence that expired 400 days ago is the
-    // most urgent case there is, and this made it the most certainly discarded one.
-    // Using it made `freshnessFor` return "stale", and ingest SKIPS a stale observation that has
-    // no existing item — so the very conditions this detector exists to find were silently
-    // discarded, and the worse the condition got the more certainly it was dropped.
+    // DEFECT R2S-F-006, completed by R2S-P-F-004. A due or expiry date is not evidence
+    // freshness — a licence that expired 400 days ago is the most urgent case there is, and
+    // anchoring on that date made it the most certainly discarded one. Replacing it with
+    // `updated_at` only moved the threshold: an expired licence whose row nobody has edited
+    // for a month read as stale, and ingest SKIPS a stale observation with no existing item.
     //
-    // There is no genuine "last changed" timestamp on licences, contracts, insurances or obligations, so the honest answer is NULL,
-    // which freshnessFor reads as "unknown". Unknown is not stale: the observation is raised and
-    // its priority is not downgraded.
-    const freshness = freshnessFor(row.updated_at ?? null, now);
+    // Stored state, re-read in full this cycle: our information is current however long ago
+    // the row was last edited. Anchoring freshness on the record's age discarded the
+    // longest-neglected conditions — the ones that most need raising (R2S-P-F-004). The age
+    // itself is still carried, as evidenceAt, which is what out-of-order protection compares.
+    const freshness = STORED_STATE_FRESHNESS;
 
     const facts = {
       renewal_status: a.status,

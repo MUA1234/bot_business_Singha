@@ -22,7 +22,7 @@
 import type { EvidenceRef } from "../types";
 import {
   dayWindow,
-  freshnessFor,
+  STORED_STATE_FRESHNESS,
   identityKeyFor,
   priorityFor,
   type Observation,
@@ -74,7 +74,11 @@ export function detectCrmObservations(input: CrmScanInput): Observation[] {
     if (waitingH < WARN_AFTER_H) continue;
 
     const severity: Severity = waitingH >= CRITICAL_AFTER_H ? "critical" : "warn";
-    const freshness = freshnessFor(c.last_inbound_at, now);
+    // Stored state, re-read in full this cycle: our information is current however long ago
+    // the row was last edited. Anchoring freshness on the record's age discarded the
+    // longest-neglected conditions — the ones that most need raising (R2S-P-F-004). The age
+    // itself is still carried, as evidenceAt, which is what out-of-order protection compares.
+    const freshness = STORED_STATE_FRESHNESS;
 
     const evidence: EvidenceRef[] = [
       {

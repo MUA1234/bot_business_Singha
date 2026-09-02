@@ -47,7 +47,7 @@ import type { Observation } from "./observation";
 import type { Department } from "./types";
 import type { AuthorityContext } from "@/policy/authority-engine";
 import {
-  rotate, RowBudget, withOverlap, PAGE_SIZE, PRIORITY_PAGE, type Cursor, type Page,
+  rotate, RowBudget, PAGE_SIZE, PRIORITY_PAGE, type Cursor, type Page,
 } from "./pagination";
 import { isPagedSource } from "./source-queries";
 
@@ -89,6 +89,15 @@ export interface CycleSummary {
    * a truncated sweep cannot be reported as `completed`.
    */
   truncatedSources: string[];
+  /**
+   * Sources whose page was processed but whose POSITION could not be committed.
+   *
+   * The items are safe — they are persisted before the cursor is written. What is lost is the
+   * record of progress, so the next cycle re-reads the same page, and if the cursor store
+   * stays unavailable the sweep never advances. Reporting that as a clean cycle is the
+   * silent-partial failure this kernel exists to avoid (R2S-P-F-003).
+   */
+  cursorCommitFailed: string[];
 
   // ── R2S-P: bounded paging, honestly reported. ──────────────────────────────────────────
   /** Rows actually inspected across every source this cycle. */
@@ -272,7 +281,11 @@ async function readOnePage(
     };
   }
 
-  const page = await deps.loadPage!(source, companyId, withOverlap(previousCursor), allowance);
+  // The cursor is passed EXACTLY as stored. Rewinding it here (the original R2S-P-F-001
+  // defect) reset the progress bound on every page, so a batch larger than one page was
+  // re-read for ever and nothing past the first page was observed. The late-writer overlap
+  // now lives inside the loader as a separate re-scan that cannot move the cursor.
+  const page = await deps.loadPage!(source, companyId, previousCursor, allowance);
   budget.spend(page.inspected);
 
   let rows: unknown = page.rows;
@@ -609,6 +622,7 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     recommendationsRecorded: 0,
     itemsNeedingRouting: 0,
     truncatedSources: [],
+    cursorCommitFailed: [],
     recordsInspected: 0,
     pagesProcessed: 0,
     continuation: [],
@@ -827,10 +841,14 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
             status: pageFailed ? "failed" : pageState.complete ? "complete" : "in_progress",
           });
         } catch {
-          // Losing the cursor write is not a reason to lose the cycle: the page's items are
+          // Losing the cursor write is not a reason to fail the cycle: the page's items are
           // already persisted, and the next sweep re-reads from the old position. Re-reading is
           // absorbed by identity-key deduplication; the alternative is skipping rows.
-          summary.truncatedSources.push(s.source);
+          //
+          // It IS a reason not to claim a clean sweep. This was previously pushed onto
+          // `truncatedSources`, which step 13 then overwrote wholesale — so a lost position was
+          // recorded nowhere and changed nothing (R2S-P-F-003).
+          summary.cursorCommitFailed.push(s.source);
         }
         if (pageFailed) allSweepsComplete = false;
         summary.continuation.push({
@@ -842,7 +860,11 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     }
 
     summary.budgetExhausted = budget.exhausted;
-    summary.resolutionPermitted = paged && allSweepsComplete && summary.sourcesFailed === 0;
+    // A generation whose completion could not be RECORDED has not verifiably finished, so it
+    // cannot license resolve-on-absence either.
+    summary.resolutionPermitted =
+      paged && allSweepsComplete && summary.sourcesFailed === 0 &&
+      summary.cursorCommitFailed.length === 0;
 
     // 13. A cycle that did not observe everything it registered is PARTIAL, never complete.
     //     A TRUNCATED read counts: looking at the first 500 rows of a domain and reporting
@@ -853,6 +875,7 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
       summary.sourcesFailed > 0 ||
       summary.unobservedDepartments.length > 0 ||
       summary.truncatedSources.length > 0 ||
+      summary.cursorCommitFailed.length > 0 ||
       hasMore ||
       summary.budgetExhausted
         ? "partial"
@@ -871,6 +894,12 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
       }
       if (summary.budgetExhausted) {
         parts.push("cycle row budget exhausted; remaining sources continue next cycle");
+      }
+      if (summary.cursorCommitFailed.length > 0) {
+        parts.push(
+          "position not committed (items are safe; the page will be re-read): " +
+            summary.cursorCommitFailed.join(", "),
+        );
       }
       summary.failureReason = parts.join("; ") || "incomplete sweep";
     }

@@ -332,17 +332,34 @@ describe("partial failure is never a silent success", () => {
     expect(s.unobservedDepartments).toContain("operations");
   });
 
-  it("STALE source data is skipped, not queued", async () => {
+  it("a stale SAMPLE is skipped, not queued", async () => {
+    // Staleness is a statement about a MEASUREMENT that decays. A capacity reading taken in
+    // 2020 tells us nothing about who is overloaded today, so acting on it would be inventing
+    // information — it is skipped.
     const s = await run(makeDeps({
       async loadFor(source) {
-        if (source !== "finance.receivable_overdue") return [];
-        // Evidence far in the past ⇒ freshness `stale`.
-        return [{ id: "inv-old", due_date: "2020-01-01", outstanding: "1000", currency: "LKR",
-                  updated_at: "2020-01-02T00:00:00.000Z", status: "open" }];
+        if (source !== "workforce.capacity_exception") return [];
+        return [{ snapshotId: "snap-old", membershipId: "m-1", utilizationPct: 140,
+                  status: "overloaded", capturedAt: "2020-01-02T00:00:00.000Z" }];
       },
     }));
     expect(s.observationsSkipped).toBeGreaterThan(0);
     expect(s.itemsCreated).toBe(0);
+  });
+
+  it("an ancient STORED record is raised, not skipped as stale", async () => {
+    // R2S-P-F-004, and the counterpart to the test above. An invoice overdue since 2020 that
+    // nobody has touched since is not stale evidence — the row was read moments ago, and it is
+    // the single most overdue receivable the company has. The old rule discarded exactly this,
+    // and discarded it more certainly the worse it became.
+    const s = await run(makeDeps({
+      async loadFor(source) {
+        if (source !== "finance.receivable_overdue") return [];
+        return [{ id: "inv-old", due_date: "2020-01-01", outstanding: "1000", currency: "LKR",
+                  updated_at: "2020-01-02T00:00:00.000Z", status: "open" }];
+      },
+    }));
+    expect(s.itemsCreated).toBeGreaterThan(0);
   });
 
   it("a wholly failing cycle reports FAILED, never completed", async () => {

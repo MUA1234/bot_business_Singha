@@ -36,7 +36,7 @@
 
 Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 
-## 2. money-as-Number suspects — 19 line(s) (Phase-1A triage list)
+## 2. money-as-Number suspects — 20 line(s) (Phase-1A triage list)
 
 | file:line | code |
 |---|---|
@@ -52,6 +52,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/procurement/purchase-orders/actions.ts:80 | `const total = decSum(rows.map((l: any) => dec(l.unit_price).times(Math.max(0, Math.trunc(Number(l.qu` |
 | src/app/app/sales/opportunities/page.tsx:49 | `const summary = summarizePipeline(deals.map((r): Opportunity => ({ amount: String(r.amount ?? "0"), ` |
 | src/components/os/ConditionInstrument.tsx:123 | `const gapBetween = total > 0 ? Math.min(4, usable / Math.max(segments.length, 1) / 6) : 0;` |
+| src/kernel/pagination.ts:192 | `return Math.max(0, Math.min(pageSize, this.total - this.used));` |
 | src/kernel/people/learning.ts:245 | `const weakerShare = Math.min(positive, negative) / totalWeight;` |
 | src/kernel/people/learning.ts:257 | `weightedSuccessRate: Number((positive / totalWeight).toFixed(6)),` |
 | src/lib/money.ts:236 | `* `Number(v).toLocaleString()` — the latter both floats the amount and hides its currency scale.` |
@@ -93,7 +94,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 
 - src/app/api/webhooks/email/route.ts
 
-## 7. Error-masking suspects (catch → empty return) — 101 (Phase-1C triage list)
+## 7. Error-masking suspects (catch → empty return) — 102 (Phase-1C triage list)
 
 | file:line | returns |
 |---|---|
@@ -180,7 +181,8 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/components/spatial/panels/TasksPanel.tsx:65 | `error-discarding destructure` |
 | src/components/spatial/panels/VehiclesPanel.tsx:15 | `error-discarding destructure` |
 | src/db/consumer-store.ts:124 | `error-discarding destructure` |
-| src/kernel/cycle-deps.ts:435 | `error-discarding destructure` |
+| src/kernel/cycle-deps.ts:511 | `error-discarding destructure` |
+| src/kernel/cycle.ts:234 | `0` |
 | src/kernel/people/delegation-scope.ts:64 | `null` |
 | src/lib/access.ts:54 | `error-discarding destructure` |
 | src/lib/access.ts:108 | `error-discarding destructure` |

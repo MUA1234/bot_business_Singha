@@ -15,7 +15,7 @@
 import { evaluateDirectiveEscalation, type EscalatableDirective } from "@/modules/governance/directive-escalation";
 import type { EvidenceRef } from "../types";
 import {
-  dayWindow, freshnessFor, identityKeyFor, priorityFor,
+  dayWindow, STORED_STATE_FRESHNESS, identityKeyFor, priorityFor,
   type Observation, type Severity,
 } from "../observation";
 
@@ -50,7 +50,11 @@ export function detectGovernanceObservations(input: GovernanceScanInput): Observ
     if (!decision) continue;
 
     const severity: Severity = decision.newStatus === "escalated" ? "critical" : "warn";
-    const freshness = freshnessFor(d.updatedAt, now);
+    // Stored state, re-read in full this cycle: our information is current however long ago
+    // the row was last edited. Anchoring freshness on the record's age discarded the
+    // longest-neglected conditions — the ones that most need raising (R2S-P-F-004). The age
+    // itself is still carried, as evidenceAt, which is what out-of-order protection compares.
+    const freshness = STORED_STATE_FRESHNESS;
 
     const evidence: EvidenceRef[] = [
       {

@@ -93,6 +93,7 @@ try {
     "tests/integration/r2b-learning-e2e.test.ts",
     "tests/integration/r2c-role-routing.test.ts",
     "tests/integration/r2s-loader-contract.test.ts",
+    "tests/integration/r2s-p-pagination.test.ts",
   ], { env: { ...process.env, DATABASE_URL: URL, R1_DRAFT_CONFIRM: "disposable-local-only" } });
 } catch {
   code = 1;

@@ -11,10 +11,31 @@
  * silently returning everything, because a shim that quietly widens a filter would make a
  * company-isolation test pass for the wrong reason.
  *
- * Supported: .rpc(fn, args); .from(t).select().eq().neq().in().not().gte().lte().order().limit()
+ * Supported: .rpc(fn, args); .from(t).select().eq().neq().in().not().gt().gte().lt().lte()
+ * .order() (repeatable — compound, in call order) .limit()
  * .single().maybeSingle(); .insert(row|rows).select().single(); .update(patch).eq()….select().
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import pgDriver from "pg";
+
+/**
+ * Return date/time columns as STRINGS, exactly as PostgREST does.
+ *
+ * node-pg parses timestamptz into a JavaScript Date, which holds MILLISECONDS. PostgreSQL
+ * stores MICROSECONDS, and supabase-js hands the application the raw ISO string with all six
+ * digits. The shim was therefore lower-fidelity than production in the direction that HIDES
+ * defects: a compound keyset cursor built from a Date is truncated, its equality test against
+ * the true stored value matches nothing, and the sweep re-reads rows instead of advancing
+ * (R2S-P-F-002).
+ *
+ * This is the same class as R2S-F-005 — a test double whose types disagreed with the real
+ * client — so the fix is to make the double faithful rather than to accommodate it.
+ *
+ *   1184 timestamptz   1114 timestamp   1082 date
+ */
+for (const oid of [1184, 1114, 1082]) {
+  pgDriver.types.setTypeParser(oid, (v: string) => v);
+}
 
 type Row = Record<string, any>;
 type Filter = { sql: string; params: any[]; col?: string; bindKind?: Kind };
@@ -107,7 +128,7 @@ const bindAs = (v: unknown, kind: Kind): unknown => {
 class Builder implements PromiseLike<{ data: any; error: { message: string } | null }> {
   private filters: Filter[] = [];
   private columns = "*";
-  private orderBy: string | null = null;
+  private orderBys: string[] = [];
   private limitN: number | null = null;
   private mode: "select" | "insert" | "upsert" | "update" = "select";
   private payload: Row[] = [];
@@ -154,7 +175,9 @@ class Builder implements PromiseLike<{ data: any; error: { message: string } | n
   }
   eq(col: string, val: unknown) { return this.cmp(col, "=", val); }
   neq(col: string, val: unknown) { return this.cmp(col, "<>", val); }
+  gt(col: string, val: unknown) { return this.cmp(col, ">", val); }
   gte(col: string, val: unknown) { return this.cmp(col, ">=", val); }
+  lt(col: string, val: unknown) { return this.cmp(col, "<", val); }
   lte(col: string, val: unknown) { return this.cmp(col, "<=", val); }
   in(col: string, vals: unknown[]) {
     // `= any($1)` needs node-pg's native ARRAY encoding. Binding by the COLUMN's kind sent JSON text
@@ -172,7 +195,11 @@ class Builder implements PromiseLike<{ data: any; error: { message: string } | n
     return this;
   }
   order(col: string, opts?: { ascending?: boolean }) {
-    this.orderBy = `${q(col)} ${opts?.ascending === false ? "desc" : "asc"}`;
+    // PostgREST orders by EVERY .order() in call order. Overwriting collapsed a compound
+    // (updated_at, id) ordering to (updated_at) — the exact ambiguity a compound cursor
+    // exists to remove — so a tie group came back arbitrarily ordered and a keyset sweep
+    // could not advance through it.
+    this.orderBys.push(`${q(col)} ${opts?.ascending === false ? "desc" : "asc"}`);
     return this;
   }
   limit(n: number) { this.limitN = n; return this; }
@@ -248,7 +275,7 @@ class Builder implements PromiseLike<{ data: any; error: { message: string } | n
     }
     return {
       sql: `select ${this.columns} from public.${q(this.table)}${where()}` +
-        (this.orderBy ? ` order by ${this.orderBy}` : "") +
+        (this.orderBys.length ? ` order by ${this.orderBys.join(", ")}` : "") +
         (this.limitN != null ? ` limit ${this.limitN}` : ""),
       params,
     };

@@ -13,7 +13,7 @@
 import Decimal from "decimal.js";
 import { iso, isoDate } from "./temporal";
 import {
-  nextCursorFrom, type Cursor, type CursorKind, type Page,
+  nextCursorFrom, OVERLAP_MS, type Cursor, type CursorKind, type Page,
 } from "./pagination";
 import {
   FINANCE_SOURCE, WORKFORCE_SOURCE, OPERATIONS_SOURCE, CRM_SOURCE, SYSTEM_SOURCE,
@@ -74,11 +74,10 @@ function applyCursor(query: Row, spec: SourceSpec, cursor: Cursor | null): Row {
     case "latest_per_key":
       return cursor.key ? query.gt("membership_id", cursor.key) : query;
     case "keyset_updated":
-      // The TIMESTAMP half only. The id half of a compound cursor cannot be expressed as a
-      // row-value comparison through this client, so the bound is inclusive on the timestamp and
-      // the overlap window plus identity-key deduplication absorb the repeats. Being inclusive
-      // errs towards re-reading, which is the safe direction: the alternative skips rows.
-      return cursor.updatedAt ? query.gte("updated_at", cursor.updatedAt) : query;
+      // Handled by loadKeysetPage, which needs TWO queries to express the compound bound.
+      // It is not expressible as a single filter here, and pretending otherwise is exactly
+      // what stalled the sweep (R2S-P-F-001).
+      return query;
     default:
       return query;
   }
@@ -283,6 +282,76 @@ async function companions(
 }
 
 /**
+ * How many already-passed rows the late-writer re-scan may re-read per page.
+ *
+ * This is deliberately NOT the progress bound. Rewinding the cursor itself — the original
+ * R2S-P-F-001 defect — meant that whenever more than one page of rows shared the overlap
+ * window, every page re-read the same first rows and the sweep never advanced past them.
+ */
+export const OVERLAP_RESCAN = 50;
+
+/**
+ * One page of a `keyset_updated` source, on a genuinely COMPOUND (updated_at, id) cursor.
+ *
+ * `updated_at` is not unique: a bulk insert gives hundreds of rows one timestamp. A bound of
+ * "updated_at >= cursor" therefore returns the same rows for ever, and a bound of
+ * "updated_at > cursor" skips the remainder of the tie group. Neither is safe, and neither
+ * can be written as a single filter through this client.
+ *
+ * So the compound comparison is split into the two ordinary filters that compose to it:
+ *
+ *   1. the REST of the current timestamp group   (updated_at = t AND id > lastId)
+ *   2. everything strictly after it              (updated_at > t)
+ *
+ * Progress is then guaranteed: each page either drains part of a tie group by id, or moves
+ * past the timestamp entirely. A tie group larger than the whole table cannot stall it.
+ */
+async function loadKeysetPage(
+  db: Db, cols: { table: string; select: string }, companyId: string,
+  cursor: Cursor | null, limit: number,
+): Promise<{ rows: Row[]; next: Cursor | null; complete: boolean }> {
+  const base = () => db.from(cols.table).select(cols.select).eq("company_id", companyId);
+  const byPosition = (qy: Row) =>
+    qy.order("updated_at", { ascending: true }).order("id", { ascending: true });
+
+  const at = cursor && cursor.kind === "keyset_updated" && cursor.updatedAt ? cursor : null;
+
+  let forward: Row[];
+  if (!at) {
+    forward = await rowsOf(byPosition(base()).limit(limit));
+  } else {
+    const tie = at.id
+      ? await rowsOf(base().eq("updated_at", at.updatedAt).gt("id", at.id)
+          .order("id", { ascending: true }).limit(limit))
+      : [];
+    const rest = tie.length < limit
+      ? await rowsOf(byPosition(base().gt("updated_at", at.updatedAt)).limit(limit - tie.length))
+      : [];
+    forward = [...tie, ...rest];
+  }
+
+  // The cursor advances from the FORWARD rows only. Re-read rows must never move it.
+  const { next, complete } = nextCursorFrom("keyset_updated", forward, limit, {
+    id: "id", updatedAt: "updated_at",
+  });
+
+  // The late-writer re-scan: a writer whose transaction commits after a later-timestamped one
+  // has already been read would otherwise fall permanently behind the cursor. Re-reading a
+  // bounded slice of the preceding minute recovers it; identity-key deduplication in `ingest`
+  // absorbs the repeats, which is what that mechanism is for.
+  let late: Row[] = [];
+  if (at) {
+    const floor = new Date(Math.max(0, Date.parse(at.updatedAt) - OVERLAP_MS)).toISOString();
+    late = await rowsOf(
+      byPosition(base().gte("updated_at", floor).lt("updated_at", at.updatedAt))
+        .limit(OVERLAP_RESCAN),
+    );
+  }
+
+  return { rows: [...late, ...forward], next, complete };
+}
+
+/**
  * Read ONE bounded page of a source.
  *
  * `legal` is four tables behind one detector, so it pages them together on a shared id cursor:
@@ -326,6 +395,15 @@ export async function loadSourcePage(
 
   const cols = COLUMNS[source];
   if (!cols) throw new Error(`no column contract for ${source}`);
+
+  if (spec.cursorKind === "keyset_updated") {
+    const kp = await loadKeysetPage(db, cols, companyId, cursor, limit);
+    const companionsFor = await companions(db, source, companyId, kp.rows);
+    return {
+      rows: normalise(source, kp.rows, companionsFor),
+      next: kp.next, complete: kp.complete, inspected: kp.rows.length,
+    };
+  }
 
   let query = db.from(cols.table).select(cols.select).eq("company_id", companyId);
   query = applyCursor(query, spec, cursor);

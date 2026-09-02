@@ -12,7 +12,7 @@
 import { assessObjective, type ObjectiveStatus } from "@/management/ai-manager/objective-status";
 import type { EvidenceRef } from "../types";
 import {
-  dayWindow, freshnessFor, identityKeyFor, priorityFor,
+  dayWindow, STORED_STATE_FRESHNESS, identityKeyFor, priorityFor,
   type Observation, type Severity,
 } from "../observation";
 
@@ -67,17 +67,17 @@ export function detectObjectiveObservations(input: ObjectivesScanInput): Observa
     const severity = SEVERITY[assessment.status];
     if (!severity) continue; // on_track or done — nothing needs attention
 
-    // DEFECT R2S-F-006. The freshness anchor answers ONE question: when did we last CONFIRM
-    // this condition? `period_start` is when the measurement WINDOW OPENED — an objective in month
-    // three of a quarter is not stale evidence, it is a live objective.
-    // Using it made `freshnessFor` return "stale", and ingest SKIPS a stale observation that has
-    // no existing item — so the very conditions this detector exists to find were silently
-    // discarded, and the worse the condition got the more certainly it was dropped.
+    // DEFECT R2S-F-006, completed by R2S-P-F-004. `period_start` is when the measurement
+    // WINDOW OPENED — an objective in month three of a quarter is a live objective, not stale
+    // evidence. Replacing that anchor with `updated_at` only moved the threshold: a missed
+    // objective nobody has edited for a month read as stale, and ingest SKIPS a stale
+    // observation with no existing item.
     //
-    // There is no genuine "last changed" timestamp on this table, so the honest answer is NULL,
-    // which freshnessFor reads as "unknown". Unknown is not stale: the observation is raised and
-    // its priority is not downgraded.
-    const freshness = freshnessFor(o.updated_at ?? null, now);
+    // Stored state, re-read in full this cycle: our information is current however long ago
+    // the row was last edited. Anchoring freshness on the record's age discarded the
+    // longest-neglected conditions — the ones that most need raising (R2S-P-F-004). The age
+    // itself is still carried, as evidenceAt, which is what out-of-order protection compares.
+    const freshness = STORED_STATE_FRESHNESS;
 
     // Bands, not the raw metric: a management queue is read across a company, and the exact
     // value of a commercially sensitive KPI is not something every manager needs in order to
