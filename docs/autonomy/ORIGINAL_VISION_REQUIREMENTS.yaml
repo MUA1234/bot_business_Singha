@@ -845,21 +845,21 @@ requirements:
     phase: stage4
     priority: P1
     dependencies: [WRK-002, WRK-003, CRM-003, AIM-006]
-    status: implementation_in_progress
-    gap: R2B (bab7ad6) built the shared candidate-resolution service: src/kernel/people/ (evidence, protected, candidate, eligibility, suitability, resolve). Eligibility is company-scoped, capability-gated, authority-checked, leave- and capacity-aware and fails closed; fairness is structural (protected-attribute ALLOWLIST refused at construction; approved leave, overload and missing data excluded as NEUTRAL and never as a mark against a person; no persisted person-level score). The service is BUILT, TESTED and ADVERSARIALLY REVIEWED but is NOT ON A RUNTIME PATH: runManagementCycle creates items with a proposed action and never calls resolveCandidates, so no production code path produces a candidate recommendation. This is why the status is implementation_in_progress and NOT locally_verified. Team formation itself - composing a group rather than ranking individuals - is still absent.
+    status: locally_verified
+    gap: CLOSED for assignee recommendation at 75a0010. runManagementCycle calls resolveCandidates for every item with a registered proposed action and persists an append-only recommendation snapshot in the SAME transaction as the item. RECOMMENDATION ONLY: the create RPC accepts no accountable owner at all, so there is no shape in which a cycle can assign anyone. PROVEN END TO END through the REAL runtime at 75a0010: tests/integration/r2b-learning-e2e.test.ts runs runManagementCycle with makeCycleDeps against the full schema with real RLS and real identity functions, and asserts all eight steps the owner specified - detect, resolve, persist an explainable recommendation, human accept, verified outcome, authorised feedback, a later cycle READING that history, and the later recommendation changing for a deterministic explainable reason. STILL ABSENT: team FORMATION (composing a group rather than ranking individuals), and any verified-skill source (F-R2B-2), so work mandating a verified skill yields needs_routing by design.
     feature_flag: V3_1_TEAM_FORMATION
-    runtime_entrypoint: none
-    database_evidence: none
+    runtime_entrypoint: src/app/api/management/cycle/route.ts -> src/kernel/cycle.ts runManagementCycle -> resolveForItem -> src/kernel/people/resolve.ts resolveCandidates; snapshots persisted by r1_draft_create_management_item_v2
+    database_evidence: src/db/draft-migrations-r1/R1_DRAFT_014_recommendation_snapshot (QUARANTINED draft; management_item_recommendations is append-only, service-only, with a trigger refusing protected attributes AND score-like keys by name)
     service_evidence: src/kernel/people/resolve.ts (the one shared resolver; src/kernel/recommend.ts selectAssignee delegates to it); eligibility.ts; suitability.ts; protected.ts; evidence.ts
-    ui_evidence: none
-    test_evidence: tests/kernel/people-resolve.test.ts (51); tests/kernel/people-adversarial.test.ts (11); tests/integration/r2b-capability-routing.test.ts (live, real memberships/role_permissions/leave_requests)
+    ui_evidence: src/components/spatial/panels/ManagementQueuePanelContent.tsx - suggestions, reasons, evidence, confidence, availability, missing data, accept/reject/override and the no-suitable-candidate state; tests/spatial/management-queue-candidates.test.tsx (32)
+    test_evidence: tests/kernel/people-resolve.test.ts (51); tests/kernel/people-adversarial.test.ts (11); tests/kernel/cycle-recommendation.test.ts (21); tests/integration/r2b-capability-routing.test.ts (live); tests/integration/r2b-learning-e2e.test.ts (live, all eight steps)
     security_evidence: company taken from the authorised request and re-checked per candidate; assertSingleCompany makes a leaking loader loud; identity applied last so supplied evidence cannot override it (R2B-F-002); live tests prove the composite FK makes a cross-company owner unrepresentable and that revoked authority is refused at commit
     audit_health_evidence: none
-    last_verified_sha: bab7ad6
+    last_verified_sha: 75a0010
     last_verified_at: 2026-09-02
     owner_gate: flag activation
     blocker: none
-    residual_risks: LOCAL ONLY - zero staging, zero production. NOT WIRED INTO THE MANAGEMENT CYCLE. No verified-skill source exists anywhere in the schema (F-R2B-2), so work mandating a verified skill yields needs_routing by design. No staff language source exists. Team formation is not implemented.
+    residual_risks: LOCAL ONLY - zero staging, zero production. The snapshot table is a QUARANTINED draft unit with no production migration number (R1-D-1). No verified-skill source and no staff language source exist anywhere in the schema. Team FORMATION is not implemented. The cycle requests the assignee role only.
     verified_local: no
     verified_staging: no
     verified_production: no
@@ -1748,20 +1748,21 @@ requirements:
     phase: stage3
     priority: P1
     dependencies: [AIM-003]
-    status: absent
+    status: locally_verified
+    gap: CLOSED at 75a0010. Every recommendation is recorded as an append-only snapshot naming the candidate, the order, the reasons, the evidence, the confidence and the resolver and rule versions; and the authenticated feedback path records what ACTUALLY happened against it - accepted, rejected, a different candidate chosen, the outcome, a dispute or a correction. The system can therefore be held to account for its advice. PROVEN END TO END through the REAL runtime at 75a0010: tests/integration/r2b-learning-e2e.test.ts runs runManagementCycle with makeCycleDeps against the full schema with real RLS and real identity functions, and asserts all eight steps the owner specified - detect, resolve, persist an explainable recommendation, human accept, verified outcome, authorised feedback, a later cycle READING that history, and the later recommendation changing for a deterministic explainable reason.
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: management_cases has no outcome column and no update path
-    service_evidence: none
+    runtime_entrypoint: src/app/api/management/feedback/route.ts -> src/kernel/people/feedback.ts recordFeedback -> r1_draft_record_feedback; recommendations persisted by src/app/api/management/cycle/route.ts -> runManagementCycle
+    database_evidence: src/db/draft-migrations-r1/R1_DRAFT_014_recommendation_snapshot + R1_DRAFT_015_feedback_runtime (QUARANTINED drafts; both append-only and service-only)
+    service_evidence: src/kernel/people/snapshot.ts (the narrowing that persists order and reasons but never a person score); src/kernel/people/feedback.ts; src/kernel/people/feedback-writer.ts
     ui_evidence: none
-    test_evidence: none
-    security_evidence: none
+    test_evidence: tests/kernel/people-feedback.test.ts (28); tests/integration/r2b-feedback-runtime.test.ts (live, database-enforced); tests/integration/r2b-learning-e2e.test.ts (live, steps 3-6)
+    security_evidence: actor and company server-derived; cross-company feedback refused; cross-company SUBJECT refused (defect R2B-F-007, reproduced then closed); actor_type fixed to 'user' so no model claim can be labelled human; a verified outcome requires the lifecycle evidence; reopened work cannot be recorded as success; append-only; RPC-only
     audit_health_evidence: none
-    last_verified_sha: none
-    last_verified_at: none
+    last_verified_sha: 75a0010
+    last_verified_at: 2026-09-02
     owner_gate: none
     blocker: none
-    residual_risks: Cases are write-once today, so nothing can be learned from them.
+    residual_risks: LOCAL ONLY - zero staging, zero production. Both tables are QUARANTINED draft units with no production migration numbers (R1-D-1). Task-level completion timestamps are still missing (F-R2B-1), so deadline performance is derived only from management_item_transitions.
     verified_local: no
     verified_staging: no
     verified_production: no
@@ -1772,21 +1773,21 @@ requirements:
     phase: stage3
     priority: P2
     dependencies: [IMP-001]
-    status: implementation_in_progress
-    gap: R2B (bab7ad6) built the deterministic fold that turns recorded feedback into influence: src/kernel/people/learning.ts. The owner explicit bar is MET BY TEST - two candidates identical to every gate rank equal with no history, and the one with confirmed outcomes from three distinct deciders is ordered first, with a reason naming the evidence and the rule version. Guards: promote at 3 outcomes, DEMOTE at 5 (adverse claims need more evidence), 2 distinct deciders minimum, one-outcome-per-decider-per-day anti-poisoning, per-decider weight cap, 90-day half-life, 540-day obsolescence, contradictory history makes NO adjustment. No new table: management_item_transitions and management_item_feedback are already append-only, and a derived signal is a pure fold over them. The service is BUILT, TESTED and ADVERSARIALLY REVIEWED but is NOT ON A RUNTIME PATH: runManagementCycle creates items with a proposed action and never calls resolveCandidates, so no production code path produces a candidate recommendation. This is why the status is implementation_in_progress and NOT locally_verified. Nothing WRITES management_item_feedback at runtime either.
+    status: locally_verified
+    gap: CLOSED at 75a0010. The fold now has BOTH a runtime input (the authenticated feedback path writes management_item_feedback and the lifecycle writes management_item_transitions) and a runtime READER (cycle-deps loadSignals folds that history and the cycle applies it). PROVEN END TO END through the REAL runtime at 75a0010: tests/integration/r2b-learning-e2e.test.ts runs runManagementCycle with makeCycleDeps against the full schema with real RLS and real identity functions, and asserts all eight steps the owner specified - detect, resolve, persist an explainable recommendation, human accept, verified outcome, authorised feedback, a later cycle READING that history, and the later recommendation changing for a deterministic explainable reason. The owner's specific bar is met by test: a proven candidate and a newcomer rank EQUAL with no history, and the proven one is ordered FIRST once three verified outcomes from three distinct deciders exist - with a reason naming the confirmed-outcome count, the deciders and the rule version. The newcomer is NOT pushed down: absence of history moves nobody, asserted by equality.
     feature_flag: none
-    runtime_entrypoint: none
-    database_evidence: none
+    runtime_entrypoint: src/app/api/management/feedback/route.ts (writes) and src/app/api/management/cycle/route.ts -> src/kernel/cycle-deps.ts loadSignals -> src/kernel/people/learning.ts (reads)
+    database_evidence: R1_DRAFT_006_feedback + R1_DRAFT_015_feedback_runtime (QUARANTINED drafts). NO new table for the signal itself: it is a pure fold over append-only history, so storing it would add a cache that can disagree with its own source.
     service_evidence: src/kernel/people/learning.ts (buildSignal, signalLookupFrom, explainSignal); consumed by src/kernel/people/suitability.ts, capped at 0.15 of an ordering value
     ui_evidence: none
-    test_evidence: tests/kernel/people-learning.test.ts (27, including the owner measurable-and-explainable bar and a deterministic-rebuild assertion); tests/kernel/people-adversarial.test.ts; tests/integration/r2b-capability-routing.test.ts derives a signal from REAL append-only transitions
+    test_evidence: tests/kernel/people-learning.test.ts (27); tests/kernel/people-adversarial.test.ts; tests/integration/r2b-learning-e2e.test.ts (live, steps 7-8 plus fabricated duplicates, contradictory feedback, corrections, cross-company history, approved leave)
     security_evidence: never learns across companies; refuses AI-authored, system-authored, unattributed and self-verified outcomes; NEVER touches authority or permissions (asserted: a perfect record does not lift anyone over an authority gate or make an ineligible person eligible); emits no field that could carry a pay, discipline or rating meaning
     audit_health_evidence: none
-    last_verified_sha: bab7ad6
+    last_verified_sha: 75a0010
     last_verified_at: 2026-09-02
     owner_gate: none
     blocker: none
-    residual_risks: LOCAL ONLY - zero staging, zero production. NOT WIRED: nothing reads the fold at runtime and nothing writes the feedback it folds. Task-level deadline performance is NOT COMPUTABLE (F-R2B-1): tasks has no completed_at/verified_at/verified_by, so on-time performance is derived only from management_item_transitions and is absent for ordinary tasks.
+    residual_risks: LOCAL ONLY - zero staging, zero production. Influence is capped at 0.15 of an ordering value a human then overrides, and NEVER touches authority, permissions, pay, discipline or employment. Task-level deadline performance remains NOT COMPUTABLE (F-R2B-1): tasks has no completed_at, verified_at or verified_by, which is recorded as a schema gap for migration reconciliation, not worked around.
     verified_local: no
     verified_staging: no
     verified_production: no
@@ -2488,7 +2489,7 @@ requirements:
     priority: P1
     dependencies: [AIM-006, WRK-005, WRK-003, CRM-003, CRM-004, FOUND-004]
     status: implementation_in_progress
-    gap: R2B (bab7ad6) implemented the three roles as distinct, enforced concepts: an advisor carries NO delegated authority even when the person holds one; an external consultant can never be the accountable assignee, receives NO internal capability and carries internalAccess false by type AND runtime assertion; a delegate requires scope, start and expiry. R2B-F-001 was FOUND and closed for routing: delegationPermits never checked the delegation against the DELEGATOR own authority, so a manager with a 50,000 ceiling could grant 5,000,000. src/kernel/people/delegation-scope.ts caps the effective ceiling at the LOWER of the two and refuses onward re-delegation. The service is BUILT, TESTED and ADVERSARIALLY REVIEWED but is NOT ON A RUNTIME PATH: runManagementCycle creates items with a proposed action and never calls resolveCandidates, so no production code path produces a candidate recommendation. This is why the status is implementation_in_progress and NOT locally_verified.
+    gap: The three roles are implemented and enforced, and R2B-F-001 is CLOSED ON BOTH PATHS at 75a0010 - the financial approval path now enforces effective ceiling = MIN(delegation, delegator's valid DIRECT ceiling), validated at grant AND revalidated at exercise, with re-delegation refused and a 72-cell matrix test proving the financial and routing implementations agree. HOWEVER the MANAGEMENT CYCLE REQUESTS ONLY roles:['assignee'], so advisor, delegate and external-consultant recommendation is NOT on a runtime path. That is why this record stays implementation_in_progress while WRK-005 does not.
     feature_flag: none
     runtime_entrypoint: none
     database_evidence: none
@@ -2497,14 +2498,14 @@ requirements:
     test_evidence: tests/kernel/people-roles.test.ts (33)
     security_evidence: a delegation may never exceed the delegator (R2B-F-001); no currency conversion; unscoped delegation refused; expiry exclusive; recommendation grants no capability and no access
     audit_health_evidence: none
-    last_verified_sha: bab7ad6
+    last_verified_sha: 75a0010
     last_verified_at: 2026-09-02
     authority_restrictions: A recommended delegate must already be within the delegator's own authority (delegation is a subset, never an expansion); engaging an external provider is an external commitment and always requires human approval under D-9.
     privacy_restrictions: Recommendation reasons exposed to a requester must not disclose another person's private coaching, health or personal circumstances.
     acceptance_scenarios: A delegate recommendation outside the delegator's authority is refused with a reason; an external-consultant recommendation surfaces compliance and insurance status from CRM-005 and is blocked for a non-compliant provider; every recommendation carries its evidence and can be overridden with a recorded reason.
     owner_gate: phase gate — not authorised before R5
     blocker: WRK-003 verified skills are a prerequisite input
-    residual_risks: LOCAL ONLY - zero staging, zero production. NOT WIRED INTO THE MANAGEMENT CYCLE. R2B-F-001 IS FIXED FOR ROUTING ONLY: the financial-approval call site (src/policy/authority.ts via delegationPermits) STILL honours a delegation that exceeds the delegator. That path was left unchanged deliberately - silently altering what approves a payment is outside R2B - and REQUIRES AN OWNER DECISION.
+    residual_risks: LOCAL ONLY - zero staging, zero production. THE CYCLE DOES NOT YET REQUEST THESE ROLES, so nothing in production recommends an advisor, a delegate or an external consultant. R2B-F-001 is now fixed on the financial approval path as well as in routing.
     verified_local: no
     verified_staging: no
     verified_production: no

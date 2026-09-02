@@ -10,12 +10,12 @@ Generated at: 2026-09-02
 
 | Status | Count |
 |---|---|
-| locally_verified | 63 |
-| absent | 23 |
+| locally_verified | 66 |
+| absent | 22 |
 | blocked_owner | 6 |
-| implementation_in_progress | 5 |
 | specified | 5 |
 | deliberately_deferred | 4 |
+| implementation_in_progress | 3 |
 | foundation_only | 2 |
 | implemented_unverified | 2 |
 
@@ -26,8 +26,8 @@ specification describes what should be built; it is not built.
 
 | Category | Count |
 |---|---|
-| **Verified** (locally / preview / staging / production) | **63** |
-| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **37** |
+| **Verified** (locally / preview / staging / production) | **66** |
+| **Incomplete and implementable** (absent + specified + foundation_only + in_progress + unverified) | **34** |
 | **Blocked — owner** | **6** |
 | **Blocked — external** | **0** |
 | **Deliberately deferred** | **4** |
@@ -50,7 +50,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | FOUND | 6 | 5 | 1 |
 | GOV | 6 | 5 | 1 |
 | GTD | 3 | 0 | 3 |
-| IMP | 3 | 0 | 3 |
+| IMP | 3 | 2 | 1 |
 | INT | 1 | 1 | 0 |
 | IP | 1 | 1 | 0 |
 | KRN | 3 | 3 | 0 |
@@ -66,7 +66,7 @@ operating-mode claim that depends on it. Blocked is not done.
 | SCH | 6 | 5 | 1 |
 | UX | 1 | 0 | 1 |
 | WMP | 3 | 0 | 3 |
-| WRK | 7 | 3 | 4 |
+| WRK | 7 | 4 | 3 |
 
 ## Requirements
 
@@ -125,8 +125,8 @@ operating-mode claim that depends on it. Blocked is not done.
 | GTD-001 | GPS location capability (future owner-gated) | P3 | **deliberately_deferred** | none | none | OWNER GATE — notices, retention policy and legal review; NOT authorised |
 | GTD-002 | CCTV capability (future owner-gated) | P3 | **deliberately_deferred** | none | none | OWNER GATE — notices, retention policy and legal review; NOT authorised |
 | GTD-003 | Attendance device integration (future owner-gated) | P3 | **deliberately_deferred** | none | none | OWNER GATE — notices, retention policy and legal review; NOT authorised |
-| IMP-001 | Outcome recording against recommendations | P1 | **absent** | none | none | — |
-| IMP-002 | Staff feedback and lessons learned | P2 | **implementation_in_progress** | none | bab7ad6 | — |
+| IMP-001 | Outcome recording against recommendations | P1 | **locally_verified** | src/app/api/management/feedback/route.ts -> src/kernel/people/feedback.ts recordFeedback -> r1_draft_record_feedback; recommendations persisted by src/app/api/management/cycle/route.ts -> runManagementCycle | 75a0010 | — |
+| IMP-002 | Staff feedback and lessons learned | P2 | **locally_verified** | src/app/api/management/feedback/route.ts (writes) and src/app/api/management/cycle/route.ts -> src/kernel/cycle-deps.ts loadSignals -> src/kernel/people/learning.ts (reads) | 75a0010 | — |
 | IMP-003 | Versioned playbooks and prompt/evaluation improvement with human approval | P1 | **absent** | none | none | private repository/package decision for proprietary playbooks |
 | INT-001 | Integration Gateway and connector registry | P1 | **locally_verified** | src/app/app/admin/integrations/page.tsx | 4b5bbb3 | — |
 | IP-001 | Public-repository IP boundary | P1 | **locally_verified** | scripts/autonomy/check-ip-boundary.mjs | f86eb97 | decision on a private repository or package for proprietary prompts and evaluation data |
@@ -179,9 +179,9 @@ operating-mode claim that depends on it. Blocked is not done.
 | WRK-002 | Current and future workload with historical capacity | P1 | **locally_verified** | src/app/app/hr/capacity/page.tsx | 56dcee2 | — |
 | WRK-003 | Skills, certifications and expiry | P1 | **locally_verified** | src/app/app/hr/staff/page.tsx; src/app/app/hr/staff/[id]/page.tsx | 1b494e6 | — |
 | WRK-004 | Strengths, development needs and coaching | P2 | **absent** | none | none | privacy review of private-versus-manager-visible coaching |
-| WRK-005 | Fair assignment and internal/external team formation | P1 | **implementation_in_progress** | none | bab7ad6 | flag activation |
+| WRK-005 | Fair assignment and internal/external team formation | P1 | **locally_verified** | src/app/api/management/cycle/route.ts -> src/kernel/cycle.ts runManagementCycle -> resolveForItem -> src/kernel/people/resolve.ts resolveCandidates; snapshots persisted by r1_draft_create_management_item_v2 | 75a0010 | flag activation |
 | WRK-006 | Explainability and fairness in people analytics | P0 | **absent** | none | none | OWNER GATE — privacy review of the private-versus-manager-visible model (inherited from WRK-004) |
-| WRK-007 | Advisor, delegate and external-consultant recommendation | P1 | **implementation_in_progress** | none | bab7ad6 | phase gate — not authorised before R5 |
+| WRK-007 | Advisor, delegate and external-consultant recommendation | P1 | **implementation_in_progress** | none | 75a0010 | phase gate — not authorised before R5 |
 
 ## Groups not yet expanded into individual records
 
@@ -195,5 +195,5 @@ _none_
 The program is **not** code-complete while any requirement is `absent`, `specified`,
 `foundation_only`, `implementation_in_progress` or `implemented_unverified`, or while any
 group above remains unexpanded, or while any `blocked_owner` requirement gates a claimed operating
-mode. Incomplete and implementable: **37**; blocked (owner): **6**;
+mode. Incomplete and implementable: **34**; blocked (owner): **6**;
 deferred: **4**; unexpanded groups: **0**.
