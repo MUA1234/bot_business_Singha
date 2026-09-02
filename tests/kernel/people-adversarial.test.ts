@@ -112,7 +112,7 @@ describe("R2B-F-004 — an undated workload reading must not be silently trusted
 
 describe("R2B-F-005 — a reopened outcome must never be reported as a verified one", () => {
   const reopened = (i: number, decider: string, days: number): OutcomeRecord => ({
-    outcomeId: `r${i}`, companyId: CO_A, membershipId: "m1", taskKind: "k", itemId: `i${i}`,
+    outcomeId: `r${i}`, companyId: CO_A, membershipId: "m1", taskKind: "k", role: "assignee", itemId: `i${i}`,
     outcome: "reopened", deciderId: decider, deciderType: "user",
     occurredAt: new Date(NOW.getTime() - days * 86_400_000).toISOString(),
     businessDeadline: null, metOnTime: null, correctsOutcomeId: null, source: "transition",
@@ -132,7 +132,7 @@ describe("R2B-F-005 — a reopened outcome must never be reported as a verified 
 
 describe("R2B-F-006 — the challenge explanation must match what the fold actually counted", () => {
   const rec = (id: string, decider: string, days: number): OutcomeRecord => ({
-    outcomeId: id, companyId: CO_A, membershipId: "m1", taskKind: "k", itemId: id,
+    outcomeId: id, companyId: CO_A, membershipId: "m1", taskKind: "k", role: "assignee", itemId: id,
     outcome: "verified", deciderId: decider, deciderType: "user",
     occurredAt: new Date(NOW.getTime() - days * 86_400_000).toISOString(),
     businessDeadline: null, metOnTime: null, correctsOutcomeId: null, source: "transition",

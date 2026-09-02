@@ -243,6 +243,8 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
           companyId,
           membershipId: item.accountable_owner_id,
           taskKind: item.proposed_action_id,
+          // accountable_owner_id is the ASSIGNEE. A transition records delivery, not advice.
+          role: "assignee",
           itemId: t.item_id,
           outcome: t.to_state === "verified" ? "verified" : "reopened",
           deciderId: asMembership(t.actor_id),

@@ -33,7 +33,7 @@ function outcome(over: Partial<OutcomeRecord> = {}): OutcomeRecord {
     outcomeId: `o${seq}`,
     companyId: CO_A,
     membershipId: "m1",
-    taskKind: KIND,
+    taskKind: KIND, role: "assignee",
     itemId: `i${seq}`,
     outcome: "verified",
     deciderId: "mgr1",

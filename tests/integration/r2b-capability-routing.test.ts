@@ -453,7 +453,7 @@ describe.skipIf(!enabled)("R2B capability routing on a live database", () => {
           [item],
         );
         outcomes.push({
-          outcomeId: rows[0].id, companyId: CO_A, membershipId: worker, taskKind: kind, itemId: item,
+          outcomeId: rows[0].id, companyId: CO_A, membershipId: worker, taskKind: kind, role: "assignee", itemId: item,
           outcome: "verified", deciderId: rows[0].actor_id, deciderType: rows[0].actor_type,
           occurredAt: new Date(rows[0].created_at).toISOString(),
           businessDeadline: null, metOnTime: null, correctsOutcomeId: null, source: "transition",
@@ -474,7 +474,7 @@ describe.skipIf(!enabled)("R2B capability routing on a live database", () => {
       const worker = mem.get("alice")!;
       const foreignHistory: OutcomeRecord[] = [1, 2, 3].map((i) => ({
         outcomeId: randomUUID(), companyId: CO_B, membershipId: worker,
-        taskKind: "operations.task_exception", itemId: randomUUID(), outcome: "verified",
+        taskKind: "operations.task_exception", role: "assignee", itemId: randomUUID(), outcome: "verified",
         deciderId: `d${i}`, deciderType: "user", occurredAt: new Date().toISOString(),
         businessDeadline: null, metOnTime: null, correctsOutcomeId: null, source: "transition",
       }));

@@ -21,7 +21,10 @@
  * evidence than pushing them up (see MIN_OUTCOMES_TO_PROMOTE / MIN_OUTCOMES_TO_DEMOTE). Being
  * unproven and being proven-poor are different claims, and only the second is an adverse one.
  */
-import type { CandidateEvidence, CandidateRequest, Reason } from "./candidate";
+import type { CandidateEvidence, CandidateRequest, CandidateRole, Reason } from "./candidate";
+
+/** The role an outcome was earned in. Signals never cross between them. */
+export type SignalRole = CandidateRole;
 import { isPresent, isVerified, provenanceLabel } from "./evidence";
 
 /**
@@ -31,6 +34,16 @@ import { isPresent, isVerified, provenanceLabel } from "./evidence";
 export interface SuitabilitySignal {
   /** Keyed on the task kind — never on the person alone. */
   taskKind: string;
+  /**
+   * And on the ROLE the outcome was earned in (R2C).
+   *
+   * The owner's rule: delivery performance must not automatically become advisor performance,
+   * advisor success must not become delegated-authority evidence, and consultant performance
+   * stays provider-specific. Those are different jobs. Someone who delivers reliably may advise
+   * badly, and someone whose advice is excellent may be a poor choice to hold authority — a
+   * system that merges the two is not measuring anything real, it is measuring popularity.
+   */
+  role: SignalRole;
   membershipId: string;
   /** Outcomes considered at all, before recency and anti-poisoning filtering. */
   outcomeCount: number;
@@ -97,6 +110,8 @@ export function scoreSuitability(
   c: CandidateEvidence,
   req: CandidateRequest,
   signal: SuitabilitySignal | null,
+  /** The role being resolved. A signal earned in another role is refused (R2C). */
+  role?: CandidateRole,
 ): SuitabilityResult {
   const reasons: Reason[] = [];
   const missingInformation: Reason[] = [];
@@ -160,7 +175,7 @@ export function scoreSuitability(
   }
 
   // ── Learning. Bounded, asymmetric, and only above the evidence thresholds.
-  const learning = applyLearningSignal(signal, req);
+  const learning = applyLearningSignal(signal, req, role);
   score += learning.shift;
   reasons.push(...learning.reasons);
   missingInformation.push(...learning.missing);
@@ -203,7 +218,11 @@ interface LearningApplication {
  *  - a single decider yields nothing (one-manager bias);
  *  - contradictory history yields nothing and asks for a human instead of picking a side.
  */
-function applyLearningSignal(signal: SuitabilitySignal | null, req: CandidateRequest): LearningApplication {
+function applyLearningSignal(
+  signal: SuitabilitySignal | null,
+  req: CandidateRequest,
+  role?: CandidateRole,
+): LearningApplication {
   const reasons: Reason[] = [];
   const missing: Reason[] = [];
   const review: Reason[] = [];
@@ -222,6 +241,18 @@ function applyLearningSignal(signal: SuitabilitySignal | null, req: CandidateReq
     missing.push({
       code: "outcome_history_other_work",
       detail: `outcome history exists for "${signal.taskKind}" but not for "${req.taskKind}"; it was not applied`,
+      evidence: null,
+    });
+    return { shift: 0, reasons, missing, review };
+  }
+
+  // NOR does a signal earned in a different ROLE (R2C). Delivering well is not advising well.
+  if (role && signal.role !== role) {
+    missing.push({
+      code: "outcome_history_other_role",
+      detail:
+        `outcome history exists for the "${signal.role}" role but not for "${role}"; ` +
+        `performance in one role is not evidence about another`,
       evidence: null,
     });
     return { shift: 0, reasons, missing, review };

@@ -91,7 +91,7 @@ async function historyFromDb(companyId: string): Promise<OutcomeRecord[]> {
   );
   return rows.map((r) => ({
     outcomeId: r.id, companyId, membershipId: r.accountable_owner_id,
-    taskKind: r.proposed_action_id, itemId: r.item_id,
+    taskKind: r.proposed_action_id, role: "assignee" as const, itemId: r.item_id,
     outcome: r.to_state === "verified" ? "verified" : "reopened",
     deciderId: r.actor_id, deciderType: r.actor_type,
     occurredAt: new Date(r.created_at).toISOString(),

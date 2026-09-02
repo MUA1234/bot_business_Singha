@@ -261,12 +261,12 @@ describe("no universal employee rank", () => {
     const person = staff("m1");
     const signals: Record<string, SuitabilitySignal> = {
       "finance.receivable_followup": {
-        taskKind: "finance.receivable_followup", membershipId: "m1",
+        taskKind: "finance.receivable_followup", role: "assignee", membershipId: "m1",
         outcomeCount: 8, confirmedOutcomeCount: 8, onTimeCount: 8, distinctDeciderCount: 3,
         weightedSuccessRate: 0.95, contradictory: false, ruleVersion: "r2b.1",
       },
       "legal.obligation_review": {
-        taskKind: "legal.obligation_review", membershipId: "m1",
+        taskKind: "legal.obligation_review", role: "assignee", membershipId: "m1",
         outcomeCount: 9, confirmedOutcomeCount: 9, onTimeCount: 1, distinctDeciderCount: 3,
         weightedSuccessRate: 0.1, contradictory: false, ruleVersion: "r2b.1",
       },
@@ -287,7 +287,7 @@ describe("no universal employee rank", () => {
 
   it("ignores a signal earned on different work", () => {
     const otherWork: SuitabilitySignal = {
-      taskKind: "some.other.work", membershipId: "m1",
+      taskKind: "some.other.work", role: "assignee", membershipId: "m1",
       outcomeCount: 20, confirmedOutcomeCount: 20, onTimeCount: 20, distinctDeciderCount: 5,
       weightedSuccessRate: 1, contradictory: false, ruleVersion: "r2b.1",
     };
@@ -304,7 +304,7 @@ describe("cold start and missing information never penalise", () => {
     const coldStart = staff("m1");
     const known = staff("m2");
     const averageHistory: SuitabilitySignal = {
-      taskKind: "finance.receivable_followup", membershipId: "m2",
+      taskKind: "finance.receivable_followup", role: "assignee", membershipId: "m2",
       outcomeCount: 10, confirmedOutcomeCount: 10, onTimeCount: 5, distinctDeciderCount: 3,
       weightedSuccessRate: 0.5, contradictory: false, ruleVersion: "r2b.1",
     };

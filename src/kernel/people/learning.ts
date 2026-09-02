@@ -31,7 +31,7 @@
  * influence at 0.15 of an ordering value that a human then overrides at will. There is no code
  * path from an outcome to a consequence for a person.
  */
-import type { SuitabilitySignal } from "./suitability";
+import type { SignalRole, SuitabilitySignal } from "./suitability";
 
 /**
  * The rule version. It travels with every recommendation so a decision can be reproduced, and it
@@ -52,6 +52,14 @@ export interface OutcomeRecord {
   /** The person who was ACCOUNTABLE for the work. */
   membershipId: string;
   taskKind: string;
+  /**
+   * The ROLE they held when this happened (R2C).
+   *
+   * Outcomes never cross roles. Delivering a task well says nothing about the quality of
+   * someone's advice, and advising well is not evidence that they should hold authority. A
+   * record without a role would silently become assignee evidence for everyone.
+   */
+  role: SignalRole;
   itemId: string;
 
   /** The terminal state reached. See POLARITY for how each is treated. */
@@ -150,6 +158,8 @@ export function buildSignal(
   taskKind: string,
   companyId: string,
   now: Date,
+  /** The role being asked about. Outcomes earned in another role are not evidence here. */
+  role: SignalRole = "assignee",
 ): SuitabilitySignal | null {
   // ── Documented corrections supersede what they correct, entirely. A corrected outcome must
   //    never be counted alongside its correction, or a mistake becomes two data points.
@@ -159,6 +169,7 @@ export function buildSignal(
   const relevant = records
     .filter((r) => !superseded.has(r.outcomeId))
     .filter((r) => r.taskKind === taskKind)
+    .filter((r) => r.role === role)
     .filter((r) => isAdmissible(r, membershipId, companyId))
     // Deterministic order: by time, then by id, so ties never depend on input order.
     .sort((a, b) =>
@@ -236,6 +247,7 @@ export function buildSignal(
 
   return {
     taskKind,
+    role,
     membershipId,
     outcomeCount: relevant.length,
     confirmedOutcomeCount,
@@ -258,11 +270,13 @@ export function signalLookupFrom(
   records: readonly OutcomeRecord[],
   companyId: string,
   now: Date,
-): (membershipId: string, taskKind: string) => SuitabilitySignal | null {
+): (membershipId: string, taskKind: string, role?: SignalRole) => SuitabilitySignal | null {
   const cache = new Map<string, SuitabilitySignal | null>();
-  return (membershipId, taskKind) => {
-    const key = `${membershipId}|${taskKind}`;
-    if (!cache.has(key)) cache.set(key, buildSignal(records, membershipId, taskKind, companyId, now));
+  return (membershipId, taskKind, role: SignalRole = "assignee") => {
+    const key = `${membershipId}|${taskKind}|${role}`;
+    if (!cache.has(key)) {
+      cache.set(key, buildSignal(records, membershipId, taskKind, companyId, now, role));
+    }
     return cache.get(key)!;
   };
 }
@@ -280,6 +294,7 @@ export function explainSignal(
   taskKind: string,
   companyId: string,
   now: Date = new Date(),
+  role: SignalRole = "assignee",
 ): { counted: number; excluded: Array<{ outcomeId: string; why: string }> } {
   const superseded = new Set<string>();
   for (const r of records) if (r.correctsOutcomeId) superseded.add(r.correctsOutcomeId);
@@ -303,6 +318,11 @@ export function explainSignal(
       excluded.push({ outcomeId: r.outcomeId, why: "belongs to another company" });
     } else if (r.taskKind !== taskKind) {
       excluded.push({ outcomeId: r.outcomeId, why: `earned on "${r.taskKind}", not this work` });
+    } else if (r.role !== role) {
+      excluded.push({
+        outcomeId: r.outcomeId,
+        why: `earned in the "${r.role}" role, not as ${role}`,
+      });
     } else if (POLARITY[r.outcome] === 0) {
       excluded.push({ outcomeId: r.outcomeId, why: `"${r.outcome}" judges the recommendation or the detector, not the person` });
     } else if (r.deciderType !== "user") {

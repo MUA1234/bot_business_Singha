@@ -29,7 +29,12 @@ import { assertRoleBoundaries } from "./roles";
 import { orderCandidates, scoreSuitability, type SuitabilitySignal } from "./suitability";
 
 /** How the caller supplies derived outcome signals. Keyed by membership AND task kind. */
-export type SignalLookup = (membershipId: string, taskKind: string) => SuitabilitySignal | null;
+export type SignalLookup = (
+  membershipId: string,
+  taskKind: string,
+  /** The ROLE being resolved. Outcomes never cross roles (R2C). */
+  role?: CandidateRole,
+) => SuitabilitySignal | null;
 
 /**
  * Everything the resolver needs from the outside. All optional and all defaulting to the SAFE
@@ -108,13 +113,14 @@ export function resolveCandidates(
       continue;
     }
 
-    const signal = signalFor(c.membershipId, req.taskKind);
-    if (signal) ruleVersion = signal.ruleVersion;
-    const s = scoreSuitability(c, req, signal);
-
     // One entry per role the candidate can fill: an advisor recommendation and an assignee
-    // recommendation are different proposals even when they name the same person.
+    // recommendation are different proposals even when they name the same person — and, since
+    // R2C, they are scored against DIFFERENT outcome history, because performance in one role
+    // is not evidence about another.
     for (const role of roles) {
+      const signal = signalFor(c.membershipId, req.taskKind, role);
+      if (signal) ruleVersion = signal.ruleVersion;
+      const s = scoreSuitability(c, req, signal, role);
       // A delegate is only a candidate if the delegation itself survives scrutiny — scope,
       // window, and (R2B-F-001) the delegator's own authority.
       if (role === "delegate") {
