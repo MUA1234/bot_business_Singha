@@ -23,7 +23,7 @@ import {
 
 // eslint-disable-next-line
 export type Db = any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line
 type Row = any;
 
 const rowsOf = async (run: Promise<{ data: unknown; error: unknown }>): Promise<Row[]> => {
