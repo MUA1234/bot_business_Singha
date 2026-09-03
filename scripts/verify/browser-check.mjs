@@ -152,6 +152,44 @@ try {
     check(`${path} refuses a WRONG secret`, wrong.status === 401, `status ${wrong.status}`);
   }
 
+  // 5. Ask-AI, in the REAL server rather than in a unit test's imagination.
+  //
+  //    Two properties, and the second is the one worth having in a browser check: a
+  //    caller-supplied identity is REFUSED rather than ignored. A route that quietly drops an
+  //    unexpected companyId leaves the caller believing it was honoured, and leaves the next
+  //    reader unable to tell which identity actually decided the answer.
+  const askUnauth = await robustFetch(`${BASE}/api/ask-ai`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ question: "what needs my attention" }),
+  });
+  check("/api/ask-ai refuses an unauthenticated caller",
+    askUnauth.status === 401, `status ${askUnauth.status}`);
+
+  const askSuppliedIdentity = await robustFetch(`${BASE}/api/ask-ai`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ question: "x", companyId: "00000000-0000-0000-0000-000000000001" }),
+  });
+  check("/api/ask-ai REFUSES a caller-supplied companyId rather than ignoring it",
+    askSuppliedIdentity.status === 400, `status ${askSuppliedIdentity.status}`);
+
+  const askSuppliedMembership = await robustFetch(`${BASE}/api/ask-ai`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ question: "x", membershipId: "00000000-0000-0000-0000-000000000002" }),
+  });
+  check("/api/ask-ai REFUSES a caller-supplied membershipId",
+    askSuppliedMembership.status === 400, `status ${askSuppliedMembership.status}`);
+
+  // The spatial workspace carrying the Ask-AI window is gated like every other signed-in
+  // screen. What the window RENDERS is asserted by tests/spatial/ask-ai-*.tsx; that it cannot
+  // be reached without signing in is asserted here, in a real server.
+  const workspace = await robustFetch(`${BASE}/app/command`, { redirect: "manual" });
+  check("/app/command is served and gated",
+    workspace.status === 307 || workspace.status === 302,
+    `status ${workspace.status} → ${workspace.headers.get("location") ?? "(none)"}`);
+
   console.log(
     "\nNOTE: signed-in screens are NOT exercised here — there is no Supabase instance in this " +
     "container, so no browser check can load the queue or run an analysis. What those screens say " +
