@@ -331,9 +331,31 @@ async function loadKeysetPage(
   }
 
   // The cursor advances from the FORWARD rows only. Re-read rows must never move it.
-  const { next, complete } = nextCursorFrom("keyset_updated", forward, limit, {
-    id: "id", updatedAt: "updated_at",
-  });
+  const fields = { id: "id", updatedAt: "updated_at" };
+  const { next, complete } = nextCursorFrom("keyset_updated", forward, limit, fields);
+
+  // A CAUGHT-UP lane parks at its high-water mark. It does not rewind to the front.
+  //
+  // A short page means "no more right now", and `nextCursorFrom` answers null — correct for a
+  // type-3 sweep, whose whole design is to wrap and start again. For a keyset lane it is
+  // wrong, and expensively so: committing that null makes the NEXT cycle read from the oldest
+  // rows in the table. On anything larger than one page the lane then spends its entire
+  // budget re-reading history it has already seen, and a change made moments ago — which
+  // sorts LAST in (updated_at, id) — waits behind every one of those pages. The lane that
+  // exists to notice recent work becomes the slowest way to notice it.
+  //
+  // Parking keeps the compound boundary, so the next cycle asks only for what is genuinely
+  // newer. Rows written BEHIND the mark (backdated, imported, clock-skewed) are not this
+  // lane's job at all — forward reconciliation and the recovery rescan own that, and the
+  // bounded overlap re-scan below still covers the late-commit window.
+  //
+  // An EMPTY page must not erase a valid position either: nothing new is not the same as
+  // nothing known.
+  const parked = !complete
+    ? next
+    : forward.length > 0
+      ? nextCursorFrom("keyset_updated", forward, forward.length, fields).next
+      : at ?? null;
 
   // The late-writer re-scan: a writer whose transaction commits after a later-timestamped one
   // has already been read would otherwise fall permanently behind the cursor. Re-reading a
@@ -348,7 +370,7 @@ async function loadKeysetPage(
     );
   }
 
-  return { rows: [...late, ...forward], next, complete };
+  return { rows: [...late, ...forward], next: parked, complete };
 }
 
 /**

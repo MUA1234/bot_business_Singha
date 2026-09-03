@@ -23,7 +23,7 @@ import { runManagementCycle, type CycleDeps } from "@/kernel/cycle";
 import { makeCycleDeps } from "@/kernel/cycle-deps";
 import { pgSupabase } from "./helpers/pg-supabase";
 import {
-  RECONCILE_PAGE, RESCAN_PAGE, maxGenerationPages,
+  RECONCILE_PAGE, RESCAN_PAGE, OVERLAP_MS, maxGenerationPages,
   reconcileSourceKey, rescanSourceKey,
 } from "@/kernel/pagination";
 import { OPERATIONS_SOURCE } from "@/kernel/adapters";
@@ -59,6 +59,14 @@ async function addBackdated(co: string, n: number, prefix: string) {
       `($1,'${prefix}${i + k}','in_progress','2026-01-01', now() - interval '400 days')`).join(",");
     await q(`insert into tasks (company_id, title, status, due_date, created_at) values ` + values, [co]);
   }
+}
+
+/** Where the FORWARD coverage lane currently sits. */
+async function forwardPosition(co: string): Promise<string> {
+  const { rows } = await q(
+    `select cursor from observation_source_cursors where company_id=$1 and source=$2`,
+    [co, REC_KEY]);
+  return String((rows[0]?.cursor as { id?: string } | null)?.id ?? "");
 }
 
 async function observed(co: string, taskId: string): Promise<boolean> {
@@ -99,47 +107,145 @@ describe.skipIf(!enabled)("R2S-P — tail liveness and cursor attribution", () =
 
   // ═══════════════════════════════════════════════════════════════════════════════════════
   describe("the tail is reachable", () => {
-    it("a SENTINEL at the end is observed despite repeated abandonment and backdated inserts", async () => {
+    /**
+     * The forward-coverage lane must reach the END of the table.
+     *
+     * A PREVIOUS version of this test asserted only "the sentinel was observed", and passed on
+     * cycle 4 — arithmetically impossible for the forward lane, which advances 100 rows a cycle
+     * behind 600 rows and cannot arrive before cycle 7. The INCREMENTAL lane found it: the
+     * sentinel's `created_at` was backdated but its `updated_at` was left at now(), so it sat
+     * among the newest rows in the keyset ordering. The assertion was satisfied by the one lane
+     * the test was not about.
+     *
+     * So both other lanes are now closed off:
+     *
+     *   INCREMENTAL — the sentinel's `updated_at` is 400 days old and the incremental cursor is
+     *     driven past that point first, so the keyset bound can never return it again. The
+     *     60-second look-back is nowhere near.
+     *   RESCAN — the recovery lane is stubbed to return nothing for this company, so it cannot
+     *     satisfy a claim about forward coverage.
+     *
+     * What remains is the claim itself: the forward lane, resuming rather than restarting across
+     * abandonments, arrives at the last row.
+     */
+    it("the FORWARD lane reaches a sentinel at the very end, across repeated abandonment", async () => {
       const co = await freshCompany("tail-sentinel");
+      const PRECEDING = 600;
+      await addBackdated(co, PRECEDING, "bulk-");
 
-      // More rows than one generation may sweep: the bound is 2 pages × 100, and there are far
-      // more than 200 here, so this generation CANNOT finish before being abandoned.
-      await addBackdated(co, 600, "bulk-");
+      // Drive the INCREMENTAL cursor past everything that exists, so the keyset lane is
+      // finished with this table before the sentinel is written behind it — while leaving the
+      // forward lane exactly where it started.
+      //
+      // Warming up with ordinary cycles carried the forward lane to the end of the table too,
+      // and it then reached the sentinel in a single step: a pass, but not the pass this test
+      // is about. The forward lane has to begin at the front and cross all 600 rows.
+      const incrementalOnly: CycleDeps = {
+        ...deps,
+        async loadReconcile() {
+          return { rows: [], next: null, complete: true, inspected: 0 };
+        },
+      };
+      for (let i = 0; i < 8; i++) {
+        await runManagementCycle(incrementalOnly, {
+          companyId: co, actorId: null, trigger: "test",
+        });
+      }
+      expect(await forwardPosition(co), "the warm-up moved the forward lane").toBe("");
 
-      // The sentinel sits at the very end of the id ordering. `id` is a uuid, so the ordering is
-      // arbitrary but stable — the sentinel is placed by taking the largest id present and
-      // writing one above it, which is the only way to be genuinely last.
-      // PostgreSQL has no max(uuid) — ordering is defined, aggregation is not.
+      // Last in the id ordering. PostgreSQL has no max(uuid) — ordering is defined,
+      // aggregation is not.
       const { rows: maxRow } = await q(
         `select id::text as m from tasks where company_id=$1 order by id desc limit 1`, [co]);
       const lastId: string = maxRow[0].m;
       const sentinelId = lastId.replace(/^[0-9a-f]/i, "f").replace(/[0-9a-f]{12}$/i, "ffffffffffff");
+
+      // Backdated in BOTH senses: created_at puts it inside any fence, updated_at puts it
+      // behind the incremental cursor for good.
       await q(
-        `insert into tasks (id, company_id, title, status, due_date, created_at)
-         values ($1,$2,'SENTINEL-tail','in_progress','2026-01-01', now() - interval '400 days')`,
+        `insert into tasks (id, company_id, title, status, due_date, created_at, updated_at)
+         values ($1,$2,'SENTINEL-tail','in_progress','2026-01-01',
+                 now() - interval '400 days', now() - interval '400 days')`,
         [sentinelId, co]);
 
-      const { rows: check } = await q(
-        `select count(*)::int as after from tasks where company_id=$1 and id > $2`, [co, sentinelId]);
-      expect(check[0].after, "the sentinel is not actually last").toBe(0);
+      const { rows: after } = await q(
+        `select count(*)::int as n from tasks where company_id=$1 and id > $2`, [co, sentinelId]);
+      expect(after[0].n, "the sentinel is not actually last in id ordering").toBe(0);
 
-      // Now sweep, while backdated rows keep landing in the range already covered. Under the
-      // restart-at-page-one strategy this is exactly the shape that starved the tail for ever.
+      // The incremental lane CANNOT be excluded, and pretending otherwise would be the same
+      // mistake in a new place. A keyset sweep that catches up stores a null position and
+      // therefore restarts from the front, so it re-reads the whole table and will eventually
+      // carry the sentinel too. (Recorded as TD-002: a caught-up keyset lane rewinding to the
+      // beginning is wasteful, but it is not this checkpoint's defect.)
+      //
+      // So the claim is measured where it actually lives: on the cycle at which the FORWARD
+      // lane itself carries the sentinel in one of its pages. Whether some other lane also
+      // saw it is irrelevant to whether forward coverage reaches the tail.
+      const { rows: cur } = await q(
+        `select cursor from observation_source_cursors where company_id=$1 and source=$2`,
+        [co, OPERATIONS_SOURCE]);
+      void cur;
+
+      // Close the recovery lane, and record which lane each reconciliation page came from.
+      let forwardSawSentinel = 0;
+      const forwardOnly: CycleDeps = {
+        ...deps,
+        async loadReconcile(req) {
+          if (req.lane === "rescan") {
+            return { rows: [], next: null, complete: true, inspected: 0 };
+          }
+          const page = await deps.loadReconcile!(req);
+          const ids = (page.rows as Array<{ id?: unknown }>).map((r) => String(r?.id));
+          if (ids.includes(sentinelId)) forwardSawSentinel++;
+          return page;
+        },
+      };
+
+      const timeline: string[] = [];
       let found = 0;
       let abandonments = 0;
       for (let i = 1; i <= 40; i++) {
+        const before = await forwardPosition(co);
         await addBackdated(co, 60, `refill${i}-`);
-        const s = await cycle(co);
+        const s = await runManagementCycle(forwardOnly, {
+          companyId: co, actorId: null, trigger: "test",
+        });
         if (s.reconciliationDelayed.includes(OPERATIONS_SOURCE)) abandonments++;
-        if (await observed(co, sentinelId)) { found = i; break; }
+        const rec = s.reconciliation.find((r) => r.source === OPERATIONS_SOURCE);
+        const after2 = await forwardPosition(co);
+        timeline.push(
+          `c${i}: fwd ${before.slice(0, 8) || "start"}->${after2.slice(0, 8) || "start"} ` +
+          `rows=${rec?.inspected ?? 0} inspected=${s.recordsInspected} ` +
+          `abandon=${s.reconciliationDelayed.length > 0}`);
+        // The measured event: the FORWARD lane carried the sentinel in its own page.
+        if (forwardSawSentinel > 0) { found = i; break; }
       }
 
-      expect(abandonments, "the generation was never abandoned — the scenario did not bite")
-        .toBeGreaterThan(0);
-      expect(found, `sentinel never observed; ${abandonments} abandonments`).toBeGreaterThan(0);
-      console.log(`\n=== TAIL LIVENESS: sentinel observed on cycle ${found} ` +
-        `after ${abandonments} generation abandonments (bound ${maxGenerationPages()} pages, ` +
-        `page ${RECONCILE_PAGE}, rescan ${RESCAN_PAGE})`);
+      console.log("\n=== FORWARD-LANE TIMELINE\n" + timeline.join("\n"));
+
+      // The forward lane reached the last row…
+      expect(found, `the forward lane never reached the sentinel in 40 cycles; ` +
+        `${abandonments} abandonments`).toBeGreaterThan(0);
+      expect(forwardSawSentinel, "the forward lane never carried the sentinel").toBeGreaterThan(0);
+      // …and the row genuinely became a management item.
+      expect(await observed(co, sentinelId), "the sentinel was never observed at all").toBe(true);
+      // …across genuine abandonments, so the scenario actually bit.
+      expect(abandonments, "no generation was abandoned — the scenario did not reproduce")
+        .toBeGreaterThanOrEqual(2);
+      // …and no sooner than the page size allows.
+      //
+      // The sentinel is row PRECEDING + 1. Cycle k carries rows (k-1)·PAGE+1 … k·PAGE, so
+      // with 600 preceding rows cycles 1–6 carry rows 1–600 and the sentinel can FIRST
+      // appear on cycle 7. `ceil(600/100)` would say 6, which is off by exactly the
+      // sentinel itself — a bound that admits an impossible pass is not a bound.
+      const earliest = Math.ceil((PRECEDING + 1) / RECONCILE_PAGE);
+      expect(found, `observed on cycle ${found}; the forward lane cannot arrive before ${earliest}`)
+        .toBeGreaterThanOrEqual(earliest);
+
+      console.log(`\n=== TAIL LIVENESS: the FORWARD lane carried the sentinel on cycle ${found} ` +
+        `of this phase. Earliest arithmetically possible: ${earliest} — the sentinel is row ` +
+        `${PRECEDING + 1}, and cycles 1..${PRECEDING / RECONCILE_PAGE} carry rows 1..${PRECEDING} ` +
+        `at ${RECONCILE_PAGE}/cycle. ${abandonments} generation abandonments; rescan lane closed.`);
     }, 900_000);
 
     it("forward coverage does not restart at page one when a generation is abandoned", async () => {

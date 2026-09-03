@@ -270,10 +270,23 @@ export interface SourceRef {
   companyId: string;
 }
 
+/**
+ * Which reconciliation lane a read belongs to.
+ *
+ * The two lanes read the same table through the same function and differ only in their
+ * cursor, which makes them indistinguishable to a caller — and that is not good enough for
+ * evidence. A tail-liveness claim has to name the lane that reached the tail; without this
+ * marker a test can assert "the sentinel was observed" and be satisfied by a different lane
+ * entirely, which is exactly what happened before this was added.
+ */
+export type ReconcileLane = "forward" | "rescan";
+
 /** One bounded page of a source, from a cursor. */
 export interface PageRequest extends SourceRef {
   cursor: Cursor | null;
   limit: number;
+  /** Set only for reconciliation reads; absent for the incremental sweep. */
+  lane?: ReconcileLane;
 }
 
 /** The bounded priority pre-pass. */
@@ -512,7 +525,7 @@ async function readOnePage(
       // No retry, no reclassification: a validated position that then fails to read is a
       // source failure and is reported as one.
       const rp = await deps.loadReconcile({
-        source, companyId, cursor: recFrom, limit: recAllowance,
+        source, companyId, cursor: recFrom, limit: recAllowance, lane: "forward",
       });
       reconcileBudget.spend(rp.inspected);
       if (Array.isArray(rp.rows) && Array.isArray(rows)) {
@@ -589,7 +602,7 @@ async function readOnePage(
       if (!validateCursorEnvelope(from, "sweep_by_id").ok) from = null;
       if (!from) from = { kind: "sweep_by_id", id: "", fence: deps.now().toISOString() };
 
-      const rs = await deps.loadReconcile({ source, companyId, cursor: from, limit: allow });
+      const rs = await deps.loadReconcile({ source, companyId, cursor: from, limit: allow, lane: "rescan" });
       rescanBudget.spend(rs.inspected);
       if (Array.isArray(rs.rows) && Array.isArray(rows)) {
         const seen = new Set((rows as Array<{ id?: unknown }>).map((r) => String(r?.id)));

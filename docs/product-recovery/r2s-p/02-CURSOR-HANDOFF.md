@@ -185,11 +185,55 @@ what makes that acceptable: if the overlap is set badly, discovery is slower, no
 
 ## Evidence
 
-Twelve scenarios against a disposable PostgreSQL 16, in
-`tests/integration/r2s-p-cursor-handoff.test.ts`. Each places a row where the incremental cursor
-cannot look and asserts it is observed anyway.
+Scenarios against a disposable PostgreSQL 16, in `tests/integration/r2s-p-cursor-handoff.test.ts`
+and `r2s-p-tail-liveness.test.ts`. Each places a row where the incremental cursor cannot look
+and asserts it is observed anyway.
 
-*(results filled after the campaign)*
+### Tail liveness — the forward lane crosses the whole table
+
+The claim is that forward coverage, resuming rather than restarting across abandonments,
+reaches the LAST row. Measured on the forward lane itself, with the recovery lane returning
+nothing so it cannot satisfy the assertion:
+
+```
+c1: fwd start->2afa85d9  rows=100  abandon=false
+c2: fwd 2afa85d9->50850a0c rows=100  abandon=true
+c3: fwd 50850a0c->6d9cea6f rows=100  abandon=false
+c4: fwd 6d9cea6f->8aa7f76d rows=100  abandon=true
+c5: fwd 8aa7f76d->a61a2728 rows=100  abandon=false
+c6: fwd a61a2728->c3ff106c rows=100  abandon=true
+c7: fwd c3ff106c->da5a6a91 rows=100  abandon=false
+c8: fwd da5a6a91->f03be88b rows=100  abandon=true
+c9: fwd f03be88b->start    rows=70   abandon=false   ← sentinel carried here
+```
+
+**Cycle 9 of the measured phase, after 4 abandonments.**
+
+The lower bound, stated exactly: the sentinel is row **601**, and cycle *k* carries rows
+*(k−1)·100+1 … k·100*, so cycles 1–6 carry rows 1–600 and the sentinel can **first appear on
+cycle 7** — not 6. (`ceil(600/100)` = 6 is off by exactly the sentinel itself; a bound that
+admits an impossible pass is not a bound.) The observed cycle 9 is consistent with that and
+with the 60 rows arriving each cycle: 870 rows crossed at 100 a cycle. The position advances
+monotonically and wraps only on reaching the end.
+
+**Mutation check.** Restoring "abandonment restarts at page one" makes the forward lane
+oscillate over the first two pages and never arrive:
+
+```
+c1: start->2705246a   c2: 2705246a->start   c3: start->1d7ba2ad   c4: 1d7ba2ad->start …
+```
+
+> **An earlier version of this evidence was wrong, and the correction matters more than the**
+> **result.** The first sentinel test asserted only "the sentinel was observed" and passed on
+> cycle 4 — arithmetically impossible for a lane advancing 100 rows a cycle behind 600 rows.
+> The INCREMENTAL lane had found it: the fixture backdated `created_at` but left `updated_at`
+> at now(), placing the sentinel among the newest rows in the keyset ordering. A second version
+> warmed up with ordinary cycles, which carried the forward lane to the end of the table as
+> well, and it then arrived in a single step. Neither version tested forward coverage.
+>
+> Reconciliation reads now carry an explicit `lane` marker, because two lanes reading the same
+> table through the same function are otherwise indistinguishable to a test — and a claim about
+> one of them cannot rest on evidence that any of them could have produced.
 
 ## Limits that remain
 

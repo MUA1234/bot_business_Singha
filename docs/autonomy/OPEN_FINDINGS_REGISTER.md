@@ -551,3 +551,24 @@ been removed from the cursor boundary only.
 **Suggested closure:** convert `loadFor` to a `SourceRef`-shaped request in a dedicated pass, or
 brand the two identifier types so the swap is uncompilable everywhere. Either is mechanical; both
 touch enough test stubs to deserve their own checkpoint.
+
+## TD-002 — a caught-up keyset lane rewinds to the beginning
+
+**Status:** open, recorded during the R2S-P tail-provenance gate (2026-09-03). Not a defect of
+that checkpoint; not fixed there.
+
+When an incremental `keyset_updated` sweep catches up, the short page yields `next = null` and
+that null is committed as the stored position. The next cycle therefore starts from the FRONT of
+the table and re-reads all of it, rather than parking at the last position and waiting for newer
+rows.
+
+**Consequence.** Correctness is unaffected — identity-key deduplication absorbs the repeats — but
+a quiet company re-scans its whole table on every cycle, which is the opposite of what an
+"incremental" lane is for. It also blurs the lane separation: the incremental lane eventually
+sees every row, which is why the tail-liveness test could not exclude it and had to measure the
+forward lane directly.
+
+**Suggested closure.** On a short page, keep the last position and record that the lane is caught
+up, so the next cycle resumes from there. The overlap re-scan already covers late writers behind
+that point. This changes read volume, not observed rows, so it needs its own measurement rather
+than being folded into a correctness checkpoint.

@@ -38,3 +38,4 @@ npm-debug.log*
 
 # Hard-scenario local/CI artifacts (checksums recorded in the report, binaries not committed)
 artifacts/
+.r1-security-campaign.lock
