@@ -263,9 +263,9 @@ describe.skipIf(!enabled)("R2S-P — bounded pagination and complete reconciliat
       let fail = true;
       const flaky: CycleDeps = {
         ...deps,
-        async loadPage(source, companyId, cursor, limit) {
-          if (source === OPERATIONS_SOURCE && fail) throw new Error("connection reset");
-          return deps.loadPage!(source, companyId, cursor, limit);
+        async loadPage(req) {
+          if (req.source === OPERATIONS_SOURCE && fail) throw new Error("connection reset");
+            return deps.loadPage!(req);
         },
       };
 
@@ -294,8 +294,8 @@ describe.skipIf(!enabled)("R2S-P — bounded pagination and complete reconciliat
       // The SAME page, delivered twice, with the cursor never moving.
       const stuck: CycleDeps = {
         ...deps,
-        async loadPage(source, companyId, _cursor, limit) {
-          return deps.loadPage!(source, companyId, null, limit);
+        async loadPage(req) {
+          return deps.loadPage!({ ...req, cursor: null });
         },
         async writeCursor() { /* deliberately never commits a position */ },
       };
@@ -537,7 +537,7 @@ describe.skipIf(!enabled)("R2S-P — bounded pagination and complete reconciliat
                  values ($1,$2,(date_trunc('week', current_date) - interval '${weeks} weeks')::date,
                          40,36,40,0,$3,$4)`, [co, m[0].id, util, status]);
       }
-      const page = await deps.loadPage!(WORKFORCE_SOURCE, co, null, PAGE_SIZE);
+      const page = await deps.loadPage!({ source: WORKFORCE_SOURCE, companyId: co, cursor: null, limit: PAGE_SIZE });
       const rows = page.rows as Array<{ membershipId: string; status: string }>;
       expect(rows.filter((r) => r.membershipId === m[0].id)).toHaveLength(1);
       expect(rows.find((r) => r.membershipId === m[0].id)!.status).toBe("healthy");
@@ -616,7 +616,7 @@ describe.skipIf(!enabled)("R2S-P — bounded pagination and complete reconciliat
         query: (sql: string, params?: unknown[]) => { queries++; return raw.query(sql, params); },
       });
       const countingDeps = makeCycleDeps(counting, () => new Date());
-      const page = await countingDeps.loadPage!(FINANCE_SOURCE, co, null, PAGE_SIZE);
+      const page = await countingDeps.loadPage!({ source: FINANCE_SOURCE, companyId: co, cursor: null, limit: PAGE_SIZE });
 
       expect((page.rows as unknown[]).length).toBe(PAGE_SIZE);
       // One page read + one companion read. A per-row lookup would be 200+.
@@ -624,7 +624,7 @@ describe.skipIf(!enabled)("R2S-P — bounded pagination and complete reconciliat
     }, 300_000);
 
     it("a page never materialises the whole table", async () => {
-      const page = await deps.loadPage!(OPERATIONS_SOURCE, CO, null, PAGE_SIZE);
+      const page = await deps.loadPage!({ source: OPERATIONS_SOURCE, companyId: CO, cursor: null, limit: PAGE_SIZE });
       expect((page.rows as unknown[]).length).toBeLessThanOrEqual(PAGE_SIZE);
     }, 120_000);
   });

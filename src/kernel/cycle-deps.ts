@@ -13,8 +13,8 @@ import { randomUUID } from "node:crypto";
 import Decimal from "decimal.js";
 import { iso, isoDate } from "./temporal";
 import { parseCursor, type Cursor } from "./pagination";
-import { loadSourcePage, loadPrioritySlice } from "./source-queries";
-import type { StoredCursor } from "./cycle";
+import { loadSourcePage, loadPrioritySlice, loadReconcilePage } from "./source-queries";
+import type { StoredCursor, SourceRef } from "./cycle";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { writeAudit } from "@/lib/audit";
 import { log } from "@/lib/log";
@@ -47,6 +47,15 @@ const rowsOf = async (run: Promise<{ data: unknown; error: unknown }>): Promise<
 /** The per-source row cap. Bounded reads are deliberate; SILENT bounded reads are the defect. */
 export const LOADER_ROW_CAP = 500;
 
+/**
+ * How many identity keys one lookup query may carry.
+ *
+ * Deterministic, so the query count for a page is `ceil(unique keys / this)` and can be
+ * ASSERTED rather than timed — a wall-clock performance test on a shared machine proves
+ * very little, while a query count is exact.
+ */
+export const IDENTITY_LOOKUP_CHUNK = 100;
+
 export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => new Date()): CycleDeps {
   // Sources whose read hit the cap. Reset at the start of each loadFor sweep by the cycle asking
   // for them only once, at the end — see CycleDeps.truncatedSources.
@@ -64,11 +73,14 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
     truncatedSources: () => [...truncated].sort(),
 
     // ── R2S-P: bounded paging, priority pre-pass and cursor state. ────────────────────────
-    async loadPage(source, companyId, cursor, limit) {
+    async loadPage({ source, companyId, cursor, limit }) {
       return loadSourcePage(db, source, companyId, cursor, limit);
     },
 
-    async loadPriority(source, companyId, limit) {
+    async loadReconcile({ source, companyId, cursor, limit }) {
+      return loadReconcilePage(db, source, companyId, cursor, limit);
+    },
+    async loadPriority({ source, companyId, limit }) {
       return loadPrioritySlice(db, source, companyId, limit);
     },
 
@@ -80,7 +92,7 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
      * would make a whole domain look empty, and "look again from the start" costs a sweep period
      * while "silently observe nothing" costs everything.
      */
-    async readCursor(companyId: string, source: string): Promise<StoredCursor | null> {
+    async readCursor({ companyId, source }: SourceRef): Promise<StoredCursor | null> {
       const { data, error } = await db
         .from("observation_source_cursors")
         .select("cursor, generation, sweep_complete_at, rows_inspected, pages_processed, page_failures, status")
@@ -114,7 +126,7 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
     },
 
     /** Commit a page's position. The cycle calls this only after the page's items are persisted. */
-    async writeCursor(companyId: string, source: string, state: StoredCursor): Promise<void> {
+    async writeCursor({ companyId, source }: SourceRef, state: StoredCursor): Promise<void> {
       const { error } = await db
         .from("observation_source_cursors")
         .upsert(
@@ -505,6 +517,34 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
       }
 
       return signalLookupFrom(records, companyId, now());
+    },
+
+    /**
+     * One page's identity keys, in deterministic chunks.
+     *
+     * Company scope is on every chunk, so an item belonging to another company can never
+     * appear in the mapping however the key was constructed. Duplicates in the request are
+     * collapsed before the query; keys with no item are simply absent from the result.
+     */
+    async findExistingByIdentities({ companyId, identityKeys }) {
+      const out = new Map<string, ExistingItem>();
+      const unique = [...new Set(identityKeys)].filter((k) => typeof k === "string" && k !== "");
+      for (let i = 0; i < unique.length; i += IDENTITY_LOOKUP_CHUNK) {
+        const chunk = unique.slice(i, i + IDENTITY_LOOKUP_CHUNK);
+        const { data, error } = await db
+          .from("management_items")
+          .select("id, state, priority, identity_key")
+          .eq("company_id", companyId)
+          .in("identity_key", chunk);
+        // Never silently "no existing item": that would duplicate every open condition.
+        if (error) throw new Error((error as { message?: string }).message ?? "identity lookup failed");
+        for (const row of (data ?? []) as Array<Record<string, unknown>>) {
+          out.set(String(row.identity_key), {
+            id: row.id, state: row.state, priority: row.priority,
+          } as ExistingItem);
+        }
+      }
+      return out;
     },
 
     async findByIdentity(companyId, identityKey) {

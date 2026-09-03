@@ -94,6 +94,11 @@ try {
     "tests/integration/r2c-role-routing.test.ts",
     "tests/integration/r2s-loader-contract.test.ts",
     "tests/integration/r2s-p-pagination.test.ts",
+    "tests/integration/r2s-p-cursor-handoff.test.ts",
+    "tests/integration/r2s-p-reconcile-fairness.test.ts",
+    "tests/integration/r2s-p-fence-and-reset.test.ts",
+    "tests/integration/r2s-p-tail-liveness.test.ts",
+    "tests/integration/r2s-p-batch-lookup.test.ts",
   ], { env: { ...process.env, DATABASE_URL: URL, R1_DRAFT_CONFIRM: "disposable-local-only" } });
 } catch {
   code = 1;

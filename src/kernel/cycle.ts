@@ -47,9 +47,13 @@ import type { Observation } from "./observation";
 import type { Department } from "./types";
 import type { AuthorityContext } from "@/policy/authority-engine";
 import {
-  rotate, RowBudget, PAGE_SIZE, PRIORITY_PAGE, type Cursor, type Page,
+  type CursorProblem,
+  rotate, RowBudget, PAGE_SIZE, PRIORITY_PAGE, RECONCILE_PAGE, CYCLE_ROW_BUDGET,
+  reconcileSourceKey, rescanSourceKey, RESCAN_PAGE,
+  validateCursorEnvelope, maxGenerationPages,
+  type Cursor, type Page,
 } from "./pagination";
-import { isPagedSource } from "./source-queries";
+import { isPagedSource, needsReconcileSweep, SOURCE_SPECS } from "./source-queries";
 
 /** Cursor state as it is stored and returned. Position and counts only — never content. */
 export interface StoredCursor {
@@ -109,6 +113,44 @@ export interface CycleSummary {
    * `partial` with a continuation — never "all clear".
    */
   continuation: Array<{ source: string; generation: number; hasMore: boolean }>;
+  /**
+   * The periodic full sweep's progress, per source that has one.
+   *
+   * Reported so an operator can see that discovery does not rest on the overlap window, and
+   * how far through its current generation each source is.
+   */
+  reconciliation: Array<{ source: string; generation: number; hasMore: boolean; inspected: number }>;
+  /**
+   * Rows reserved for reconciliation this cycle, exclusively.
+   *
+   * Incremental reads cannot draw on it, so this is the floor under the discovery bound.
+   */
+  reconcileReserve: number;
+  /** Rows reserved for the earlier-range recovery rescan, exclusively. */
+  rescanReserve: number;
+  /**
+   * Sources whose stored position could not be used and was abandoned to restart the sweep.
+   *
+   * Not a failure — the rows were read, from the beginning — but it means work was repeated
+   * and a stored cursor was discarded, which an operator should be able to see.
+   */
+  cursorReset: string[];
+  /**
+   * Sources whose reconciliation generation ran too long and was abandoned unfinished.
+   *
+   * The sweep is making progress but cannot keep up with rows arriving BEHIND its fence —
+   * backdated inserts. Discovery is delayed, not lost: the next generation restarts from the
+   * beginning. It is reported because "still in progress" would suggest a pass that is going
+   * to finish, and this one did not.
+   */
+  reconciliationDelayed: string[];
+  /**
+   * Why each reset happened — `source: problem-code`.
+   *
+   * A code, never the position's value: a cursor is small, but it is not a thing to print on
+   * the way past.
+   */
+  cursorResetReasons: string[];
   /** True when the whole-cycle row budget stopped the sweep before every source was served. */
   budgetExhausted: boolean;
   /**
@@ -134,6 +176,19 @@ export interface CycleDeps {
   releaseLock(companyId: string): Promise<void>;
   /** Existing item for an identity key, or null. */
   findByIdentity(companyId: string, identityKey: string): Promise<ExistingItem | null>;
+  /**
+   * The same question for a WHOLE PAGE, in bounded chunks rather than one query per row.
+   *
+   * Measured on a 400-row fixture: one management cycle issued 494 identity lookups, 46% of
+   * all its database work, to ask a question that fits in five queries. Chunking is
+   * deterministic so the count is predictable and can be asserted rather than timed.
+   *
+   * Returns an EXACT key→item mapping. A key that is absent from the result genuinely has no
+   * item; a failure THROWS rather than returning an empty map, because "the lookup failed"
+   * and "there is nothing there" lead to opposite actions — the second would create a
+   * duplicate of every item it could not see.
+   */
+  findExistingByIdentities?(req: IdentityLookupRequest): Promise<Map<string, ExistingItem>>;
   /** Persists item + evidence + opening transition in ONE transaction. */
   persist(
     o: Observation,
@@ -157,21 +212,29 @@ export interface CycleDeps {
    * When present it replaces the 500-row cap with a cursored sweep, so every authorised record
    * is eventually observable while each cycle stays bounded.
    */
-  loadPage?(source: string, companyId: string, cursor: Cursor | null, limit: number): Promise<Page<unknown>>;
+  loadPage?(req: PageRequest): Promise<Page<unknown>>;
   /**
    * The MOST OVERDUE rows for a source, read ahead of the sweep and never advancing its cursor.
    *
    * A keyset sweep by uuid is stable but arbitrary, so without this an ancient expired licence
    * could sit behind thousands of newer rows for several cycles.
    */
-  loadPriority?(source: string, companyId: string, limit: number): Promise<unknown>;
+  loadPriority?(req: PriorityRequest): Promise<unknown>;
   /** Where each source's sweep left off. */
-  readCursor?(companyId: string, source: string): Promise<StoredCursor | null>;
+  readCursor?(ref: SourceRef): Promise<StoredCursor | null>;
   /**
    * Commit a page's position. Called ONLY after the page's items and evidence are persisted, so
    * a failure leaves the cursor where it was and the page is retried.
    */
-  writeCursor?(companyId: string, source: string, state: StoredCursor): Promise<void>;
+  writeCursor?(ref: SourceRef, state: StoredCursor): Promise<void>;
+  /**
+   * One page of a source's periodic RECONCILIATION sweep, by primary key.
+   *
+   * The incremental cursor only ever moves forward through `updated_at`, so a row written
+   * behind it — a backfill, an import, a skewed clock, a commit later than the overlap — would
+   * never be read again. This sweep reaches every row regardless of its timestamp.
+   */
+  loadReconcile?(req: PageRequest): Promise<Page<unknown>>;
   /**
    * Sources whose read hit the row cap during this cycle (defect R2S-F-008).
    *
@@ -186,6 +249,42 @@ export interface CycleDeps {
   /** Company authority context for the existing authority engine. */
   authorityFor(companyId: string): Promise<AuthorityContext>;
   now(): Date;
+}
+
+/**
+ * Which source, in which company.
+ *
+ * Both are strings, and they were adjacent positional parameters — in OPPOSITE orders in
+ * neighbouring functions: `loadPage(source, companyId)` beside `readCursor(companyId,
+ * source)`. A transposition type-checks perfectly and fails only at runtime, where it
+ * surfaces as a missing column contract rather than as a swap. Exactly that mistake was
+ * written and caught by hand while adding the reconciliation sweep; the next one would not
+ * necessarily be caught.
+ *
+ * Naming them at the call site makes the mistake unrepresentable rather than merely unlikely.
+ * `tests/kernel/cursor-identity.types.test.ts` fails to COMPILE if the positional form
+ * returns.
+ */
+export interface SourceRef {
+  source: string;
+  companyId: string;
+}
+
+/** One bounded page of a source, from a cursor. */
+export interface PageRequest extends SourceRef {
+  cursor: Cursor | null;
+  limit: number;
+}
+
+/** The bounded priority pre-pass. */
+export interface PriorityRequest extends SourceRef {
+  limit: number;
+}
+
+/** Which identity keys to look up, in which company. */
+export interface IdentityLookupRequest {
+  companyId: string;
+  identityKeys: readonly string[];
 }
 
 export interface PersistRecommendation {
@@ -217,6 +316,38 @@ interface PageOutcome {
   pagesProcessedTotal: number;
   pageFailuresTotal: number;
   pageFailed: boolean;
+  /** True when an unusable stored position was abandoned and the sweep restarted. */
+  cursorWasReset: boolean;
+  /** WHY it was unusable — a code, never the position's value. */
+  cursorProblem: CursorProblem | null;
+  /** The earlier-range rescan's outcome, when this source has one. */
+  rescan: RescanOutcome | null;
+  /** The reconciliation sweep's outcome for this source, when it has one. */
+  reconcile: ReconcileOutcome | null;
+}
+
+interface RescanOutcome {
+  inspected: number;
+  complete: boolean;
+  next: Cursor | null;
+  generation: number;
+}
+
+interface ReconcileOutcome {
+  inspected: number;
+  complete: boolean;
+  next: Cursor | null;
+  previous: Cursor | null;
+  /** True when this generation was restarted because its stored position was unusable. */
+  wasReset: boolean;
+  /** True when this generation ran too long and was abandoned unfinished. */
+  delayed: boolean;
+  /** True when this PASS was ever abandoned or restarted, so its wrap proves nothing. */
+  dirty: boolean;
+  generation: number;
+  sweepCompleteAt: string | null;
+  rowsInspectedTotal: number;
+  pagesProcessedTotal: number;
 }
 
 /**
@@ -229,7 +360,7 @@ async function seedGeneration(deps: CycleDeps, companyId: string): Promise<numbe
   try {
     const first = SOURCES[0];
     if (!first || !deps.readCursor) return 0;
-    const state = await deps.readCursor(companyId, first.source);
+    const state = await deps.readCursor({ companyId, source: first.source });
     return state?.generation ?? 0;
   } catch {
     return 0;
@@ -249,6 +380,8 @@ async function readOnePage(
   source: string,
   companyId: string,
   budget: RowBudget,
+  reconcileBudget: RowBudget,
+  rescanBudget: RowBudget | null,
 ): Promise<PageOutcome> {
   // An UNPAGED source (the system-health probe) is a bounded aggregate, not a row list: there
   // is nothing to page and no cursor to hold, so it is read whole through the ordinary loader
@@ -259,12 +392,16 @@ async function readOnePage(
       rows, inspected: 0, pages: 1, complete: true, next: null, previousCursor: null,
       generation: 0, sweepCompleteAt: null,
       rowsInspectedTotal: 0, pagesProcessedTotal: 0, pageFailuresTotal: 0, pageFailed: false,
+      cursorWasReset: false, cursorProblem: null, reconcile: null, rescan: null,
     };
   }
 
-  const stored = (await deps.readCursor?.(companyId, source)) ?? null;
+  const stored = (await deps.readCursor?.({ companyId, source })) ?? null;
   const previousCursor = stored?.cursor ?? null;
 
+  let cursorWasReset = false;
+  let cursorProblem: CursorProblem | null = null;
+  let rescan: RescanOutcome | null = null;
   const allowance = budget.allow(PAGE_SIZE);
   if (allowance === 0) {
     // The cycle budget is spent. This source is NOT read, its cursor does NOT move, and the
@@ -278,6 +415,8 @@ async function readOnePage(
       pagesProcessedTotal: stored?.pagesProcessed ?? 0,
       pageFailuresTotal: stored?.pageFailures ?? 0,
       pageFailed: false,
+      cursorWasReset: false, cursorProblem: null,
+      reconcile: null, rescan: null,
     };
   }
 
@@ -285,7 +424,37 @@ async function readOnePage(
   // defect) reset the progress bound on every page, so a batch larger than one page was
   // re-read for ever and nothing past the first page was observed. The late-writer overlap
   // now lives inside the loader as a separate re-scan that cannot move the cursor.
-  const page = await deps.loadPage!(source, companyId, previousCursor, allowance);
+  // A cursor whose SHAPE is unreadable is refused when it is read, and the sweep restarts.
+  // This is the other half: a cursor that parses but cannot be USED — one written by a
+  // different schema version, or corrupted, so the query itself is rejected. Left alone it
+  // wedges the source permanently, and a source that can never read is a domain that can
+  // never be observed, which is the failure this phase exists to prevent.
+  //
+  // So: restart from the beginning, ONCE. Re-reading is absorbed by identity-key
+  // deduplication. If reading from the beginning fails too, the error is real and
+  // propagates — this recovers from a bad POSITION, it does not swallow a broken source.
+  let page: Page<unknown>;
+  let resetFrom: Cursor | null = previousCursor;
+
+  // The position is judged ON ITS OWN, before any source row is read, and that judgement is
+  // the ONLY thing that can restart a sweep.
+  //
+  // It used to be inferred instead — from a retry that succeeded when reading from the
+  // beginning. That is not evidence: a first page succeeding says nothing about a malformed
+  // row on page nine, and a transient failure that clears on retry would be recorded as a
+  // corrupt cursor. Once a position validates, every loader failure below belongs to the
+  // SOURCE and is reported as one.
+  const verdict = validateCursorEnvelope(
+    previousCursor,
+    SOURCE_SPECS[source]?.cursorKind ?? "none",
+  );
+  if (!verdict.ok) {
+    resetFrom = null;
+    cursorWasReset = true;
+    cursorProblem = verdict.problem ?? null;
+  }
+
+  page = await deps.loadPage!({ source, companyId, cursor: resetFrom, limit: allowance });
   budget.spend(page.inspected);
 
   let rows: unknown = page.rows;
@@ -296,7 +465,7 @@ async function readOnePage(
     const priorityAllowance = budget.allow(PRIORITY_PAGE);
     if (priorityAllowance > 0) {
       try {
-        const urgent = await deps.loadPriority(source, companyId, priorityAllowance);
+        const urgent = await deps.loadPriority({ source, companyId, limit: priorityAllowance });
         if (Array.isArray(urgent) && Array.isArray(page.rows)) {
           const seen = new Set((page.rows as Array<{ id?: unknown }>).map((r) => String(r?.id)));
           const extra = (urgent as Array<{ id?: unknown }>).filter((r) => !seen.has(String(r?.id)));
@@ -311,13 +480,146 @@ async function readOnePage(
     }
   }
 
+  // ── The periodic reconciliation sweep. ──────────────────────────────────────────────
+  //
+  // Bounded like everything else, and it takes its rows from the SAME budget, so adding it
+  // cannot make a cycle unbounded. If the budget is spent this source simply reconciles on a
+  // later cycle; the rotation makes sure it is not the same source every time.
+  let reconcile: ReconcileOutcome | null = null;
+  if (deps.loadReconcile && needsReconcileSweep(source)) {
+    const key = reconcileSourceKey(source);
+    const storedRec = (await deps.readCursor?.({ companyId, source: key })) ?? null;
+    const recAllowance = reconcileBudget.allow(RECONCILE_PAGE);
+    if (recAllowance > 0) {
+      // A generation that has not started yet gets its upper boundary NOW, and every page of
+      // that generation carries the same one. Rows created later belong to the next
+      // generation, so a steady insert rate cannot extend this one for ever.
+      const startGeneration = (): Cursor => ({
+        kind: "sweep_by_id", id: "", fence: deps.now().toISOString(),
+      });
+
+      let recFrom: Cursor | null = storedRec?.cursor ?? null;
+      let recReset = false;
+      const recVerdict = validateCursorEnvelope(recFrom, "sweep_by_id");
+      if (!recVerdict.ok) {
+        recFrom = null;
+        recReset = true;
+        cursorWasReset = true;
+        cursorProblem = recVerdict.problem ?? null;
+      }
+      if (!recFrom) recFrom = startGeneration();
+
+      // No retry, no reclassification: a validated position that then fails to read is a
+      // source failure and is reported as one.
+      const rp = await deps.loadReconcile({
+        source, companyId, cursor: recFrom, limit: recAllowance,
+      });
+      reconcileBudget.spend(rp.inspected);
+      if (Array.isArray(rp.rows) && Array.isArray(rows)) {
+        // Rows the incremental page already carried are not read twice in one cycle. A repeat
+        // across cycles is harmless — identity-key deduplication absorbs it — but doing it
+        // inside one cycle would just waste the budget.
+        const seen = new Set((rows as Array<{ id?: unknown }>).map((r) => String(r?.id)));
+        const fresh = (rp.rows as Array<{ id?: unknown }>).filter((r) => !seen.has(String(r?.id)));
+        rows = [...(rows as unknown[]), ...fresh];
+        inspected += rp.inspected;
+      }
+      // The work bound. A generation that has taken this many pages without finishing is
+      // being fed backdated rows faster than it can sweep them; it is abandoned here and a
+      // new one begins, rather than running for ever while the cycle reports "in progress".
+      const pagesSoFar = (storedRec?.pagesProcessed ?? 0) + 1;
+      const delayed = !rp.complete && pagesSoFar >= maxGenerationPages();
+      // A pass that has ever been abandoned or restarted is DIRTY: it covered the table
+      // under more than one boundary, so reaching the end does not mean it saw everything
+      // once. It wraps without stamping completion, and a later clean pass earns that.
+      const wasDirty = storedRec?.status === "blocked";
+
+      // Abandoning refreshes the FENCE but KEEPS THE PLACE.
+      //
+      // Restarting at the first page here was a tail-starvation defect: with backdated rows
+      // continually refilling the early pages, the sweep re-read the front of the table for
+      // ever and a row near the end was never reached. Forward coverage must be monotonic —
+      // that is the only thing that makes the tail reachable at all. Recovering rows that
+      // land BEHIND this position is the rescan's job, below, not this one's.
+      const refenced = (c: Cursor | null): Cursor =>
+        c && c.kind === "sweep_by_id"
+          ? { kind: "sweep_by_id", id: c.id, fence: deps.now().toISOString() }
+          : startGeneration();
+
+      reconcile = {
+        inspected: rp.inspected,
+        complete: rp.complete,
+        delayed,
+        next: delayed ? refenced(rp.next ?? recFrom) : rp.next,
+        previous: recFrom,
+        wasReset: recReset,
+        dirty: wasDirty || delayed || recReset,
+        generation: storedRec?.generation ?? 0,
+        sweepCompleteAt: storedRec?.sweepCompleteAt ?? null,
+        rowsInspectedTotal: storedRec?.rowsInspected ?? 0,
+        pagesProcessedTotal: storedRec?.pagesProcessed ?? 0,
+      };
+    } else {
+      // Not read this cycle. The position does not move and nothing claims completion.
+      reconcile = {
+        inspected: 0, complete: false, next: storedRec?.cursor ?? null,
+        previous: storedRec?.cursor ?? null,
+        wasReset: false, delayed: false, dirty: storedRec?.status === "blocked",
+        generation: storedRec?.generation ?? 0,
+        sweepCompleteAt: storedRec?.sweepCompleteAt ?? null,
+        rowsInspectedTotal: storedRec?.rowsInspected ?? 0,
+        pagesProcessedTotal: storedRec?.pagesProcessed ?? 0,
+      };
+    }
+  }
+
+  // ── The earlier-range rescan. ──────────────────────────────────────────────────────
+  //
+  // Forward coverage never goes back, so a row inserted BEHIND its position — a backdated
+  // `created_at`, an import replaying history — would wait for a full wrap. This sweeps from
+  // the beginning on its own cursor and its own budget, restarting whenever it finishes. It
+  // is a recovery pass, not a coverage claim: it never sets completion and never licenses
+  // resolution.
+  if (deps.loadReconcile && needsReconcileSweep(source) && rescanBudget) {
+    const rescanKey = rescanSourceKey(source);
+    const storedRescan = (await deps.readCursor?.({ companyId, source: rescanKey })) ?? null;
+    const allow = rescanBudget.allow(RESCAN_PAGE);
+    if (allow > 0) {
+      let from: Cursor | null = storedRescan?.cursor ?? null;
+      if (!validateCursorEnvelope(from, "sweep_by_id").ok) from = null;
+      if (!from) from = { kind: "sweep_by_id", id: "", fence: deps.now().toISOString() };
+
+      const rs = await deps.loadReconcile({ source, companyId, cursor: from, limit: allow });
+      rescanBudget.spend(rs.inspected);
+      if (Array.isArray(rs.rows) && Array.isArray(rows)) {
+        const seen = new Set((rows as Array<{ id?: unknown }>).map((r) => String(r?.id)));
+        const fresh = (rs.rows as Array<{ id?: unknown }>).filter((r) => !seen.has(String(r?.id)));
+        rows = [...(rows as unknown[]), ...fresh];
+        inspected += rs.inspected;
+      }
+      rescan = {
+        inspected: rs.inspected,
+        complete: rs.complete,
+        // A finished rescan starts again from the beginning with a fresh boundary.
+        next: rs.complete
+          ? { kind: "sweep_by_id", id: "", fence: deps.now().toISOString() }
+          : rs.next,
+        generation: storedRescan?.generation ?? 0,
+      };
+    }
+  }
+
   return {
     rows,
     inspected,
     pages: 1,
+    rescan,
     complete: page.complete,
     next: page.next,
-    previousCursor,
+    previousCursor: resetFrom,
+    cursorWasReset,
+    cursorProblem,
+    reconcile,
     generation: stored?.generation ?? 0,
     sweepCompleteAt: stored?.sweepCompleteAt ?? null,
     rowsInspectedTotal: stored?.rowsInspected ?? 0,
@@ -626,6 +928,12 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     recordsInspected: 0,
     pagesProcessed: 0,
     continuation: [],
+    reconciliation: [],
+    reconcileReserve: 0,
+    rescanReserve: 0,
+    cursorReset: [],
+    reconciliationDelayed: [],
+    cursorResetReasons: [],
     budgetExhausted: false,
     resolutionPermitted: false,
     unobservedDepartments: [],
@@ -716,18 +1024,44 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     // R2S-P. Sources are visited in a ROTATING order seeded by the sweep generation, so when
     // the whole-cycle row budget runs out the same sources are not starved every time. The
     // rotation is deterministic, so a cycle remains reproducible.
-    const budget = new RowBudget();
+    // R2S-P handoff. Reconciliation gets its OWN budget, not the incremental sweep's
+    // leftovers.
+    //
+    // Sharing one budget made reconciliation depend on incremental traffic being light. A
+    // company writing steadily — which is what a busy company DOES — could spend the whole
+    // budget on new rows every cycle, and the full sweep that guarantees eventual discovery
+    // would never run. "It works when the system is quiet" is not a guarantee.
+    //
+    // So the reserve is carved out of the same total (the cycle stays bounded by
+    // CYCLE_ROW_BUDGET) and is large enough for EVERY keyset source to take a full page every
+    // cycle. No rotation, no leftovers, no dependence on load: each source's reconciliation
+    // advances by RECONCILE_PAGE rows per cycle, so a table of N rows is swept in
+    // ceil(N / RECONCILE_PAGE) cycles whatever else is happening.
+    const reconcilingSources = paged
+      ? SOURCES.filter((x) => needsReconcileSweep(x.source)).length
+      : 0;
+    const reserve = (RECONCILE_PAGE + RESCAN_PAGE) * reconcilingSources;
+    const budget = new RowBudget(Math.max(PAGE_SIZE, CYCLE_ROW_BUDGET - reserve));
+    // Two purposes, two budgets. Forward coverage and backdated recovery each get a
+    // guaranteed slice, so neither can be squeezed out by the other or by incremental load.
+    const reconcileBudget = new RowBudget(RECONCILE_PAGE * reconcilingSources);
+    const rescanBudget = new RowBudget(RESCAN_PAGE * reconcilingSources);
+    // Reported apart, because they are two separate guarantees: forward coverage cannot be
+    // squeezed out by recovery, nor recovery by coverage.
+    summary.reconcileReserve = RECONCILE_PAGE * reconcilingSources;
+    summary.rescanReserve = RESCAN_PAGE * reconcilingSources;
     const generationSeed = paged ? await seedGeneration(deps, req.companyId) : 0;
     let allSweepsComplete = paged;
 
     for (const s of rotate(SOURCES, generationSeed)) {
       let observations: Observation[];
       let pageState: PageOutcome | null = null;
+      let existingByIdentity: Map<string, ExistingItem> | null = null;
 
       try {
         let rows: unknown;
         if (paged) {
-          pageState = await readOnePage(deps, s.source, req.companyId, budget);
+          pageState = await readOnePage(deps, s.source, req.companyId, budget, reconcileBudget, rescanBudget);
           rows = pageState.rows;
           summary.recordsInspected += pageState.inspected;
           summary.pagesProcessed += pageState.pages;
@@ -740,6 +1074,17 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
         //    failure, not an empty result.
         if (!Array.isArray(produced)) throw new Error("adapter did not return an array");
         observations = produced;
+
+        // 5b. One bounded identity lookup for the whole page, rather than one per
+        //     observation — and inside THIS try, so an unreadable lookup fails its own
+        //     source exactly as an unreadable table does, instead of aborting the cycle.
+        //
+        //     A failure here is emphatically NOT "nothing exists": that reading would create
+        //     a second item for every condition already open.
+        const identityKeys = [...new Set(observations.map((o) => o.identityKey))];
+        existingByIdentity = deps.findExistingByIdentities
+          ? await deps.findExistingByIdentities({ companyId: req.companyId, identityKeys })
+          : null;
       } catch (e) {
         // A failing adapter marks ITS department unobserved and the cycle partial. It never
         // becomes a silent success, and it never aborts the other sources.
@@ -755,7 +1100,9 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
 
       for (const o of observations) {
         // 6. DEDUPLICATE, and fail closed on anything unsafe.
-        const existing = await deps.findByIdentity(req.companyId, o.identityKey);
+        const existing = existingByIdentity
+          ? existingByIdentity.get(o.identityKey) ?? null
+          : await deps.findByIdentity(req.companyId, o.identityKey);
         const decision: IngestDecision = ingestObservation(o, { companyId: req.companyId }, existing);
 
         if (decision.action === "reject") {
@@ -824,7 +1171,7 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
       if (paged && pageState) {
         const pageFailed = pageState.pageFailed || failedThisSource;
         try {
-          await deps.writeCursor?.(req.companyId, s.source, {
+          await deps.writeCursor?.({ companyId: req.companyId, source: s.source }, {
             // A failed page does not move the position.
             cursor: pageFailed ? pageState.previousCursor : pageState.next,
             generation: pageState.complete && !pageFailed
@@ -850,6 +1197,101 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
           // recorded nowhere and changed nothing (R2S-P-F-003).
           summary.cursorCommitFailed.push(s.source);
         }
+        // The reconciliation position is committed the same way and under the same rule: only
+        // after this cycle's items are persisted, and never on a failed page.
+        if (pageState.rescan) {
+          const rs = pageState.rescan;
+          try {
+            await deps.writeCursor?.(
+              { companyId: req.companyId, source: rescanSourceKey(s.source) },
+              {
+                cursor: pageFailed ? null : rs.next,
+                generation: rs.complete && !pageFailed ? rs.generation + 1 : rs.generation,
+                // A recovery pass never claims coverage, so it never stamps completion.
+                sweepCompleteAt: null,
+                rowsInspected: rs.inspected,
+                pagesProcessed: rs.inspected > 0 ? 1 : 0,
+                pageFailures: 0,
+                status: pageFailed ? "failed" : "in_progress",
+              },
+            );
+          } catch {
+            summary.cursorCommitFailed.push(rescanSourceKey(s.source));
+          }
+        }
+
+        if (pageState.reconcile) {
+          const r = pageState.reconcile;
+          try {
+            await deps.writeCursor?.(
+              { companyId: req.companyId, source: reconcileSourceKey(s.source) },
+              {
+                cursor: pageFailed ? r.previous : r.next,
+                // A generation whose position was reset mid-flight did NOT sweep the whole
+                // table: it restarted somewhere unknown. It may not count as a completed
+                // generation, and it may not stamp a completion time, because that stamp is
+                // what any future resolve-on-absence logic gates on.
+                generation:
+                  (r.complete && !pageFailed && !r.wasReset) || r.delayed
+                    ? r.generation + 1
+                    : r.generation,
+                // A generation that was ABANDONED or RESET did not sweep the table. It
+                // stamps no completion time — and clears any older one, so nothing can
+                // later read a stale stamp as though this pass had finished.
+                sweepCompleteAt:
+                  r.complete && !pageFailed && !r.wasReset && !r.dirty
+                    ? deps.now().toISOString()
+                    : r.delayed || r.wasReset || (r.complete && r.dirty)
+                      ? null
+                      : r.sweepCompleteAt,
+                // Counters are PER GENERATION: they reset whenever one ends, however it
+                // ended, because the work bound is a statement about one pass.
+                rowsInspected:
+                  (r.complete && !pageFailed) || r.delayed ? 0 : r.rowsInspectedTotal + r.inspected,
+                pagesProcessed:
+                  (r.complete && !pageFailed) || r.delayed
+                    ? 0
+                    : r.pagesProcessedTotal + (r.inspected > 0 ? 1 : 0),
+              pageFailures: 0,
+                // "blocked" is how a dirty pass remembers it was interrupted, so the wrap
+                // that eventually follows cannot quietly claim to have seen everything.
+                status: pageFailed
+                  ? "failed"
+                  : r.delayed || r.wasReset
+                    ? "blocked"
+                    : r.complete
+                      ? "complete"
+                      : r.dirty
+                        ? "blocked"
+                        : "in_progress",
+              },
+            );
+          } catch {
+            summary.cursorCommitFailed.push(reconcileSourceKey(s.source));
+          }
+          summary.reconciliation.push({
+            source: s.source,
+            generation: r.generation,
+            hasMore: !r.complete,
+            inspected: r.inspected,
+          });
+          // A source whose FULL sweep is still running has not finished reconciling, whatever
+          // the incremental cursor says. Resolve-on-absence must never be licensed by an
+          // incremental page that merely ran out of new timestamps.
+          if (r.delayed) {
+            summary.reconciliationDelayed.push(s.source);
+          }
+          if (!r.complete || r.dirty) allSweepsComplete = false;
+        }
+
+        if (pageState.cursorWasReset) {
+          summary.cursorReset.push(s.source);
+          summary.cursorResetReasons.push(
+            `${s.source}: ${pageState.cursorProblem ?? "unusable"}`,
+          );
+          // Nothing observed through a restarted position may license resolution this cycle.
+          allSweepsComplete = false;
+        }
         if (pageFailed) allSweepsComplete = false;
         summary.continuation.push({
           source: s.source,
@@ -870,7 +1312,11 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     //     A TRUNCATED read counts: looking at the first 500 rows of a domain and reporting
     //     "completed" claims a sweep that did not happen.
     summary.truncatedSources = [...(deps.truncatedSources?.() ?? [])];
-    const hasMore = summary.continuation.some((c) => c.hasMore);
+    const hasMore =
+      summary.continuation.some((c) => c.hasMore) ||
+      summary.reconciliation.some((r) => r.hasMore) ||
+      summary.cursorReset.length > 0 ||
+      summary.reconciliationDelayed.length > 0;
     summary.status =
       summary.sourcesFailed > 0 ||
       summary.unobservedDepartments.length > 0 ||
@@ -892,8 +1338,23 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
       if (more.length > 0) {
         parts.push(`more to read (continuation pending): ${more.join(", ")}`);
       }
+      const reconciling = summary.reconciliation.filter((r) => r.hasMore).map((r) => r.source);
+      if (reconciling.length > 0) {
+        parts.push(`reconciliation sweep in progress: ${reconciling.join(", ")}`);
+      }
       if (summary.budgetExhausted) {
         parts.push("cycle row budget exhausted; remaining sources continue next cycle");
+      }
+      if (summary.reconciliationDelayed.length > 0) {
+        parts.push(
+          "reconciliation delayed (generation abandoned unfinished; it restarts from the " +
+            "beginning): " + summary.reconciliationDelayed.join(", "),
+        );
+      }
+      if (summary.cursorReset.length > 0) {
+        parts.push(
+          "stored position unusable; sweep restarted: " + summary.cursorReset.join(", "),
+        );
       }
       if (summary.cursorCommitFailed.length > 0) {
         parts.push(

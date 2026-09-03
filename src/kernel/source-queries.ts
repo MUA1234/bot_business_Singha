@@ -13,7 +13,7 @@
 import Decimal from "decimal.js";
 import { iso, isoDate } from "./temporal";
 import {
-  nextCursorFrom, OVERLAP_MS, type Cursor, type CursorKind, type Page,
+  nextCursorFrom, OVERLAP_MS, RECONCILE_PAGE, type Cursor, type CursorKind, type Page,
 } from "./pagination";
 import {
   FINANCE_SOURCE, WORKFORCE_SOURCE, OPERATIONS_SOURCE, CRM_SOURCE, SYSTEM_SOURCE,
@@ -288,7 +288,7 @@ async function companions(
  * R2S-P-F-001 defect — meant that whenever more than one page of rows shared the overlap
  * window, every page re-read the same first rows and the sweep never advanced past them.
  */
-export const OVERLAP_RESCAN = 50;
+export const OVERLAP_RESCAN = Math.max(1, Math.min(RECONCILE_PAGE, 50));
 
 /**
  * One page of a `keyset_updated` source, on a genuinely COMPOUND (updated_at, id) cursor.
@@ -415,6 +415,52 @@ export async function loadSourcePage(
     id: "id", updatedAt: "updated_at", key: "membership_id",
   });
   return { rows: normalise(source, rows, extra), next, complete, inspected: rows.length };
+}
+
+/**
+ * One page of a source's RECONCILIATION sweep — by primary key, restarting when it finishes.
+ *
+ * This exists so that discovery does not depend on `updated_at` at all. Whatever a row's
+ * timestamp says — historical, skewed, or written behind the cursor — the sweep reaches it
+ * within one full pass, because it is ordered by a key that no writer can move.
+ *
+ * It reuses the incremental path's columns and normalisation deliberately: two readers of one
+ * table that disagree about what a row MEANS is the defect class this recovery keeps finding.
+ */
+export async function loadReconcilePage(
+  db: Db, source: string, companyId: string, cursor: Cursor | null, limit: number,
+): Promise<Page<Row>> {
+  const cols = COLUMNS[source];
+  if (!cols) throw new Error(`no column contract for ${source}`);
+
+  const fence = cursor && cursor.kind === "sweep_by_id" ? cursor.fence : undefined;
+
+  let query = db.from(cols.table).select(cols.select).eq("company_id", companyId);
+  if (cursor && cursor.kind === "sweep_by_id" && cursor.id) query = query.gt("id", cursor.id);
+  // The generation's upper boundary. Rows created after the generation began belong to the
+  // NEXT one — otherwise a steady insert rate extends this generation for ever and it never
+  // wraps, which is exactly what makes a completion bound meaningless.
+  if (fence) query = query.lte("created_at", fence);
+  const rows = await rowsOf(query.order("id", { ascending: true }).limit(limit));
+
+  const extra = await companions(db, source, companyId, rows);
+  const { next, complete } = nextCursorFrom("sweep_by_id", rows, limit, { id: "id" });
+  // The boundary travels with the position: every page of one generation shares one fence.
+  const fenced = next && next.kind === "sweep_by_id" && fence
+    ? { ...next, fence }
+    : next;
+  return { rows: normalise(source, rows, extra), next: fenced, complete, inspected: rows.length };
+}
+
+/**
+ * Does this source need a reconciliation sweep?
+ *
+ * Only the keyset sources. A type-3 sweep already pages the whole table by id and starts
+ * again, and a type-4 latest-sample read returns every subject every pass, so both already
+ * have the property this adds.
+ */
+export function needsReconcileSweep(source: string): boolean {
+  return SOURCE_SPECS[source]?.cursorKind === "keyset_updated";
 }
 
 /**

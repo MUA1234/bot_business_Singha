@@ -519,3 +519,35 @@ path, staging checklist, hosted migration, live provider quality/cost evidence, 
 and production evidence remain unavailable and unclaimed. No hosted/staging database was
 contacted, no flag was enabled, no real data was used, and no message was sent. OF-018 is the next
 bounded package; MOD-003 remains out of scope until OF-018 is accepted.
+
+## TD-001 — positional `(source, companyId)` at the loader boundary (bounded technical debt)
+
+**Status:** open, deferred by owner decision (2026-09-03). **Not** part of the R2S-P cursor
+checkpoint.
+
+`CycleDeps.loadFor(source: string, companyId: string)` still takes two adjacent, interchangeable
+strings. Transposing them type-checks perfectly and fails only at runtime, where it surfaces as a
+missing column contract rather than as a swap.
+
+This is not hypothetical. Exactly that mistake was written while adding the reconciliation sweep —
+`loadReconcile(companyId, source, …)` declared against a `(source, companyId, …)` implementation —
+and a clean `tsc` said nothing about it. It was caught by re-reading the wiring, not by a tool.
+
+**What WAS fixed** (R2S-P cursor checkpoint): the five functions of the persisted cursor boundary —
+`loadPage`, `loadPriority`, `loadReconcile`, `readCursor`, `writeCursor` — now take typed request
+objects, and `tests/kernel/cursor-identity.types.test.ts` fails to COMPILE if the positional form
+returns. That file had previously carried both parameter orders in neighbouring functions
+(`loadPage(source, companyId)` beside `readCursor(companyId, source)`), which is what made the
+transposition invisible.
+
+**What was NOT fixed:** `loadFor`, at 47 call sites, nearly all test stubs. It is outside the
+persisted cursor boundary — a swap there fails immediately and loudly on the next read rather than
+being written into a stored position — so the owner deferred it rather than expanding the
+checkpoint.
+
+**Do not claim** that same-type positional parameters have been removed from the kernel. They have
+been removed from the cursor boundary only.
+
+**Suggested closure:** convert `loadFor` to a `SourceRef`-shaped request in a dedicated pass, or
+brand the two identifier types so the swap is uncompilable everywhere. Either is mechanical; both
+touch enough test stubs to deserve their own checkpoint.

@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  parseCursor, nextCursorFrom, rotate, RowBudget, CursorRejected,
+  parseCursor, nextCursorFrom, rotate, RowBudget, CursorRejected, validateCursorEnvelope,
   OVERLAP_MS, PAGE_SIZE, CYCLE_ROW_BUDGET, PERMITTED_CURSOR_KEYS,
 } from "@/kernel/pagination";
 
@@ -29,7 +29,25 @@ describe("a cursor holds POSITION and nothing else", () => {
   });
 
   it("names the permitted fields explicitly, so widening them is a deliberate change", () => {
-    expect([...PERMITTED_CURSOR_KEYS].sort()).toEqual(["id", "key", "kind", "updatedAt"]);
+    // This list is the whole guard. It failed when `fence` was added, which is the gate doing
+    // its job — widening what a cursor may carry has to be argued for, not absorbed.
+    //
+    // `fence` earns its place on the same terms as the others: it is a POSITION — the instant a
+    // reconciliation generation began — and it is the reason that generation can finish at all.
+    // It carries no customer content, no amount, no employee data, no evidence and no secret,
+    // and draft unit 019 additionally requires it to parse as a timestamp at the database, so
+    // it cannot become a free-text field wearing a position's name.
+    expect([...PERMITTED_CURSOR_KEYS].sort()).toEqual(["fence", "id", "key", "kind", "updatedAt"]);
+  });
+
+  it("REFUSES a fence that is not a timestamp", () => {
+    // The allowlist says WHICH keys; this says the new one cannot smuggle content.
+    expect(() => parseCursor({ kind: "sweep_by_id", id: "a", fence: "tomorrow-ish" }))
+      .toThrow(CursorRejected);
+    expect(() => parseCursor({ kind: "sweep_by_id", id: "a", fence: "a customer said hello" }))
+      .toThrow(/unreadable fence/);
+    expect(parseCursor({ kind: "sweep_by_id", id: "a", fence: "2026-09-03T00:00:00.000Z" }))
+      .toEqual({ kind: "sweep_by_id", id: "a", fence: "2026-09-03T00:00:00.000Z" });
   });
 
   it("REFUSES a malformed cursor rather than repositioning a sweep", () => {
@@ -41,6 +59,40 @@ describe("a cursor holds POSITION and nothing else", () => {
       .toThrow(/unreadable updatedAt/);
     expect(() => parseCursor("string")).toThrow(/must be an object/);
     expect(() => parseCursor(42)).toThrow(/must be an object/);
+  });
+});
+
+describe("cursor validation accepts what the DATABASE actually writes", () => {
+  // The shapes PostgreSQL returns for a timestamptz, verbatim. Rejecting any of these makes
+  // every stored position look corrupt, and a sweep that resets on every cycle never
+  // completes, never settles and never licenses resolution.
+  const REAL = [
+    "2026-09-03 08:12:34.123456+00",   // node-pg / PostgreSQL text output — a BARE hour
+    "2026-09-03 08:12:34+00",          // no fractional seconds
+    "2026-09-03T08:12:34.123456+00:00", // PostgREST / supabase-js
+    "2026-09-03T08:12:34.123Z",         // JavaScript toISOString
+    "2026-09-03T08:12:34+05:30",        // a non-UTC offset
+    "2026-09-03 08:12:34",              // no offset at all
+  ];
+
+  it("accepts every real timestamptz rendering", () => {
+    for (const updatedAt of REAL) {
+      expect(
+        validateCursorEnvelope({ kind: "keyset_updated", updatedAt, id: "" }, "keyset_updated"),
+        updatedAt,
+      ).toEqual({ ok: true });
+    }
+  });
+
+  it("still refuses what PostgreSQL would refuse", () => {
+    for (const updatedAt of ["March 3 2026", "yesterday", "2026-13-45 99:99:99", ""]) {
+      expect(
+        validateCursorEnvelope({ kind: "keyset_updated", updatedAt, id: "" }, "keyset_updated").ok,
+        updatedAt,
+      ).toBe(false);
+    }
+    // Date.parse accepts this one, which is why Date.parse alone cannot be the check.
+    expect(Number.isNaN(Date.parse("March 3 2026"))).toBe(false);
   });
 });
 

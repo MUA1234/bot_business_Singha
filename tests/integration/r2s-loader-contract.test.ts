@@ -116,9 +116,9 @@ describe.skipIf(!enabled)("loader contract and semantic integrity — twelve dom
       // stubbing loadFor would exercise a path production no longer takes and prove nothing.
       const broken: CycleDeps = {
         ...deps,
-        async loadPage(source, companyId, cursor, limit) {
-          if (source === FINANCE_SOURCE) throw new Error("relation does not exist");
-          return deps.loadPage!(source, companyId, cursor, limit);
+        async loadPage(req) {
+          if (req.source === FINANCE_SOURCE) throw new Error("relation does not exist");
+            return deps.loadPage!(req);
         },
       };
       const summary = await runManagementCycle(broken, { companyId: CO, actorId: null, trigger: "test" });
@@ -772,7 +772,7 @@ describe.skipIf(!enabled)("loader contract and semantic integrity — twelve dom
       // The previous version of this test asserted that inserting more rows returned more
       // rows, which is only true until the cap is actually reached. It measured the absence
       // of a limit rather than the presence of one.
-      const page = await deps.loadPage!(OPERATIONS_SOURCE, CO, null, PAGE_SIZE);
+      const page = await deps.loadPage!({ source: OPERATIONS_SOURCE, companyId: CO, cursor: null, limit: PAGE_SIZE });
       expect(page.rows as unknown[]).toHaveLength(Math.min(PAGE_SIZE, (page.rows as unknown[]).length));
       expect((page.rows as unknown[]).length).toBeLessThanOrEqual(PAGE_SIZE);
       // And the legacy single read is still bounded, for a deployment without paging.
@@ -783,9 +783,9 @@ describe.skipIf(!enabled)("loader contract and semantic integrity — twelve dom
     it("a DATABASE ERROR marks the domain unobserved and is never reported as all-clear", async () => {
       const failing: CycleDeps = {
         ...deps,
-        async loadPage(source, companyId, cursor, limit) {
-          if (source === LEGAL_SOURCE) throw new Error("connection reset");
-          return deps.loadPage!(source, companyId, cursor, limit);
+        async loadPage(req) {
+          if (req.source === LEGAL_SOURCE) throw new Error("connection reset");
+            return deps.loadPage!(req);
         },
       };
       const summary = await runManagementCycle(failing, { companyId: CO, actorId: null, trigger: "test" });
@@ -794,13 +794,19 @@ describe.skipIf(!enabled)("loader contract and semantic integrity — twelve dom
     });
 
     it("the cycle is IDEMPOTENT across the whole twelve-domain sweep", async () => {
+      // Idempotent means the same condition about the same subject is never raised twice. It
+      // does NOT mean two cycles produce the same item count: reconciliation deliberately
+      // advances, so the second cycle legitimately observes rows the first had not reached.
+      // Comparing totals conflated "no duplicates" with "no progress".
       await cycle();
-      const { rows: a } = await q(
-        `select count(*)::int as n from management_items where company_id = $1`, [CO]);
       await cycle();
-      const { rows: b } = await q(
-        `select count(*)::int as n from management_items where company_id = $1`, [CO]);
-      expect(b[0].n).toBe(a[0].n);
+      const { rows } = await q(
+        `select count(*)::int as items, count(distinct (subject_id, kind))::int as pairs
+           from management_items where company_id = $1`, [CO]);
+      // Two sweeps, and not one condition raised twice about the same subject. The item
+      // COUNT may legitimately grow between them, because reconciliation reaches rows the
+      // first cycle had not — that is progress, not duplication.
+      expect(rows[0].items, "a (subject, kind) pair was raised twice").toBe(rows[0].pairs);
     });
   });
 });
