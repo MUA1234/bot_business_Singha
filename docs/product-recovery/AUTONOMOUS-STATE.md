@@ -90,3 +90,63 @@ node <scratchpad>/mutate-hw.mjs restore
 
 **None.** Staging and production remain zero. No hosted contact, no live model, no migration
 numbering, no real data.
+
+---
+
+# R2E — controlled approval-to-execution engine — COMPLETE (2026-09-04)
+
+**Commits:** `5dc63c2` (Batch 1 audit) · `7dd9d70` (Batches 2–11)
+**Report:** `docs/product-recovery/r2e/01-R2E-REPORT.md`
+**Audit:** `docs/product-recovery/r2e/00-AUDIT.md`
+
+## State
+
+Nothing executes. `EXECUTION_GLOBALLY_ENABLED = false as const` — a compile-time constant, not an
+environment variable, so no deployment configuration can turn it on. A real effect additionally
+requires a `LOCAL_EXECUTION_TOKEN` that only a test file can supply.
+
+Of 15 catalogue actions: **1 locally executable, 13 draft-only, 1 prohibited.** The one executable
+action creates an unassigned internal task and nothing else.
+
+## What exists now
+
+| | |
+|---|---|
+| `src/kernel/execution/contract.ts` | typed request, closed refusal union, discriminated outcome |
+| `src/kernel/execution/policy.ts` | exact `Record<CatalogueActionId, …>` — a missing policy does not compile |
+| `src/kernel/execution/boundary.ts` | both switches; global is `false as const` |
+| `src/kernel/execution/executor.ts` | the ordered checks; authority resolved at execution time |
+| `src/kernel/execution/ledger.ts` | claim-before-handler over SQL |
+| `src/kernel/execution/transports.ts` | idempotent RPC (R2E) and direct insert (UI) |
+| `src/modules/work/create-internal-task.ts` | the shared typed command |
+| `src/db/draft-migrations-r1/R1_DRAFT_021_*` | ledger + separate execution enablement + atomic RPC (QUARANTINED) |
+| `src/components/spatial/windows/ExecutionControlWindow.tsx` | operator window, not wired to a route |
+
+## Verified
+
+- Unit **2253 passed** / 4 skipped, 218 files
+- R2E live campaign **18 passed / 0 failed** on real PostgreSQL 16
+- 10 concurrent callers, one key → **one** task
+- Crash between effect and ledger → **no second** task on retry
+- Disabled → **zero** rows written to `management_execution_attempts` or `tasks`
+- Four mutations, each caught by exactly one test (two caught at compile time / by the F-001 gate)
+- secret-scan · migration-lint · inventory · IP-boundary · requirements audit · typecheck: pass
+
+## Unresolved findings (added by R2E)
+
+- **R2E-F-001** catalogue/engine vocabulary mismatch — recorded and GATED, deliberately not fixed;
+  needs an owner decision on which actions may ever run unattended
+- **R2E-F-002** UI task path has no durable idempotency — needs a numbered migration on `tasks`
+- 13 actions have no handler, deliberately
+- Draft 021 is quarantined, deployment-blocked behind the same 0069 reconciliation
+- The operator window has no route supplying it real rows
+
+## Next
+
+**STOP.** Owner and Codex review of R2E. Do not begin R2F, the task marketplace, points, people
+analytics, external integrations or further visual redesign.
+
+## Hard blockers
+
+**None.** Staging and production remain zero. No hosted contact, no live model, no migration
+numbering, no real data, no message sent, no financial effect.
