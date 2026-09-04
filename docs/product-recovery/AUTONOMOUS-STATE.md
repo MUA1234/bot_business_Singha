@@ -150,3 +150,64 @@ analytics, external integrations or further visual redesign.
 
 **None.** Staging and production remain zero. No hosted contact, no live model, no migration
 numbering, no real data, no message sent, no financial effect.
+
+---
+
+# Session 2026-09-05 — R2E continuation + R2F audit and first slice
+
+**Branch:** `claude/product-recovery-r1` · **HEAD at handoff:** see final commit below
+**Dirty files:** none · **Running processes:** none · **Containers:** none (all disposable
+containers removed by the runner)
+
+## Commits this session
+
+| SHA | What |
+|---|---|
+| `c81df97` | Batch A — owner's narrow automatic authority; F-005…F-009 |
+| `32d7e36` | F-010 — executor read a column nothing writes |
+| `28135ec` | Batch B — execution state in the management queue (F-012) |
+| `1876133` | F-013 — the exact-action gate was untested (found by mutation) |
+| `01968a5` | Batch D — R2F audit, requirement traceability, slice selection |
+| `b9c64cb` | R2F slice — cockpit shows management items (F-001) |
+
+## Verification completed
+
+- Complete live campaign **426 passed / 0 failed**, 23 files, 1192s, real PostgreSQL 16
+- R2E live suite re-run at final HEAD **26 passed**
+- Unit **2304 passed** / 4 skipped · network guard **686 passed**
+- typecheck 0 · lint clean · build exit 0 · secret-scan · migration-lint · inventory ·
+  IP-boundary · requirements audit — all pass
+- **10 mutations run.** 8 caught immediately; 2 survived, were recorded as findings (F-013 and the
+  cockpit's unavailable branch), fixed, and are now caught.
+
+## Open defects and blockers
+
+| Id | State |
+|---|---|
+| **R2E-F-011 / R2F-F-002** | **BLOCKED** — recording a decision needs a service-only decision RPC or an INSERT policy; both are migrations, and this session's containment forbids numbering draft units. Needs owner authorisation, as draft 021 had |
+| R2E-F-001 | recorded and gated; the legacy `ACTION_FLOORS` vocabulary is untouched by design |
+| R2E-F-002 | UI task path has no durable idempotency — needs a column on the hosted `tasks` table |
+| R2F-F-003 | queue is not scoped by viewer authority; partly blocked by F-002 |
+| R2F-F-004 | no re-observation driver, so a completed task whose condition persists does not reopen |
+
+## Exact next command and next task
+
+```bash
+# 1. confirm state
+git -C . rev-parse HEAD && git status --porcelain
+
+# 2. next task — R2F-F-003 and F-004 are the remaining unblocked loop work.
+#    F-004 (outcome verification by re-observation) is the roadmap R5 item and is
+#    the larger of the two; start by locating where a cycle could compare a
+#    completed task against its item's still-standing condition:
+grep -rn "verifying\|reopened" src/kernel/lifecycle.ts src/kernel/cycle.ts
+```
+
+**Do not** begin the decision write path (F-002) without owner authorisation for a further
+quarantined draft unit.
+
+## Hard blockers
+
+**One:** R2E-F-011 / R2F-F-002, above. Everything else remains local-only. Staging and production
+remain **zero**. No hosted contact, no live model, no migration numbering, no real data, no message
+sent, no financial effect.

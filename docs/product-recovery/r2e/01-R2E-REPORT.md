@@ -182,3 +182,123 @@ nothing about a deployment, because there is no deployment on which it can run.
   is tested; the page that supplies real rows is not built, because doing so would put an execution
   surface in the app while execution is off.
 - **No staging or production verification.** Zero, by construction.
+
+---
+
+# R2E continuation — 2026-09-05 session
+
+## SHAs
+
+| | |
+|---|---|
+| Session start | `d4c9b76` |
+| Batch A — owner's automatic authority + F-005…F-009 | `c81df97` |
+| F-010 — the executor read a column nothing writes | `32d7e36` |
+| Batch B — execution state in the queue (F-012) | `28135ec` |
+| F-013 — the exact-action gate was untested | `1876133` |
+| Batch D — R2F audit and slice selection | `01968a5` |
+| R2F slice — cockpit shows management items | `b9c64cb` |
+
+## The owner's decision, implemented narrowly
+
+Exactly one canonical action is automatic: **`ops.task.create_internal`**.
+
+It is an exact literal comparison, not a widening of the legacy `ACTION_FLOORS` list. That list
+matches on a **normalised** key — case-folded, unicode-folded, separators stripped — so teaching it
+`opstaskcreateinternal` would also have admitted `OPS-TASK-CREATE-INTERNAL`, the fullwidth spelling,
+and every other variant that folds to the same thing. The legacy list is untouched and the
+R2E-F-001 gate still asserts that no catalogue id appears in it.
+
+`isGenuinelyAutomatic` requires **six** independent facts to agree: the canonical policy floor, the
+exact authorised id, the catalogue's `automaticSafe`, `reversible` and `internalOnly`, and the
+`locally_executable` classification. A policy floor of `automatic` that the others do not support
+resolves to `manager_approval` with `failedClosed`.
+
+## Findings this session, each reproduced before being fixed
+
+| Id | Finding | How it was found |
+|---|---|---|
+| **F-005** | the idempotency key was caller-supplied | reading the contract against condition 9 |
+| **F-006** | nothing checked the evidence was still the evidence approved | reading condition 4 |
+| **F-007** | parameters reached the handler unvalidated | `parameters` did not appear in `executor.ts` at all |
+| **F-008** | no runtime entrypoint existed | `executeApprovedAction` imported by nothing outside its own directory |
+| **F-009** | an automatic action has no human creator, but the schema demanded one | **running the real service** |
+| **F-010** | the executor read `proposed_action`, which **nothing writes** | the existing panel read the other column |
+| **F-011** | no decision can be recorded through any runtime path | searching for writers; **BLOCKED** |
+| **F-012** | the queue showed no execution state | reading the panel's queries |
+| **F-013** | the exact-action check in the automatic gate was untested | **mutation testing** |
+
+### F-010 deserves its own note: it was a false pass I introduced
+
+The integration fixture seeded `proposed_action` — the same wrong column the reader read — so the
+test and the code agreed with each other and neither agreed with the product. Every item the kernel
+actually creates would have refused with `stale_state`.
+
+It is now pinned by a test that creates the item through the **real**
+`r1_draft_create_management_item` RPC. Reaching that RPC required satisfying four guards the
+fixtures had been bypassing: a service-role **JWT claim** (not merely the database role), an actor
+with an **active membership**, an observation source on the RPC's **closed allowlist**, and its
+jsonb return envelope. Each is the product working, and each had been invisible while tests wrote
+rows directly.
+
+### F-013 is what mutation testing is for
+
+Deleting `actionId === AUTOMATIC_ACTION_ID` broke no test. The remaining conjuncts masked it,
+because the only action with an `automatic` floor is already the authorised one — so the guard that
+stops a *second* action inheriting automatic execution had nothing watching it. The predicate is now
+extracted and asked about synthetic inputs the live table cannot produce.
+
+## Mutation results
+
+| Mutation | Result |
+|---|---|
+| naive check-then-act ordering in the task RPC | **CAUGHT** — only the 10-way concurrency test |
+| global boundary always allows | **CAUGHT** — only the "writes NOTHING" test |
+| a policy entry removed | **CAUGHT** at compile time |
+| `ACTION_FLOORS` taught a catalogue id | **CAUGHT** — 3 assertions |
+| executor reads the dead `proposed_action` column | **CAUGHT** — 7 tests |
+| evidence-generation check removed | **CAUGHT** — 2 tests |
+| parameter schema made permissive | **CAUGHT** — 1 test |
+| identity packing loses its length prefix | **CAUGHT** — 1 test |
+| exact-action check removed from the automatic gate | **SURVIVED → F-013 → now CAUGHT** |
+| cockpit's unavailable branch disabled | **SURVIVED → fixed → now CAUGHT** (2 tests) |
+
+Two mutations survived. Both were real gaps in the tests, both are recorded as findings, and both
+are now caught.
+
+## Limitations, stated
+
+- **The human-approval branch has no live path.** The one executable action is automatic, so
+  `loadApproval`, `approval_superseded` and `approver_lacks_capability` are exercised only through
+  injected snapshots. F-011 is why: nothing can record a decision.
+- **The UI task path still has no durable idempotency** (F-002) — it needs a column on `tasks`.
+- **13 actions have no handler**, deliberately.
+- **Draft 021 is quarantined** and deployment-blocked behind the same 0069 reconciliation.
+- **No route exposes execution.** The service is the only entrypoint and is not wired to HTTP while
+  the boundary is closed.
+
+## Requirement status
+
+**Nothing is advanced to `locally_verified` by this session.** Every execution required a token only
+a test file can supply. That proves the engine; it proves nothing about a deployment, because there
+is no deployment on which it can run.
+
+## Staging and production
+
+**Zero.** Unchanged, by construction.
+
+## Totals — 2026-09-05 session
+
+| Gate | Result |
+|---|---|
+| **Complete live integration campaign** | **426 passed / 0 failed**, 23 files, 1192s, real PostgreSQL 16 |
+| R2E live suite, re-run at final HEAD | **26 passed / 0 failed** |
+| Unit suite | **2304 passed**, 4 skipped, 220 files |
+| Outbound-network guard | **686 passed**, 25 files |
+| Typecheck · lint · build | 0 errors · clean · exit 0 |
+| secret-scan | no tracked secrets |
+| migration-lint | 109 migrations, sequential 0001–0109, no gaps |
+| completion-inventory · IP-boundary · requirements audit | pass · `supabaseAdmin` confined · pass |
+
+The campaign was run with the hardened uniquely-labelled disposable-container runner. No timeout was
+raised to obtain a green result, and no unrelated container was touched.
