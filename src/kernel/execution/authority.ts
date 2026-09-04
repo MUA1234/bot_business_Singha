@@ -28,6 +28,36 @@ import type { AuthorityLevel } from "@/schemas/management";
 import { ACTION_CATALOGUE } from "../catalogue";
 import { policyFor } from "./policy";
 
+/**
+ * The automatic predicate, extracted so it can be tested against inputs the live table cannot
+ * currently produce.
+ *
+ * Mutation testing found the gap this exists to close: deleting the exact-id comparison from the
+ * resolver broke NO test, because the only action whose policy floor is `automatic` is already the
+ * authorised one. The check was doing real defensive work and nothing was watching it. Given a
+ * synthetic policy in which some OTHER action carries an `automatic` floor — precisely the mistake
+ * the check defends against — this function can be asked directly (R2E-F-013).
+ */
+export function isGenuinelyAutomatic(input: {
+  actionId: string;
+  policyFloor: AuthorityLevel;
+  classification: string;
+  automaticSafe: boolean;
+  reversible: boolean;
+  internalOnly: boolean;
+}): boolean {
+  return (
+    input.policyFloor === "automatic" &&
+    // The owner authorised ONE canonical id. A second action acquiring an `automatic` floor must
+    // not thereby acquire automatic execution.
+    input.actionId === AUTOMATIC_ACTION_ID &&
+    input.automaticSafe === true &&
+    input.reversible === true &&
+    input.internalOnly === true &&
+    input.classification === "locally_executable"
+  );
+}
+
 export interface CanonicalAuthority {
   readonly level: AuthorityLevel;
   /** True when the action could not be resolved and the engine escalated for that reason. */
@@ -73,16 +103,17 @@ export function resolveCanonicalAuthority(actionId: string): CanonicalAuthority 
 
   const reasons: string[] = [`canonical policy floor is ${policy.authorityFloor}`];
 
-  // Automatic requires FOUR independent facts to agree, not one flag. The owner authorised one
+  // Automatic requires SIX independent facts to agree, not one flag. The owner authorised one
   // action; the catalogue must still say it is safe, reversible and internal, and the policy must
   // still be the one that permits an effect at all.
-  const automatic =
-    policy.authorityFloor === "automatic" &&
-    actionId === AUTOMATIC_ACTION_ID &&
-    entry.automaticSafe === true &&
-    entry.reversible === true &&
-    entry.internalOnly === true &&
-    policy.classification === "locally_executable";
+  const automatic = isGenuinelyAutomatic({
+    actionId,
+    policyFloor: policy.authorityFloor,
+    classification: policy.classification,
+    automaticSafe: entry.automaticSafe === true,
+    reversible: entry.reversible === true,
+    internalOnly: entry.internalOnly === true,
+  });
 
   if (policy.authorityFloor === "automatic" && !automatic) {
     // A floor of `automatic` that the other facts do not support is a contradiction, and the safe

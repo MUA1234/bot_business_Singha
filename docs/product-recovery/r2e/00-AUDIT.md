@@ -325,3 +325,50 @@ gap does not block R2E; it blocks every future action that needs a human.
 `ManagementQueuePanel` reads items, evidence, transitions and observation sources. It does not read
 `management_execution_attempts`, so an operator cannot see whether an approved action was attempted,
 refused, executed or failed — the record R2E exists to produce is invisible to the people it is for.
+
+### R2E-F-011 disposition — BLOCKED, needs owner authorisation for a new quarantined draft unit
+
+The approval and rejection controls Batch B asks for cannot be built under this session's
+containment, and this is a genuine blocker rather than a scoping choice.
+
+Recording a decision requires a write to `management_item_decisions`. That table has a read policy
+and **no INSERT policy**, so an authenticated session cannot write one; and `management_items.state`
+may only move through `r1_draft_transition_item()`, which is a service-only boundary. Either route
+therefore needs schema work:
+
+- a service-only `SECURITY DEFINER` decision RPC — a **new quarantined draft unit (022)**; or
+- an INSERT policy on the decisions table — also a migration.
+
+The standing containment for this session says **"do not number or apply the quarantined draft
+migrations"**. Draft 021 existed because the owner authorised it explicitly ("a minimal quarantined
+execution ledger is authorised"). No equivalent authorisation covers a decision unit, so one is not
+created.
+
+**What this costs.** The management queue stays read-only in fact. For R2E specifically it costs
+nothing: the single action the owner authorised resolves to `automatic`, so no human approval is
+required for it. It blocks every future action that does need a human, and it is the natural first
+piece of R2F.
+
+**What would unblock it.** Owner authorisation for one further quarantined draft unit containing a
+service-only decision RPC that validates active membership and capability, requires a reason for
+`reject`/`dismiss`, respects the existing no-self-approval trigger, and performs the decision insert
+and the lifecycle transition in one transaction.
+
+### R2E-F-013 — the exact-action check in the automatic gate was untested
+
+Found by mutation, not by reading. Deleting `actionId === AUTOMATIC_ACTION_ID` from the automatic
+predicate broke **no test** — the mutation SURVIVED.
+
+The reason is subtle and is exactly why mutation testing earns its place: the only action whose
+policy floor is `automatic` is already the authorised one, so the remaining conjuncts excluded
+everything else and masked the missing check. The guard was doing real defensive work — it is what
+stops a second action that acquires an `automatic` floor from also acquiring automatic execution —
+and nothing was watching it.
+
+**Fix:** the predicate is extracted as `isGenuinelyAutomatic`, so it can be asked about inputs the
+live table cannot currently produce — a SYNTHETIC policy in which a different action carries an
+automatic floor, which is precisely the mistake it defends against. Each of the six conjuncts is
+now removed one at a time and asserted to be load-bearing.
+
+Re-running the same mutation now fails, naming the case: *"another action with an automatic floor:
+expected true to be false"*.
