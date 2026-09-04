@@ -27,6 +27,7 @@
  */
 import Link from "next/link";
 import { supabaseReadClient } from "@/lib/supabase/read";
+import { summariseManagement } from "./management-summary";
 import {
   detectTaskExceptions,
   detectCapacityExceptions,
@@ -109,6 +110,25 @@ export async function CommandCentrePanel({ companyId, embedded }: CommandCentreP
       .order("week_start", { ascending: false })
       .limit(200) as any,
   "capacity_snapshots");
+
+  /**
+   * R2F-F-001 — the management system's OWN output, on the screen the owner looks at first.
+   *
+   * The cockpit read tasks, capacity, invoices, bills, purchase orders and commitments, and none
+   * of what the management kernel itself noticed, recommended, or is waiting on a person for.
+   *
+   * Read through `safeSelect` like every other source, so on a database where the R1 drafts are
+   * not applied this is reported as a FAILED SOURCE — "management_items did not return" — rather
+   * than as an empty, reassuring queue. That distinction is the whole point of the helper.
+   */
+  const managementItems = await safeSelect<any>(() =>
+    db
+      .from("management_items")
+      .select("id, department, state, priority, proposed_action_id")
+      .eq("company_id", companyId)
+      .not("state", "in", "(verified,rejected,dismissed,expired)")
+      .limit(500) as any,
+  "management_items");
 
   const invoices = await safeSelect<any>(() =>
     db
@@ -232,6 +252,12 @@ export async function CommandCentrePanel({ companyId, embedded }: CommandCentreP
   // The sentence form is retained for any consumer that wants it; the screen
   // renders the banded form, which carries the same verified figures.
   const briefing = buildBriefing(briefingInput);
+  // Pure, and therefore testable by asking it questions rather than by reading this file.
+  const management = summariseManagement(
+    managementItems as Array<Record<string, unknown>> | null,
+    failedSources,
+  );
+
   const degraded = failedSources.length > 0;
   const banded = buildBandedBriefing(briefingInput, degraded);
 
@@ -300,6 +326,45 @@ export async function CommandCentrePanel({ companyId, embedded }: CommandCentreP
           </StateNote>
         </div>
       )}
+
+      {/* ── What the management system itself is doing (R2F-F-001) ───────
+          Placed above the operational figures because "the system is waiting on you for four
+          things" is a call on the reader's attention, and the figures below are not. An
+          unreadable source is already reported by the degraded note above, so this section
+          never has to pretend that zero means healthy. */}
+      <div className="card" data-testid="cc-management">
+        <Section
+          title="Management system"
+          meta={
+            management.kind === "unavailable"
+              ? "unavailable"
+              : management.kind === "empty"
+                ? "nothing open"
+                : `${management.total} open · ${management.waitingOnAPerson} waiting on a person`
+          }
+        />
+        <div className="pad">
+          {management.kind === "unavailable" ? (
+            <StateNote kind="partial" title="Management data unavailable">
+              The management tables did not return. This is not an empty queue — it is an unread
+              one.
+            </StateNote>
+          ) : management.kind === "empty" ? (
+            <p className="muted">
+              Nothing open. Every management item has been verified, rejected, dismissed or has
+              expired.
+            </p>
+          ) : (
+            <ul className="stack gap-1" data-testid="cc-management-departments">
+              {management.byDepartment.map(([department, count]) => (
+                <li key={department}>
+                  <span className="t-label">{department}</span> <strong>{count}</strong> open
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
 
       {/* ── THE SIGNATURE COMPOSITION ─────────────────────────────────── */}
       <div className="centre">
