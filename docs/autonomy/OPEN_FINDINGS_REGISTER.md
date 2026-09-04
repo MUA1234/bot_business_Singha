@@ -617,3 +617,70 @@ exactly as it did before. Giving the UI the same guarantee requires an idempoten
 
 **Suggested closure.** A numbered migration adding a nullable `idempotency_key` to `tasks` with a
 partial unique index, plus a form nonce, under separate owner approval.
+
+## R2-F-014 — the management decision log was directly writable (CLOSED)
+
+**Status:** found and closed 2026-09-05, during the R4/R5 decision-boundary work.
+
+Draft 007 creates `management_item_decisions_ins` — `for insert to authenticated with check
+(has_capability(company_id, 'operations.task.manage'))`. Any authenticated manager could write a
+decision row directly: unbound to the item state, action or evidence the person saw, with no
+lifecycle transition and no audit event. The decision log could say `approve` while the item stayed
+in `awaiting_approval` indefinitely, and the two never had to agree.
+
+**This also corrects an earlier finding of mine.** The R2E Batch B audit stated the table had "no
+INSERT policy at all". That was wrong, and wrong in the dangerous direction. It came from grepping
+draft 004 alone and concluding from one file what was true of the schema.
+
+**Found** by a test that performed the insert and asserted the row's ABSENCE rather than merely
+expecting an exception. The insert succeeded silently; a test that only expected a throw would have
+failed with none of the diagnosis.
+
+**Closed** in draft 022 by dropping the policy — a tightening that removes a write path, grants
+nothing and changes no authority rule. Reads are untouched.
+
+## R2-F-015 — the queue's decision controls were dead links (CLOSED)
+
+**Status:** found and closed 2026-09-05.
+
+`Accept suggestion`, `Reject suggestion` and `Assign someone` were `<a href>` links to
+`/app/command/queue/{id}/accept`, `/reject` and `/assign`. None of those routes exists.
+
+Worse, several tests asserted their presence, so the defect was pinned in place by the suite.
+
+**Closed:** Accept and Reject are now buttons calling the decision server action. The assignment
+link is replaced by an honest sentence — routing and assignment still have no runtime path
+(R2F-F-003), and saying so beats a 404.
+
+## R2-F-016 — decision permission defaulted to "yes" (CLOSED)
+
+**Status:** found and closed 2026-09-05.
+
+`QueueItem.viewerMayDecide` was optional, the server never set it, and the component read
+`!== false` — so an unset flag meant permission. Every viewer, including staff with no approval
+capability, was shown decision controls.
+
+With R2-F-014 that was a complete path: the interface offered a decision to someone who should not
+have one, and the database would have accepted a direct write from anyone holding an unrelated
+capability.
+
+**Closed:** resolved server-side from `has_capability`, failing closed on any error; the component
+requires `=== true`.
+
+## R2-F-017 — two authority cases the repository does not define (OPEN, fails closed)
+
+**Status:** open, recorded 2026-09-05. Not worked around.
+
+The decision RPC refuses two classes rather than inventing a rule for them:
+
+- **`specialist_approval` and `owner_approval`.** Both exist in the TypeScript authority vocabulary
+  and in NO database rule. `authority_ceiling` and `within_authority` are amount-based, and no
+  permission distinguishes a specialist or an owner from an ordinary approver. Recording such a
+  decision would assert an authority the system cannot verify.
+- **`dismiss`, `edit`, `delegate`, `postpone`, `route`, `request_evidence`.** The existing decision
+  guard anticipates all six and requires reasons for them, but the permission table defines no
+  capability that authorises any of them. The UI therefore offers Approve and Reject only.
+
+**Suggested closure.** An owner decision on how a specialist or owner is identified — a distinct
+permission, a role allowlist, or an explicit statement that `approve` is sufficient for all levels
+— and the same for the six decision types.

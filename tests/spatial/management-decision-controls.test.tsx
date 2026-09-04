@@ -32,6 +32,9 @@ const PANEL_SOURCE = readFileSync(
   "utf8",
 );
 const ACTION_SOURCE = readFileSync("src/app/app/_actions/management-decision.ts", "utf8");
+// The refusal wording lives in its own module: a `"use server"` file may only export async
+// functions, so the pure lookup could not stay beside the action.
+const MESSAGES_SOURCE = readFileSync("src/app/app/_actions/decision-messages.ts", "utf8");
 
 const render = (over: Partial<Parameters<typeof DecisionControls>[0]> = {}) =>
   renderToString(
@@ -150,18 +153,18 @@ describe("refusals are shown honestly", () => {
       "reason_required", "stale_item", "action_changed", "evidence_changed",
       "state_does_not_admit_decision", "conflicting_retry", "unavailable",
     ]) {
-      expect(ACTION_SOURCE.includes(`${refusal}:`), `no message for ${refusal}`).toBe(true);
+      expect(MESSAGES_SOURCE.includes(`${refusal}:`), `no message for ${refusal}`).toBe(true);
     }
   });
 
   it("distinguishes a stale screen from a lack of permission, in words", () => {
-    expect(ACTION_SOURCE).toContain("Someone changed this while you were looking at it");
-    expect(ACTION_SOURCE).toContain("You do not have permission to decide this");
-    expect(ACTION_SOURCE).toContain("The evidence changed since this was recommended");
+    expect(MESSAGES_SOURCE).toContain("Someone changed this while you were looking at it");
+    expect(MESSAGES_SOURCE).toContain("You do not have permission to decide this");
+    expect(MESSAGES_SOURCE).toContain("The evidence changed since this was recommended");
   });
 
   it("an unknown refusal does not leak a raw database message", () => {
-    expect(ACTION_SOURCE).toContain("That decision could not be recorded.");
+    expect(MESSAGES_SOURCE).toContain("That decision could not be recorded.");
     // The detail is logged, not returned to the browser.
     expect(ACTION_SOURCE).toContain('event: "management_decision.rpc_failed"');
   });

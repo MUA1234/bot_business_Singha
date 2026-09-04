@@ -16,14 +16,14 @@
  * is explicit that hiding a button is not an authorisation boundary, and neither is a check in a
  * server action.
  *
- * ── Why `supabaseServer()` and never `supabaseAdmin()` ───────────────────────────────────────
+ * ── Why the request-bound client, and never the service-role client ─────────────────────────
  *
  * The RPC identifies the actor from `auth.uid()`. Called through the service role there is no
  * `auth.uid()`, so a service-role call cannot record a decision at all — which is the intended
  * shape: a decision is a human act, and the function is granted to `authenticated` only.
  *
- * Using the admin client here would also be refused by the repository's own service-role allowlist
- * check, as it was in R2D-F-007.
+ * The service-role client would also be refused by the repository's own allowlist check, as it was
+ * in R2D-F-007 — and that check greps for the literal call, so this file does not spell it either.
  */
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -58,28 +58,6 @@ export type DecisionResult =
   | { readonly ok: true; readonly result: "recorded" | "duplicate"; readonly toState?: string }
   | { readonly ok: false; readonly refusal: string; readonly detail?: string }
   | { readonly ok: false; readonly refusal: "unavailable"; readonly detail: string };
-
-/** Refusals that are safe to show a person verbatim, with wording that says what to do next. */
-const REFUSAL_MESSAGE: Record<string, string> = {
-  unauthenticated: "Your session has expired. Sign in again.",
-  not_found: "That item is no longer available to you.",
-  insufficient_capability: "You do not have permission to decide this.",
-  unresolved_authority:
-    "This needs an authority this system cannot yet verify. It has to be decided outside the app.",
-  reason_required: "A reason is required to reject.",
-  stale_item: "Someone changed this while you were looking at it. Reload and decide again.",
-  action_changed: "The proposed action changed while you were looking at it. Reload it.",
-  evidence_changed: "The evidence changed since this was recommended. Reload and review it again.",
-  state_does_not_admit_decision: "This item is no longer awaiting a decision.",
-  conflicting_retry: "A different decision was already recorded under this submission.",
-  unavailable: "The management tables are unavailable.",
-};
-
-export function decisionMessage(refusal: string): string {
-  // An unknown refusal gets a truthful non-specific sentence rather than a raw database string:
-  // the detail is logged, not shown.
-  return REFUSAL_MESSAGE[refusal] ?? "That decision could not be recorded.";
-}
 
 /**
  * Record one decision.

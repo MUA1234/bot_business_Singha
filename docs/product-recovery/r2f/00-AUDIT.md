@@ -65,18 +65,24 @@ screen the owner looks at first.
 
 **Traceability:** roadmap **R4** — "Kernel queue surfaces in the Command Centre". Registered.
 
-### R2F-F-002 — no decision can be recorded (carried from R2E-F-011)
+### R2F-F-002 — no decision can be recorded (carried from R2E-F-011) — **CLOSED 2026-09-05**
 
-Nothing writes `management_item_decisions`; the table has a read policy and no INSERT policy; item
-state moves only through the service-only `r1_draft_transition_item()`. The queue is read-only in
-fact.
+Nothing in the application wrote `management_item_decisions`, and item state moves only through the
+service-only `r1_draft_transition_item()`. The queue was read-only in fact.
+
+> **⚠️ CORRECTED.** This entry originally added "the table has a read policy and no INSERT policy".
+> That was wrong — draft 007 creates one, and a manager could write a decision row directly, unbound
+> and unaudited. See R2-F-014 in the R2E audit.
+
+**Closed** by draft 022's decision RPC and the authenticated runtime path, under the owner's
+authorisation of 2026-09-05. Two further defects were found in the process (R2-F-015 dead controls,
+R2-F-016 permission defaulting to yes) and both are fixed.
 
 **Traceability:** roadmap **R4/R5** — a manager acting "within their authority" presupposes a path
 by which the action is recorded.
 
-**Status: BLOCKED.** It needs either a service-only decision RPC (a new quarantined draft unit) or
-an INSERT policy — both migrations, and this session's containment forbids numbering draft
-migrations. Requires owner authorisation, as draft 021 had.
+**Status: CLOSED.** The owner authorised one further quarantined draft unit on 2026-09-05; draft
+022 is that unit.
 
 ### R2F-F-003 — the queue is not scoped by the viewer's authority
 

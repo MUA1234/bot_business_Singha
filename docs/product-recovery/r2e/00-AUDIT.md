@@ -310,10 +310,19 @@ about whether "the current viewer may record feedback and accept or reject a sug
 there is no server action, route or command behind that question. The management queue is
 **read-only in fact**, whatever the interface implies.
 
-The database agrees: `management_item_decisions` has a `management_item_decisions_read` policy and
-**no INSERT policy at all**, so an authenticated session cannot record a decision even if a form
-existed. A write must go through a service-only SECURITY DEFINER function, and none exists for
-decisions.
+> **⚠️ CORRECTED 2026-09-05 (R2-F-014).** The paragraph below was **wrong**, and wrong in the
+> dangerous direction. It read: *"`management_item_decisions` has a read policy and no INSERT
+> policy at all, so an authenticated session cannot record a decision even if a form existed."*
+>
+> Draft **007** creates `management_item_decisions_ins` — `for insert to authenticated with check
+> (has_capability(company_id, 'operations.task.manage'))`. Any authenticated manager could already
+> write a decision row **directly**: unbound to any item state, with no lifecycle transition and no
+> audit event. The log could therefore say `approve` while the item stayed in `awaiting_approval`
+> for ever, and the two never had to agree.
+>
+> The error came from grepping draft 004 alone and concluding from one file what was true of the
+> schema. It was found by a test that attempted the direct insert and watched it **succeed**.
+> Draft 022 drops that policy; see R2-F-014 below.
 
 **Consequence for R2E.** The executor's approval path — `loadApproval`, `approval_superseded`,
 `approver_lacks_capability` — reads a table that nothing writes. Those branches are exercised only
@@ -372,3 +381,65 @@ now removed one at a time and asserted to be load-bearing.
 
 Re-running the same mutation now fails, naming the case: *"another action with an automatic floor:
 expected true to be false"*.
+
+
+---
+
+# R4/R5 findings (2026-09-05) — building the decision boundary
+
+### R2-F-014 — the decision log was directly writable, and the audit said it was not
+
+Draft 007's `management_item_decisions_ins` policy let any authenticated holder of
+`operations.task.manage` insert a decision row directly. That is not a smaller version of the RPC;
+it is a way past all of it — no binding to the item state, action or evidence the person saw, no
+lifecycle transition, no audit event, and the actor, company and authority level all whatever the
+payload said.
+
+Found by a test that performed the insert and asserted the row's **absence**, rather than asserting
+that an exception was thrown. The insert succeeded silently. Had the test only expected a throw and
+stopped there, it would have reported the same failure with none of the diagnosis.
+
+**Fixed** in draft 022 by dropping the policy — a tightening that removes a write path, grants
+nothing, and changes no authority rule. Reads are untouched. Mutation M5 confirms the append-only
+guard still holds; the new suite confirms a direct insert now writes nothing.
+
+**The audit entry that got this wrong is corrected in place, above.**
+
+### R2-F-015 — the decision controls were dead links
+
+`Accept suggestion`, `Reject suggestion` and `Assign someone` were `<a href>` links to
+`/app/command/queue/{id}/accept`, `/reject` and `/assign`. **None of those routes exists.** The
+queue offered a person a decision and led them to a 404.
+
+A control that cannot do the thing it names is worse than no control: it teaches people the system
+is broken, and it hides the fact that nothing was recorded. Accept and Reject are now real buttons
+calling the decision server action; the assignment link is replaced by an honest sentence, because
+routing and assignment still have no runtime path.
+
+### R2-F-016 — permission defaulted to "yes"
+
+`QueueItem.viewerMayDecide` was optional, the server **never set it**, and the component read
+`item.viewerMayDecide !== false` — so an unset flag meant permission. Every viewer, including staff
+with no approval capability, was shown decision controls.
+
+Combined with R2-F-014 that was a complete path: the interface offered a decision to someone who
+should not have one, and the database would have accepted a direct write from anyone holding an
+unrelated capability.
+
+Now resolved server-side from the repository's own `has_capability`, failing closed on any error,
+and the component requires `=== true`.
+
+### Unresolved authority cases, recorded rather than invented
+
+Two cases have no rule in this repository, and the RPC **fails closed** on both rather than
+choosing one:
+
+- **`specialist_approval` and `owner_approval`.** These levels exist in the TypeScript authority
+  vocabulary and in **no** database rule. `authority_ceiling` and `within_authority` are
+  amount-based; no permission distinguishes a specialist or an owner from an ordinary approver.
+  Recording such a decision would assert an authority the system cannot verify.
+- **`dismiss`, `edit`, `delegate`, `postpone`, `route`, `request_evidence`.** The existing decision
+  guard anticipates all six and requires reasons for them, but the permission table defines no
+  capability that authorises any. The UI therefore offers Approve and Reject only.
+
+Both need an owner decision. Neither is worked around.

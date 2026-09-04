@@ -24,9 +24,9 @@
 import { useState, useTransition } from "react";
 import {
   recordManagementDecision,
-  decisionMessage,
   type DecisionInput,
 } from "@/app/app/_actions/management-decision";
+import { decisionMessage } from "@/app/app/_actions/decision-messages";
 
 export interface DecisionControlsProps {
   itemId: string;
