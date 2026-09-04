@@ -14,6 +14,11 @@ import { applyWorkflowAction, type WorkflowAction } from "@/modules/work/task-pr
 import { enqueueOutbox } from "@/lib/outbox-enqueue";
 import { InternalTemplates } from "@/lib/whatsapp-templates";
 import { isOnLeave } from "@/modules/work/availability";
+import { randomUUID } from "node:crypto";
+import { createInternalTask } from "@/modules/work/create-internal-task";
+import { directInsertTransport } from "@/kernel/execution/transports";
+import type { CompanyId, UserId } from "@/kernel/ask-ai/identity";
+import { log } from "@/lib/log";
 
 /** Operations staff or an admin may manage tasks (create/assign/verify). */
 async function requireOps() {
@@ -35,34 +40,55 @@ async function authorizeOnTask(id: string, action: TaskAction) {
   return { p, task: res.task };
 }
 
+/**
+ * The UI wrapper. It converts `FormData` into the typed command and does nothing else — the
+ * business implementation lives in `createInternalTask` and is shared with the R2E executor
+ * (R2E-F-002).
+ *
+ * The behaviour that changed: this used to contain
+ *
+ *     if (error) return;   // table missing (pre-migration) → no-op, no crash
+ *
+ * which returned normally when the insert failed, so a person saw the form clear and no task
+ * appear, with nothing recorded anywhere. A failure is now reported through the command's
+ * discriminated result and logged as an error. No audit event is written and the path is not
+ * revalidated, because neither would be true.
+ */
 export async function createTask(formData: FormData): Promise<void> {
   const p = await requireOps();
-  const title = String(formData.get("title") ?? "").trim();
-  if (!title) return;
-  const description = String(formData.get("description") ?? "").trim() || null;
-  const requires_evidence = formData.get("requires_evidence") === "on";
 
-  const { data, error } = await supabaseWriteClient()
-    .from("tasks")
-    .insert({
-      company_id: p.companyId,
-      title,
-      description,
-      status: "captured",
-      requires_evidence,
-      created_by: p.userId,
-    })
-    .select("id")
-    .maybeSingle();
-  if (error) return; // table missing (pre-migration) → no-op, no crash
+  const result = await createInternalTask(directInsertTransport(supabaseWriteClient()), {
+    companyId: p.companyId as CompanyId,
+    // This transport cannot deduplicate — `tasks` has no idempotency column and altering a hosted
+    // production table is outside this phase. The key is still required by the command, so the
+    // shared contract stays one contract.
+    idempotencyKey: randomUUID(),
+    title: String(formData.get("title") ?? ""),
+    description: String(formData.get("description") ?? "").trim() || null,
+    requiresEvidence: formData.get("requires_evidence") === "on",
+    createdBy: p.userId as UserId,
+  });
+
+  if (!result.ok) {
+    // An empty title reaches here as `invalid_input`, which is the old silent `if (!title) return`
+    // — still not an error worth logging loudly, but no longer indistinguishable from success.
+    if (result.code !== "invalid_input") {
+      log("error", "task creation failed", {
+        event: "task.create_failed",
+        code: result.code,
+        error: result.message,
+      });
+    }
+    return;
+  }
 
   await writeAudit({
     companyId: p.companyId,
     actorId: p.userId,
     action: "task.created",
     entityType: "task",
-    entityId: data?.id ?? null,
-    payload: { title },
+    entityId: result.taskId,
+    payload: { title: String(formData.get("title") ?? "").trim() },
   });
   revalidatePath("/app/operations/tasks");
 }

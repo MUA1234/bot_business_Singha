@@ -572,3 +572,48 @@ forward lane directly.
 up, so the next cycle resumes from there. The overlap re-scan already covers late writers behind
 that point. This changes read volume, not observed rows, so it needs its own measurement rather
 than being folded into a correctness checkpoint.
+
+## R2E-F-001 — the catalogue and the authority engine speak different vocabularies
+
+**Status:** open, recorded and GATED during R2E Batch 1 (2026-09-04). Deliberately not fixed —
+the owner's direction is to keep unattended execution fail-closed until the complete authority
+path is proven.
+
+`resolveRequiredAuthority` classifies against `ACTION_FLOORS`, a closed list matched by EXACT
+membership on a normalised key. The engine knows `opstaskcreate`; the catalogue registers
+`ops.task.create_internal`, which normalises to `opstaskcreateinternal`. Nothing matches, so all
+15 catalogue actions are UNKNOWN, escalate to at least `manager_approval`, and set `failedClosed`.
+
+**Consequence.** `mayRunUnattended` cannot be true for any input — the `automatic` conjunct and
+the `!failedClosed` conjunct are each independently false. `assertTransition`'s D-9
+`recommended → assigned` bypass is unreachable from the real pipeline. Five catalogue actions are
+advertised as `automatic` + `automaticSafe` and none of them is.
+
+This fails SAFE. It is registered because it was INVISIBLE: replacing `mayRunUnattended` with a
+hard-coded `false` survived the entire 2196-test unit suite, since all eleven assertions on that
+field assert `false` and none asserts `true`. One string added to `ACTION_FLOORS` would have
+switched on unattended execution for five actions with nothing failing.
+
+**Now gated.** `tests/r2e-authority-probe.test.ts` pins the measured classification of all 15 and
+fails, naming the action, if the engine is ever taught a catalogue id. Verified discriminating by
+mutation.
+
+**Suggested closure.** An owner decision on which actions — if any — should ever run unattended,
+then one exact typed policy keyed on canonical ids (the R2E execution policy is that shape
+already), with tests that discriminate the NEW behaviour rather than only the old.
+
+## R2E-F-002 — the UI task path has no durable idempotency
+
+**Status:** open, recorded during R2E (2026-09-04). Partially closed.
+
+`createTask`'s silent-failure defect (`if (error) return`) IS fixed: the business implementation
+moved to the typed `createInternalTask` command with a discriminated result, and the server action
+is now a `FormData` wrapper.
+
+What remains open is deduplication. R2E's transport is exactly-once via an atomic RPC; the UI's
+direct-insert transport cannot detect a replay, so a double submission still creates two tasks —
+exactly as it did before. Giving the UI the same guarantee requires an idempotency column on
+`tasks`, a hosted production table, which needs a numbered migration and owner approval.
+
+**Suggested closure.** A numbered migration adding a nullable `idempotency_key` to `tasks` with a
+partial unique index, plus a form nonce, under separate owner approval.

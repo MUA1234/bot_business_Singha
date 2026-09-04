@@ -16,7 +16,7 @@ import { ACTION_CATALOGUE } from "@/kernel/catalogue";
 import type { Observation } from "@/kernel/observation";
 
 const ALL_CAPABILITIES = [...new Set(
-  ACTION_CATALOGUE.map((a) => a.capability).filter((c): c is string => c !== null),
+  ACTION_CATALOGUE.map((a) => a.capability).filter((c) => c !== null),
 )];
 
 const CO = "11111111-1111-4111-8111-111111111111";

@@ -157,9 +157,9 @@ export interface CandidateRequest {
   authorityDomain: string | null;
 
   /** Skills the work MANDATES. Only a VERIFIED skill can satisfy one (F-R2B-2). */
-  requiredVerifiedSkills: string[];
+  requiredVerifiedSkills: readonly string[];
   /** Skills that help but are not mandatory. Never used to exclude. */
-  preferredSkills: string[];
+  preferredSkills: readonly string[];
   /**
    * A language, ONLY when the task genuinely requires it (owner rule). Null on every other
    * task, and when null, language may not influence ranking at all.

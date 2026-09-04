@@ -18,7 +18,7 @@ import type { DomainAction, Department } from "./types";
 import type { ActionWithRoles } from "./people/roles-required";
 import type { ActionCategory } from "./observation";
 
-export const ACTION_CATALOGUE: readonly ActionWithRoles[] = [
+export const ACTION_CATALOGUE = [
   {
     id: "ops.task.create_internal",
     department: "operations",
@@ -200,7 +200,17 @@ export const ACTION_CATALOGUE: readonly ActionWithRoles[] = [
     internalOnly: true,
     description: "Raise an internal investigation of a system or provider health signal.",
   },
-] as const;
+] as const satisfies readonly ActionWithRoles[];
+
+/**
+ * The registered ids as a LITERAL union, derived from the catalogue itself rather than restated
+ * beside it.
+ *
+ * An execution policy keyed on `Record<CatalogueActionId, …>` therefore fails to COMPILE the
+ * moment a catalogue action has no policy. There is no second list to forget to update, and no
+ * runtime path on which a missing policy could be discovered late.
+ */
+export type CatalogueActionId = (typeof ACTION_CATALOGUE)[number]["id"];
 
 /**
  * Which catalogue entries can serve a suggested category, within a department.

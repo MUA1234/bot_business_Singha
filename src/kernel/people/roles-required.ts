@@ -34,15 +34,15 @@ export interface ActionRoleSpec {
   /** The business domain, for advisor and delegation matching ('finance', 'legal', 'hr'…). */
   domain?: string;
   /** Skills the work MANDATES. Only a VERIFIED skill can satisfy one. */
-  requiredVerifiedSkills?: string[];
+  requiredVerifiedSkills?: readonly string[];
   /** Skills that help but never exclude. */
-  preferredSkills?: string[];
+  preferredSkills?: readonly string[];
   /** A language, ONLY when the work genuinely requires it. */
   requiredLanguage?: "en" | "si" | "ta";
   /** Minimum team size. Absent or 1 means a single assignee. */
   teamOfAtLeast?: number;
   /** Capabilities a TEAM must cover between them. */
-  teamMustCover?: string[];
+  teamMustCover?: readonly string[];
   /** True only where the work genuinely requires specialist advice. */
   requiresAdvisor?: boolean;
   /** True where an advisor is useful but the work is valid without one. */

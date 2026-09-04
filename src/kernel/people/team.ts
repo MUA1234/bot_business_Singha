@@ -47,7 +47,7 @@ export interface TeamRequest {
   /** How many people the action asked for. */
   minimum: number;
   /** Capabilities the team must cover BETWEEN THEM — not each. */
-  mustCover: string[];
+  mustCover: readonly string[];
   /** The capability a LEAD must personally hold, when the action names one. */
   leadCapability: string | null;
 }
