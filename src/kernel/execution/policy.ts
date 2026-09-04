@@ -50,8 +50,11 @@ const EXECUTION_POLICY: Record<CatalogueActionId, ActionExecutionPolicy> = {
   // separate authority and is refused here by construction (the handler has no assignee parameter).
   "ops.task.create_internal": {
     classification: "locally_executable",
-    authorityFloor: "manager_approval",
-    requiresApproval: true,
+    // OWNER DECISION 2026-09-05. Exactly this canonical id, and no other, may be automatic.
+    // Four independent facts must still agree before it actually is — see
+    // `resolveCanonicalAuthority` — and ten conditions must hold before it executes.
+    authorityFloor: "automatic",
+    requiresApproval: false,
     handler: "ops.task.create_internal.v1",
     rationale:
       "internal, reversible, company-scoped task creation with a durable idempotency key; " +

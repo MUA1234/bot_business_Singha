@@ -186,3 +186,87 @@ Notes on the columns that matter:
 
 Nothing in product behaviour. One test is added (`tests/r2e-authority-probe.test.ts`) pinning the
 measured authority classification of all 15 actions, so that R2E-F-001 cannot change silently.
+
+---
+
+# Batch A audit addendum (2026-09-05) — gaps exposed by the owner's ten conditions
+
+The owner's decision authorises `ops.task.create_internal` as potentially automatic, subject to ten
+conditions that must each be independently true. Four of those conditions had nothing enforcing them.
+Each was reproduced before any code changed.
+
+### R2E-F-005 — the idempotency key is caller-supplied, which makes it a bypass
+
+`ExecutionRequest.idempotencyKey` is a caller field (`contract.ts:114`). A caller that varies the key
+gets a second execution of the same approved decision; a caller that reuses one across different
+decisions collapses two distinct actions into one.
+
+Condition 9 requires a durable identity, and the owner requires it **derived** from company,
+management item, decision/approval version, canonical action and canonical parameter hash. A value
+the caller chooses is none of those.
+
+**Fix:** the key is computed inside the trusted boundary, after the approval and item are loaded,
+from server-held values only. It is removed from the request type, so a caller has nowhere to put one.
+
+### R2E-F-006 — nothing checks that evidence is still the evidence that was approved
+
+There is no generation, version or digest anywhere in `src/kernel/execution/*`. The executor checks
+`evidenceCount >= 1` — that *some* evidence exists, not that it is *the same* evidence.
+
+An approval given against three overdue invoices can therefore be executed after all three are paid
+and replaced by three unrelated ones. The count is still 3 and the item is still `approved`.
+
+Condition 4 requires the evidence generation to be current. **Fix:** the approval records the
+generation it was granted against, the item reports its generation now, and they must match. For an
+automatic action there is no approver, so the comparison is between the generation the
+recommendation was computed from and the generation now.
+
+### R2E-F-007 — action parameters reach the handler unvalidated
+
+`parameters` is `Readonly<Record<string, unknown>>` and does not appear in `executor.ts` at all: it
+is passed through to the handler untouched. The handler coerces with `String(req.parameters.title ?? "")`.
+
+Condition 7 requires a strict typed schema. Nothing enforced one, and nothing prevented an
+`assignedTo` key from riding along in the parameter bag — harmless only because the RPC happens not
+to accept one, which is a property of a different file.
+
+**Fix:** a strict per-action Zod schema, keyed canonically, validated inside the boundary before the
+handler is reached. Strict means unknown keys are rejected rather than ignored.
+
+### R2E-F-008 — there is no runtime entrypoint
+
+`executeApprovedAction` is imported by nothing outside `src/kernel/execution/`. R2E delivered a
+library, not a path the running system can take. Condition 1 speaks of a "compile-time/server
+execution boundary", which implies a server surface that the boundary actually guards.
+
+**Fix:** one server execution service that assembles the real dependencies, is the only production
+entrypoint, and refuses before touching anything while the boundary is closed.
+
+### R2E-F-009 — an automatic action has no human creator, and the schema said it must
+
+Found by running the real service, not by reading: `createInternalTask` required `createdBy` to be
+a uuid, so the automatic path — which has no approver by definition — failed with
+`invalid_input: createdBy`.
+
+The stubbed unit tests could not have found this. They passed a `UserId` because the harness had
+one to give; only the real service, which reads the approver from the decision record and finds
+none for an automatic action, produced the null.
+
+**Fix:** `createdBy` is nullable. `tasks.created_by` is already nullable, so the fact that nobody
+authored this task can be recorded as such. The alternatives were worse: attributing it to a
+fabricated system user, or to whoever happened to trigger the cycle, would put a name against a
+decision that person did not make.
+
+### Product guards that the stubbed tests had hidden
+
+Three constraints only appeared when the tests drove real tables. None is a defect; each is the
+product working, and each had been silently bypassed by a stub:
+
+- `management_item_evidence` is **append-only** — the "evidence changed" case cannot UPDATE a row,
+  so the generation changes by accretion, which is what actually happens when a detector observes
+  something new after a recommendation was computed.
+- `management_items_outcome_ck` requires an outcome for terminal states, so a test cannot seed
+  `rejected` without also seeding a contradiction.
+- `management_items.state` may only move through `r1_draft_transition_item()`; a direct UPDATE is
+  refused by the transition boundary. The correction path in the tests now goes through the real
+  lifecycle function, as production would.

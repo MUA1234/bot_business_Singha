@@ -42,7 +42,14 @@
 import { z } from "zod";
 import type { CompanyId, UserId } from "@/kernel/ask-ai/identity";
 
-/** Validated at the boundary. A title that is only whitespace is not a title. */
+/**
+ * Validated at the boundary. A title that is only whitespace is not a title.
+ *
+ * `createdBy` is NULLABLE (R2E-F-009). An action the canonical policy resolves to `automatic` has
+ * no human behind it, and `tasks.created_by` is nullable precisely so that fact can be recorded.
+ * Attributing such a task to a fabricated system user, or to whoever happened to trigger the cycle,
+ * would put a name against a decision that person did not make.
+ */
 export const TaskCreateParamsSchema = z
   .object({
     companyId: z.string().uuid(),
@@ -50,7 +57,7 @@ export const TaskCreateParamsSchema = z
     title: z.string().trim().min(1).max(500),
     description: z.string().trim().max(5000).nullable(),
     requiresEvidence: z.boolean(),
-    createdBy: z.string().uuid(),
+    createdBy: z.string().uuid().nullable(),
   })
   .strict();
 
@@ -60,7 +67,7 @@ export interface TaskCreateParams {
   readonly title: string;
   readonly description: string | null;
   readonly requiresEvidence: boolean;
-  readonly createdBy: UserId;
+  readonly createdBy: UserId | null;
 }
 
 /**
@@ -87,7 +94,7 @@ export interface TaskCreateTransport {
     title: string;
     description: string | null;
     requiresEvidence: boolean;
-    createdBy: string;
+    createdBy: string | null;
   }): Promise<{ taskId: string; created: boolean }>;
 }
 

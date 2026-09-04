@@ -15,13 +15,16 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
-import { executeApprovedAction, type ExecutorDeps } from "@/kernel/execution/executor";
-import { createSqlLedger, type SqlExec } from "@/kernel/execution/ledger";
+import {
+  executeManagementAction,
+  buildExecutorDeps,
+  type ExecutionEnvironment,
+} from "@/kernel/execution/service";
+import { executeApprovedAction } from "@/kernel/execution/executor";
 import { LOCAL_EXECUTION_TOKEN } from "@/kernel/execution/boundary";
-import type { ExecutionRequest } from "@/kernel/execution/contract";
-import { idempotentRpcTransport } from "@/kernel/execution/transports";
-import { createInternalTask } from "@/modules/work/create-internal-task";
-import { asCompanyId, asUserId } from "@/kernel/ask-ai/identity";
+import type { SqlExec } from "@/kernel/execution/ledger";
+import { asCompanyId } from "@/kernel/ask-ai/identity";
+import type { CatalogueActionId } from "@/kernel/catalogue";
 
 const URL = process.env.DATABASE_URL ?? "";
 const enabled = !!URL && /127\.0\.0\.1|localhost|\[::1\]/.test(URL);
@@ -274,160 +277,307 @@ describe.skipIf(!enabled)("R2E — execution enablement defaults to disabled", (
   });
 });
 
-describe.skipIf(!enabled)("R2E — the real executor against the real database", () => {
-  const exec: SqlExec = async (sql, params) => {
-    const r = await raw.query(sql, params as unknown[]);
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The REAL server execution service, against real seeded management state.
+//
+// Everything below goes through `executeManagementAction`, which reads the item, the decision, the
+// evidence and the capability join from the database itself. No loader is stubbed: a stubbed loader
+// would prove the executor's arithmetic and nothing about whether the queries behind it are right.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!enabled)("R2E — the real server execution service", () => {
+  const sql: SqlExec = async (text, params) => {
+    const r = await raw.query(text, params as unknown[]);
     return { rows: r.rows as Record<string, unknown>[] };
   };
 
-  function deps(over: Partial<ExecutorDeps> = {}): ExecutorDeps {
-    return {
-      localToken: LOCAL_EXECUTION_TOKEN,
-      async companyExecutionEnabled() {
-        return true;
-      },
-      async resolveAuthorityNow() {
-        return { level: "manager_approval", failedClosed: false };
-      },
-      async loadApproval() {
-        return {
-          approvedBy: asUserId(ACTOR),
-          actionId: "ops.task.create_internal",
-          authority: "manager_approval" as const,
-          current: true,
-        };
-      },
-      async loadItem() {
-        return { state: "approved", evidenceCount: 1, actionId: "ops.task.create_internal" };
-      },
-      async approverCapabilities() {
-        return new Set(["operations.task.manage"]);
-      },
-      ledger: createSqlLedger(exec),
-      handlers: {
-        // The real command, the real transport, the real RPC.
-        "ops.task.create_internal.v1": async (r) => {
-          const out = await createInternalTask(
-            idempotentRpcTransport({
-              async rpc(_fn, args) {
-                try {
-                  const res = await raw.query(
-                    `select * from r1_draft_create_internal_task($1,$2,$3,$4,$5,$6)`,
-                    [
-                      args.p_company_id, args.p_idempotency_key, args.p_title,
-                      args.p_description, args.p_requires_evidence, args.p_created_by,
-                    ],
-                  );
-                  return { data: res.rows, error: null };
-                } catch (e) {
-                  return { data: null, error: { message: (e as Error).message } };
-                }
-              },
-            }),
-            {
-              companyId: asCompanyId(r.companyId),
-              idempotencyKey: r.idempotencyKey,
-              title: String(r.parameters.title ?? ""),
-              description: null,
-              requiresEvidence: false,
-              createdBy: asUserId(r.approvedBy),
-            },
-          );
-          if (!out.ok) throw new Error(out.message);
-          return { effectRef: out.taskId, created: out.created };
-        },
-      },
-      async audit() {
-        /* the executor's audit sink is asserted in the unit suite */
-      },
-      ...over,
-    };
-  }
+  /** The service's RPC surface, over the same disposable database. */
+  const rpc = {
+    async rpc(_fn: string, args: Record<string, unknown>) {
+      try {
+        const r = await raw.query(
+          `select * from r1_draft_create_internal_task($1,$2,$3,$4,$5,$6)`,
+          [
+            args.p_company_id, args.p_idempotency_key, args.p_title,
+            args.p_description, args.p_requires_evidence, args.p_created_by,
+          ],
+        );
+        return { data: r.rows, error: null };
+      } catch (e) {
+        return { data: null, error: { message: (e as Error).message } };
+      }
+    },
+  };
 
-  function req(key: string, over: Partial<ExecutionRequest> = {}): ExecutionRequest {
-    return {
-      companyId: asCompanyId(CO_A),
-      itemId: randomUUID(),
-      actionId: "ops.task.create_internal",
-      approvedBy: asUserId(ACTOR),
-      idempotencyKey: key,
-      parameters: { title: "Executor task" },
-      requestedAt: new Date(),
-      ...over,
-    };
-  }
-
-  it("executes once and records it, then returns a duplicate without a second task", async () => {
-    const key = `exec-${randomUUID()}`;
-    const first = await executeApprovedAction(deps(), req(key));
-    expect(first.status).toBe("executed");
-    const effectRef = first.status === "executed" ? first.effectRef : "";
-
-    const second = await executeApprovedAction(deps(), req(key));
-    expect(second.status).toBe("duplicate");
-    expect(second.status === "duplicate" && second.effectRef).toBe(effectRef);
-
-    // One task, one ledger row — asserted physically, not from the return values.
-    expect(await physicalCount("tasks", "id = $1", [effectRef])).toBe(1);
-    expect(
-      await physicalCount(
-        "management_execution_attempts",
-        "company_id = $1 and idempotency_key = $2",
-        [CO_A, key],
-      ),
-    ).toBe(1);
+  const audits: { action: string; actorId: unknown }[] = [];
+  const env = (over: Partial<ExecutionEnvironment> = {}): ExecutionEnvironment => ({
+    sql,
+    rpc,
+    async audit(e) {
+      audits.push({ action: e.action, actorId: e.actorId });
+    },
+    localToken: LOCAL_EXECUTION_TOKEN,
+    ...over,
   });
 
-  it("a crash between the effect and the ledger cannot produce a second task", async () => {
-    // The crash is simulated where one actually happens: the handler created the task, then the
-    // process died before the ledger row could be resolved.
-    const key = `crash-${randomUUID()}`;
-    const crashing = deps({
+  /**
+   * Seed one complete, executable management item: the item itself, its evidence, and the
+   * recommendation snapshot whose `evidence_refs` establish the generation the recommendation was
+   * computed from.
+   */
+  async function seedItem(
+    companyId: string,
+    opts: { state?: string; action?: string; evidence?: [string, string][] } = {},
+  ): Promise<string> {
+    const itemId = randomUUID();
+    const evidence = opts.evidence ?? [["tasks", `t-${randomUUID()}`]];
+    await q(
+      `insert into management_items
+         (id, company_id, department, kind, subject_table, subject_id, identity_key,
+          state, proposed_action)
+       values ($1, $2, 'operations', 'overdue_task', 'tasks', $3, $4, $5, $6)`,
+      [
+        itemId, companyId, evidence[0]![1], `${companyId}:overdue:${itemId}`,
+        opts.state ?? "approved", opts.action ?? "ops.task.create_internal",
+      ],
+    );
+    for (const [table, id] of evidence) {
+      await q(
+        `insert into management_item_evidence (company_id, item_id, source_table, source_id)
+         values ($1, $2, $3, $4)`,
+        [companyId, itemId, table, id],
+      );
+    }
+    await q(
+      `insert into management_item_recommendations
+         (company_id, item_id, purpose, outcome, candidate_ref, candidate_type, rank_position,
+          resolver_version, signal_rule_version, fingerprint, evidence_refs)
+       values ($1, $2, 'assignee', 'candidates', $3, 'staff', 1,
+               'r2e-test', 'r2e-test', $4, $5::jsonb)`,
+      [
+        companyId, itemId, ACTOR, `fp-${itemId}`,
+        JSON.stringify(evidence.map(([t, id]) => ({ sourceTable: t, sourceId: id }))),
+      ],
+    );
+    return itemId;
+  }
+
+  async function enableExecution(companyId: string, enabled_: boolean): Promise<void> {
+    await q(
+      `insert into management_execution_enablement (company_id, enabled)
+       values ($1, $2)
+       on conflict (company_id) do update set enabled = excluded.enabled`,
+      [companyId, enabled_],
+    );
+  }
+
+  beforeAll(async () => {
+    if (!enabled) return;
+    await enableExecution(CO_A, true);
+    await enableExecution(CO_B, true);
+  });
+
+  it("executes the authorised automatic action end to end, through the real loaders", async () => {
+    const itemId = await seedItem(CO_A);
+    const out = await executeManagementAction(env(), {
+      companyId: CO_A,
+      itemId,
+      actionId: "ops.task.create_internal",
+      parameters: { title: "Service-created task" },
+    });
+
+    expect(out.status, JSON.stringify(out)).toBe("executed");
+    const effectRef = out.status === "executed" ? out.effectRef : "";
+
+    // The task exists, is company-scoped, and is UNASSIGNED.
+    await q("begin");
+    try {
+      await q("set local role postgres");
+      const { rows } = await q(
+        `select company_id, assigned_to, status, title from tasks where id = $1`,
+        [effectRef],
+      );
+      expect(rows[0].company_id).toBe(CO_A);
+      expect(rows[0].assigned_to).toBeNull();
+      expect(rows[0].status).toBe("captured");
+      expect(rows[0].title).toBe("Service-created task");
+    } finally {
+      await q("commit");
+    }
+
+    // Exactly one ledger row, terminal, naming the effect.
+    await q("begin");
+    try {
+      await q("set local role postgres");
+      const { rows } = await q(
+        `select status, effect_ref, resolved_authority, approved_by
+           from management_execution_attempts
+          where company_id = $1 and item_id = $2 and status <> 'refused'`,
+        [CO_A, itemId],
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0].status).toBe("executed");
+      expect(rows[0].effect_ref).toBe(effectRef);
+      expect(rows[0].resolved_authority).toBe("automatic");
+      // No approver: it ran automatically, and the ledger says so rather than naming a person.
+      expect(rows[0].approved_by).toBeNull();
+    } finally {
+      await q("commit");
+    }
+  });
+
+  it("a retry after an uncertain outcome returns the same task, not a second one", async () => {
+    const itemId = await seedItem(CO_A);
+    const input = {
+      companyId: CO_A,
+      itemId,
+      actionId: "ops.task.create_internal" as CatalogueActionId,
+      parameters: { title: "Retried task" },
+    };
+    const first = await executeManagementAction(env(), input);
+    expect(first.status).toBe("executed");
+
+    for (let i = 0; i < 3; i++) {
+      const again = await executeManagementAction(env(), input);
+      expect(again.status).toBe("duplicate");
+      expect(again.status === "duplicate" && again.effectRef).toBe(
+        first.status === "executed" ? first.effectRef : "",
+      );
+    }
+    expect(await physicalCount("tasks", "company_id = $1 and title = $2", [CO_A, "Retried task"]))
+      .toBe(1);
+  });
+
+  it("survives a crash after the effect but before the ledger resolves", async () => {
+    const itemId = await seedItem(CO_A);
+    const deps = buildExecutorDeps(env());
+    const crashing = {
+      ...deps,
       ledger: {
-        ...createSqlLedger(exec),
+        ...deps.ledger,
         async resolveExecuted() {
           throw new Error("process died before resolving");
         },
       },
-    });
-    const crashed = await executeApprovedAction(crashing, req(key));
+    };
+    const req = {
+      companyId: asCompanyId(CO_A),
+      itemId,
+      actionId: "ops.task.create_internal" as CatalogueActionId,
+      approvedBy: null,
+      parameters: { title: "Crashed task" },
+      requestedAt: new Date(),
+    };
+    const crashed = await executeApprovedAction(crashing, req);
     expect(crashed.status).toBe("failed");
 
-    const afterCrash = await physicalCount("tasks", "company_id = $1 and title = $2", [
-      CO_A, "Executor task",
-    ]);
+    const afterCrash = await physicalCount(
+      "tasks", "company_id = $1 and title = $2", [CO_A, "Crashed task"],
+    );
 
-    // The retry, with the same key. Whatever the ledger decides, no SECOND task may appear.
-    await executeApprovedAction(deps(), req(key));
+    // The retry, through the real service. No SECOND task may appear.
+    await executeManagementAction(env(), {
+      companyId: CO_A, itemId,
+      actionId: "ops.task.create_internal",
+      parameters: { title: "Crashed task" },
+    });
     expect(
-      await physicalCount("tasks", "company_id = $1 and title = $2", [CO_A, "Executor task"]),
+      await physicalCount("tasks", "company_id = $1 and title = $2", [CO_A, "Crashed task"]),
     ).toBe(afterCrash);
   });
 
-  it("a refusal does NOT consume the idempotency key", async () => {
-    // Refused for a missing approval, then approved and executed under the SAME key. Had the
-    // refusal consumed the key, the legitimate execution could never happen afterwards.
-    const key = `refuse-then-run-${randomUUID()}`;
-    const refused = await executeApprovedAction(
-      deps({ async loadApproval() { return null; } }),
-      req(key),
+  it("refuses when the evidence generation moved on, and creates nothing", async () => {
+    // R2E-F-006, against the real digest: the count is unchanged, the CONTENT is not.
+    const itemId = await seedItem(CO_A, { evidence: [["tasks", "ev-original"]] });
+    // `management_item_evidence` is append-only — the product refuses an UPDATE, which is correct
+    // and is why the generation changes by ACCRETION: a detector observes something new after the
+    // recommendation was computed.
+    await q(
+      `insert into management_item_evidence (company_id, item_id, source_table, source_id)
+       values ($1, $2, 'tasks', 'ev-appeared-later')`,
+      [CO_A, itemId],
     );
-    expect(refused.status === "refused" && refused.reason).toBe("approval_missing");
 
-    const ok = await executeApprovedAction(deps(), req(key));
-    expect(ok.status).toBe("executed");
+    const before = await physicalCount("tasks", "company_id = $1", [CO_A]);
+    const out = await executeManagementAction(env(), {
+      companyId: CO_A, itemId,
+      actionId: "ops.task.create_internal",
+      parameters: { title: "Stale evidence task" },
+    });
+    expect(out.status === "refused" && out.reason).toBe("evidence_stale");
+    expect(await physicalCount("tasks", "company_id = $1", [CO_A])).toBe(before);
+  });
+
+  it("refuses an item in a state that does not admit execution", async () => {
+    // Terminal states are excluded deliberately: `management_items_outcome_ck` requires an
+    // outcome for them, so seeding one would be seeding a contradiction rather than a test.
+    for (const state of ["observed", "understood", "prioritised", "recommended", "awaiting_approval"]) {
+      const itemId = await seedItem(CO_A, { state });
+      const out = await executeManagementAction(env(), {
+        companyId: CO_A, itemId,
+        actionId: "ops.task.create_internal",
+        parameters: { title: `State ${state}` },
+      });
+      expect(out.status === "refused" && out.reason, state).toBe("item_state_invalid");
+      expect(await physicalCount("tasks", "title = $1", [`State ${state}`])).toBe(0);
+    }
+  });
+
+  it("refuses when the item proposes a different action than the one requested", async () => {
+    const itemId = await seedItem(CO_A, { action: "ops.task.escalate_internal" });
+    const out = await executeManagementAction(env(), {
+      companyId: CO_A, itemId,
+      actionId: "ops.task.create_internal",
+      parameters: { title: "Mismatched action" },
+    });
+    expect(out.status === "refused" && out.reason).toBe("stale_state");
+    expect(await physicalCount("tasks", "title = $1", ["Mismatched action"])).toBe(0);
+  });
+
+  it("TENANT ISOLATION — company B cannot execute company A's item", async () => {
+    const itemId = await seedItem(CO_A);
+    const out = await executeManagementAction(env(), {
+      companyId: CO_B,
+      itemId,
+      actionId: "ops.task.create_internal",
+      parameters: { title: "Cross-tenant task" },
+    });
+    // The item is not visible under B's scope at all, so it reads as absent rather than forbidden.
+    expect(out.status === "refused" && out.reason).toBe("item_state_invalid");
+    expect(await physicalCount("tasks", "title = $1", ["Cross-tenant task"])).toBe(0);
+  });
+
+  it("refuses malformed parameters, and an unknown key, before touching the database", async () => {
+    const itemId = await seedItem(CO_A);
+    for (const params of [
+      { title: "" },
+      { title: "ok", assignedTo: ACTOR },
+      { title: "ok", requiresEvidence: "yes" },
+      {},
+    ]) {
+      const out = await executeManagementAction(env(), {
+        companyId: CO_A, itemId,
+        actionId: "ops.task.create_internal",
+        parameters: params,
+      });
+      expect(out.status === "refused" && out.reason, JSON.stringify(params)).toBe(
+        "parameters_invalid",
+      );
+    }
+    expect(await physicalCount("tasks", "company_id = $1 and title = $2", [CO_A, "ok"])).toBe(0);
   });
 
   it("writes NOTHING when the global boundary is closed", async () => {
+    const itemId = await seedItem(CO_A);
     const attemptsBefore = await physicalCount(
       "management_execution_attempts", "company_id = $1", [CO_A],
     );
     const tasksBefore = await physicalCount("tasks", "company_id = $1", [CO_A]);
 
-    const out = await executeApprovedAction(
-      deps({ localToken: undefined }),
-      req(`disabled-${randomUUID()}`),
-    );
+    const out = await executeManagementAction(env({ localToken: undefined }), {
+      companyId: CO_A, itemId,
+      actionId: "ops.task.create_internal",
+      parameters: { title: "Disabled task" },
+    });
     expect(out.status === "refused" && out.reason).toBe("global_boundary_disabled");
 
     expect(
@@ -436,39 +586,104 @@ describe.skipIf(!enabled)("R2E — the real executor against the real database",
     expect(await physicalCount("tasks", "company_id = $1", [CO_A])).toBe(tasksBefore);
   });
 
-  it("writes NOTHING when the company is not enabled for execution", async () => {
-    const attemptsBefore = await physicalCount(
-      "management_execution_attempts", "company_id = $1", [CO_A],
-    );
-    const tasksBefore = await physicalCount("tasks", "company_id = $1", [CO_A]);
+  it("writes NOTHING when the company execution setting is off", async () => {
+    const itemId = await seedItem(CO_B);
+    await enableExecution(CO_B, false);
+    try {
+      const attemptsBefore = await physicalCount(
+        "management_execution_attempts", "company_id = $1", [CO_B],
+      );
+      const tasksBefore = await physicalCount("tasks", "company_id = $1", [CO_B]);
 
-    const out = await executeApprovedAction(
-      deps({ async companyExecutionEnabled() { return false; } }),
-      req(`notenabled-${randomUUID()}`),
-    );
-    expect(out.status === "refused" && out.reason).toBe("company_not_enabled");
+      const out = await executeManagementAction(env(), {
+        companyId: CO_B, itemId,
+        actionId: "ops.task.create_internal",
+        parameters: { title: "Company disabled task" },
+      });
+      expect(out.status === "refused" && out.reason).toBe("company_not_enabled");
 
-    expect(
-      await physicalCount("management_execution_attempts", "company_id = $1", [CO_A]),
-    ).toBe(attemptsBefore);
-    expect(await physicalCount("tasks", "company_id = $1", [CO_A])).toBe(tasksBefore);
+      expect(
+        await physicalCount("management_execution_attempts", "company_id = $1", [CO_B]),
+      ).toBe(attemptsBefore);
+      expect(await physicalCount("tasks", "company_id = $1", [CO_B])).toBe(tasksBefore);
+    } finally {
+      await enableExecution(CO_B, true);
+    }
   });
 
-  it("a draft-only or prohibited action produces no task, whatever the caller asks for", async () => {
+  it("KERNEL enablement alone does not permit execution", async () => {
+    // The two switches are separate rows in separate tables, and this is the case that would
+    // regress if anything ever read one for the other.
+    const itemId = await seedItem(CO_B);
+    await q(
+      `insert into management_kernel_enablement (company_id, enabled) values ($1, true)
+       on conflict (company_id) do update set enabled = true`,
+      [CO_B],
+    );
+    await enableExecution(CO_B, false);
+    try {
+      const out = await executeManagementAction(env(), {
+        companyId: CO_B, itemId,
+        actionId: "ops.task.create_internal",
+        parameters: { title: "Kernel-only task" },
+      });
+      expect(out.status === "refused" && out.reason).toBe("company_not_enabled");
+      expect(await physicalCount("tasks", "title = $1", ["Kernel-only task"])).toBe(0);
+    } finally {
+      await enableExecution(CO_B, true);
+    }
+  });
+
+  it("every draft-only and prohibited action produces nothing, through the real service", async () => {
     const tasksBefore = await physicalCount("tasks", "company_id = $1", [CO_A]);
     for (const actionId of [
-      "crm.followup.draft_for_human",
+      "ops.task.reminder_internal",
+      "ops.task.escalate_internal",
       "finance.invoice.flag_for_review",
+      "crm.followup.draft_for_human",
       "legal.obligation.escalate_internal",
       "system.health.investigate_internal",
     ] as const) {
-      const out = await executeApprovedAction(
-        deps(),
-        req(`draft-${randomUUID()}`, { actionId, parameters: { title: "Should never exist" } }),
-      );
+      const itemId = await seedItem(CO_A, { action: actionId });
+      const out = await executeManagementAction(env(), {
+        companyId: CO_A, itemId, actionId,
+        parameters: { title: "Should never exist" },
+      });
       expect(out.status, actionId).toBe("refused");
+      expect(
+        out.status === "refused" &&
+          ["classification_draft_only", "classification_prohibited"].includes(out.reason),
+        `${actionId} → ${out.status === "refused" ? out.reason : out.status}`,
+      ).toBe(true);
     }
     expect(await physicalCount("tasks", "company_id = $1", [CO_A])).toBe(tasksBefore);
     expect(await physicalCount("tasks", "title = $1", ["Should never exist"])).toBe(0);
   });
+
+  it("a refusal does not consume the execution identity", async () => {
+    // Refused because the item is in the wrong state; corrected; then executed. Had the refusal
+    // claimed the derived identity, the legitimate execution could never happen.
+    const itemId = await seedItem(CO_A, { state: "awaiting_approval" });
+    const first = await executeManagementAction(env(), {
+      companyId: CO_A, itemId,
+      actionId: "ops.task.create_internal",
+      parameters: { title: "Refused then run" },
+    });
+    expect(first.status === "refused" && first.reason).toBe("item_state_invalid");
+
+    // The state may only move through `r1_draft_transition_item()` — a direct UPDATE is refused
+    // by the transition boundary, which is the product working. So the correction goes through the
+    // real lifecycle, as it would in production.
+    await q(
+      `select r1_draft_transition_item($1, 'awaiting_approval', 'approved', $2, 'user', 'approved for test')`,
+      [itemId, ACTOR],
+    );
+    const second = await executeManagementAction(env(), {
+      companyId: CO_A, itemId,
+      actionId: "ops.task.create_internal",
+      parameters: { title: "Refused then run" },
+    });
+    expect(second.status).toBe("executed");
+  });
 });
+

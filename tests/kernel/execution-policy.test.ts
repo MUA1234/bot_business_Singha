@@ -35,7 +35,8 @@ const rank = (l: AuthorityLevel) => LADDER.indexOf(l);
  * Changing any action's classification, floor or handler must edit BOTH, in one reviewable diff.
  */
 const EXPECTED: Record<CatalogueActionId, [string, AuthorityLevel, string | null]> = {
-  "ops.task.create_internal": ["locally_executable", "manager_approval", "ops.task.create_internal.v1"],
+  // OWNER DECISION 2026-09-05 — the single authorised automatic action.
+  "ops.task.create_internal": ["locally_executable", "automatic", "ops.task.create_internal.v1"],
   "ops.task.reminder_internal": ["draft_only", "manager_approval", null],
   "ops.task.request_progress_update": ["draft_only", "manager_approval", null],
   "ops.task.escalate_internal": ["draft_only", "manager_approval", null],
@@ -73,11 +74,34 @@ describe("R2E execution policy — exhaustive and exact", () => {
     }
   });
 
-  it("no action is `automatic`, and promoting one fails this test", () => {
-    // R2E-F-001 direction: unattended execution stays fail-closed until Batch 6 proves the whole
-    // authority path. An `automatic` floor appearing here is the signal that it did not.
+  it("EXACTLY ONE action is `automatic`, and it is the one the owner authorised", () => {
+    // The owner authorised `ops.task.create_internal` and nothing else (2026-09-05). A second
+    // action acquiring an `automatic` floor fails here, by name.
     const automatic = allPolicies().filter(([, p]) => p.authorityFloor === "automatic");
-    expect(automatic.map(([id]) => id)).toEqual([]);
+    expect(automatic.map(([id]) => id)).toEqual(["ops.task.create_internal"]);
+  });
+
+  it("only the automatic action may waive approval", () => {
+    for (const [id, p] of allPolicies()) {
+      if (id === "ops.task.create_internal") {
+        expect(p.requiresApproval, id).toBe(false);
+      } else {
+        expect(p.requiresApproval, `${id} must require approval`).toBe(true);
+      }
+    }
+  });
+
+  it("no financial, legal, customer-facing or external action is automatic", () => {
+    // Restated as a standing prohibition rather than left implicit in the table above.
+    for (const [id, p] of allPolicies()) {
+      const sensitive = /^(finance|legal|crm|providers|procurement|assets|marketing)./.test(id);
+      if (sensitive) {
+        expect(p.authorityFloor, `${id} must not be automatic`).not.toBe("automatic");
+        expect(p.classification, `${id} must not be locally executable`).not.toBe(
+          "locally_executable",
+        );
+      }
+    }
   });
 
   it("exactly one action is locally executable", () => {

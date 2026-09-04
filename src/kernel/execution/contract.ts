@@ -87,8 +87,10 @@ export type RefusalReason =
   | "approver_lacks_capability"
   // ── The world, revalidated at execution time ──
   | "evidence_missing"
+  | "evidence_stale"
   | "item_state_invalid"
   | "stale_state"
+  | "parameters_invalid"
   // ── Durability ──
   | "idempotency_key_missing"
   | "ledger_unavailable";
@@ -99,20 +101,25 @@ export type RefusalReason =
  * A typed object, not positional parameters. TD-001 and the `loadReconcile(companyId, source)`
  * swap are the reason: two same-typed strings in a row are a defect the compiler cannot see.
  * `companyId` and `actorId` are branded, so a user id cannot be passed where a company id belongs.
+ *
+ * There is NO idempotency key here. It is derived inside the trusted boundary from server-held
+ * values (R2E-F-005): a key the caller chooses is a key the caller can vary to execute the same
+ * approved decision twice, or reuse to collapse two different decisions into one.
  */
 export interface ExecutionRequest {
   readonly companyId: CompanyId;
   /** The management item whose approved recommendation this is. */
   readonly itemId: string;
   readonly actionId: CatalogueActionId;
-  /** The human on whose approval this runs. Never a system principal. */
-  readonly approvedBy: UserId;
   /**
-   * Caller-supplied and DURABLE. The same key must produce the same single business effect
-   * however many times execution is attempted, including across a crash mid-write.
+   * The human on whose approval this runs, or `null` for an action the canonical policy resolves
+   * to `automatic`. Never a system principal dressed as a person.
    */
-  readonly idempotencyKey: string;
-  /** Structured, validated parameters for the handler. Never free text from a model. */
+  readonly approvedBy: UserId | null;
+  /**
+   * Structured parameters for the handler. Never free text from a model, and never trusted: they
+   * are validated against a STRICT per-action schema inside the boundary (R2E-F-007).
+   */
   readonly parameters: Readonly<Record<string, unknown>>;
   readonly requestedAt: Date;
 }

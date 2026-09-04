@@ -3,25 +3,27 @@
  *
  * One mechanism, used by every action. It is easier to describe by what it refuses than by what it
  * does, because refusing is what it mostly does: 13 of the 15 registered actions are `draft_only`,
- * one is `prohibited`, and the remaining one still needs six further conditions to hold.
+ * one is `prohibited`, and the remaining one still needs every condition below to hold.
  *
- * ── The order of the checks is itself a safety property ──────────────────────────────────────
+ * ── The owner's ten conditions, in the order they are checked ────────────────────────────────
  *
- *   1. global boundary          — a compile-time constant, not configuration
- *   2. company execution enablement — separate from kernel enablement, defaulting to disabled
- *   3. the action is catalogue-registered and internal-only
- *   4. an exact policy exists for that action id
- *   5. the policy classification permits execution
- *   6. a handler exists
- *   7. authority, RESOLVED NOW — not read from the recommendation
- *   8. an approval exists, is current, and the approver still holds the capability
- *   9. the evidence still exists and the item is still in a state that admits execution
- *  10. a durable idempotency key
+ *   1. the compile-time/server execution boundary is enabled
+ *   2. the SEPARATE company execution setting is enabled
+ *   3. the canonical action policy marks this exact action eligible
+ *      (registered → internal-only → exact policy → classification → handler exists)
+ *   7. parameters pass the strict typed schema          ← before any authority work
+ *   5. authority is revalidated at execution time
+ *   6. required approval is present, unless the exact policy genuinely resolves to automatic
+ *   4. the management item and evidence GENERATION are current
+ *   8. the task is internal and initially unassigned    ← enforced by the schema and the RPC
+ *   9. the atomic idempotent RPC and the durable ledger
+ *  10. no sensitive, financial, customer-facing, external or access-changing effect is implied
+ *      ← enforced by the catalogue's `internalOnly` and by the policy admitting one action
  *
  * Nothing is written until step 2 passes. A globally disabled system therefore performs no query
- * about the company it was asked about, writes no ledger row, and reveals nothing — including
- * whether that company exists. That is what makes "disabled" provable by inspecting the database
- * rather than by trusting this file.
+ * about the company it was asked about, and reveals nothing — including whether that company
+ * exists. That is what makes "disabled" provable by inspecting the database rather than by
+ * trusting this file.
  *
  * ── Why authority is resolved again here ─────────────────────────────────────────────────────
  *
@@ -29,6 +31,13 @@
  * delegation can lapse, a policy can change, and the evidence can stop being true. A recommendation
  * carries the authority that was required WHEN IT WAS MADE; using that at execution time would be
  * enforcing a permission that may since have been revoked.
+ *
+ * ── Why the idempotency identity is derived, not accepted (R2E-F-005) ────────────────────────
+ *
+ * A caller who chooses the key can vary it to execute one approved decision twice, or reuse it to
+ * collapse two decisions into one. The identity is therefore computed from server-held values —
+ * company, item, decision version, canonical action id and the hash of the VALIDATED parameters —
+ * after the approval and item have been loaded, so it reflects the state that was actually checked.
  *
  * ── Why a crash cannot duplicate an effect ───────────────────────────────────────────────────
  *
@@ -52,6 +61,8 @@ import {
 } from "./contract";
 import { checkExecutionBoundaries } from "./boundary";
 import { policyFor } from "./policy";
+import { resolveCanonicalAuthority, type CanonicalAuthority } from "./authority";
+import { deriveIdempotencyKey, validateParameters } from "./parameters";
 
 /** What the approval record must show at execution time. */
 export interface ApprovalSnapshot {
@@ -61,6 +72,12 @@ export interface ApprovalSnapshot {
   readonly authority: AuthorityLevel;
   /** False when a later decision replaced this one. */
   readonly current: boolean;
+  /** Identifies this decision. Changes when the decision is superseded. */
+  readonly decisionVersion: string;
+  /** The evidence generation the approval was granted AGAINST. */
+  readonly evidenceGeneration: string;
+  /** The company the approval belongs to — checked against the request's own company. */
+  readonly companyId: CompanyId;
 }
 
 /** What the item must still look like. */
@@ -68,6 +85,11 @@ export interface ItemSnapshot {
   readonly state: string;
   readonly evidenceCount: number;
   readonly actionId: string;
+  /** The evidence generation NOW. */
+  readonly evidenceGeneration: string;
+  /** The generation the current recommendation was computed from. */
+  readonly recommendationGeneration: string;
+  readonly companyId: CompanyId;
 }
 
 export interface ClaimResult {
@@ -84,7 +106,7 @@ export interface LedgerPort {
     itemId: string;
     actionId: CatalogueActionId;
     idempotencyKey: string;
-    approvedBy: UserId;
+    approvedBy: UserId | null;
     resolvedAuthority: AuthorityLevel;
     handler: ExecutionHandlerKey;
   }): Promise<ClaimResult>;
@@ -95,9 +117,9 @@ export interface LedgerPort {
   /**
    * Record a refusal that happened AFTER both boundaries passed.
    *
-   * Under its own key, never the caller's: a refusal must not consume an idempotency key, or a
-   * request refused today for a missing approval could never be executed tomorrow once the
-   * approval exists.
+   * Under its own key, never the caller's: a refusal must not consume an idempotency identity, or a
+   * request refused today for a missing approval could never be executed tomorrow once the approval
+   * exists.
    */
   recordRefusal(row: {
     companyId: CompanyId;
@@ -110,18 +132,23 @@ export interface LedgerPort {
 }
 
 export type ExecutionHandler = (
-  req: ExecutionRequest,
+  req: ExecutionRequest & {
+    /** The VALIDATED parameters. A handler never sees the raw bag. */
+    readonly validatedParameters: Record<string, unknown>;
+    readonly idempotencyKey: string;
+  },
 ) => Promise<{ effectRef: string; created: boolean }>;
 
 export interface ExecutorDeps {
   /** Present ONLY in a deterministic local test. No server path can supply it. */
   readonly localToken?: string;
   companyExecutionEnabled(companyId: CompanyId): Promise<boolean>;
-  /** Resolved NOW, from live policy and live facts. */
-  resolveAuthorityNow(req: ExecutionRequest): Promise<{
-    level: AuthorityLevel;
-    failedClosed: boolean;
-  }>;
+  /**
+   * Resolved NOW. Defaults to the canonical resolver; injectable so a test can drive an authority
+   * the canonical policy would not produce, which is how "authority revoked at execution time" is
+   * exercised at all.
+   */
+  resolveAuthorityNow?(req: ExecutionRequest): Promise<CanonicalAuthority>;
   loadApproval(req: ExecutionRequest): Promise<ApprovalSnapshot | null>;
   loadItem(req: ExecutionRequest): Promise<ItemSnapshot | null>;
   /** The approver's capabilities AS THEY ARE NOW, not as they were at approval. */
@@ -131,7 +158,7 @@ export interface ExecutorDeps {
   /** Fail-closed. Must throw if the event could not be recorded. */
   audit(entry: {
     companyId: CompanyId;
-    actorId: UserId;
+    actorId: UserId | null;
     action: string;
     entityId: string | null;
     payload: Record<string, unknown>;
@@ -168,16 +195,13 @@ export async function executeApprovedAction(
   });
   if (!boundary.ok) return refuse(boundary.reason, boundary.detail);
 
-  // ── 3. The action is registered, and internal-only. ──
+  // ── 3. The action is registered, internal-only, and has an exact eligible policy. ──
   const entry = ACTION_CATALOGUE.find((a) => a.id === req.actionId);
-  if (!entry) {
-    return refuse("action_not_registered", "action is not in the catalogue");
-  }
+  if (!entry) return refuse("action_not_registered", "action is not in the catalogue");
   if (entry.internalOnly !== true) {
     return refuse("action_not_internal_only", "action is not internal-only");
   }
 
-  // ── 4 & 5. An exact policy, and a classification that permits execution. ──
   const policy = policyFor(req.actionId);
   if (!policy) {
     return refuse("no_execution_policy", "no execution policy is registered for this action");
@@ -189,35 +213,37 @@ export async function executeApprovedAction(
     return refuse("classification_draft_only", "this action is draft-only; a person must act");
   }
 
-  // ── 6. A handler that exists. ──
   const handlerKey = policy.handler;
-  if (!handlerKey) {
-    return refuse("no_handler", "the policy names no handler");
-  }
+  if (!handlerKey) return refuse("no_handler", "the policy names no handler");
   const handler = deps.handlers[handlerKey];
-  if (!handler) {
-    return refuse("no_handler", `handler "${handlerKey}" is not registered`);
-  }
+  if (!handler) return refuse("no_handler", `handler "${handlerKey}" is not registered`);
 
-  // ── 10 (early). A key that is absent is not durable. Checked before any load. ──
-  if (!req.idempotencyKey.trim()) {
-    return refuse("idempotency_key_missing", "an idempotency key is required");
-  }
-
-  const refusePost = async (reason: RefusalReason, detail: string): Promise<ExecutionOutcome> => {
+  const refusePost = async (
+    reason: RefusalReason,
+    detail: string,
+    key = "pre-identity",
+  ): Promise<ExecutionOutcome> => {
     await deps.ledger.recordRefusal({
       companyId: req.companyId,
       itemId: req.itemId,
       actionId: req.actionId,
-      idempotencyKey: req.idempotencyKey,
+      idempotencyKey: key,
       reason,
       detail,
     });
     return refuse(reason, detail);
   };
 
-  // ── 7. Authority, resolved NOW. ──
-  const authority = await deps.resolveAuthorityNow(req);
+  // ── 7. Parameters, against a STRICT per-action schema, before any authority work. ──
+  const params = validateParameters(req.actionId, req.parameters);
+  if (!params.ok) return refusePost("parameters_invalid", params.message);
+
+  // ── 5. Authority, resolved NOW, canonically. ──
+  const resolveAuthority = deps.resolveAuthorityNow
+    ? deps.resolveAuthorityNow
+    : async (r: ExecutionRequest) => resolveCanonicalAuthority(r.actionId);
+  const authority = await resolveAuthority(req);
+
   if (authority.failedClosed) {
     return refusePost(
       "authority_failed_closed",
@@ -231,11 +257,20 @@ export async function executeApprovedAction(
     );
   }
 
-  // ── 8. An approval that is still current, from someone who still holds the capability. ──
-  if (policy.requiresApproval) {
-    const approval = await deps.loadApproval(req);
-    if (!approval) {
-      return refusePost("approval_missing", "no approval is recorded for this action");
+  // ── 6. Approval, unless the policy GENUINELY resolves to automatic. ──
+  //
+  // "Genuinely" is doing work: `authority.automatic` is true only when the canonical policy floor,
+  // the exact owner-authorised action id, the catalogue's `automaticSafe`, `reversible` and
+  // `internalOnly` flags, and the `locally_executable` classification ALL agree.
+  const mayRunWithoutApproval = authority.automatic && !policy.requiresApproval;
+
+  let approval: ApprovalSnapshot | null = null;
+  if (!mayRunWithoutApproval) {
+    approval = await deps.loadApproval(req);
+    if (!approval) return refusePost("approval_missing", "no approval is recorded for this action");
+    if (approval.companyId !== req.companyId) {
+      // A cross-company approval is not a stale approval; it is someone else's decision.
+      return refusePost("approval_missing", "the approval belongs to a different company");
     }
     if (!approval.current) {
       return refusePost("approval_superseded", "the approval was replaced by a later decision");
@@ -243,7 +278,7 @@ export async function executeApprovedAction(
     if (approval.actionId !== req.actionId) {
       return refusePost("approval_missing", "the approval is for a different action");
     }
-    if (approval.approvedBy !== req.approvedBy) {
+    if (req.approvedBy === null || approval.approvedBy !== req.approvedBy) {
       return refusePost("approval_missing", "the approval names a different approver");
     }
     if (rank(approval.authority) < rank(authority.level)) {
@@ -263,10 +298,11 @@ export async function executeApprovedAction(
     }
   }
 
-  // ── 9. The world, revalidated. ──
+  // ── 4. The item and the evidence GENERATION. ──
   const item = await deps.loadItem(req);
-  if (!item) {
-    return refusePost("item_state_invalid", "the management item no longer exists");
+  if (!item) return refusePost("item_state_invalid", "the management item no longer exists");
+  if (item.companyId !== req.companyId) {
+    return refusePost("item_state_invalid", "the item belongs to a different company");
   }
   if (item.actionId !== req.actionId) {
     return refusePost("stale_state", "the item now proposes a different action");
@@ -278,15 +314,35 @@ export async function executeApprovedAction(
     return refusePost("evidence_missing", "the item no longer holds any evidence");
   }
 
-  // ── Claim, execute, resolve. ──
+  // R2E-F-006. `evidenceCount >= 1` says SOME evidence exists, not that it is the SAME evidence.
+  // An approval given against three overdue invoices must not execute after those three are paid
+  // and replaced by three unrelated ones — the count is still 3 and the state is still `approved`.
+  const decidedAgainst = approval ? approval.evidenceGeneration : item.recommendationGeneration;
+  if (decidedAgainst !== item.evidenceGeneration) {
+    return refusePost(
+      "evidence_stale",
+      "the evidence has changed since the decision was made",
+    );
+  }
+
+  // ── 9. The durable identity, DERIVED from what was just checked. ──
+  const idempotencyKey = deriveIdempotencyKey({
+    companyId: req.companyId,
+    itemId: req.itemId,
+    actionId: req.actionId,
+    decisionVersion: approval ? approval.decisionVersion : item.recommendationGeneration,
+    evidenceGeneration: item.evidenceGeneration,
+    parameterHash: params.hash,
+  });
+
   let claim: ClaimResult;
   try {
     claim = await deps.ledger.claim({
       companyId: req.companyId,
       itemId: req.itemId,
       actionId: req.actionId,
-      idempotencyKey: req.idempotencyKey,
-      approvedBy: req.approvedBy,
+      idempotencyKey,
+      approvedBy: approval ? approval.approvedBy : null,
       resolvedAuthority: authority.level,
       handler: handlerKey,
     });
@@ -299,13 +355,12 @@ export async function executeApprovedAction(
     return { status: "duplicate", ledgerId: claim.ledgerId, effectRef: claim.effectRef ?? "" };
   }
   if (claim.kind === "refused" || claim.kind === "failed") {
-    // A terminal outcome already exists under this key. Returning it — rather than starting a
-    // second attempt — is what stops a retry loop from producing a second effect. A genuine
-    // retry uses a new key, deliberately.
+    // A terminal outcome already exists under this identity. Returning it — rather than starting a
+    // second attempt — is what stops a retry loop from producing a second effect.
     return {
       status: "failed",
       ledgerId: claim.ledgerId,
-      error: `a previous attempt under this idempotency key is terminal (${claim.kind})`,
+      error: `a previous attempt under this execution identity is terminal (${claim.kind})`,
     };
   }
 
@@ -313,7 +368,7 @@ export async function executeApprovedAction(
   // key and returns the effect the crashed attempt already created.
   let effect: { effectRef: string; created: boolean };
   try {
-    effect = await handler(req);
+    effect = await handler({ ...req, validatedParameters: params.value, idempotencyKey });
     await deps.ledger.resolveExecuted(claim.ledgerId, effect.effectRef);
   } catch (e) {
     const message = (e as Error).message;
@@ -334,7 +389,7 @@ export async function executeApprovedAction(
   try {
     await deps.audit({
       companyId: req.companyId,
-      actorId: req.approvedBy,
+      actorId: approval ? approval.approvedBy : null,
       action: "management.execution.executed",
       entityId: effect.effectRef,
       payload: {
@@ -342,15 +397,13 @@ export async function executeApprovedAction(
         itemId: req.itemId,
         handler: handlerKey,
         resolvedAuthority: authority.level,
+        automatic: mayRunWithoutApproval,
         resumed: claim.kind === "resuming",
         // `created:false` means the handler found the effect already there.
         newEffect: effect.created,
       },
     });
   } catch (e) {
-    // Deliberately explicit. A caller reading `failed` alone would conclude nothing happened;
-    // the effect ref is named so the record cannot be misread, and a retry under the same key
-    // returns `duplicate` from the ledger rather than creating a second one.
     return {
       status: "failed",
       ledgerId: claim.ledgerId,
