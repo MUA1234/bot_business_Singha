@@ -59,6 +59,21 @@ beforeAll(async () => {
       [c, `R2E ${c.slice(0, 8)}`],
     );
   }
+  // A real person with a real, ACTIVE membership. The kernel's atomic create RPC refuses an actor
+  // who is not an active member, which is the product working — so the fixture provides one rather
+  // than a bare uuid.
+  await q(
+    `insert into users (id, email, full_name) values ($1, $2, 'R2E Actor')
+       on conflict (id) do nothing`,
+    [ACTOR, `r2e-${ACTOR.slice(0, 8)}@example.invalid`],
+  );
+  for (const c of [CO_A, CO_B]) {
+    await q(
+      `insert into memberships (company_id, user_id, status) values ($1, $2, 'active')
+         on conflict (company_id, user_id) do nothing`,
+      [c, ACTOR],
+    );
+  }
 });
 
 afterAll(async () => {
@@ -331,9 +346,12 @@ describe.skipIf(!enabled)("R2E — the real server execution service", () => {
     const itemId = randomUUID();
     const evidence = opts.evidence ?? [["tasks", `t-${randomUUID()}`]];
     await q(
+      // `proposed_action_id`, which is the column the kernel's own atomic create RPC writes.
+      // `proposed_action` also exists (draft 001) and is written by NOTHING — see R2E-F-010 and
+      // the test below that seeds through the real RPC so this choice cannot be assumed again.
       `insert into management_items
          (id, company_id, department, kind, subject_table, subject_id, identity_key,
-          state, proposed_action)
+          state, proposed_action_id)
        values ($1, $2, 'operations', 'overdue_task', 'tasks', $3, $4, $5, $6)`,
       [
         itemId, companyId, evidence[0]![1], `${companyId}:overdue:${itemId}`,
@@ -658,6 +676,61 @@ describe.skipIf(!enabled)("R2E — the real server execution service", () => {
     }
     expect(await physicalCount("tasks", "company_id = $1", [CO_A])).toBe(tasksBefore);
     expect(await physicalCount("tasks", "title = $1", ["Should never exist"])).toBe(0);
+  });
+
+  it("reads the proposed action from an item the KERNEL created, not one a test shaped", async () => {
+    // R2E-F-010. `management_items` carries TWO columns for the proposed action —
+    // `proposed_action` (draft 001) and `proposed_action_id` (draft 009). Only the second is ever
+    // written: the kernel's atomic create RPC populates it and nothing populates the first.
+    //
+    // The executor originally read `proposed_action`, so every real item looked actionless and
+    // every real execution would have refused with `stale_state`. The seeding tests did not catch
+    // it because they wrote the same wrong column the reader read — a closed loop that agreed with
+    // itself. This one creates the item through the REAL RPC, so the column choice is proven by
+    // the product rather than by the fixture.
+    // The RPC is a SERVICE-ONLY boundary — an authenticated session is refused, which is the
+    // product working. The real executor runs server-side, so the test adopts that role for the
+    // seeding call and drops it again immediately.
+    let itemId = "";
+    await q("begin");
+    try {
+      // The guard reads the JWT ROLE CLAIM, not the database role — an EXECUTE grant alone is
+      // not a trust boundary, which is the point of that design.
+      await q(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+      const { rows } = await q(
+        `select public.r1_draft_create_management_item(
+           $1, $2, 'operations', 'overdue_task', 'operations.task_exception', 'tasks', $3, $4, $5,
+           'high', 0.9, 'automatic', 'ops.task.create_internal', 'sufficient',
+           false, null, null, $6::jsonb) as id`,
+        [
+          CO_A, ACTOR, `subj-${randomUUID()}`, `${CO_A}:kernel:${randomUUID()}`,
+          `corr-${randomUUID()}`,
+          JSON.stringify([{ source_table: "tasks", source_id: `ev-${randomUUID()}` }]),
+        ],
+      );
+      // The RPC returns a jsonb envelope, not a bare id.
+      itemId = String((rows[0].id as { item_id: string }).item_id);
+    } finally {
+      await q("commit");
+    }
+
+    const deps = buildExecutorDeps(env());
+    const snapshot = await deps.loadItem({
+      companyId: asCompanyId(CO_A),
+      itemId,
+      actionId: "ops.task.create_internal",
+      approvedBy: null,
+      parameters: {},
+      requestedAt: new Date(),
+    });
+
+    // The whole point: the executor sees the action the kernel actually recorded.
+    expect(snapshot).not.toBeNull();
+    expect(snapshot!.actionId).toBe("ops.task.create_internal");
+    expect(snapshot!.evidenceCount).toBeGreaterThan(0);
+    // The RPC enforces the initial state, so this item is not yet executable — which is correct,
+    // and is asserted so the test cannot be misread as "the kernel creates executable items".
+    expect(snapshot!.state).toBe("observed");
   });
 
   it("a refusal does not consume the execution identity", async () => {

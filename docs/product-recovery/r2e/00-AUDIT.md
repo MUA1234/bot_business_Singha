@@ -270,3 +270,27 @@ product working, and each had been silently bypassed by a stub:
 - `management_items.state` may only move through `r1_draft_transition_item()`; a direct UPDATE is
   refused by the transition boundary. The correction path in the tests now goes through the real
   lifecycle function, as production would.
+
+### R2E-F-010 — the executor read a column nothing writes, and my own test agreed with it
+
+`management_items` carries **two** columns for the proposed action: `proposed_action` (draft 001)
+and `proposed_action_id` (draft 009). Only the second is ever written — the kernel's atomic create
+RPC populates it (`R1_DRAFT_012`, line 129) and **nothing populates the first**.
+
+The executor's item loader read `proposed_action`. Every item the kernel actually creates would
+therefore have looked actionless, and every real execution would have refused with `stale_state`.
+
+**This was a false pass I introduced.** The integration test seeded `proposed_action` — the same
+wrong column the reader read — so the fixture and the code agreed with each other and neither
+agreed with the product. The existing `ManagementQueuePanel` reads `proposed_action_id`, which is
+what exposed the discrepancy.
+
+**Fix:** the loader reads `proposed_action_id`, the fixtures seed it, and a new test creates the
+item through the **real** `r1_draft_create_management_item` RPC so the column choice is proven by
+the product rather than by the fixture. Verified discriminating: restoring the dead column fails 7
+tests, including the kernel-seeded one that does not depend on the fixture at all.
+
+Reaching the real RPC required satisfying four guards the seeded fixtures had been bypassing — a
+service-role **JWT claim** (not merely the database role), an actor with an **active membership**,
+an observation source on the RPC's **closed allowlist**, and the RPC's own jsonb return envelope.
+Each is the product working; each had been invisible while the tests wrote rows directly.

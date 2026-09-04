@@ -178,7 +178,7 @@ export function buildExecutorDeps(env: ExecutionEnvironment): ExecutorDeps {
 
     async loadItem(req): Promise<ItemSnapshot | null> {
       const { rows } = await sql(
-        `select i.company_id, i.state, i.proposed_action,
+        `select i.company_id, i.state, i.proposed_action_id,
                 (select count(*)::int from management_item_evidence e
                   where e.item_id = i.id) as evidence_count
            from management_items i
@@ -191,7 +191,12 @@ export function buildExecutorDeps(env: ExecutionEnvironment): ExecutorDeps {
       return {
         state: String(row.state),
         evidenceCount: Number(row.evidence_count ?? 0),
-        actionId: String(row.proposed_action ?? ""),
+        // `proposed_action_id` (draft 009), NOT `proposed_action` (draft 001). Both columns
+        // exist; only this one is ever written — the atomic create RPC populates it and nothing
+        // populates the other. Reading the wrong one made every real item look actionless and
+        // refuse with `stale_state`, while a test that seeded the same wrong column passed
+        // (R2E-F-010).
+        actionId: String(row.proposed_action_id ?? ""),
         evidenceGeneration: await evidenceGeneration(sql, req.companyId, req.itemId),
         recommendationGeneration: await recommendationGeneration(sql, req.companyId, req.itemId),
         companyId: asCompanyId(String(row.company_id)),
