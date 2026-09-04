@@ -34,6 +34,9 @@ const item = (over: Partial<QueueItem> = {}): QueueItem => ({
   reviewPolicyConfigured: false,
   monitoringState: null,
   timeline: [{ at: "2026-09-02T09:00:00Z", from: null, to: "observed", actorType: "system", reason: "detected" }],
+  // `finance.invoice.flag_for_review` is draft-only, so R2E can never act on it. That is the
+  // honest default for this fixture and for 14 of the 15 registered actions.
+  execution: { status: "not_eligible", refusalReason: null, effectRef: null, at: null, retryable: false },
   ...over,
 });
 

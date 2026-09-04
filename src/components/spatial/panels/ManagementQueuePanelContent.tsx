@@ -134,6 +134,40 @@ export interface QueueFeedbackEntry {
   supersededByCorrection: boolean;
 }
 
+/**
+ * What R2E has actually done about this item, if anything (R2E-F-012).
+ *
+ * Every value is a state the system can genuinely be in, and each is displayed as itself. In
+ * particular `not_eligible` and `none` are different facts: the first says this action can never
+ * produce an effect, the second says it could and has not. Collapsing them into one "nothing
+ * happened" would be the reassuring version of two different situations.
+ */
+export type ExecutionStatus =
+  /** The action is draft-only or prohibited — nothing will ever execute, by policy. */
+  | "not_eligible"
+  /** Execution is switched off, globally or for this company. */
+  | "disabled"
+  /** Eligible, nothing attempted yet. */
+  | "none"
+  /** Claimed in the ledger; the outcome is not yet known. */
+  | "claimed"
+  | "executed"
+  | "refused"
+  | "failed"
+  /** The ledger could not be read. NOT the same as "nothing happened". */
+  | "unavailable";
+
+export interface QueueExecution {
+  status: ExecutionStatus;
+  /** The closed refusal reason, when the status is `refused`. */
+  refusalReason: string | null;
+  /** What was created, when something was. */
+  effectRef: string | null;
+  at: string | null;
+  /** Whether a further attempt could still succeed. A terminal failure is not retryable. */
+  retryable: boolean;
+}
+
 export interface QueueItem {
   id: string;
   department: string;
@@ -156,6 +190,8 @@ export interface QueueItem {
   reviewPolicyConfigured: boolean;
   monitoringState: string | null;
   timeline: Array<{ at: string; from: string | null; to: string; actorType: string; reason: string | null }>;
+  /** What R2E did about this item, or why it did not (R2E-F-012). */
+  execution: QueueExecution;
   /** Absent when no resolution has been run for this item — distinct from "nobody suitable". */
   recommendation?: QueueRecommendation | null;
   /**
@@ -429,6 +465,8 @@ function QueueRow({ item, focused }: { item: QueueItem; focused: boolean }) {
         </ol>
       </details>
 
+      <ExecutionSection execution={item.execution} />
+
       <CandidateSection item={item} />
 
       {/* Actions are LINKS to the review surface, not in-place executions. The panel itself
@@ -636,6 +674,44 @@ const ROLE_LABEL: Record<QueueCandidateRole, string> = {
  *   needs_routing        the question was asked and NOBODY is suitable, with the reason
  *   candidates           suggestions, every one of which the manager may ignore
  */
+/**
+ * What R2E did about this item (R2E-F-012).
+ *
+ * There is no button here, and there is deliberately no route by which this panel could produce an
+ * effect. Execution is switched off in this build, so a control would either be permanently inert
+ * — which teaches people to ignore it — or a second way in that bypasses the executor's boundary,
+ * policy, authority, approval, evidence and idempotency checks.
+ *
+ * The wording distinguishes two facts a single "nothing happened" would merge: an action that can
+ * NEVER produce an effect, and one that could and has not yet.
+ */
+const EXECUTION_LABEL: Record<QueueExecution["status"], string> = {
+  not_eligible: "Never runs automatically — a person does this",
+  disabled: "Automatic execution is switched off",
+  none: "Eligible — nothing attempted",
+  claimed: "In progress",
+  executed: "Done",
+  refused: "Refused",
+  failed: "Failed",
+  unavailable: "Execution history unavailable",
+};
+
+function ExecutionSection({ execution }: { execution: QueueExecution }) {
+  return (
+    <p className="mq-execution" data-testid="mq-execution" data-status={execution.status}>
+      <span className="t-label">Automation: </span>
+      {EXECUTION_LABEL[execution.status]}
+      {execution.status === "refused" && execution.refusalReason ? (
+        <span className="muted"> — {execution.refusalReason.replace(/_/g, " ")}</span>
+      ) : null}
+      {execution.status === "executed" && execution.effectRef ? (
+        <span className="muted"> — created {execution.effectRef}</span>
+      ) : null}
+      {execution.retryable ? <span className="muted"> (can be tried again)</span> : null}
+    </p>
+  );
+}
+
 function CandidateSection({ item }: { item: QueueItem }) {
   // R2C: one section per role. A single `recommendation` is treated as a one-element list, so
   // nothing about the existing single-role callers changes.

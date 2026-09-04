@@ -62,6 +62,12 @@ const item = (over: Partial<QueueItem> = {}): QueueItem => ({
   reviewPolicyConfigured: false,
   monitoringState: null,
   timeline: [],
+  // Not eligible: these fixtures propose actions that are draft-only, so R2E can never act on
+  // them — which is the honest default for almost every item.
+  execution: {
+    status: "not_eligible" as const,
+    refusalReason: null, effectRef: null, at: null, retryable: false,
+  },
   ...over,
 });
 

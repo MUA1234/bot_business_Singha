@@ -294,3 +294,34 @@ Reaching the real RPC required satisfying four guards the seeded fixtures had be
 service-role **JWT claim** (not merely the database role), an actor with an **active membership**,
 an observation source on the RPC's **closed allowlist**, and the RPC's own jsonb return envelope.
 Each is the product working; each had been invisible while the tests wrote rows directly.
+
+---
+
+# Batch B audit (2026-09-05) — the management surfaces
+
+### R2E-F-011 — no approval or rejection can be recorded through any runtime path
+
+A repository-wide search for writers of `management_item_decisions` or callers of
+`r1_draft_transition_item()` outside `src/db/` and `src/kernel/execution/` returns **nothing**. The
+only mention in application code is a comment.
+
+`ManagementQueuePanelContent` renders `approved`, `rejected` and `dismissed` states and reasons
+about whether "the current viewer may record feedback and accept or reject a suggestion" — but
+there is no server action, route or command behind that question. The management queue is
+**read-only in fact**, whatever the interface implies.
+
+The database agrees: `management_item_decisions` has a `management_item_decisions_read` policy and
+**no INSERT policy at all**, so an authenticated session cannot record a decision even if a form
+existed. A write must go through a service-only SECURITY DEFINER function, and none exists for
+decisions.
+
+**Consequence for R2E.** The executor's approval path — `loadApproval`, `approval_superseded`,
+`approver_lacks_capability` — reads a table that nothing writes. Those branches are exercised only
+by injected snapshots. For the one action the owner authorised, approval is not required, so the
+gap does not block R2E; it blocks every future action that needs a human.
+
+### R2E-F-012 — the queue shows management state but no execution state
+
+`ManagementQueuePanel` reads items, evidence, transitions and observation sources. It does not read
+`management_execution_attempts`, so an operator cannot see whether an approved action was attempted,
+refused, executed or failed — the record R2E exists to produce is invisible to the people it is for.

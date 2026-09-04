@@ -13,9 +13,12 @@ import { supabaseReadClient } from "@/lib/supabase/read";
 import {
   ManagementQueuePanelContent,
   type ManagementQueueData,
+  type QueueExecution,
   type QueueItem,
   type QueueStage,
 } from "./ManagementQueuePanelContent";
+import { classificationFor } from "@/kernel/execution/policy";
+import { EXECUTION_GLOBALLY_ENABLED } from "@/kernel/execution/boundary";
 
 interface Props {
   companyId: string;
@@ -68,6 +71,78 @@ export async function ManagementQueuePanel({ companyId, focusId = null }: Props)
         : Promise.resolve({ data: [] as never[] }),
       db.from("observation_sources").select("department, last_failure_at, consecutive_failures"),
     ]);
+
+    // ── R2E execution state, through the SAME RLS-enforced client ────────────────────────
+    //
+    // Read separately and tolerantly: on a database where draft 021 is not applied these tables
+    // do not exist, and the honest report is "execution history unavailable" rather than a
+    // reassuring silence — or, worse, the whole queue failing because of a panel that shows
+    // automation status.
+    let executionUnavailable = false;
+    let companyExecutionEnabled = false;
+    const attemptsByItem = new Map<string, Record<string, unknown>>();
+    try {
+      const [{ data: enablement, error: enErr }, { data: attempts, error: atErr }] =
+        await Promise.all([
+          db.from("management_execution_enablement").select("enabled").eq("company_id", companyId),
+          ids.length
+            ? db
+                .from("management_execution_attempts")
+                .select("item_id, status, refusal_reason, effect_ref, created_at, completed_at")
+                .eq("company_id", companyId)
+                .in("item_id", ids)
+                .order("created_at", { ascending: false })
+            : Promise.resolve({ data: [] as never[], error: null }),
+        ]);
+      if (enErr || atErr) throw new Error(enErr?.message ?? atErr?.message ?? "unreadable");
+      companyExecutionEnabled =
+        ((enablement ?? []) as Array<Record<string, unknown>>)[0]?.enabled === true;
+      // Ordered newest first, so the FIRST row seen for an item is its latest attempt.
+      for (const a of (attempts ?? []) as Array<Record<string, unknown>>) {
+        const key = String(a.item_id);
+        if (!attemptsByItem.has(key)) attemptsByItem.set(key, a);
+      }
+    } catch {
+      executionUnavailable = true;
+    }
+
+    const bothBoundariesOpen = EXECUTION_GLOBALLY_ENABLED && companyExecutionEnabled;
+
+    /**
+     * The honest execution state for one item.
+     *
+     * Order matters. `not_eligible` is decided from the POLICY and comes first, because "this
+     * action can never run automatically" is true regardless of whether the switches are on — and
+     * reporting it as merely "disabled" would imply that turning them on would change it.
+     */
+    function executionFor(itemId: string, actionId: string | null): QueueExecution {
+      const empty: QueueExecution = {
+        status: "none", refusalReason: null, effectRef: null, at: null, retryable: false,
+      };
+      if (executionUnavailable) return { ...empty, status: "unavailable" };
+      if (!actionId || classificationFor(actionId) !== "locally_executable") {
+        return { ...empty, status: "not_eligible" };
+      }
+
+      const a = attemptsByItem.get(itemId);
+      if (a) {
+        const status = String(a.status);
+        return {
+          status:
+            status === "attempting" ? "claimed"
+            : status === "executed" ? "executed"
+            : status === "refused" ? "refused"
+            : "failed",
+          refusalReason: a.refusal_reason ? String(a.refusal_reason) : null,
+          effectRef: a.effect_ref ? String(a.effect_ref) : null,
+          at: String(a.completed_at ?? a.created_at),
+          // A refusal can be retried once its cause is gone; an executed or failed attempt is
+          // terminal under its own execution identity.
+          retryable: status === "refused",
+        };
+      }
+      return bothBoundariesOpen ? empty : { ...empty, status: "disabled" };
+    }
 
     const evidenceByItem = new Map<string, QueueItem["evidence"]>();
     for (const e of (evidence ?? []) as Array<Record<string, unknown>>) {
@@ -124,6 +199,10 @@ export async function ManagementQueuePanel({ companyId, focusId = null }: Props)
           reviewPolicyConfigured: i.review_policy_id !== null && i.review_policy_id !== undefined,
           monitoringState: i.monitoring_state ? String(i.monitoring_state) : null,
           timeline: timelineByItem.get(String(i.id)) ?? [],
+          execution: executionFor(
+            String(i.id),
+            i.proposed_action_id ? String(i.proposed_action_id) : null,
+          ),
         };
       }),
       unobservedDepartments: unobserved,

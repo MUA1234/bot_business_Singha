@@ -35,7 +35,14 @@ const item = (over: Partial<QueueItem> = {}): QueueItem => ({
   evidenceQuality: "sufficient", proposedAction: "legal.obligation.escalate_internal",
   requiredAuthority: "specialist_approval", accountableOwner: null, routingReason: null,
   businessDeadline: null, reviewBy: null, reviewPolicyConfigured: false, monitoringState: null,
-  timeline: [], ...over,
+  timeline: [],
+  // Not eligible: these fixtures propose actions that are draft-only, so R2E can never act on
+  // them — which is the honest default for almost every item.
+  execution: {
+    status: "not_eligible" as const,
+    refusalReason: null, effectRef: null, at: null, retryable: false,
+  },
+  ...over,
 });
 
 const render = (it_: QueueItem) =>
