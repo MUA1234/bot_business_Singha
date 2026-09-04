@@ -42,6 +42,8 @@ const item = (over: Partial<QueueItem> = {}): QueueItem => ({
     status: "not_eligible" as const,
     refusalReason: null, effectRef: null, at: null, retryable: false,
   },
+  // Fail-closed since R2-F-016: a fixture that wants the decision view must ask for it.
+  viewerMayDecide: true,
   ...over,
 });
 

@@ -68,6 +68,8 @@ const item = (over: Partial<QueueItem> = {}): QueueItem => ({
     status: "not_eligible" as const,
     refusalReason: null, effectRef: null, at: null, retryable: false,
   },
+  // Fail-closed since R2-F-016: a fixture that wants the decision view must ask for it.
+  viewerMayDecide: true,
   ...over,
 });
 
@@ -216,8 +218,8 @@ describe("the no-suitable-candidate state", () => {
 
   it("still offers the human an override", () => {
     const html = render(item({ recommendation: routed }));
-    expect(html).toContain("Assign someone");
-    expect(html).toContain("the assignment is yours to make");
+    expect(html).toContain("Assignment and routing are not yet available");
+    expect(html).toContain("Assignment and routing are not yet available");
   });
 
   it("distinguishes 'no resolution has been run' from 'nobody is suitable'", () => {
@@ -234,8 +236,9 @@ describe("the panel never implies the assignment was made", () => {
   it("offers an override on EVERY state and says the decision is the human's", () => {
     for (const rec of [recommendation(), recommendation({ outcome: "needs_routing", candidates: [], routing: { department: "finance", reasonCode: "x", detail: "y" } })]) {
       const html = render(item({ recommendation: rec }));
-      expect(html).toContain('data-testid="mq-human-override"');
-      expect(html).toContain("Suggestions only");
+      // The panel always says the decision is the human's. On a needs_routing item there is no
+      // suggestion to approve, so the wording comes from the panel rather than from the controls.
+      expect(html).toContain('data-testid="mq-human-decides"');
     }
   });
 
@@ -247,7 +250,7 @@ describe("the panel never implies the assignment was made", () => {
 
   it("links out rather than acting in place — the panel performs nothing", () => {
     const html = render(item({ recommendation: recommendation() }));
-    expect(html).toContain('href="/app/command/queue/item-1/assign"');
+    expect(html).not.toContain('href="/app/command/queue/item-1/assign"');
     // No form, no button that could submit from the panel itself.
     expect(html).not.toContain("<form");
     expect(html).not.toContain('type="submit"');
@@ -296,9 +299,9 @@ describe("human accept, override and reject controls (R2B Decision 3)", () => {
 
   it("offers ACCEPT, REJECT and OVERRIDE when a suggestion exists", () => {
     const html = render(withRec());
-    expect(html).toContain('data-testid="mq-accept"');
+    expect(html).toContain('data-testid="mq-approve"');
     expect(html).toContain('data-testid="mq-reject"');
-    expect(html).toContain('data-testid="mq-human-override"');
+    expect(html).toContain('data-testid="mq-human-decides"');
   });
 
   it("offers only an override when NOBODY is suitable — there is nothing to accept", () => {
@@ -308,24 +311,32 @@ describe("human accept, override and reject controls (R2B Decision 3)", () => {
         routing: { department: "finance", reasonCode: "capability_missing", detail: "nobody holds it" },
       }),
     }));
-    expect(html).toContain('data-testid="mq-human-override"');
-    expect(html).not.toContain('data-testid="mq-accept"');
+    expect(html).toContain('data-testid="mq-human-decides"');
+    expect(html).not.toContain('data-testid="mq-approve"');
   });
 
-  it("every control is a LINK — the panel still performs nothing", () => {
+  it("the controls are real and connected, and still perform no ACTION", () => {
+    // This test used to assert every control was a LINK and the markup contained no <button>.
+    // That protected a real property — the panel executes nothing — but it did so by requiring
+    // the controls to be inert, and they were: the hrefs pointed at routes that were never built
+    // (R2-F-015). The controls are now buttons that call the decision server action.
+    //
+    // The property is therefore asserted directly: a decision is recorded, and the panel says in
+    // words that recording it does not carry the action out.
     const html = render(withRec());
-    expect(html).toContain('href="/app/command/queue/item-1/accept"');
-    expect(html).toContain('href="/app/command/queue/item-1/reject"');
-    expect(html).toContain('href="/app/command/queue/item-1/assign"');
-    expect(html).not.toContain("<form");
-    expect(html).not.toContain('type="submit"');
-    expect(html).not.toContain("<button");
+    expect(html).toContain('data-testid="mq-approve"');
+    expect(html).toContain('data-testid="mq-reject"');
+    expect(html).toContain("Approving records a decision. It does not carry the action out.");
+    // No dead links remain, and nothing on the panel executes.
+    expect(html).not.toContain('href="/app/command/queue/item-1/assign"');
+    expect(html).not.toContain('href="/app/command/queue/item-1/accept"');
+    expect(html).not.toContain("Execute");
   });
 
   it("HIDES the controls and the history from a viewer who may not decide", () => {
     const html = render(withRec({ viewerMayDecide: false, feedback: [feedbackEntry()] }));
     expect(html).toContain('data-testid="mq-no-decision-rights"');
-    expect(html).not.toContain('data-testid="mq-accept"');
+    expect(html).not.toContain('data-testid="mq-approve"');
     expect(html).not.toContain('data-testid="mq-human-override"');
     // Private learning inputs are not theirs to see.
     expect(html).not.toContain('data-testid="mq-feedback-list"');

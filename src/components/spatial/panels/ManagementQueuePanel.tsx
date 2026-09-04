@@ -18,6 +18,7 @@ import {
   type QueueStage,
 } from "./ManagementQueuePanelContent";
 import { classificationFor } from "@/kernel/execution/policy";
+import { evidenceDigest } from "./evidence-digest";
 import { EXECUTION_GLOBALLY_ENABLED } from "@/kernel/execution/boundary";
 
 interface Props {
@@ -107,6 +108,25 @@ export async function ManagementQueuePanel({ companyId, focusId = null }: Props)
     }
 
     const bothBoundariesOpen = EXECUTION_GLOBALLY_ENABLED && companyExecutionEnabled;
+
+    // ── May THIS viewer decide? ──────────────────────────────────────────────────────────
+    //
+    // Resolved on the server through the repository's own capability function, which reads
+    // `auth.uid()` and requires an active membership. It is asked, not assumed: the flag used to
+    // be left unset and the panel defaulted to permissive, so every viewer — including staff with
+    // no approval permission — was shown decision controls (R2-F-016).
+    //
+    // FAIL CLOSED. A capability lookup that errors, or returns anything but `true`, means no.
+    let viewerMayDecide = false;
+    try {
+      const [approve, reject] = await Promise.all([
+        db.rpc("has_capability", { target_company: companyId, capability: "approve" }),
+        db.rpc("has_capability", { target_company: companyId, capability: "reject" }),
+      ]);
+      viewerMayDecide = approve.data === true && reject.data === true;
+    } catch {
+      viewerMayDecide = false;
+    }
 
     /**
      * The honest execution state for one item.
@@ -203,6 +223,11 @@ export async function ManagementQueuePanel({ companyId, focusId = null }: Props)
             String(i.id),
             i.proposed_action_id ? String(i.proposed_action_id) : null,
           ),
+          // The generation this row was built from. A decision carries it back and the server
+          // compares it, so a decision taken against a stale screen is refused rather than applied
+          // to whatever the item has since become.
+          evidenceDigest: evidenceDigest(evidenceByItem.get(String(i.id)) ?? []),
+          viewerMayDecide,
         };
       }),
       unobservedDepartments: unobserved,

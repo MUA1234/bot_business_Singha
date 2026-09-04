@@ -37,6 +37,8 @@ const item = (over: Partial<QueueItem> = {}): QueueItem => ({
   // `finance.invoice.flag_for_review` is draft-only, so R2E can never act on it. That is the
   // honest default for this fixture and for 14 of the 15 registered actions.
   execution: { status: "not_eligible", refusalReason: null, effectRef: null, at: null, retryable: false },
+  // Fail-closed since R2-F-016: a fixture that wants the decision view must ask for it.
+  viewerMayDecide: true,
   ...over,
 });
 

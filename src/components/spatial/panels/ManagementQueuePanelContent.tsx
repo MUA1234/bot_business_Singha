@@ -19,6 +19,7 @@
  * that could read as "done".
  */
 import { Badge, Card, CardBody, CardHeader, EmptyState, StatusBadge } from "@/components/ui";
+import DecisionControls from "./DecisionControls";
 
 export type QueueStage =
   | "observed" | "recommended" | "approved" | "needs_routing"
@@ -192,6 +193,11 @@ export interface QueueItem {
   timeline: Array<{ at: string; from: string | null; to: string; actorType: string; reason: string | null }>;
   /** What R2E did about this item, or why it did not (R2E-F-012). */
   execution: QueueExecution;
+  /**
+   * The evidence generation this row was built from, submitted with a decision and COMPARED by the
+   * server. Absent means the digest could not be computed, and a decision cannot be bound.
+   */
+  evidenceDigest?: string;
   /** Absent when no resolution has been run for this item — distinct from "nobody suitable". */
   recommendation?: QueueRecommendation | null;
   /**
@@ -489,7 +495,7 @@ function QueueRow({ item, focused }: { item: QueueItem; focused: boolean }) {
  */
 function RoleSection({ item, rec }: { item: QueueItem; rec: QueueRecommendation }) {
   const role = rec.role ?? "assignee";
-  const mayDecide = item.viewerMayDecide !== false;
+  const mayDecide = item.viewerMayDecide === true;
 
   return (
     <section className="mq-role" data-testid="mq-role" data-role={role}>
@@ -726,7 +732,7 @@ function CandidateSection({ item }: { item: QueueItem }) {
         {perRole.map((r, i) => (
           <RoleSection key={`${r.role ?? "assignee"}:${i}`} item={item} rec={r} />
         ))}
-        <FeedbackHistory entries={item.feedback ?? []} mayDecide={item.viewerMayDecide !== false} />
+        <FeedbackHistory entries={item.feedback ?? []} mayDecide={item.viewerMayDecide === true} />
       </div>
     );
   }
@@ -737,7 +743,7 @@ function CandidateSection({ item }: { item: QueueItem }) {
     return (
       <div className="mq-candidates" data-testid="mq-candidates-none-run">
         <p className="muted">No capability recommendation has been run for this item.</p>
-        <FeedbackHistory entries={item.feedback ?? []} mayDecide={item.viewerMayDecide !== false} />
+        <FeedbackHistory entries={item.feedback ?? []} mayDecide={item.viewerMayDecide === true} />
       </div>
     );
   }
@@ -759,8 +765,8 @@ function CandidateSection({ item }: { item: QueueItem }) {
           )}
         </div>
         <MissingList items={rec.missingInformation} testId="mq-candidates-missing" />
-        <HumanOverride itemId={item.id} label="Assign someone" mayDecide={item.viewerMayDecide !== false} />
-        <FeedbackHistory entries={item.feedback ?? []} mayDecide={item.viewerMayDecide !== false} />
+        <HumanOverride item={item} mayDecide={item.viewerMayDecide === true} />
+        <FeedbackHistory entries={item.feedback ?? []} mayDecide={item.viewerMayDecide === true} />
       </div>
     );
   }
@@ -887,12 +893,11 @@ function CandidateSection({ item }: { item: QueueItem }) {
       </details>
 
       <HumanOverride
-        itemId={item.id}
-        label="Choose someone else"
-        mayDecide={item.viewerMayDecide !== false}
+        item={item}
+        mayDecide={item.viewerMayDecide === true}
         showAcceptReject
       />
-      <FeedbackHistory entries={item.feedback ?? []} mayDecide={item.viewerMayDecide !== false} />
+      <FeedbackHistory entries={item.feedback ?? []} mayDecide={item.viewerMayDecide === true} />
     </div>
   );
 }
@@ -924,8 +929,15 @@ function MissingList({ items, testId }: { items: string[]; testId: string }) {
  * queue, and the decision is always recorded through the authenticated feedback path.
  */
 function HumanOverride({
-  itemId, label, mayDecide = true, showAcceptReject = false,
-}: { itemId: string; label: string; mayDecide?: boolean; showAcceptReject?: boolean }) {
+  item, mayDecide = false, showAcceptReject = false,
+}: { item: QueueItem; mayDecide?: boolean; showAcceptReject?: boolean }) {
+  const itemId = item.id;
+  const seenState = item.stage;
+  const seenActionId = item.proposedAction;
+  const seenEvidenceDigest = item.evidenceDigest;
+  // No handler exists for any action but `ops.task.create_internal`, so approving one of the other
+  // fourteen is real and recorded but cannot be carried out. The control says so BEFORE the click.
+  const approvedWouldBeUnavailable = item.proposedAction !== "ops.task.create_internal";
   if (!mayDecide) {
     return (
       <div className="mq-actions" data-testid="mq-no-decision-rights">
@@ -938,36 +950,22 @@ function HumanOverride({
   }
   return (
     <div className="mq-actions">
-      {showAcceptReject && (
-        <>
-          <a
-            className="btn mq-touch-target"
-            href={`/app/command/queue/${itemId}/accept`}
-            data-action="accept-recommendation"
-            data-testid="mq-accept"
-          >
-            Accept suggestion
-          </a>
-          <a
-            className="btn mq-touch-target"
-            href={`/app/command/queue/${itemId}/reject`}
-            data-action="reject-recommendation"
-            data-testid="mq-reject"
-          >
-            Reject suggestion
-          </a>
-        </>
-      )}
-      <a
-        className="btn mq-touch-target"
-        href={`/app/command/queue/${itemId}/assign`}
-        data-action="override-assignee"
-        data-testid="mq-human-override"
-      >
-        {label}
-      </a>
+      {showAcceptReject ? (
+        <DecisionControls
+          itemId={itemId}
+          seenState={seenState}
+          seenActionId={seenActionId}
+          seenEvidenceDigest={seenEvidenceDigest ?? ""}
+          seenParameterDigest={null}
+          mayDecide={mayDecide}
+          approvedWouldBeUnavailable={approvedWouldBeUnavailable}
+        />
+      ) : null}
       <span className="muted" data-testid="mq-human-decides">
-        Suggestions only — the assignment is yours to make.
+        {/* The dead `/queue/{id}/assign` link that used to be here led to a route that does not
+            exist (R2-F-015). Routing and assignment have no runtime path yet, so the panel says
+            so instead of offering a control that 404s. */}
+        Assignment and routing are not yet available from this screen.
       </span>
     </div>
   );
