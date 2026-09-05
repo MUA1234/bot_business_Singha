@@ -95,6 +95,35 @@ async function noRuntimeWriter(itemId: string, from: string, to: string, actor: 
   if (r?.ok !== true) throw new Error(`transition ${from}→${to} refused: ${JSON.stringify(r)}`);
 }
 
+/**
+ * A recommendation snapshot whose `evidence_refs` are the ITEM's evidence — which is what the
+ * executor compares against, and which NOTHING in the runtime produces (R2F-F-017).
+ *
+ * The cycle writes snapshots whose `evidence_refs` are the CANDIDATE's eligibility evidence:
+ * membership roles, capacity, leave. The executor digests those and compares the result against
+ * the digest of `management_item_evidence`. They are different record sets, so for an automatic
+ * action — which takes this branch because it needs no approval — the comparison cannot succeed.
+ *
+ * The refusal is asserted first, live, so the gap is a regression gate rather than a note.
+ */
+async function noRuntimeProducer(companyId: string, itemId: string) {
+  const { rows } = await q(
+    `select source_table, source_id from management_item_evidence
+      where company_id=$1 and item_id=$2`,
+    [companyId, itemId],
+  );
+  await q(
+    `insert into management_item_recommendations
+       (company_id, item_id, purpose, outcome, candidate_ref, candidate_type, rank_position,
+        resolver_version, signal_rule_version, fingerprint, evidence_refs)
+     values ($1,$2,'assignee','candidates',$3,'staff',1,'slice','slice',$4,$5::jsonb)`,
+    [
+      companyId, itemId, MANAGER, `fp-${itemId}`,
+      JSON.stringify(rows.map((r) => ({ sourceTable: r.source_table, sourceId: r.source_id }))),
+    ],
+  );
+}
+
 async function seedPerson(user: string, company: string, roleKey: string) {
   await q(`insert into auth.users (id) values ($1) on conflict do nothing`, [user]);
   await q(
@@ -195,10 +224,16 @@ afterAll(async () => {
 async function driveToClaim(co: string): Promise<{
   itemId: string; originating: string; effect: string;
 }> {
-  // ── 1. A real business condition. An operations task, overdue and unfinished. ──
+  // ── 1. A real business condition, chosen for what the detector does with it. ──
+  //
+  // A SCHEDULED task with no estimate raises exactly one exception — `missing_estimate` — which
+  // the catalogue maps to `ops.task.create_internal`, the one action the execution policy
+  // classifies as locally executable. An overdue task maps to `ops.task.request_progress_update`
+  // instead, which is draft-only, and the executor correctly refuses it: real behaviour, wrong
+  // condition for a slice that has to reach execution.
   const { rows: t } = await q(
     `insert into tasks (company_id, title, status, due_date, estimate_hours)
-     values ($1,'slice overdue condition','in_progress','2020-01-01'::date,4) returning id`,
+     values ($1,'slice unestimated condition','scheduled',null,null) returning id`,
     [co],
   );
   const originating = String(t[0].id);
@@ -249,24 +284,45 @@ async function driveToClaim(co: string): Promise<{
 
   // ── 5. Controlled execution creates exactly ONE unassigned internal task. ──
   const before = await q(`select count(*)::int as n from tasks where company_id=$1`, [co]);
-  const outcome = await executeManagementAction(execEnv(), {
+  // The action is the item's OWN. Passing a hard-coded id would be asserting an approval the
+  // item never carried — and the executor refuses exactly that, with `stale_state`.
+  expect(items[0].proposed_action_id).toBe("ops.task.create_internal");
+  const request = {
     companyId: co,
     itemId,
-    actionId: "ops.task.create_internal",
+    actionId: String(items[0].proposed_action_id) as "ops.task.create_internal",
     parameters: {
-      title: "slice: follow up the overdue work",
+      title: "slice: give the unestimated work an estimate",
       description: "created by the executor under the local test boundary",
       requiresEvidence: false,
     },
-  });
+  };
+
+  // R2F-F-017, asserted live: with ONLY what the runtime produced, execution is refused. The
+  // evidence-freshness check digests the recommendation snapshot's `evidence_refs` and compares
+  // them to the item's evidence, and the cycle writes candidate-eligibility refs there. This is
+  // not a fixture problem — it is why no cycle-created item can execute an automatic action.
+  const asRuntimeLeftIt = await executeManagementAction(execEnv(), request);
+  expect(asRuntimeLeftIt.status).toBe("refused");
+  expect(
+    asRuntimeLeftIt.status === "refused" ? asRuntimeLeftIt.reason : null,
+  ).toBe("evidence_stale");
+
+  await noRuntimeProducer(co, itemId); // NO RUNTIME PRODUCER — R2F-F-017
+  const outcome = await executeManagementAction(execEnv(), request);
   expect(outcome.status, JSON.stringify(outcome)).toBe("executed");
   const after = await q(`select count(*)::int as n from tasks where company_id=$1`, [co]);
   expect(after.rows[0].n - before.rows[0].n, "exactly one task, not zero and not two").toBe(1);
 
+  // Two attempts are recorded: the refusal above and the execution. A refusal that left no trace
+  // would make the R2F-F-017 gap invisible in the ledger it exists to document.
   const { rows: attempts } = await q(
-    `select effect_ref, status from management_execution_attempts where item_id=$1`, [itemId]);
-  expect(attempts).toHaveLength(1);
-  const effect = String(attempts[0].effect_ref);
+    `select effect_ref, status from management_execution_attempts
+      where item_id=$1 order by created_at`, [itemId]);
+  const executed = attempts.filter((a) => a.status === "executed");
+  expect(attempts.map((a) => a.status)).toEqual(["refused", "executed"]);
+  expect(executed).toHaveLength(1);
+  const effect = String(executed[0]!.effect_ref);
 
   // The created task is UNASSIGNED. The executor may create work; it may not give it to anyone.
   const { rows: created } = await q(
@@ -279,6 +335,11 @@ async function driveToClaim(co: string): Promise<{
   // real app capability (`assignTask`), driven here directly because it takes FormData from a
   // request this harness has no way to construct.
   await q(`update tasks set assigned_to=$1 where id=$2`, [WORKER, effect]);
+  // NO RUNTIME WRITER for the accountable owner either. `r1_draft_assert_assignable` refuses to
+  // move an item to `assigned` with nobody accountable — correctly — and nothing in the
+  // application ever fills the column, so this is the same R2F-F-014 gap seen from another side.
+  await q(`update management_items set accountable_owner_id=$1 where id=$2`,
+    [membershipOf.get(`${co}:${WORKER}`)!, itemId]); // NO RUNTIME WRITER
   await noRuntimeWriter(itemId, "approved", "assigned", MANAGER); // NO RUNTIME WRITER
   await noRuntimeWriter(itemId, "assigned", "monitoring", MANAGER); // NO RUNTIME WRITER
   await q(`update tasks set status='completed' where id=$1`, [effect]);
@@ -314,7 +375,9 @@ describe.skipIf(!enabled)("the work is done AND the condition is resolved", () =
     const co = await freshCompany();
     const { itemId, originating, effect } = await driveToClaim(co);
 
-    // ── 9. The business condition is genuinely resolved: the originating task is finished. ──
+    // ── 9. The business condition is genuinely resolved: the originating task is finished, so
+    //      the detector that raised it finds nothing. Terminal tasks are filtered before
+    //      detection, which is why this is a real resolution and not a hidden one.
     await q(`update tasks set status='completed' where id=$1`, [originating]);
 
     // ── 10. A LATER cycle re-observes and verifies, through the real dependency graph. ──
@@ -376,11 +439,13 @@ describe.skipIf(!enabled)("the work is done and the condition PERSISTS", () => {
     const co = await freshCompany();
     const { itemId, originating, effect } = await driveToClaim(co);
 
-    // ── 9. The condition is NOT resolved. The originating task is still open and overdue, and
-    //      the same detector that raised the item raises it again. Nothing is manufactured to
-    //      make this happen: the record is simply left as it was.
-    const { rows: still } = await q(`select status from tasks where id=$1`, [originating]);
-    expect(still[0].status).toBe("in_progress");
+    // ── 9. The condition is NOT resolved. The originating task is still scheduled with no
+    //      estimate, so the same detector raises the same exception again. Nothing is
+    //      manufactured to make this happen: the record is simply left as it was.
+    const { rows: still } = await q(
+      `select status, estimate_hours from tasks where id=$1`, [originating]);
+    expect(still[0].status).toBe("scheduled");
+    expect(still[0].estimate_hours).toBeNull();
 
     // ── 10. The later cycle re-observes and concludes truthfully. ──
     const second = await runManagementCycle(deps, { companyId: co, actorId: MANAGER, trigger: "test" });
@@ -441,9 +506,9 @@ describe.skipIf(!enabled)("what each person's screen may contain", () => {
       `select count(*)::int as n from management_completion_claims where item_id=$1`, [itemId]);
     expect(managerClaim.n).toBe(1);
 
-    // The worker sees their OWN status. They are the accountable owner of nothing here — the
-    // item's accountable owner was never set, because nothing in the runtime sets it — so what
-    // they can see comes from the same scoped predicate as everyone else's.
+    // The worker sees their OWN status: the slice named them accountable owner (a hop the runtime
+    // does not perform), and they hold `operations.task.work`, which is the pair the scoped
+    // predicate requires for own-work visibility.
     const workerClaim = await asUser(WORKER,
       `select count(*)::int as n from management_completion_claims where item_id=$1`, [itemId]);
     // Recorded either way; whether the worker may SEE it follows the item's own visibility.
@@ -451,12 +516,18 @@ describe.skipIf(!enabled)("what each person's screen may contain", () => {
       `select count(*)::int as n from management_items where id=$1`, [itemId]);
     expect(workerClaim.n).toBe(workerItem.n);
 
-    // A bystander with the same role and no relationship to the item sees the same as the worker,
-    // which is the honest consequence of the current predicate: `operations.task.work` alone does
-    // not grant sight of an item, and neither does being its claimant.
+    // The worker's own work is visible to them.
+    expect(workerItem.n).toBe(1);
+
+    // A bystander holds the SAME role and the same capability, and is a member of the same
+    // company. They see nothing: `operations.task.work` alone does not grant sight of an item,
+    // and no relationship to this one exists.
     const bystanderItem = await asUser(BYSTANDER,
       `select count(*)::int as n from management_items where id=$1`, [itemId]);
-    expect(bystanderItem.n).toBe(workerItem.n);
+    expect(bystanderItem.n).toBe(0);
+    const bystanderClaim = await asUser(BYSTANDER,
+      `select count(*)::int as n from management_completion_claims where item_id=$1`, [itemId]);
+    expect(bystanderClaim.n).toBe(0);
 
     // Whatever an ordinary member can see, they can NEVER see another company's item.
     const otherCo = await freshCompany();

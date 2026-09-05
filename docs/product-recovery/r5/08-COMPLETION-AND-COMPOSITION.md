@@ -178,10 +178,45 @@ The complete set of runtime writers of `management_items.state` is:
 | `r1_draft_claim_task_completion` (new) | `monitoring` / `escalated` → `verifying` |
 | the verification service | `verifying` → `verified` / `reopened` |
 
+Nothing sets `management_items.accountable_owner_id` either, and `r1_draft_assert_assignable`
+correctly refuses to move an item to `assigned` with nobody accountable. So the gap is not one
+missing UPDATE; the routing decision behind it has no implementation at all.
+
 **The consequence, stated plainly: in the deployed system an item is created in `observed` and stays
 there.** It can never reach the decision boundary, the completion claim or verification, because
 nothing moves it. The decision RPC, the claim RPC and the sweep are all real, all tested, and all
 unreachable by a real item.
+
+### R2F-F-017 — no cycle-created item can execute an automatic action
+
+Found by driving the slice rather than by reading: the first execution attempt was **refused**,
+`evidence_stale`.
+
+The executor's evidence-freshness check exists for a good reason (R2E-F-006): an approval given
+against three overdue invoices must not execute after those three are paid and replaced. For an
+action that needs **no approval** — which is the only kind that can execute at all — the comparison
+is:
+
+```ts
+const decidedAgainst = approval ? approval.evidenceGeneration : item.recommendationGeneration;
+if (decidedAgainst !== item.evidenceGeneration) refuse("evidence_stale");
+```
+
+`item.evidenceGeneration` digests `management_item_evidence` — the item's own evidence.
+`item.recommendationGeneration` digests the newest recommendation snapshot's `evidence_refs`. The
+cycle fills those with the **candidate's eligibility evidence** — membership roles, capacity, leave
+— because that is what `evaluateEligibility` collects. Two different record sets, compared for
+equality. They cannot match, and a `needs_routing` snapshot has none at all, which digests to
+`"no-recommendation-snapshot"`.
+
+**The R2E execution suite passes because its fixture writes the snapshot with the ITEM's evidence
+refs** — a shape the runtime never produces. The same class as R2E-F-010 and R2F-F-014: a test that
+constructs the thing the runtime is missing cannot notice that it is missing.
+
+The slice now asserts the refusal live, then supplies the aligned snapshot (marked
+`// NO RUNTIME PRODUCER`) so the remaining seven steps are still exercised. The refusal assertion is
+the regression gate; the fix is a decision about which digest the check should compare, and belongs
+with whoever owns the recommendation contract.
 
 This is R2F-F-008 seen from the other side, and it is now precise about which hops are missing. The
 slice test performs them itself through the database boundary, each call marked
@@ -289,3 +324,4 @@ signal. That is asserted, not assumed.
 | **R2F-F-014** | four spans of the management lifecycle have no runtime writer; an item created in `observed` can never reach a decision, a claim or verification | **open, and blocking a genuinely end-to-end loop** |
 | **R2F-F-015** | `POLARITY.reopened = -1` regardless of source; a human-recorded `condition_persists` would be an automatic negative signal about the accountable person | open, pinned by a permanent gate; not exploitable by any current runtime path |
 | **R2F-F-016** | the queue's decision-capability checks use the read client, which is the service role by default and has no `auth.uid()`, so `has_capability` answers "no" for everyone | open; the completion path uses the request-bound client instead |
+| **R2F-F-017** | the executor compares the item's evidence digest against the recommendation snapshot's *candidate* evidence refs; no cycle-created item can execute an automatic action | **open, and blocking**; the refusal is asserted live in the slice |
