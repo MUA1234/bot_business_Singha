@@ -81,6 +81,12 @@ sufficient; `service_role` granted EXECUTE; an unfinished task accepted; the cla
 conflicting retry answered with the first claim; the evidence binding dropped; the item lock
 removed; the item–task link check dropped.
 
+**Provenance, precisely.** The first campaign spanned an edit: C1–C4 ran against the suite at 33
+tests, C5–C11 against 37, because the four "after page load" tests were added while it was running.
+All eleven were CAUGHT either way, and the added tests only widen the net — but a verdict set that
+did not all come from one tree is a weaker claim than it looks, so the campaign was re-run in full
+against the final SHA.
+
 ### The UI
 
 A control appears **only** where the server resolved the state to `claimable`: the signed-in person
@@ -93,6 +99,18 @@ Hiding the button is a courtesy, not the boundary. Four tests call the RPC exact
 could, with the values a legitimately rendered page produced, after the facts changed underneath it:
 the capability removed, the membership ended, the task reassigned, the task reopened. All four are
 refused.
+
+**One thing the panel does that I did not fix.** It reads through `supabaseReadClient()`, which is
+the service-role client unless `RLS_READS=on`. My completion block follows it, so the claim rows,
+the linked tasks and the verification outcomes are read on the same non-RLS path as the items,
+evidence and transitions already were. That is the panel's existing shape and changing it is a
+different piece of work — but it means the row-level policy on `management_completion_claims` is
+enforced for a direct query and **not** for this page in the default configuration. Recorded as part
+of R2F-F-016 rather than left implicit.
+
+The capability question is asked through the **request-bound** client instead, because
+`has_capability` answers about `auth.uid()` and the service role has none: through the read client
+it would answer "no" for everybody, which is fail-closed but not true.
 
 ---
 
@@ -150,6 +168,13 @@ broken transport produces an explicit reason with a partial cycle.
 A **parity** test runs the same fixtures through both transports and compares the results field for
 field — an adapter that decided anything for itself would show there, and deciding anything is
 precisely what an adapter must not do.
+
+**Where the two transports are not identical, stated rather than glossed.** The Supabase adapter
+issues `in (…)` with one id per pending item; a company with hundreds of pending verifications
+would build a very long PostgREST filter, which the SQL adapter's join does not. It fails in the
+safe direction — a rejected query throws, `listPending` propagates it, and the cycle reports an
+explicit `unavailableReason` — so the worst case is a sweep that says it could not run, never one
+that silently misses items. It is a real difference in operating range, not in behaviour.
 
 ---
 
@@ -323,5 +348,5 @@ signal. That is asserted, not assumed.
 | **R2F-F-013** | `management_item_transitions` cannot record the claimed task, the idempotency key, or the binding | closed by draft 026 |
 | **R2F-F-014** | four spans of the management lifecycle have no runtime writer; an item created in `observed` can never reach a decision, a claim or verification | **open, and blocking a genuinely end-to-end loop** |
 | **R2F-F-015** | `POLARITY.reopened = -1` regardless of source; a human-recorded `condition_persists` would be an automatic negative signal about the accountable person | open, pinned by a permanent gate; not exploitable by any current runtime path |
-| **R2F-F-016** | the queue's decision-capability checks use the read client, which is the service role by default and has no `auth.uid()`, so `has_capability` answers "no" for everyone | open; the completion path uses the request-bound client instead |
+| **R2F-F-016** | the queue reads through the service-role client unless `RLS_READS=on`, so its row-level policies — including the new one on `management_completion_claims` — are not enforced for this page; and `has_capability` asked through that client has no `auth.uid()` and answers "no" for everyone | open; the completion path asks capability through the request-bound client |
 | **R2F-F-017** | the executor compares the item's evidence digest against the recommendation snapshot's *candidate* evidence refs; no cycle-created item can execute an automatic action | **open, and blocking**; the refusal is asserted live in the slice |

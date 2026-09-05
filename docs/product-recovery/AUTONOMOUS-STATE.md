@@ -44,7 +44,7 @@ where it does not.
 | **R2F-F-014** | Four spans of the lifecycle have **no runtime writer**: `observed → understood → prioritised → recommended → awaiting_approval`, `approved → assigned`, `assigned → monitoring`, and `accountable_owner_id` is never set. An item is created in `observed` and stays there, so the decision RPC, the claim RPC and verification are all real, all tested and all **unreachable by a real item**. | **open, blocking** |
 | **R2F-F-017** | The executor compares the item's evidence digest against the newest recommendation snapshot's `evidence_refs`, and the cycle fills those with the **candidate's eligibility** evidence. Different record sets, compared for equality — so no cycle-created item can execute an automatic action. The R2E suite passes because its fixture writes the item's refs, a shape nothing produces. | **open, blocking**; refusal asserted live in the slice |
 | **R2F-F-015** | `POLARITY.reopened = -1` regardless of source. What keeps a machine `condition_persists` out of a person's record is the **actor discipline**, not the polarity table. | open, pinned by a 12-test gate; unreachable today |
-| **R2F-F-016** | The queue's decision-capability checks use the read client, which is the service role by default and has no `auth.uid()`, so `has_capability` answers "no" for everyone. | open; the completion path uses the request-bound client |
+| **R2F-F-016** | The queue reads through the service-role client unless `RLS_READS=on`, so its row-level policies — including the new one on `management_completion_claims` — are not enforced for this page; `has_capability` asked through that client also has no `auth.uid()`. | open; the completion path asks capability through the request-bound client |
 | **R2F-F-011** | `completeTask` gates on `requireOps()` and never checks `assigned_to`. | open, out of scope; the claim boundary does not rely on it |
 | **R2F-F-005** | Consultant access deliberately fail-closed; the owner has ruled out relaxing `internal_access`. | future original-scope work |
 | R2F-F-004 remainder | Eleven domains have no verification rule; each is concluded `unavailable` naming itself. | open by design |
@@ -69,6 +69,7 @@ green and nothing said so.
 | `r1-security-baseline`, `r1-adapter-ingest`, `r2b-capability-routing`, `r2b-feedback-runtime` | passed |
 | `r1-vertical-slice-campaign`, `r2s-loader-contract` | 71 passed (in isolation) |
 | `r2s-p-pagination`, `-cursor-handoff`, `-reconcile-fairness`, `-fence-and-reset` | 67 passed |
+| `r2s-p-tail-liveness`, `-batch-lookup`, `-incremental-highwater` | 27 passed |
 | Full unit suite | **2395 passed** / 4 skipped, 224 files |
 | typecheck · lint · build | clean · clean · clean |
 
@@ -82,8 +83,9 @@ evidence binding dropped; the item lock removed; the item–task link check drop
 
 | | |
 |---|---|
-| unrelated containers | **16–17** throughout |
+| unrelated containers | **16–18**, rising through the session |
 | four paging suites | **1488s** — roughly five times a quiet-host baseline |
+| three more paging suites | **960s** |
 | six suites in one campaign | four tests **timed out**; every one of them **passed in isolation** |
 | canonical complete campaign | **`blocked_environment`** — not attempted at one SHA |
 
@@ -95,8 +97,9 @@ node scripts/r1/run-r1-security-tests.mjs   # the canonical command, for a quiet
 ```
 
 Not re-run at this SHA: `r2d-ask-ai`, `r2d-adversarial`, `r2d-non-execution`,
-`r2d-saved-answer-access`, `r2d-retention-purge`, `r2s-p-tail-liveness`, `r2s-p-batch-lookup`,
-`r2s-p-incremental-highwater`. The five `r2d-*` suites touch nothing changed here.
+`r2d-saved-answer-access`, `r2d-retention-purge` — the Ask-AI surface, which touches nothing
+changed here. Every other suite in the canonical list has been run at this SHA, in groups rather
+than as one campaign.
 
 ## Exact next command and next task
 
