@@ -11,6 +11,9 @@
 import { readFileSync, writeFileSync, copyFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 
+/** A full ANSI colour escape: ESC, '[', parameters, 'm'. Built without a literal control byte. */
+const ANSI = new RegExp(String.fromCharCode(27) + "\[[0-9;]*m", "g");
+
 const SQL = "src/db/draft-migrations-r1/R1_DRAFT_022_decision_rpc.up.sql";
 const DEC = "src/db/draft-migrations-r1/R1_DRAFT_004_decisions.up.sql";
 const BACKUPS = { [SQL]: `${SQL}.bak`, [DEC]: `${DEC}.bak` };
@@ -109,13 +112,18 @@ for (const m of MUTATIONS) {
     out = `${e.stdout ?? ""}${e.stderr ?? ""}`;
   }
 
-  const plain = out.replace(/\[[0-9;]*m/g, "");
-  const failed = plain.match(/Tests\s+(\d+)\s+failed/);
-  const passed = plain.match(/Tests[^\n]*?(\d+)\s+passed/);
+  // Strip the WHOLE escape sequence, ESC byte included. Stripping only `[31m` leaves the ESC,
+  // and `Testss+(d+)` cannot cross it — so the "failed" branch never fires and every mutation
+  // reads as SURVIVED. The scope harness was written that way and produced seven false verdicts
+  // before the defect was found; this one is corrected to match.
+  const plain = out.replace(ANSI, "");
+  const summary = plain.split(String.fromCharCode(10)).find((l) => /Tests/.test(l) && /passed|failed/.test(l));
+  const failed = summary ? summary.match(/(d+)s+failed/) : null;
+  const passed = summary ? summary.match(/(d+)s+passed/) : null;
 
   let verdict;
   let detail;
-  if (!failed && !passed) {
+  if (!summary || (!failed && !passed)) {
     verdict = "INCONCLUSIVE";
     detail = "no parsed Tests line — the campaign did not run the suite";
   } else if (failed) {

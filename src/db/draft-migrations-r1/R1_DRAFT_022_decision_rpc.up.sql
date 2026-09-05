@@ -101,6 +101,7 @@ declare
   v_item       record;
   v_company    uuid;
   v_capability text;
+  v_specialist text;
   v_digest     text;
   v_to_state   text;
   v_existing   record;
@@ -122,7 +123,7 @@ begin
 
   -- ── 2. Lock the item FIRST. This is the serialization point: two people deciding the same
   --       item queue here, and the second sees the first's committed state. ──
-  select id, company_id, state, proposed_action_id, required_authority
+  select id, company_id, department, state, proposed_action_id, required_authority
     into v_item
     from public.management_items
    where id = p_item_id
@@ -155,15 +156,36 @@ begin
     return jsonb_build_object('ok', false, 'refusal', 'insufficient_capability');
   end if;
 
-  -- ── 5. Authority levels the repository cannot establish for a user. ──
+  -- ── 5. The authority level the ITEM requires (owner decision, 2026-09-05). ──
   --
-  -- `specialist_approval` and `owner_approval` exist in the TypeScript authority vocabulary but in
-  -- NO database rule: there is no permission distinguishing a specialist or an owner from an
-  -- ordinary approver. Recording such a decision would assert an authority this system cannot
-  -- verify, so it fails closed and says which case is unresolved.
-  if v_item.required_authority in ('specialist_approval', 'owner_approval') then
-    return jsonb_build_object('ok', false, 'refusal', 'unresolved_authority',
-                              'detail', 'no capability distinguishes ' || v_item.required_authority);
+  -- Ordinary approval is the `approve`/`reject` capability checked above. The two higher levels
+  -- need more, and each is checked against a REGISTERED capability rather than a role, a title or
+  -- an inference.
+  if v_item.required_authority = 'owner_approval' then
+    -- A dedicated capability, granted only to the repository's owner classification. Holding
+    -- `approve` — which migration 0023 documents as "manager/admin in company" — does not satisfy
+    -- it, and a `project_manager` does not hold it.
+    if not public.has_capability(v_company, 'management.decision.approve_owner') then
+      return jsonb_build_object('ok', false, 'refusal', 'insufficient_authority',
+                                'detail', 'this decision requires owner approval');
+    end if;
+
+  elsif v_item.required_authority = 'specialist_approval' then
+    -- An EXPLICIT domain capability, tied to the item's own department. Never inferred from job
+    -- title, manager status, department membership, skills text, model output or past decisions.
+    v_specialist := public.r1_draft_specialist_capability(v_item.department);
+    if v_specialist is null then
+      -- Ten of the twelve domains have none registered. The decision stays unavailable and says
+      -- which domain — it does not fall back to an adjacent capability.
+      return jsonb_build_object('ok', false, 'refusal', 'unresolved_authority',
+                                'detail', 'no specialist capability is registered for domain '
+                                          || coalesce(v_item.department, '(none)'));
+    end if;
+    if not public.has_capability(v_company, v_specialist) then
+      return jsonb_build_object('ok', false, 'refusal', 'insufficient_authority',
+                                'detail', 'this decision requires the ' || v_specialist
+                                          || ' capability');
+    end if;
   end if;
 
   -- ── 6. A reason where the existing guard requires one. ──

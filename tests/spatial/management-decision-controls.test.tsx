@@ -64,17 +64,29 @@ describe("R2-F-016 — permission fails closed", () => {
   });
 
   it("the server resolves it from the real capability, and fails closed on error", () => {
-    expect(PANEL_SOURCE).toContain("let viewerMayDecide = false;");
+    expect(PANEL_SOURCE).toContain("let baseMayDecide = false;");
     expect(PANEL_SOURCE).toContain(`db.rpc("has_capability"`);
     expect(PANEL_SOURCE).toContain(`capability: "approve"`);
     expect(PANEL_SOURCE).toContain(`capability: "reject"`);
     // A throw must not become permission.
     const block = PANEL_SOURCE.slice(
-      PANEL_SOURCE.indexOf("let viewerMayDecide = false;"),
+      PANEL_SOURCE.indexOf("let baseMayDecide = false;"),
       PANEL_SOURCE.indexOf("data = {"),
     );
     expect(block).toContain("} catch {");
-    expect(block).toContain("viewerMayDecide = false;");
+    expect(block).toContain("baseMayDecide = false;");
+    expect(block).toContain("ownerMayDecide = false;");
+  });
+
+  it("resolves the authority each ITEM needs, not one flag for the whole queue", () => {
+    // `owner_approval` needs the dedicated owner capability; `specialist_approval` needs the
+    // capability registered for that item's own domain. Ten of the twelve domains have none, so
+    // `?? false` is the honest answer for them — and the same answer the RPC gives.
+    expect(PANEL_SOURCE).toContain("function mayDecideItem(");
+    expect(PANEL_SOURCE).toContain(`capability: "management.decision.approve_owner"`);
+    expect(PANEL_SOURCE).toContain(`requiredAuthority === "owner_approval"`);
+    expect(PANEL_SOURCE).toContain(`requiredAuthority === "specialist_approval"`);
+    expect(PANEL_SOURCE).toContain("specialistHeld.get(department) ?? false");
   });
 });
 

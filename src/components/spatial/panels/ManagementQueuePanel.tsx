@@ -117,15 +117,45 @@ export async function ManagementQueuePanel({ companyId, focusId = null }: Props)
     // no approval permission — was shown decision controls (R2-F-016).
     //
     // FAIL CLOSED. A capability lookup that errors, or returns anything but `true`, means no.
-    let viewerMayDecide = false;
+    //
+    // Resolved per ITEM, because the authority an item needs is a property of the item. Ordinary
+    // approval is `approve` + `reject`; `owner_approval` additionally needs the dedicated owner
+    // capability; `specialist_approval` needs the capability registered for that item's own
+    // domain, and ten of the twelve domains have none — those can never be decided here, which is
+    // what the RPC will say too.
+    let baseMayDecide = false;
+    let ownerMayDecide = false;
+    const specialistHeld = new Map<string, boolean>();
     try {
-      const [approve, reject] = await Promise.all([
+      const [approve, reject, ownerCap, legalCap, hrCap] = await Promise.all([
         db.rpc("has_capability", { target_company: companyId, capability: "approve" }),
         db.rpc("has_capability", { target_company: companyId, capability: "reject" }),
+        db.rpc("has_capability", {
+          target_company: companyId, capability: "management.decision.approve_owner",
+        }),
+        db.rpc("has_capability", { target_company: companyId, capability: "legal.matter.manage" }),
+        db.rpc("has_capability", { target_company: companyId, capability: "hr.staff.manage" }),
       ]);
-      viewerMayDecide = approve.data === true && reject.data === true;
+      baseMayDecide = approve.data === true && reject.data === true;
+      ownerMayDecide = ownerCap.data === true;
+      // The same exhaustive map the database holds. A domain absent from it has no specialist.
+      specialistHeld.set("legal", legalCap.data === true);
+      specialistHeld.set("workforce", hrCap.data === true);
     } catch {
-      viewerMayDecide = false;
+      baseMayDecide = false;
+      ownerMayDecide = false;
+      specialistHeld.clear();
+    }
+
+    /** May this viewer decide THIS item? Fails closed on anything unrecognised. */
+    function mayDecideItem(department: string, requiredAuthority: string | null): boolean {
+      if (!baseMayDecide) return false;
+      if (requiredAuthority === "owner_approval") return ownerMayDecide;
+      if (requiredAuthority === "specialist_approval") {
+        // `?? false` is the ten unmapped domains: no registered specialist, never decidable.
+        return specialistHeld.get(department) ?? false;
+      }
+      return true;
     }
 
     /**
@@ -227,7 +257,10 @@ export async function ManagementQueuePanel({ companyId, focusId = null }: Props)
           // compares it, so a decision taken against a stale screen is refused rather than applied
           // to whatever the item has since become.
           evidenceDigest: evidenceDigest(evidenceByItem.get(String(i.id)) ?? []),
-          viewerMayDecide,
+          viewerMayDecide: mayDecideItem(
+            String(i.department),
+            i.required_authority ? String(i.required_authority) : null,
+          ),
         };
       }),
       unobservedDepartments: unobserved,
