@@ -273,6 +273,7 @@ try {
     "tests/integration/r2-authority-and-scope.test.ts",
     "tests/integration/r2-outcome-verification.test.ts",
     "tests/integration/r2-verification-schedule.test.ts",
+    "tests/integration/r2-completion-claim.test.ts",
   ];
 
   const only = (process.env.R1_SEC_ONLY ?? "").split(",").map((x) => x.trim()).filter(Boolean);
