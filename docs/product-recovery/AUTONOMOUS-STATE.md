@@ -375,3 +375,85 @@ grep -n "verifying\|reopened" src/kernel/lifecycle.ts
 
 **None technical.** R2-F-017 is now resolved by the owner's decision. Staging and production remain
 **zero**.
+
+---
+
+# Session 2026-09-06 — Step 1 gate, R2F-F-003 closed, R2F-F-004 first slice
+
+**Branch:** `claude/product-recovery-r1` · **Started from:** `e9d80ba`
+**Dirty files:** none · **Containers:** none of ours left behind
+
+## Commits
+
+| SHA | What |
+|---|---|
+| `506c105` | (prev session) Step 1 campaign classified; draft 023 |
+| `05aef53` | Batch 1 — advisor/delegate/consultant scope; R2F-F-005/006/007 |
+| `2f2f85f` | Batch 2 — outcome verification by re-observation |
+
+## Preflight and the canonical campaign
+
+| | |
+|---|---|
+| unrelated containers at session start | **16** |
+| unrelated containers at session end | **16** |
+| campaign at `531dbb6` (previous session) | 458 tests, 454 passed, 4 failed, **5898s** vs a ~1200s baseline; all four classified ENVIRONMENT with measured durations |
+
+**Complete campaign at the final SHA: `blocked_environment`.** Contention did not fall at any point
+in this session, and a run needs ~90 minutes at this load. Per the instruction, focused and affected
+suites were run instead, and each is proven independently below.
+
+```bash
+# The canonical command, to run when the host is quieter:
+node scripts/r1/run-r1-security-tests.mjs
+```
+
+## Verified this session
+
+| Suite | Result |
+|---|---|
+| `r2-authority-and-scope` (live) | **44 passed** |
+| `r2-outcome-verification` (live) | **15 passed** |
+| `verification` (unit, real detector) | **25 passed** |
+| Full unit suite | **2357 passed** / 4 skipped |
+| Outbound-network guard | **712 passed** |
+| typecheck · lint · build · browser-check | 0 · clean · exit 0 · pass |
+| secret-scan · migration-lint · inventory · IP-boundary · requirements audit | all pass |
+
+Mutations: **7/7 scope CAUGHT**, **8/8 verification CAUGHT**. One (V3) reported INCONCLUSIVE first,
+because its anchor had the wrong indentation — reported as inconclusive rather than survived,
+corrected, re-run.
+
+## Requirement status
+
+| | |
+|---|---|
+| **R2F-F-003** | **closed** — owner, manager, staff, advisor and delegate scoped; consultant fail-closed with a registered blocker |
+| **R2F-F-004** | **first slice done** — one domain verifies; the boundary is reusable |
+| R2-F-017 | resolved by the owner's decision (owner + specialist authority) |
+
+Nothing advanced to `locally_verified`.
+
+## Open
+
+| Id | State |
+|---|---|
+| **R2F-F-005** | consultant scope BLOCKED — needs a person-level provider identity, an owner decision to relax `internal_access`, and a registered capability |
+| R2F-F-004 remainder | eleven domains have no verification rule; no absence-based rule is in use; nothing schedules verification; the learning store does not consume outcomes |
+| Complete campaign | `blocked_environment` |
+
+## Exact next command and next task
+
+```bash
+git -C . rev-parse HEAD && git status --porcelain
+docker ps -q | wc -l          # preflight: run the campaign when this is low
+
+# Next roadmap action: schedule verification from the cycle. The runtime path exists and is
+# proven; nothing calls it yet.
+grep -n "verifying" src/kernel/cycle.ts
+```
+
+## Hard blockers
+
+**One product blocker** (R2F-F-005, needs an owner decision) and **one environment blocker** (host
+contention). Staging and production remain **zero**.
