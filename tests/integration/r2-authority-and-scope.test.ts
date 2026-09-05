@@ -49,6 +49,13 @@ const B_MANAGER = randomUUID();
 const WIDE_VIEWER = randomUUID();
 const WIDE_ROLE = "r2_scope_wide_viewer";
 
+/** An advisor: staff-level capabilities plus an `advisor_relationships` row for one domain. */
+const ADVISOR = randomUUID();
+/** A delegate: staff-level capabilities plus a `delegations` row naming one domain. */
+const DELEGATE = randomUUID();
+/** The person delegating. Holds the operations department capability. */
+const DELEGATOR = randomUUID();
+
 let raw: pg.Client;
 const q = (sql: string, params: unknown[] = []) => raw.query(sql, params);
 const membershipOf = new Map<string, string>();
@@ -174,6 +181,9 @@ beforeAll(async () => {
     [STAFF, CO_A, ["staff_submitter"]],
     [ACCOUNTANT, CO_A, ["accountant"]],
     [B_MANAGER, CO_B, ["project_manager"]],
+    [ADVISOR, CO_A, ["staff_submitter"]],
+    [DELEGATE, CO_A, ["staff_submitter"]],
+    [DELEGATOR, CO_A, ["project_manager"]],
   ];
   for (const [user, company, roles] of people) {
     await q(
@@ -196,6 +206,41 @@ beforeAll(async () => {
     }
   }
 });
+
+/** An advisor relationship, with an explicit status and window. */
+async function advisorRow(
+  user: string, domain: string,
+  opts: { status?: string; startsAt?: string; endsAt?: string | null } = {},
+): Promise<void> {
+  await q(
+    `insert into advisor_relationships (company_id, membership_id, domain, status, starts_at, ends_at)
+     values ($1,$2,$3,$4, coalesce($5::timestamptz, now() - interval '1 day'), $6::timestamptz)
+       on conflict (company_id, membership_id, domain) do update
+         set status = excluded.status, starts_at = excluded.starts_at, ends_at = excluded.ends_at`,
+    [CO_A, membershipOf.get(user)!, domain, opts.status ?? "active",
+     opts.startsAt ?? null, opts.endsAt ?? null],
+  );
+}
+
+/** A delegation, with an explicit window and domain. */
+async function delegationRow(
+  to: string, domain: string | null,
+  opts: { startsAt?: string; endsAt?: string; company?: string } = {},
+): Promise<void> {
+  await q(
+    `insert into delegations (company_id, from_membership, to_membership, domain, starts_at, ends_at)
+     values ($1,$2,$3,$4,
+             coalesce($5::timestamptz, now() - interval '1 day'),
+             coalesce($6::timestamptz, now() + interval '1 day'))`,
+    [opts.company ?? CO_A, membershipOf.get(DELEGATOR)!, membershipOf.get(to)!, domain,
+     opts.startsAt ?? null, opts.endsAt ?? null],
+  );
+}
+
+async function clearGrants(): Promise<void> {
+  await q(`delete from advisor_relationships where company_id = $1`, [CO_A]);
+  await q(`delete from delegations where company_id = $1`, [CO_A]);
+}
 
 afterAll(async () => {
   if (!enabled) return;
@@ -528,12 +573,267 @@ describe.skipIf(!enabled)("R2F-F-003 — the queue is scoped by authority", () =
   });
 
   it("observation sources stay readable — a failed detector must never read as an all-clear", async () => {
-    // Deliberately NOT scoped: hiding which departments were observed would turn a broken
-    // detector into a silent clean bill of health, which is the defect the queue exists to avoid.
+    // Hiding which departments were observed would turn a broken detector into a silent clean
+    // bill of health, which is the defect the queue exists to avoid. So health stays readable —
+    // but through the projection, not the raw table, which carries a free-text failure reason
+    // (R2F-F-006).
     const n = await asUser(STAFF, async () => {
-      const { rows } = await q(`select count(*)::int as n from observation_sources`);
+      const { rows } = await q(`select count(*)::int as n from public.r1_draft_source_health($1)`, [CO_A]);
       return Number(rows[0].n);
     });
     expect(n).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// Batch 1 — advisor, delegate and consultant scope.
+//
+// The invariant, in full: an active identity relationship AND the same company AND an active
+// engagement/delegation AND the item inside the granted scope AND the required capability AND
+// sensitive-domain permission where applicable.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+describe.skipIf(!enabled)("R2F-F-003 — advisor scope", () => {
+  it("an ACTIVE, in-window, domain-matched advisor sees that domain and no other", async () => {
+    await clearGrants();
+    await advisorRow(ADVISOR, "marketing");
+    const marketing = await seedItem(CO_A, { department: "marketing" });
+    const assets = await seedItem(CO_A, { department: "assets" });
+
+    const seen = await visibleItems(ADVISOR, CO_A);
+    expect(seen, "the advised domain").toContain(marketing);
+    expect(seen, "a domain they do not advise").not.toContain(assets);
+  });
+
+  it("a SUSPENDED or ENDED relationship confers nothing", async () => {
+    for (const status of ["suspended", "ended"]) {
+      await clearGrants();
+      await advisorRow(ADVISOR, "marketing", { status });
+      const item = await seedItem(CO_A, { department: "marketing" });
+      expect(await visibleItems(ADVISOR, CO_A), status).not.toContain(item);
+      expect(await visibleEvidence(ADVISOR, item), `${status} evidence`).toBe(0);
+    }
+  });
+
+  it("an EXPIRED window confers nothing, and a future one confers nothing yet", async () => {
+    await clearGrants();
+    await advisorRow(ADVISOR, "marketing", {
+      startsAt: new Date(Date.now() - 90 * 86400_000).toISOString(),
+      endsAt: new Date(Date.now() - 86400_000).toISOString(),
+    });
+    const expiredItem = await seedItem(CO_A, { department: "marketing" });
+    expect(await visibleItems(ADVISOR, CO_A), "expired").not.toContain(expiredItem);
+
+    await clearGrants();
+    await advisorRow(ADVISOR, "marketing", {
+      startsAt: new Date(Date.now() + 86400_000).toISOString(),
+    });
+    const futureItem = await seedItem(CO_A, { department: "marketing" });
+    expect(await visibleItems(ADVISOR, CO_A), "not yet started").not.toContain(futureItem);
+  });
+
+  it("an advisor is NOT admitted to a sensitive domain, even by advising it", async () => {
+    // The sensitive gate is checked before every widening grant, so advising `legal` does not
+    // reach legal material without `legal.matter.manage`.
+    await clearGrants();
+    await advisorRow(ADVISOR, "legal");
+    const legal = await seedItem(CO_A, { department: "legal" });
+    expect(await visibleItems(ADVISOR, CO_A)).not.toContain(legal);
+    expect(await visibleEvidence(ADVISOR, legal)).toBe(0);
+  });
+});
+
+describe.skipIf(!enabled)("R2F-F-003 — delegate scope", () => {
+  it("an ACTIVE delegation naming the domain grants that domain only", async () => {
+    await clearGrants();
+    await delegationRow(DELEGATE, "procurement");
+    const procurement = await seedItem(CO_A, { department: "procurement" });
+    const marketing = await seedItem(CO_A, { department: "marketing" });
+
+    const seen = await visibleItems(DELEGATE, CO_A);
+    expect(seen).toContain(procurement);
+    expect(seen).not.toContain(marketing);
+  });
+
+  it("a NULL-domain delegation conveys the DELEGATOR's capabilities — 0038's own rule", async () => {
+    // This test originally asserted the opposite, on the reasoning that an amount ceiling is not a
+    // visibility grant. That reasoning was mine; the repository already had a written rule, in
+    // `has_capability` (migration 0038):
+    //
+    //   "(b) an active, in-window delegation TO the user, where the DELEGATOR actually holds the
+    //    capability (a delegate never exceeds the delegator) … null domain = all domains."
+    //
+    // So a company-wide delegation does convey visibility, bounded by what the delegator holds.
+    // The delegator here is a project_manager, who holds `procurement.po.approve`.
+    await clearGrants();
+    await delegationRow(DELEGATE, null);
+    const item = await seedItem(CO_A, { department: "procurement" });
+    expect(await visibleItems(DELEGATE, CO_A)).toContain(item);
+  });
+
+  it("a delegation never exceeds the DELEGATOR — from a staff member it conveys nothing", async () => {
+    // The part of 0038's rule that matters most, and the part a hand-written domain-match branch
+    // would have missed entirely: the delegator must actually hold the capability.
+    await clearGrants();
+    await q(
+      `insert into delegations (company_id, from_membership, to_membership, domain, starts_at, ends_at)
+       values ($1,$2,$3,null, now() - interval '1 day', now() + interval '1 day')`,
+      // STAFF delegating to ADVISOR: staff hold no department capability to pass on.
+      [CO_A, membershipOf.get(STAFF)!, membershipOf.get(ADVISOR)!],
+    );
+    const item = await seedItem(CO_A, { department: "procurement" });
+    expect(await visibleItems(ADVISOR, CO_A)).not.toContain(item);
+  });
+
+  it("an EXPIRED or not-yet-started delegation confers nothing", async () => {
+    await clearGrants();
+    await delegationRow(DELEGATE, "procurement", {
+      startsAt: new Date(Date.now() - 90 * 86400_000).toISOString(),
+      endsAt: new Date(Date.now() - 86400_000).toISOString(),
+    });
+    const expiredItem = await seedItem(CO_A, { department: "procurement" });
+    expect(await visibleItems(DELEGATE, CO_A), "expired").not.toContain(expiredItem);
+
+    await clearGrants();
+    await delegationRow(DELEGATE, "procurement", {
+      startsAt: new Date(Date.now() + 86400_000).toISOString(),
+      endsAt: new Date(Date.now() + 90 * 86400_000).toISOString(),
+    });
+    const futureItem = await seedItem(CO_A, { department: "procurement" });
+    expect(await visibleItems(DELEGATE, CO_A), "not yet started").not.toContain(futureItem);
+  });
+
+  it("a delegation REVOKED while the queue is open stops the next read", async () => {
+    await clearGrants();
+    await delegationRow(DELEGATE, "procurement");
+    const item = await seedItem(CO_A, { department: "procurement" });
+    expect(await visibleItems(DELEGATE, CO_A)).toContain(item);
+
+    await q(`delete from delegations where company_id = $1`, [CO_A]);
+    expect(await visibleItems(DELEGATE, CO_A)).not.toContain(item);
+  });
+
+  it("a delegation in ANOTHER company grants nothing here", async () => {
+    await clearGrants();
+    await q(
+      `insert into delegations (company_id, from_membership, to_membership, domain, starts_at, ends_at)
+       select $1, m.id, m.id, 'procurement', now() - interval '1 day', now() + interval '1 day'
+         from memberships m where m.company_id = $1 limit 1`,
+      [CO_B],
+    );
+    const item = await seedItem(CO_A, { department: "procurement" });
+    expect(await visibleItems(DELEGATE, CO_A)).not.toContain(item);
+  });
+});
+
+describe.skipIf(!enabled)("R2F-F-005 — a consultant cannot be represented, and stays unavailable", () => {
+  it("`service_providers` has no user or membership column to authenticate against", async () => {
+    const cols = await physical<{ column_name: string }>(
+      `select column_name from information_schema.columns
+        where table_schema='public' and table_name='service_providers'`,
+    );
+    const names = cols.map((c) => c.column_name);
+    expect(names.length).toBeGreaterThan(0);
+    for (const identity of ["user_id", "membership_id", "auth_user_id", "contact_user_id"]) {
+      expect(names, `service_providers must not have ${identity}`).not.toContain(identity);
+    }
+  });
+
+  it("the engagement table REFUSES internal access by check constraint", async () => {
+    const rows = await physical<{ n: number }>(
+      `select count(*)::int as n from pg_constraint
+        where conname = 'consultant_engagements_no_internal_access'`,
+    );
+    expect(rows[0]!.n, "the constraint must still exist").toBe(1);
+
+    // And it is enforced, not decorative.
+    await expect(
+      q(
+        `insert into consultant_engagements
+           (company_id, provider_id, scope_domains, status, internal_access)
+         values ($1, gen_random_uuid(), array['operations'], 'approved', true)`,
+        [CO_A],
+      ),
+    ).rejects.toThrow();
+  });
+
+  it("nothing in the visibility predicate consults consultant engagements", async () => {
+    const src = await physical<{ def: string }>(
+      `select pg_get_functiondef(p.oid) as def from pg_proc p
+         join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname='public' and p.proname='r1_draft_may_see_management_item'`,
+    );
+    expect(src[0]!.def).not.toContain("consultant_engagements");
+    expect(src[0]!.def).not.toContain("service_providers");
+  });
+});
+
+describe.skipIf(!enabled)("own work now requires a capability, not merely a membership", () => {
+  it("being named accountable owner is not enough without `operations.task.work`", async () => {
+    const bare = randomUUID();
+    const bareRole = "r2_scope_bare_member";
+    await q(
+      `insert into roles (key, label) values ($1,'R2 scope: bare member')
+         on conflict (key) do nothing`, [bareRole],
+    );
+    await q(
+      `insert into users (id, email, full_name) values ($1,$2,'Bare member')
+         on conflict (id) do nothing`,
+      [bare, `bare-${bare.slice(0, 8)}@example.invalid`],
+    );
+    const { rows } = await q(
+      `insert into memberships (company_id, user_id, status) values ($1,$2,'active')
+         on conflict (company_id, user_id) do update set status='active' returning id`,
+      [CO_A, bare],
+    );
+    await q(
+      `insert into membership_roles (membership_id, company_id, role_key) values ($1,$2,$3)
+         on conflict do nothing`,
+      [rows[0].id, CO_A, bareRole],
+    );
+
+    const theirItem = await seedItem(CO_A, {
+      department: "operations", owner: String(rows[0].id),
+    });
+    // They ARE the accountable owner, active, in the right company — and still cannot see it.
+    expect(await visibleItems(bare, CO_A)).not.toContain(theirItem);
+    expect(await visibleEvidence(bare, theirItem)).toBe(0);
+  });
+});
+
+describe.skipIf(!enabled)("R2F-F-006 — observation sources expose health, not free text", () => {
+  it("an authenticated session can no longer read the raw table", async () => {
+    await expect(
+      asUser(STAFF, async () => q(`select last_failure_reason from observation_sources`)),
+    ).rejects.toThrow(/permission denied/i);
+  });
+
+  it("the projection returns a department and a boolean, and nothing else", async () => {
+    const rows = await asUser(STAFF, async () => {
+      const r = await q(`select * from public.r1_draft_source_health($1)`, [CO_A]);
+      return r.rows as Array<Record<string, unknown>>;
+    });
+    for (const row of rows) {
+      expect(Object.keys(row).sort()).toEqual(["department", "unobserved"]);
+    }
+  });
+
+  it("the projection carries no reason text, timestamp, cadence or kind", async () => {
+    const src = await physical<{ def: string }>(
+      `select pg_get_functiondef(p.oid) as def from pg_proc p
+         join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname='public' and p.proname='r1_draft_source_health'`,
+    );
+    const def = src[0]!.def;
+    for (const forbidden of ["last_failure_reason", "cadence_seconds", "last_scan_duration_ms"]) {
+      expect(def.includes(forbidden), `must not expose ${forbidden}`).toBe(false);
+    }
+  });
+
+  it("a non-member gets nothing back for a company they do not belong to", async () => {
+    const rows = await asUser(B_MANAGER, async () => {
+      const r = await q(`select * from public.r1_draft_source_health($1)`, [CO_A]);
+      return r.rows;
+    });
+    expect(rows).toHaveLength(0);
   });
 });

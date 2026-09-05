@@ -70,7 +70,10 @@ export async function ManagementQueuePanel({ companyId, focusId = null }: Props)
             .in("item_id", ids)
             .order("created_at", { ascending: true })
         : Promise.resolve({ data: [] as never[] }),
-      db.from("observation_sources").select("department, last_failure_at, consecutive_failures"),
+      // R2F-F-006: the raw table carries a free-text `last_failure_reason` readable by every
+      // member. This projection returns one fact per department — observed, or not — which is
+      // everything truthful health reporting needs and nothing else.
+      db.rpc("r1_draft_source_health", { p_company: companyId }),
     ]);
 
     // ── R2E execution state, through the SAME RLS-enforced client ────────────────────────
@@ -223,7 +226,7 @@ export async function ManagementQueuePanel({ companyId, focusId = null }: Props)
     const unobserved = [
       ...new Set(
         ((sources ?? []) as Array<Record<string, unknown>>)
-          .filter((s) => Number(s.consecutive_failures ?? 0) > 0 || s.last_failure_at !== null)
+          .filter((s) => s.unobserved === true)
           .map((s) => String(s.department)),
       ),
     ];
