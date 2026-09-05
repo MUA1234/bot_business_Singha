@@ -271,6 +271,7 @@ try {
     "tests/integration/r2e-execution-ledger.test.ts",
     "tests/integration/r2-decision-boundary.test.ts",
     "tests/integration/r2-authority-and-scope.test.ts",
+    "tests/integration/r2-outcome-verification.test.ts",
   ];
 
   const only = (process.env.R1_SEC_ONLY ?? "").split(",").map((x) => x.trim()).filter(Boolean);
