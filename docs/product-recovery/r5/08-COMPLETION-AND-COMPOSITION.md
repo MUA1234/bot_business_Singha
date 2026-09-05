@@ -83,9 +83,9 @@ removed; the item–task link check dropped.
 
 **Provenance, precisely.** The first campaign spanned an edit: C1–C4 ran against the suite at 33
 tests, C5–C11 against 37, because the four "after page load" tests were added while it was running.
-All eleven were CAUGHT either way, and the added tests only widen the net — but a verdict set that
-did not all come from one tree is a weaker claim than it looks, so the campaign was re-run in full
-against the final SHA.
+All eleven were CAUGHT either way, but a verdict set that did not all come from one tree is a weaker
+claim than it looks, so the campaign was **re-run in full at the final SHA**: eleven applied, eleven
+CAUGHT, and the failure counts rose where the added tests bite (C1 3→4 failed, C2 23→25, C7 1→2).
 
 ### The UI
 

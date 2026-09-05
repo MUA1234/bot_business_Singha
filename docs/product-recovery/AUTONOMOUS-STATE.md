@@ -73,7 +73,7 @@ green and nothing said so.
 | Full unit suite | **2395 passed** / 4 skipped, 224 files |
 | typecheck · lint · build | clean · clean · clean |
 
-**Mutations — `claim-mutations.mjs`, 11 applied against a real database, all CAUGHT:** assignee
+**Mutations — `claim-mutations.mjs`, re-run in full at the final SHA: 11 applied against a real database, 11 CAUGHT:** assignee
 comparison removed; accountable owner alone sufficient; `service_role` granted EXECUTE; an
 unfinished task accepted; the claim time from `tasks.updated_at`; the claim marking the item
 verified; the capability check dropped; a conflicting retry answered with the first claim; the

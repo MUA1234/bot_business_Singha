@@ -178,7 +178,7 @@ begin
   if v_task.assigned_to is null then
     return jsonb_build_object('ok', false, 'refusal', 'task_unassigned');
   end if;
-  if false then -- MUTATION
+  if v_task.assigned_to is distinct from v_actor then
     -- A manager or owner reaching this point is refused: they may assign, review, reject, reopen
     -- and verify, but a person's report of their own work is not theirs to make.
     return jsonb_build_object('ok', false, 'refusal', 'not_assignee');

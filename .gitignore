@@ -39,3 +39,11 @@ npm-debug.log*
 # Hard-scenario local/CI artifacts (checksums recorded in the report, binaries not committed)
 artifacts/
 .r1-security-campaign.lock
+
+# Mutation-harness backups. `scripts/r1/mutations/*.mjs` rewrite a source file in place and
+# restore it from a sibling .bak when the campaign ends. Committing during a run captures the
+# MUTATED file — a deliberately broken boundary — plus the backup. It happened twice before this
+# line existed, so the harness's working files are now unstageable rather than merely discouraged.
+*.up.sql.bak
+*.ts.bak
+*.tsx.bak
