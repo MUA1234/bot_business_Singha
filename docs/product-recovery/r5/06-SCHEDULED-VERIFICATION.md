@@ -129,3 +129,44 @@ a permanently unverifiable first item not starving the queue; backoff bounded an
 item in backoff deferred without consuming budget; company isolation; unsupported domain; idempotent
 re-run; simultaneous sweeps producing exactly one transition; one item's failure not suppressing
 another; and the four learning-boundary assertions above.
+
+---
+
+## Adversarial review — where code existence is not a runtime connection
+
+The review question was: *at which point is a function's existence being mistaken for the system
+actually calling it?* Three answers, and the first is about my own work in this session.
+
+### 1. `verificationSweep` is not provided by the real dependency factory
+
+`runManagementCycle` calls `deps.verificationSweep` when it is present. **`makeCycleDeps` does not
+provide it.** So in the deployed shape of the system the sweep is never reached, and the live tests
+— which call `runVerificationSweep` directly — prove the sweep works without proving the cycle runs
+it.
+
+That is precisely the confusion this campaign keeps finding, and it would have been easy to report
+"verification is scheduled in the cycle" on the strength of code that is never called.
+
+**What is now proven, and what is not.** Five tests assert the EDGE: that the cycle calls the sweep
+with the right company; that it reports `cycleComplete: false` when a source failed; that a partial
+sweep makes the cycle `partial`; that a throwing sweep is reported rather than hidden and does not
+fail the cycle; and that without the dependency the cycle still runs and reports zeroes rather than
+pretending. What is **not** proven is production wiring — and cannot be, because `makeCycleDeps`
+speaks through the Supabase query builder while the sweep needs direct SQL, and the schedule tables
+live in a quarantined draft that no hosted database has.
+
+**Registered as the next dependency:** provide `verificationSweep` from `makeCycleDeps`, which means
+either a SQL-capable server client or converting the sweep's four statements to RPCs.
+
+### 2. Nothing produces the input the sweep consumes
+
+R2F-F-008 again, from the other side. Even fully wired, the sweep would find nothing: no code moves
+an item into `verifying`. The whole middle of the lifecycle — `observed → … → assigned → monitoring`
+— has no writer.
+
+### 3. What IS reachable end to end
+
+The decision path is: `/app/command/queue` renders `ManagementQueuePanel`, which renders
+`DecisionControls`, which calls the server action, which calls the decision RPC. Every hop exists
+and is tested. Execution is deliberately unreachable — the global boundary is a compile-time
+constant — and that is a decision, not a gap.

@@ -457,3 +457,75 @@ grep -n "verifying" src/kernel/cycle.ts
 
 **One product blocker** (R2F-F-005, needs an owner decision) and **one environment blocker** (host
 contention). Staging and production remain **zero**.
+
+---
+
+# Session 2026-09-06 (second) — scheduled verification and the learning boundary
+
+**Branch:** `claude/product-recovery-r1` · **Started from:** `d919cf8`
+**Dirty files:** none · **Containers:** none of ours left behind
+
+## Commits
+
+| SHA | What |
+|---|---|
+| `6239775` | R5 — scheduled verification in the cycle, draft 025, learning boundary |
+
+## Host measurements
+
+| | |
+|---|---|
+| unrelated containers at start | **16** |
+| unrelated containers at end | **17** — contention worsened |
+| canonical complete campaign | **`blocked_environment`** — not attempted; needs ~90 min at this load |
+
+```bash
+node scripts/r1/run-r1-security-tests.mjs   # the canonical command, for a quieter host
+```
+
+## Verified
+
+| Suite | Result |
+|---|---|
+| `r2-verification-schedule` (live) | **20 passed** |
+| `r2-outcome-verification` (live) | 15 passed |
+| `r2-authority-and-scope` (live) | 44 passed (previous session) |
+| `cycle` (unit, incl. 5 new edge tests) | **35 passed** |
+| Full unit suite | **2357 passed** / 4 skipped |
+| network guard · typecheck · lint · build · browser-check | 712 · 0 · clean · 0 · pass |
+| secret-scan · migration-lint · inventory · IP-boundary · requirements | all pass |
+
+**Fairness bound, measured:** 23 pending items cleared in 3 cycles at a budget of 10 per cycle —
+the arithmetic bound.
+
+**Mutations, all from parsed evidence:** P1 partial cycle ignored, P2 backoff removed, P3 budget
+ignored, P4 machine conclusion written as a person's — **4/4 CAUGHT**. Earlier sessions:
+verification 8/8, scope 7/7, decision 6/6.
+
+## Open
+
+| Id | State |
+|---|---|
+| **R2F-F-008** | nothing creates a completion claim; the middle of the lifecycle has no writer |
+| **`verificationSweep` not wired into `makeCycleDeps`** | the cycle→sweep EDGE is proven by test; production wiring needs a SQL-capable server client or RPC conversion |
+| **R2F-F-005** | consultant access deliberately fail-closed; owner has ruled out relaxing `internal_access`. Future work: a minimised, explicitly shared work-package boundary |
+| R2F-F-004 remainder | eleven domains have no verification rule; no absence-based rule is in use |
+| Canonical campaign | `blocked_environment` |
+
+## Exact next command and next task
+
+```bash
+git -C . rev-parse HEAD && git status --porcelain
+docker ps -q | wc -l          # run the canonical campaign when this is low
+
+# Next dependency: provide `verificationSweep` from the real deps factory.
+grep -n "export function makeCycleDeps" src/kernel/cycle-deps.ts
+```
+
+Then R2F-F-008 — decide who or what may claim completion — which is a product decision, not a
+coding one.
+
+## Hard blockers
+
+**One product decision** (R2F-F-008) and **one environment blocker** (host contention). Staging and
+production remain **zero**.

@@ -396,3 +396,83 @@ describe("the future worker boundary is defined but disabled", () => {
     expect(runWorkerSweep.length).toBe(1);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// The CYCLE → VERIFICATION edge (R2F-F-009).
+//
+// The sweep itself is proven live in `tests/integration/r2-verification-schedule.test.ts`. What
+// those tests cannot show is that `runManagementCycle` actually calls it — a function can be
+// correct and never reached, which is the exact confusion this campaign keeps finding. These
+// assert the EDGE.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+describe("the cycle runs outcome verification", () => {
+  it("calls the sweep with the company and folds its summary into the cycle's", async () => {
+    const seen: Array<{ companyId: string; cycleComplete: boolean }> = [];
+    const deps = makeDeps({
+      async verificationSweep(input) {
+        seen.push(input);
+        return {
+          considered: 3, attempted: 3, verified: 2, persists: 1, contradicted: 0,
+          unavailable: 0, deferred: 0, failed: 0, remaining: 0, partial: false,
+        };
+      },
+    });
+
+    const summary = await run(deps, CO_A);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.companyId).toBe(CO_A);
+    expect(summary.verification.verified).toBe(2);
+    expect(summary.verification.persists).toBe(1);
+  });
+
+  it("tells the sweep the cycle was INCOMPLETE when a source failed", async () => {
+    // A partial cycle must not be allowed to conclude anything about a business condition, and
+    // the sweep can only know that if the cycle says so.
+    const seen: Array<{ cycleComplete: boolean }> = [];
+    const deps = makeDeps({
+      async loadFor() { throw new Error("source down"); },
+      async verificationSweep(input) {
+        seen.push(input);
+        return {
+          considered: 1, attempted: 0, verified: 0, persists: 0, contradicted: 0,
+          unavailable: 0, deferred: 1, failed: 0, remaining: 1, partial: true,
+        };
+      },
+    });
+
+    await run(deps, CO_A);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.cycleComplete).toBe(false);
+  });
+
+  it("a cycle with verification work left unknown is PARTIAL, never completed", async () => {
+    const deps = makeDeps({
+      async verificationSweep() {
+        return {
+          considered: 12, attempted: 10, verified: 10, persists: 0, contradicted: 0,
+          unavailable: 0, deferred: 2, failed: 0, remaining: 2, partial: true,
+        };
+      },
+    });
+    const summary = await run(deps, CO_A);
+    expect(summary.status).toBe("partial");
+    expect(summary.verification.remaining).toBe(2);
+  });
+
+  it("a sweep that THROWS does not fail the cycle, and is reported rather than hidden", async () => {
+    const deps = makeDeps({
+      async verificationSweep() { throw new Error("schedule table missing"); },
+    });
+    const summary = await run(deps, CO_A);
+    expect(summary.verification.failed).toBe(1);
+    expect(summary.verification.partial).toBe(true);
+    expect(summary.status).toBe("partial");
+  });
+
+  it("without the dependency the cycle still runs, and reports zeroes rather than pretending", async () => {
+    // The honest state of a deployment without the quarantined verification schema.
+    const summary = await run(makeDeps(), CO_A);
+    expect(summary.verification.considered).toBe(0);
+    expect(summary.verification.partial).toBe(false);
+  });
+});
