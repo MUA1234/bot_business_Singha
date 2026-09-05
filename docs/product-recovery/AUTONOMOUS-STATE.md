@@ -310,3 +310,68 @@ unrelated containers running on this machine. Progress was measured, not assumed
 counts advanced 216,348 → 221,552 in 60 seconds and the executing query changed between samples.
 Two subsequent runs failed at `database never became ready` under the same contention and succeeded
 on retry. No timeout was raised, and no unrelated container was touched.
+
+---
+
+# Session 2026-09-05 (third) — Step 1 gate, then roadmap R4/R5 scope and authority
+
+**Branch:** `claude/product-recovery-r1` · **Started from:** `531dbb6`
+**Dirty files:** none · **Containers:** none of ours left behind
+
+## Commits
+
+| SHA | What |
+|---|---|
+| `506c105` | Step 1 final-SHA campaign, classified; R4/R5 audit; draft 023 written |
+| `d5ccdd8` | R2F-F-003 scope + R2-F-017 authority, and the mutation-harness defect |
+
+## Step 1 — the gate
+
+Campaign at `531dbb6`: **458 tests, 454 passed, 4 failed, 5898s** against a ~1200s baseline. All
+four failures are **ENVIRONMENT**, proven rather than asserted — see
+`docs/product-recovery/r5/01-FINAL-SHA-CAMPAIGN.md`. Measured durations: 44,872ms / 36,353ms /
+30,644ms against a 30,000ms ceiling, the last 2% over. The timeout was raised **to obtain a number
+and reverted**; the config is byte-identical to its committed form.
+
+Proceeded under the second branch of the instruction: *"or a genuine external resource blocker is
+proven"*. The host ran 13–15 unrelated containers throughout.
+
+## Step 2 — done
+
+Scope and authority, both enforced in the database. Details in
+`docs/product-recovery/r5/02-SCOPE-AND-AUTHORITY-REPORT.md`.
+
+- `r2-authority-and-scope` — **26 passed** live
+- **All 7 scope mutations CAUGHT** after a harness defect was found and fixed
+- Unit **2332 passed** / 4 skipped · typecheck 0 · lint clean
+
+## Step 3 — NOT started
+
+R2F-F-004 (outcome verification by re-observation, roadmap R5). The audit and slice are already
+written in `docs/product-recovery/r2f/00-AUDIT.md`; nothing is implemented.
+
+## Open
+
+| Id | State |
+|---|---|
+| R2F-F-004 | not started — the next roadmap action |
+| Advisor/delegate/consultant scopes | not implemented; visible only where the person is the accountable owner. Recorded in the R5 report |
+| R2E-F-002 | UI task path has no durable idempotency — needs a column on hosted `tasks` |
+| Host contention | 13–15 unrelated containers make the full campaign ~5x slower and push three heavy tests over the 30s ceiling |
+
+## Exact next command and next task
+
+```bash
+git -C . rev-parse HEAD && git status --porcelain
+
+# Re-run the full campaign when the host is quieter — it is the outstanding gate:
+node scripts/r1/run-r1-security-tests.mjs
+
+# Then Step 3, R2F-F-004. Start from the lifecycle states that already exist:
+grep -n "verifying\|reopened" src/kernel/lifecycle.ts
+```
+
+## Hard blockers
+
+**None technical.** R2-F-017 is now resolved by the owner's decision. Staging and production remain
+**zero**.
