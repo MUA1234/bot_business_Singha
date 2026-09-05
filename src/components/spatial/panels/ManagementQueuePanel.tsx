@@ -20,6 +20,10 @@ import {
 import { classificationFor } from "@/kernel/execution/policy";
 import { evidenceDigest } from "./evidence-digest";
 import { EXECUTION_GLOBALLY_ENABLED } from "@/kernel/execution/boundary";
+import { getProfile } from "@/lib/auth";
+import { supabaseRpcClient } from "@/lib/supabase/read";
+import type { CompletionState } from "@/app/app/_actions/completion-messages";
+import type { QueueCompletion } from "./ManagementQueuePanelContent";
 
 interface Props {
   companyId: string;
@@ -44,6 +48,7 @@ export async function ManagementQueuePanel({ companyId, focusId = null }: Props)
       .from("management_items")
       .select(
         "id, department, kind, state, priority, confidence, proposed_action_id, required_authority, " +
+          "subject_table, subject_id, " +
           "accountable_owner_id, routing_reason, business_deadline, review_by, review_policy_id, " +
           "monitoring_state, evidence_quality",
       )
@@ -197,6 +202,158 @@ export async function ManagementQueuePanel({ companyId, focusId = null }: Props)
       return bothBoundariesOpen ? empty : { ...empty, status: "disabled" };
     }
 
+    // ── Completion: may THIS person report THIS work complete? ──────────────────────────
+    //
+    // Every input is read from the database, and the answer is only ever used to decide what to
+    // SHOW. The claim RPC re-establishes all of it inside its own transaction, so a stale page, a
+    // permission removed after load, or a task reassigned in the meantime produces a refusal
+    // rather than a claim. Hiding the control is a courtesy, not the boundary.
+    //
+    // The capability is asked through the REQUEST-BOUND client. has_capability answers about
+    // auth.uid(), and the service-role client has none — it would answer "no" for everyone, which
+    // is fail-closed but not true.
+    const viewer = await getProfile();
+    let completionUnavailable = false;
+    let mayWorkTasks = false;
+    const tasksById = new Map<string, Record<string, unknown>>();
+    const evidenceCountByTask = new Map<string, number>();
+    const claimByItem = new Map<string, Record<string, unknown>>();
+    const outcomeByItem = new Map<string, string>();
+
+    /** The two REAL links between an item and a task. They mean different things (R2F-F-012). */
+    const linkedTasks = new Map<string, { originating: string | null; effect: string | null }>();
+    for (const i of rows) {
+      const originating =
+        String(i.subject_table ?? "") === "tasks" && i.subject_id ? String(i.subject_id) : null;
+      const a = attemptsByItem.get(String(i.id));
+      const effect =
+        a && String(a.status) === "executed" && a.effect_ref ? String(a.effect_ref) : null;
+      linkedTasks.set(String(i.id), { originating, effect });
+    }
+    const taskIds = [
+      ...new Set(
+        [...linkedTasks.values()]
+          .flatMap((l) => [l.originating, l.effect])
+          .filter(Boolean) as string[],
+      ),
+    ];
+
+    try {
+      const cap = await supabaseRpcClient().rpc("has_capability", {
+        target_company: companyId,
+        capability: "operations.task.work",
+      });
+      mayWorkTasks = cap.data === true;
+
+      const [tasksRes, taskEvidenceRes, claimsRes, scheduleRes] = await Promise.all([
+        taskIds.length
+          ? db.from("tasks").select("id, assigned_to, status, requires_evidence")
+              .eq("company_id", companyId).in("id", taskIds)
+          : Promise.resolve({ data: [] as never[], error: null }),
+        taskIds.length
+          ? db.from("task_evidence").select("task_id")
+              .eq("company_id", companyId).in("task_id", taskIds)
+          : Promise.resolve({ data: [] as never[], error: null }),
+        ids.length
+          ? db.from("management_completion_claims").select("item_id, task_id, claimed_at")
+              .eq("company_id", companyId).in("item_id", ids)
+          : Promise.resolve({ data: [] as never[], error: null }),
+        ids.length
+          ? db.from("management_verification_schedule").select("item_id, last_outcome")
+              .eq("company_id", companyId).in("item_id", ids)
+          : Promise.resolve({ data: [] as never[], error: null }),
+      ]);
+      const firstError =
+        tasksRes.error ?? taskEvidenceRes.error ?? claimsRes.error ?? scheduleRes.error;
+      if (firstError) throw new Error((firstError as { message?: string }).message ?? "unreadable");
+
+      for (const t of (tasksRes.data ?? []) as Array<Record<string, unknown>>) {
+        tasksById.set(String(t.id), t);
+      }
+      for (const e of (taskEvidenceRes.data ?? []) as Array<Record<string, unknown>>) {
+        const k = String(e.task_id);
+        evidenceCountByTask.set(k, (evidenceCountByTask.get(k) ?? 0) + 1);
+      }
+      for (const c of (claimsRes.data ?? []) as Array<Record<string, unknown>>) {
+        claimByItem.set(String(c.item_id), c);
+      }
+      for (const v of (scheduleRes.data ?? []) as Array<Record<string, unknown>>) {
+        if (v.last_outcome) outcomeByItem.set(String(v.item_id), String(v.last_outcome));
+      }
+    } catch {
+      // On a database without the quarantined completion schema this whole block is unreadable.
+      // Reported as unavailable, never as "there is nothing for you to do".
+      completionUnavailable = true;
+    }
+
+    /**
+     * The completion state of one item, in the order the person needs to be told things.
+     *
+     * A claim already made comes FIRST: what happened after it — awaiting a check, the condition
+     * persisting, a contradiction — matters more to the claimant than whether they could claim
+     * again, and the item's own state has usually moved on by then.
+     */
+    function completionFor(itemId: string, itemState: string): QueueCompletion {
+      const links = linkedTasks.get(itemId) ?? { originating: null, effect: null };
+      const claim = claimByItem.get(itemId);
+      const none = (state: CompletionState, taskId: string | null = null): QueueCompletion => ({
+        state, taskId, linkKind: null, claimedAt: null,
+      });
+
+      if (completionUnavailable) return none("unavailable");
+
+      if (claim) {
+        const outcome = outcomeByItem.get(itemId);
+        const claimedAt = claim.claimed_at ? String(claim.claimed_at) : null;
+        const after: CompletionState =
+          itemState === "verified"
+            ? "verified_resolved"
+            : itemState === "reopened"
+              ? outcome === "contradicted"
+                ? "contradicted"
+                : "condition_persists"
+              : outcome === "condition_persists" || outcome === "condition_worsened"
+                ? "condition_persists"
+                : outcome === "contradicted"
+                  ? "contradicted"
+                  : outcome === "unavailable" || outcome === "pending_clean_observation"
+                    ? "verification_unavailable"
+                    : "claimed_awaiting_verification";
+        return { state: after, taskId: String(claim.task_id), linkKind: null, claimedAt };
+      }
+
+      // No claim yet. Which of the two linked tasks is THIS person's, if either?
+      const candidates: Array<[string, "originating" | "effect"]> = [];
+      if (links.effect) candidates.push([links.effect, "effect"]);
+      if (links.originating) candidates.push([links.originating, "originating"]);
+      if (candidates.length === 0) return none("not_applicable");
+
+      const mine = candidates.find(
+        ([id]) => viewer && String(tasksById.get(id)?.assigned_to ?? "") === viewer.userId,
+      );
+      const [taskId, linkKind] = mine ?? candidates[0]!;
+      const task = tasksById.get(taskId);
+      if (!task) return none("unavailable", taskId);
+
+      const base = { taskId, linkKind, claimedAt: null } as const;
+      const assignedTo = task.assigned_to ? String(task.assigned_to) : null;
+      if (assignedTo === null) return { ...base, state: "task_unassigned" };
+      if (!viewer || assignedTo !== viewer.userId) return { ...base, state: "assigned_to_another" };
+      if (!mayWorkTasks) return { ...base, state: "capability_missing" };
+      // The task's REAL terminal statuses, from the task lifecycle — not a guess about what
+      // "finished" means.
+      if (!["completed", "cancelled"].includes(String(task.status))) {
+        return { ...base, state: "task_not_completed" };
+      }
+      if (task.requires_evidence === true && (evidenceCountByTask.get(taskId) ?? 0) < 1) {
+        return { ...base, state: "evidence_required" };
+      }
+      if (!["monitoring", "escalated"].includes(itemState)) {
+        return { ...base, state: "state_not_claimable" };
+      }
+      return { ...base, state: "claimable" };
+    }
+
     const evidenceByItem = new Map<string, QueueItem["evidence"]>();
     for (const e of (evidence ?? []) as Array<Record<string, unknown>>) {
       const list = evidenceByItem.get(String(e.item_id)) ?? [];
@@ -264,6 +421,7 @@ export async function ManagementQueuePanel({ companyId, focusId = null }: Props)
             String(i.department),
             i.required_authority ? String(i.required_authority) : null,
           ),
+          completion: completionFor(String(i.id), String(i.state)),
         };
       }),
       unobservedDepartments: unobserved,

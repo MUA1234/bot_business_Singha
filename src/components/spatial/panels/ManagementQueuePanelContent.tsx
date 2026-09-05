@@ -20,6 +20,8 @@
  */
 import { Badge, Card, CardBody, CardHeader, EmptyState, StatusBadge } from "@/components/ui";
 import DecisionControls from "./DecisionControls";
+import CompletionControl from "./CompletionControl";
+import type { CompletionState } from "@/app/app/_actions/completion-messages";
 
 export type QueueStage =
   | "observed" | "recommended" | "approved" | "needs_routing"
@@ -215,6 +217,23 @@ export interface QueueItem {
    * it are not theirs to see.
    */
   viewerMayDecide?: boolean;
+  /**
+   * Whether THIS viewer may report the linked work complete, and if not, why not.
+   *
+   * Resolved on the SERVER from the real task assignment, the real task status and the real
+   * capability. Absent means the completion state could not be established, which renders as
+   * "unavailable" — never as a quietly missing control.
+   */
+  completion?: QueueCompletion;
+}
+
+/** The completion state of the task linked to an item, as the server resolved it. */
+export interface QueueCompletion {
+  state: CompletionState;
+  /** The task a claim would be about, or null when nothing is linked. */
+  taskId: string | null;
+  linkKind: "originating" | "effect" | null;
+  claimedAt: string | null;
 }
 
 export interface ManagementQueueData {
@@ -472,6 +491,8 @@ function QueueRow({ item, focused }: { item: QueueItem; focused: boolean }) {
       </details>
 
       <ExecutionSection execution={item.execution} />
+
+      <CompletionSection item={item} />
 
       <CandidateSection item={item} />
 
@@ -968,6 +989,36 @@ function HumanOverride({
         Assignment and routing are not yet available from this screen.
       </span>
     </div>
+  );
+}
+
+/**
+ * The completion area.
+ *
+ * Absent completion data renders as UNAVAILABLE, not as nothing. A missing control and a control
+ * that is deliberately withheld look identical to the person in front of the screen, and only one
+ * of them is a true statement about their work.
+ */
+function CompletionSection({ item }: { item: QueueItem }) {
+  const c = item.completion;
+  if (!c) {
+    return (
+      <p className="muted" data-testid="mq-completion-state" data-state="unavailable">
+        Completion status is unavailable.
+      </p>
+    );
+  }
+  return (
+    <CompletionControl
+      itemId={item.id}
+      taskId={c.taskId}
+      linkKind={c.linkKind}
+      state={c.state}
+      seenState={item.stage}
+      seenActionId={item.proposedAction}
+      seenEvidenceDigest={item.evidenceDigest ?? ""}
+      claimedAt={c.claimedAt}
+    />
   );
 }
 

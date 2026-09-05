@@ -182,15 +182,34 @@ export interface CycleDeps {
   /** Reads company-scoped source rows for one adapter. Throwing marks that source failed. */
   loadFor(source: string, companyId: string): Promise<unknown>;
   /**
-   * Scheduled outcome verification (R2F-F-009). Optional: a deployment without the quarantined
-   * verification schema simply does not verify, and the cycle reports zeroes rather than failing.
+   * Scheduled outcome verification (R2F-F-009). REQUIRED, and deliberately not optional.
+   *
+   * It used to be optional, and `makeCycleDeps` did not provide it — so the deployed shape of the
+   * system never verified anything and every summary reported zeroes, which reads exactly like a
+   * company with nothing to verify. A dependency whose absence is indistinguishable from calm is
+   * not a dependency; omitting it now fails at compile time.
+   *
+   * A deployment that genuinely cannot verify must say so through `unavailableSweepSummary`,
+   * which carries a reason and marks the cycle partial. Zeroes are reserved for "there was nothing
+   * pending".
    *
    * Given `cycleComplete: false` it must defer everything — a partial cycle cannot support a
    * conclusion about whether a business condition was resolved.
    */
-  verificationSweep?(input: {
+  verificationSweep(input: {
     companyId: string;
     cycleComplete: boolean;
+    /**
+     * The cycle's OWN observation moment and generation.
+     *
+     * Verification inherits the truthfulness of the sweep that preceded it: an outcome may only be
+     * concluded from an observation taken AFTER completion was claimed, and the attempt records
+     * which generation it came from. Passing the cycle's real values, rather than letting the
+     * dependency invent a clock, is what makes that check mean anything.
+     */
+    observedAt: Date;
+    generation: string;
+    interrupted: boolean;
   }): Promise<VerificationSweepSummary>;
   /** True only when the per-company enablement row says so. */
   isCompanyEnabled(companyId: string): Promise<boolean>;
@@ -1359,7 +1378,7 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     //
     // Bounded per company per cycle, so a queue of pending verifications cannot starve the twelve
     // domain reads. Deterministic and provider-free — no model is asked whether work succeeded.
-    if (deps.verificationSweep) {
+    {
       const cycleComplete =
         summary.sourcesFailed === 0 &&
         summary.unobservedDepartments.length === 0 &&
@@ -1370,6 +1389,12 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
         summary.verification = await deps.verificationSweep({
           companyId: req.companyId,
           cycleComplete,
+          observedAt: deps.now(),
+          generation: `cycle:${generationSeed}`,
+          // A generation that was reset or abandoned did not see the whole picture, and a
+          // verification drawn from it must know that.
+          interrupted:
+            summary.cursorReset.length > 0 || summary.reconciliationDelayed.length > 0,
         });
       } catch (e) {
         // The sweep itself failed. That is not a conclusion about any item, and the cycle says so

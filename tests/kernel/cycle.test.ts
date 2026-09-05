@@ -10,6 +10,7 @@ import {
   type CycleDeps, type CycleSummary,
 } from "@/kernel/cycle";
 import { WORKER_ENABLED, runWorkerSweep, WorkerDisabledError } from "@/kernel/worker-boundary";
+import { emptySweepSummary, unavailableSweepSummary } from "@/kernel/verification/schedule";
 
 const CO_A = "11111111-1111-1111-1111-111111111111";
 const CO_B = "22222222-2222-2222-2222-222222222222";
@@ -21,6 +22,13 @@ function makeDeps(over: Partial<CycleDeps> = {}, rec: Recorded = { summaries: []
   const held = new Set<string>();
   return {
     now: () => NOW,
+    // Every fixture must say something about verification, because the real graph must too.
+    // The default stands in for a working verifier with nothing pending — which is what the
+    // tests about locking, flags and partial failure need underneath them. A deployment that
+    // CANNOT verify is a different thing, and the tests about it construct it explicitly.
+    async verificationSweep() {
+      return { ...emptySweepSummary(), transport: "postgres" };
+    },
     async isCompanyEnabled() { return true; },
     async tryLock(c) { if (held.has(c)) return false; held.add(c); rec.locks.push(`lock:${c}`); return true; },
     async releaseLock(c) { held.delete(c); rec.locks.push(`unlock:${c}`); },
@@ -412,8 +420,8 @@ describe("the cycle runs outcome verification", () => {
       async verificationSweep(input) {
         seen.push(input);
         return {
-          considered: 3, attempted: 3, verified: 2, persists: 1, contradicted: 0,
-          unavailable: 0, deferred: 0, failed: 0, remaining: 0, partial: false,
+          ...emptySweepSummary(),
+          considered: 3, attempted: 3, verified: 2, persists: 1, transport: "postgres",
         };
       },
     });
@@ -434,8 +442,8 @@ describe("the cycle runs outcome verification", () => {
       async verificationSweep(input) {
         seen.push(input);
         return {
-          considered: 1, attempted: 0, verified: 0, persists: 0, contradicted: 0,
-          unavailable: 0, deferred: 1, failed: 0, remaining: 1, partial: true,
+          ...emptySweepSummary(),
+          considered: 1, deferred: 1, remaining: 1, partial: true, transport: "postgres",
         };
       },
     });
@@ -449,8 +457,9 @@ describe("the cycle runs outcome verification", () => {
     const deps = makeDeps({
       async verificationSweep() {
         return {
-          considered: 12, attempted: 10, verified: 10, persists: 0, contradicted: 0,
-          unavailable: 0, deferred: 2, failed: 0, remaining: 2, partial: true,
+          ...emptySweepSummary(),
+          considered: 12, attempted: 10, verified: 10, deferred: 2, remaining: 2,
+          partial: true, transport: "postgres",
         };
       },
     });
@@ -469,10 +478,38 @@ describe("the cycle runs outcome verification", () => {
     expect(summary.status).toBe("partial");
   });
 
-  it("without the dependency the cycle still runs, and reports zeroes rather than pretending", async () => {
-    // The honest state of a deployment without the quarantined verification schema.
-    const summary = await run(makeDeps(), CO_A);
+  it("a deployment that cannot verify SAYS SO, and its cycle is never completed", async () => {
+    // This used to assert the opposite — that a cycle with no verification dependency reported
+    // zeroes and completed calmly. That is the failure, not the contract: zeroes are what a
+    // company with nothing pending looks like, so a deployment verifying nothing at all was
+    // indistinguishable from one with nothing to do. An unreachable verifier is now an explicit
+    // unavailable result with a reason, and a reason means the cycle is partial.
+    const deps = makeDeps({
+      async verificationSweep() {
+        return unavailableSweepSummary("no verification store in this deployment");
+      },
+    });
+    const summary = await run(deps, CO_A);
     expect(summary.verification.considered).toBe(0);
-    expect(summary.verification.partial).toBe(false);
+    expect(summary.verification.unavailableReason).toMatch(/no verification store/);
+    expect(summary.verification.partial).toBe(true);
+    expect(summary.status).toBe("partial");
+  });
+
+  it("passes the cycle's OWN observation moment and generation, not an invented one", async () => {
+    const seen: Array<{ observedAt: Date; generation: string; interrupted: boolean }> = [];
+    const deps = makeDeps({
+      async verificationSweep(input) {
+        seen.push(input);
+        return { ...emptySweepSummary(), transport: "postgres" };
+      },
+    });
+    await run(deps, CO_A);
+    expect(seen).toHaveLength(1);
+    // The cycle's clock, so "observed after the claim" is a real comparison rather than a
+    // dependency reading a clock of its own.
+    expect(seen[0]!.observedAt.getTime()).toBe(NOW.getTime());
+    expect(seen[0]!.generation).toMatch(/^cycle:/);
+    expect(seen[0]!.interrupted).toBe(false);
   });
 });

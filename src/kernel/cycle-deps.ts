@@ -24,6 +24,13 @@ import {
   ASSETS_SOURCE, LEGAL_SOURCE, PROVIDERS_SOURCE,
 } from "./adapters";
 import type { CycleDeps, CycleSummary, PersistRecommendation } from "./cycle";
+import {
+  runVerificationSweep,
+  unavailableSweepSummary,
+  type VerificationSweepSummary,
+} from "./verification/schedule";
+import { createSupabaseVerificationStore } from "./verification/store-supabase";
+import type { VerificationStore } from "./verification/store";
 import { providerHealth } from "@/modules/crm/service-provider";
 import { candidateEvidence } from "./people/candidate";
 import { fact } from "./people/evidence";
@@ -56,7 +63,22 @@ export const LOADER_ROW_CAP = 500;
  */
 export const IDENTITY_LOOKUP_CHUNK = 100;
 
-export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => new Date()): CycleDeps {
+/**
+ * The production dependency graph for one management cycle.
+ *
+ * `verificationSweep` is constructed HERE, not left to the caller. It was previously an optional
+ * dependency this factory did not provide, so the deployed system never verified anything and said
+ * so with a summary of zeroes — indistinguishable from a company that had nothing to verify.
+ *
+ * `verificationStore` exists so a worker holding a real PostgreSQL connection can supply the
+ * direct-SQL transport instead. It changes the transport and nothing else: both go through the same
+ * scheduler, the same rules and the same lifecycle boundary.
+ */
+export function makeCycleDeps(
+  db: Db = supabaseAdmin(),
+  now: () => Date = () => new Date(),
+  verificationStore: VerificationStore = createSupabaseVerificationStore(db),
+): CycleDeps {
   // Sources whose read hit the cap. Reset at the start of each loadFor sweep by the cycle asking
   // for them only once, at the end — see CycleDeps.truncatedSources.
   const truncated = new Set<string>();
@@ -145,6 +167,41 @@ export function makeCycleDeps(db: Db = supabaseAdmin(), now: () => Date = () => 
           { onConflict: "company_id,source" },
         );
       if (error) throw new Error(error.message);
+    },
+
+    /**
+     * Scheduled outcome verification, wired to the real store.
+     *
+     * The company id comes from the server-side cycle request; nothing here accepts one from a
+     * browser, and every read the store performs is filtered by it.
+     *
+     * A transport that cannot reach the verification schema returns an EXPLICIT unavailable result
+     * carrying the reason, and marks the cycle partial. It never returns zeroes, because a
+     * deployment that cannot verify must not be indistinguishable from one with nothing to verify.
+     */
+    async verificationSweep({
+      companyId, cycleComplete, observedAt, generation, interrupted,
+    }): Promise<VerificationSweepSummary> {
+      try {
+        return await runVerificationSweep(
+          { store: verificationStore, now },
+          {
+            companyId,
+            cycleComplete,
+            sweep: {
+              // The sweep's own completeness, inherited rather than assumed.
+              complete: cycleComplete,
+              generation,
+              interrupted,
+              observedAt,
+            },
+          },
+        );
+      } catch (e) {
+        return unavailableSweepSummary(
+          `verification store unavailable (${verificationStore.transport}): ${(e as Error).message}`,
+        );
+      }
     },
 
     async isCompanyEnabled(companyId) {

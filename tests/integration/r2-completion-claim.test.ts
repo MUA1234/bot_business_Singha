@@ -752,6 +752,77 @@ describe.skipIf(!enabled)("a claim is a report, not a verification", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
+//
+// The screen decides what to SHOW. The RPC decides what may happen. These four call the boundary
+// exactly as a browser could — with the values a legitimately rendered page produced — after the
+// facts behind that page have changed underneath it.
+describe.skipIf(!enabled)("what a page cannot preserve by having been rendered", () => {
+  it("refuses after the capability is removed, with an otherwise valid submission", async () => {
+    const taskId = await seedTask(CO_A, { assignedTo: WORKER_2 });
+    const itemId = await seedItem(CO_A, taskId, {
+      owner: membershipOf.get(`${CO_A}:${WORKER_2}`)!,
+    });
+    // Everything the page would have captured while the control was legitimately shown.
+    const digest = await digestOf(CO_A, itemId);
+
+    // The role carrying `operations.task.work` is removed after the page was rendered.
+    await q(
+      `delete from membership_roles where membership_id = $1`,
+      [membershipOf.get(`${CO_A}:${WORKER_2}`)!],
+    );
+
+    const out = await claim(WORKER_2, { itemId, taskId, digest });
+    expect(out.refusal).toBe("insufficient_capability");
+    const claims = await physical(
+      `select id from management_completion_claims where item_id = $1`, [itemId]);
+    expect(claims).toHaveLength(0);
+
+    // Restored, so the removal does not leak into the tests that run after this one.
+    await q(
+      `insert into membership_roles (membership_id, company_id, role_key) values ($1,$2,'staff_submitter')
+         on conflict do nothing`,
+      [membershipOf.get(`${CO_A}:${WORKER_2}`)!, CO_A],
+    );
+  });
+
+  it("refuses after the membership ends, with an otherwise valid submission", async () => {
+    const taskId = await seedTask(CO_A, { assignedTo: WORKER });
+    const itemId = await seedItem(CO_A, taskId);
+    const digest = await digestOf(CO_A, itemId);
+
+    await q(`update memberships set status = 'ended' where company_id = $1 and user_id = $2`,
+      [CO_A, WORKER]);
+    const out = await claim(WORKER, { itemId, taskId, digest });
+    // Reported as absent: an ended member is told nothing about what the company contains.
+    expect(out.refusal).toBe("not_found");
+    await q(`update memberships set status = 'active' where company_id = $1 and user_id = $2`,
+      [CO_A, WORKER]);
+  });
+
+  it("refuses after the task is reassigned to somebody else", async () => {
+    const taskId = await seedTask(CO_A, { assignedTo: WORKER });
+    const itemId = await seedItem(CO_A, taskId);
+    const digest = await digestOf(CO_A, itemId);
+
+    await q(`update tasks set assigned_to = $1 where id = $2`, [WORKER_2, taskId]);
+
+    const out = await claim(WORKER, { itemId, taskId, digest });
+    expect(out.refusal).toBe("not_assignee");
+  });
+
+  it("refuses after the task is reopened, with an otherwise valid submission", async () => {
+    const taskId = await seedTask(CO_A, { assignedTo: WORKER });
+    const itemId = await seedItem(CO_A, taskId);
+    const digest = await digestOf(CO_A, itemId);
+
+    await q(`update tasks set status = 'reopened' where id = $1`, [taskId]);
+
+    const out = await claim(WORKER, { itemId, taskId, digest });
+    expect(out.refusal).toBe("task_not_terminal");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
 describe.skipIf(!enabled)("the claim record itself", () => {
   it("cannot be composed directly by an authenticated session", async () => {
     const taskId = await seedTask(CO_A);

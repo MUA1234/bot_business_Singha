@@ -14,6 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
+import { createSqlVerificationStore } from "@/kernel/verification/store-sql";
 import {
   runVerificationSweep,
   backoffMinutesFor,
@@ -34,7 +35,7 @@ const sql: SqlExec = async (text, params) => {
   const r = await raw.query(text, params as unknown[]);
   return { rows: r.rows as Record<string, unknown>[] };
 };
-const env = { sql, now: () => new Date() };
+const env = { store: createSqlVerificationStore(sql), now: () => new Date() };
 
 const cleanSweep = (): SweepState => ({
   complete: true,
@@ -387,10 +388,10 @@ describe.skipIf(!enabled)("idempotence and concurrency", () => {
         clients.map((c) =>
           runVerificationSweep(
             {
-              sql: async (text, params) => {
+              store: createSqlVerificationStore(async (text, params) => {
                 const r = await c.query(text, params as unknown[]);
                 return { rows: r.rows as Record<string, unknown>[] };
-              },
+              }),
               now: () => new Date(),
             },
             { companyId: CO, sweep: cleanSweep(), cycleComplete: true },

@@ -14,6 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import pg from "pg";
+import { createSqlVerificationStore } from "@/kernel/verification/store-sql";
 import { verifyManagementOutcome } from "@/kernel/verification/service";
 import type { SqlExec } from "@/kernel/execution/ledger";
 import type { SweepState } from "@/kernel/verification/contract";
@@ -127,7 +128,7 @@ afterAll(async () => {
   await raw?.end();
 });
 
-const env = { sql, now: NOW };
+const env = { store: createSqlVerificationStore(sql), now: NOW };
 const run = (itemId: string, sweep = cleanSweep()) =>
   verifyManagementOutcome(env, { companyId: CO_A, itemId, actorId: ACTOR, sweep });
 
@@ -315,10 +316,10 @@ describe.skipIf(!enabled)("concurrency", () => {
         clients.map((c) =>
           verifyManagementOutcome(
             {
-              sql: async (text, params) => {
+              store: createSqlVerificationStore(async (text, params) => {
                 const r = await c.query(text, params as unknown[]);
                 return { rows: r.rows as Record<string, unknown>[] };
-              },
+              }),
               now: NOW,
             },
             { companyId: CO_A, itemId, actorId: ACTOR, sweep: cleanSweep() },
