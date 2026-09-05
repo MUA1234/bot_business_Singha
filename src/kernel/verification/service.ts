@@ -160,9 +160,19 @@ export async function verifyManagementOutcome(
 
   if (!verdict.transitionTo) return { ...verdict, transitioned: false };
 
+  // The actor TYPE must describe who actually concluded this.
+  //
+  // A scheduled sweep passes no actor, and writing it as 'user' would make a machine conclusion
+  // indistinguishable from a person's in the transition log — which is the log the learning fold
+  // reads to decide whether an outcome is evidence about someone. A `reopened` written that way
+  // would score -1 against the assigned person for a condition that merely persists.
+  //
+  // Two guards in the fold would still have caught it (`deciderType !== 'user'` and `!deciderId`),
+  // but a record that is true only because something downstream compensates is not a true record.
+  const actorType = input.actorId ? "user" : "system";
   const { rows } = await sql(
-    `select public.r1_draft_transition_item($1,$2,$3,$4,'user',$5,'[]'::jsonb) as r`,
-    [item.id, item.state, verdict.transitionTo, input.actorId, verdict.detail],
+    `select public.r1_draft_transition_item($1,$2,$3,$4,$5,$6,'[]'::jsonb) as r`,
+    [item.id, item.state, verdict.transitionTo, input.actorId, actorType, verdict.detail],
   );
   const moved = (rows[0]?.r as { ok?: boolean } | undefined)?.ok === true;
 

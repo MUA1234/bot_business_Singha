@@ -23,6 +23,11 @@
  * company-scoped.
  */
 import { randomUUID } from "node:crypto";
+import {
+  emptySweepSummary,
+  runVerificationSweep,
+  type VerificationSweepSummary,
+} from "./verification/schedule";
 import { log } from "@/lib/log";
 import {
   detectFinanceObservations, detectWorkforceObservations, detectOperationsObservations,
@@ -93,6 +98,13 @@ export interface CycleSummary {
    * a truncated sweep cannot be reported as `completed`.
    */
   truncatedSources: string[];
+  /**
+   * What scheduled outcome verification did this cycle (R2F-F-009).
+   *
+   * Reported in full, including what it did NOT do: a cycle with verification work left unknown
+   * can never be `completed`, for the same reason a truncated read cannot.
+   */
+  verification: VerificationSweepSummary;
   /**
    * Sources whose page was processed but whose POSITION could not be committed.
    *
@@ -169,6 +181,17 @@ export interface CycleSummary {
 export interface CycleDeps {
   /** Reads company-scoped source rows for one adapter. Throwing marks that source failed. */
   loadFor(source: string, companyId: string): Promise<unknown>;
+  /**
+   * Scheduled outcome verification (R2F-F-009). Optional: a deployment without the quarantined
+   * verification schema simply does not verify, and the cycle reports zeroes rather than failing.
+   *
+   * Given `cycleComplete: false` it must defer everything — a partial cycle cannot support a
+   * conclusion about whether a business condition was resolved.
+   */
+  verificationSweep?(input: {
+    companyId: string;
+    cycleComplete: boolean;
+  }): Promise<VerificationSweepSummary>;
   /** True only when the per-company enablement row says so. */
   isCompanyEnabled(companyId: string): Promise<boolean>;
   /** Returns false when another cycle already holds this company's lock. */
@@ -928,6 +951,7 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     trigger: req.trigger,
     status: "completed",
     sourcesRegistered: SOURCES.length,
+    verification: emptySweepSummary(),
     sourcesSucceeded: 0,
     sourcesFailed: 0,
     itemsCreated: 0,
@@ -1019,7 +1043,7 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     return finish({ ...base, status: "skipped_locked", failureReason: "another cycle is already running for this company" });
   }
 
-  const summary = { ...base };
+  const summary = { ...base, verification: emptySweepSummary() };
 
   try {
     const authority = await deps.authorityFor(req.companyId);
@@ -1325,6 +1349,40 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     //     A TRUNCATED read counts: looking at the first 500 rows of a domain and reporting
     //     "completed" claims a sweep that did not happen.
     summary.truncatedSources = [...(deps.truncatedSources?.() ?? [])];
+
+    // ── Scheduled outcome verification ────────────────────────────────────────────────────
+    //
+    // Runs only AFTER the source results are established, and only when this cycle actually
+    // finished looking: a partial cycle cannot support a conclusion about whether a business
+    // condition was resolved, least of all a negative one, where "the detector did not raise it"
+    // is exactly what a half-finished sweep looks like.
+    //
+    // Bounded per company per cycle, so a queue of pending verifications cannot starve the twelve
+    // domain reads. Deterministic and provider-free — no model is asked whether work succeeded.
+    if (deps.verificationSweep) {
+      const cycleComplete =
+        summary.sourcesFailed === 0 &&
+        summary.unobservedDepartments.length === 0 &&
+        summary.truncatedSources.length === 0 &&
+        summary.cursorCommitFailed.length === 0 &&
+        !summary.budgetExhausted;
+      try {
+        summary.verification = await deps.verificationSweep({
+          companyId: req.companyId,
+          cycleComplete,
+        });
+      } catch (e) {
+        // The sweep itself failed. That is not a conclusion about any item, and the cycle says so
+        // rather than reporting calm completion.
+        summary.verification = { ...emptySweepSummary(), failed: 1, partial: true };
+        log("error", "verification sweep failed", {
+          event: "cycle.verification_failed",
+          companyId: req.companyId,
+          error: (e as Error).message,
+        });
+      }
+    }
+
     const hasMore =
       summary.continuation.some((c) => c.hasMore) ||
       summary.reconciliation.some((r) => r.hasMore) ||
@@ -1336,7 +1394,9 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
       summary.truncatedSources.length > 0 ||
       summary.cursorCommitFailed.length > 0 ||
       hasMore ||
-      summary.budgetExhausted
+      summary.budgetExhausted ||
+      // Verification work left unknown is work left undone.
+      summary.verification.partial
         ? "partial"
         : "completed";
     if (summary.status === "partial") {
@@ -1357,6 +1417,11 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
       }
       if (summary.budgetExhausted) {
         parts.push("cycle row budget exhausted; remaining sources continue next cycle");
+      }
+      if (summary.verification.partial) {
+        parts.push(
+          `verification incomplete: ${summary.verification.remaining} item(s) still pending`,
+        );
       }
       if (summary.reconciliationDelayed.length > 0) {
         parts.push(
