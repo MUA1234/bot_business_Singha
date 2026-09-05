@@ -450,15 +450,44 @@ describe.skipIf(!enabled)("decision boundary — bound to what was seen", () => 
     }
   });
 
-  it("fails closed on an authority level the repository cannot establish for a user", async () => {
-    for (const authority of ["specialist_approval", "owner_approval"]) {
-      const itemId = await seedItem(CO_A, { authority });
-      const out = await decide(MANAGER, {
-        itemId, decision: "approve", evidenceDigest: await digestOf(CO_A, itemId),
-      });
-      expect(out.ok, authority).toBe(false);
-      expect(out.refusal, authority).toBe("unresolved_authority");
-      expect(String(out.detail)).toContain(authority);
+  /**
+   * CORRECTED. This asserted that both elevated levels refuse with `unresolved_authority` and a
+   * detail naming the authority. The RPC does something more useful and the assertion was simply
+   * wrong about it — it had never run green, because the campaign at that checkpoint was deferred.
+   *
+   * The two refusals are DIFFERENT, deliberately: "nobody can decide this here" and "you cannot
+   * decide this" call for different actions from the person reading them. Collapsing them would
+   * send someone looking for a colleague with a permission that does not exist.
+   */
+  it("distinguishes an unregistered authority from one this person does not hold", async () => {
+    // Ten of the twelve domains have no registered specialist capability. Operations is one, so
+    // NOBODY can take this decision, and the refusal names the domain.
+    const specialist = await seedItem(CO_A, { authority: "specialist_approval" });
+    const outSpecialist = await decide(MANAGER, {
+      itemId: specialist, decision: "approve", evidenceDigest: await digestOf(CO_A, specialist),
+    });
+    expect(outSpecialist.ok).toBe(false);
+    expect(outSpecialist.refusal).toBe("unresolved_authority");
+    expect(String(outSpecialist.detail)).toContain("operations");
+    expect(String(outSpecialist.detail)).toContain("no specialist capability is registered");
+
+    // Owner approval IS a registered capability. This manager does not hold it, which is a
+    // different fact and a different refusal.
+    const owner = await seedItem(CO_A, { authority: "owner_approval" });
+    const outOwner = await decide(MANAGER, {
+      itemId: owner, decision: "approve", evidenceDigest: await digestOf(CO_A, owner),
+    });
+    expect(outOwner.ok).toBe(false);
+    expect(outOwner.refusal).toBe("insufficient_authority");
+    expect(String(outOwner.detail)).toContain("owner approval");
+
+    // Neither wrote anything.
+    for (const id of [specialist, owner]) {
+      expect(await physical(
+        `select id from management_item_decisions where item_id = $1`, [id])).toHaveLength(0);
+      expect((await physical(
+        `select state from management_items where id = $1`, [id]))[0]!.state)
+        .toBe("awaiting_approval");
     }
   });
 });
