@@ -156,7 +156,7 @@ begin
   ) then
     v_link := 'effect';
   end if;
-  if false then -- MUTATION
+  if v_link is null then
     return jsonb_build_object('ok', false, 'refusal', 'task_not_linked');
   end if;
 
