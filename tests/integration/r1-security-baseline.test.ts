@@ -231,16 +231,56 @@ describe.skipIf(!enabled)("R1 security baseline — RLS and authority matrix", (
     expect(rows[0].n).toBe(0);
   });
 
-  it("a MANAGER may record a decision", async () => {
-    const id = await newItem(CO_A);
-    await asUser(MANAGER, async () => {
-      await db.query(
-        `insert into management_item_decisions (company_id, item_id, decision, actor_id) values ($1,$2,'approve',$3)`,
-        [CO_A, id, MANAGER],
+  it("a MANAGER may record a decision — through the RPC, which is now the only way", async () => {
+    // CHANGED BY R2-F-014, and for the same reason feedback changed above. This used to be a
+    // direct INSERT under `management_item_decisions_ins`. That policy let any holder of
+    // `operations.task.manage` write a decision row unbound to the item state, action or evidence
+    // the person saw, with no lifecycle transition and no audit event — so the log could say
+    // `approve` while the item stayed in `awaiting_approval` for ever. Draft 022 drops it.
+    //
+    // The INTENT of this test is unchanged and still asserted: a manager may record a decision.
+    // What changed is that it now has to go through the boundary that binds it to reality.
+    //
+    // The old version also asserted `expect(true).toBe(true)` — it required only that the insert
+    // not throw. This one checks the outcome.
+    const id = await newItem(CO_A, "awaiting_approval");
+    const digest = (
+      await db.query(`select public.r1_draft_evidence_digest($1,$2) as d`, [CO_A, id])
+    ).rows[0].d as string;
+
+    const out = await asUser(MANAGER, async () => {
+      const { rows } = await db.query(
+        `select public.r1_draft_record_management_decision($1,'approve','awaiting_approval',
+                 null,$2,null,null,null) as r`,
+        [id, digest],
       );
+      return rows[0].r as { ok?: boolean; refusal?: string };
     });
-    // rolled back with the transaction — assert it was PERMITTED, not that it persisted
-    expect(true).toBe(true);
+
+    expect(out.ok, JSON.stringify(out)).toBe(true);
+  });
+
+  it("a manager may NOT write a decision row directly (R2-F-014)", async () => {
+    const id = await newItem(CO_A, "awaiting_approval");
+    let threw = false;
+    try {
+      await asUser(MANAGER, async () => {
+        await db.query(
+          `insert into management_item_decisions (company_id, item_id, decision, actor_id)
+           values ($1,$2,'approve',$3)`,
+          [CO_A, id, MANAGER],
+        );
+      });
+    } catch {
+      threw = true;
+    }
+    // The guarantee is the absence of the row, not the presence of an exception: a silently
+    // dropped write and a raised error are both honest refusals, and only a read distinguishes
+    // either of them from a successful bypass.
+    const { rows } = await db.query(
+      `select 1 from management_item_decisions where item_id = $1`, [id],
+    );
+    expect(rows, threw ? "refused with an error" : "refused silently").toHaveLength(0);
   });
 
   it("ORDINARY STAFF MAY record feedback — the learning signal needs the person who did the work", async () => {

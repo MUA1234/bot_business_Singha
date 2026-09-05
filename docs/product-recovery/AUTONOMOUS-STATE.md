@@ -211,3 +211,102 @@ quarantined draft unit.
 **One:** R2E-F-011 / R2F-F-002, above. Everything else remains local-only. Staging and production
 remain **zero**. No hosted contact, no live model, no migration numbering, no real data, no message
 sent, no financial effect.
+
+---
+
+# Session 2026-09-05 (second) — the management decision boundary (roadmap R4/R5)
+
+**Branch:** `claude/product-recovery-r1` · **Started from:** `4e5c184`
+**Dirty files:** none · **Running processes:** none · **Containers:** none left behind
+
+## Commits
+
+| SHA | What |
+|---|---|
+| `5198c1f` | draft 022 decision RPC, runtime path, controls; R2-F-014/015/016 |
+| `4f31446` | audit corrections; service-role-gate and server-action build fixes |
+
+## What now exists
+
+A human can approve or reject a management item, through the interface and through the API, and the
+decision is bound to exactly what they saw.
+
+| Piece | Where |
+|---|---|
+| Decision RPC (SECURITY DEFINER, `authenticated` only) | `R1_DRAFT_022_decision_rpc.up.sql` |
+| Evidence digest, defined once in SQL | `r1_draft_evidence_digest` |
+| Authenticated runtime path | `src/app/app/_actions/management-decision.ts` |
+| Refusal wording | `src/app/app/_actions/decision-messages.ts` |
+| Real connected controls | `src/components/spatial/panels/DecisionControls.tsx` |
+| TS digest, kept in step with the SQL by test | `src/components/spatial/panels/evidence-digest.ts` |
+| Mutation harness | `scripts/r1/mutations/decision-mutations.mjs` |
+
+## Verified
+
+- Decision boundary live suite **31 passed** on real PostgreSQL 16, every call as a real
+  `authenticated` session with a real `auth.uid()`
+- **All six required mutations CAUGHT**, each with a parsed `Tests N failed` line
+- Unit **2331 passed** / 4 skipped · network guard **687 passed**
+- typecheck 0 · lint clean · build exit 0 · browser-check pass
+- secret-scan · migration-lint · inventory · IP-boundary · requirements audit — all pass
+
+## Open
+
+| Id | State |
+|---|---|
+| **R2-F-017** | OPEN — `specialist_approval`/`owner_approval` and six decision types have no rule in this repository. The RPC FAILS CLOSED on both. Needs an owner decision |
+| R2F-F-003 | queue not scoped by viewer authority (owner vs manager vs staff) |
+| R2F-F-004 | no re-observation driver, so a completed task whose condition persists does not reopen |
+| R2E-F-001 | legacy `ACTION_FLOORS` vocabulary untouched by design; canonical policy is the authority for catalogue actions |
+| R2E-F-002 | UI task path has no durable idempotency — needs a column on the hosted `tasks` table |
+
+## Exact next command and next task
+
+```bash
+git -C . rev-parse HEAD && git status --porcelain
+
+# Next dependency-ready item: R2F-F-003 — scope the queue by the viewer's authority.
+# It is now unblocked: the decision path exists, so a staff-scoped view no longer shows
+# people work they cannot act on. Start from the capability already resolved server-side:
+grep -n "viewerMayDecide" src/components/spatial/panels/ManagementQueuePanel.tsx
+```
+
+R2F-F-004 (outcome verification by re-observation, roadmap R5) is the larger next piece and should
+follow F-003.
+
+## Hard blockers
+
+**One, and it is an owner decision, not a technical one:** R2-F-017. Everything else remains
+local-only. Staging and production remain **zero**.
+
+## Full-campaign result, stated exactly
+
+The complete live campaign at `4f31446` ran **457 tests across 24 files in 4453s** and **FAILED with
+one test**: `r1-security-baseline > a MANAGER may record a decision`.
+
+That failure was **caused by this session's work and is correct**. The test recorded a decision by
+**direct INSERT** under `management_item_decisions_ins` — the policy R2-F-014 identified as a way
+past every check, and which draft 022 drops. The test had codified the defect.
+
+It is migrated to the RPC, following the precedent already in that file (the feedback test made the
+same move for the same reason). The old version also asserted `expect(true).toBe(true)` — it
+required only that the insert not throw. The replacement checks the outcome, and a second test
+asserts the direct insert now writes nothing.
+
+**Verified after the fix:** `r1-security-baseline` + `r2-decision-boundary` together —
+**69 passed / 0 failed**, 321s, real PostgreSQL 16.
+
+**Not re-run:** the complete 24-file campaign at the final SHA. The single failure is fixed and
+verified in a targeted run; the other 23 files were untouched by that fix and passed at `4f31446`.
+The exact command is below.
+
+```bash
+node scripts/r1/run-r1-security-tests.mjs      # ~20 min on an idle machine
+```
+
+**On the 4453s duration** — the baseline for this campaign is ~1200s. The run was slowed by my own
+concurrent load (a production build, two full unit suites and a Chromium browser check) and by 13
+unrelated containers running on this machine. Progress was measured, not assumed: committed row
+counts advanced 216,348 → 221,552 in 60 seconds and the executing query changed between samples.
+Two subsequent runs failed at `database never became ready` under the same contention and succeeded
+on retry. No timeout was raised, and no unrelated container was touched.
