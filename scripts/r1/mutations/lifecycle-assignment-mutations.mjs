@@ -50,10 +50,18 @@ const MUTATIONS = [
               p_actor_type: "user", // MUTATION`),
   },
   {
+    /**
+     * STRENGTHENED after the first run.
+     *
+     * Removing only the action check SURVIVED, and correctly: `hasPlan` already gates it, because
+     * `planAction` returns null for every action but the authorised one, so a draft-only item has
+     * no plan to execute against. The action test alone is redundant — the PAIR is the guard, and
+     * that is what this now removes.
+     */
     id: "L2 the automatic path is opened to every catalogue action",
     apply: () =>
       sub(ORCH, `      if (!item.effectCreated && item.actionId === AUTOMATIC_ACTION_ID && item.hasPlan) {`,
-        `      if (!item.effectCreated && item.hasPlan) { // MUTATION`),
+        `      if (!item.effectCreated) { // MUTATION`),
   },
   {
     id: "L3 an item with no evidence is advanced anyway",
@@ -194,8 +202,25 @@ const ASSIGN_SUITE = "tests/integration/r2-assignment-boundary.test.ts";
  */
 const suiteFor = (id) => (id.startsWith("L") ? ORCH_SUITE : ASSIGN_SUITE);
 
+/**
+ * A subset may be named on the command line.
+ *
+ * The full list is nineteen campaigns, each five to eleven minutes on this contended host — a
+ * three-hour run the machine is likely to interrupt. A partially-run campaign is weaker evidence
+ * than a complete one over the guards that matter most, so the highest-value mutations can be run
+ * alone and the report says exactly which were run and which were not.
+ */
+const only = (process.argv[2] ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+const selected = only.length
+  ? MUTATIONS.filter((m) => only.some((id) => m.id.startsWith(id + " ")))
+  : MUTATIONS;
+if (only.length && selected.length !== only.length) {
+  throw new Error(`unknown mutation id(s) in "${only.join(", ")}"`);
+}
+console.log(`> running ${selected.length} of ${MUTATIONS.length} mutation(s)`);
+
 const results = [];
-for (const m of MUTATIONS) {
+for (const m of selected) {
   restore();
   try {
     m.apply();

@@ -142,6 +142,41 @@ async function approveAsManager(co: string, itemId: string) {
   }
 }
 
+/**
+ * Assign the item's effect task to `membershipId`, through the REAL assignment RPC as the manager.
+ *
+ * The orchestrator cannot do this and must not: binding assignment is a human act with its own
+ * boundary. It is here so the suite can reach `assigned` and exercise what the orchestrator does
+ * once a person has acted.
+ */
+async function assignAsManager(co: string, itemId: string, membershipId: string) {
+  const { rows: dg } = await q(
+    `select public.r1_draft_evidence_digest($1,$2) as d`, [co, itemId]);
+  const { rows: elig } = await q(
+    `select eligibility_evidence_digest from management_item_recommendations
+      where item_id=$1 and purpose='assignee' and candidate_ref=$2
+      order by created_at desc, id desc limit 1`, [itemId, membershipId]);
+  await q("begin");
+  try {
+    await q("set local role authenticated");
+    await q(`select set_config('request.jwt.claims', $1, true)`, [
+      JSON.stringify({ role: "authenticated", sub: MANAGER }),
+    ]);
+    const { rows } = await q(
+      `select public.r1_draft_assign_management_item($1,$2,'needs_routing',$3,$4,$5,$6) as r`,
+      [itemId, membershipId, String(dg[0].d),
+       elig.length ? String(elig[0].eligibility_evidence_digest) : null,
+       "assigned for the mismatch test", `orch-asg-${itemId}`],
+    );
+    await q("commit");
+    const r = rows[0].r as { ok?: boolean };
+    if (r?.ok !== true) throw new Error(`assignment refused: ${JSON.stringify(r)}`);
+  } catch (e) {
+    await q("rollback");
+    throw e;
+  }
+}
+
 /** Run cycles until the item stops moving, or `max` is reached. Returns every state it passed. */
 async function settle(
   co: string, itemId: string, max = 10, graph: CycleDeps = deps,
@@ -350,6 +385,94 @@ describe.skipIf(!enabled)("what the system will not do", () => {
         where item_id=$1 and status='executed'`, [itemId]);
     expect(attempts[0].n).toBe(0);
   }, 240_000);
+
+  /**
+   * Found by mutation, not by design.
+   *
+   * Opening the orchestrator's execute branch to EVERY catalogue action — dropping the
+   * `actionId === AUTOMATIC_ACTION_ID` test — survived the whole suite. Nothing here had ever
+   * approved a draft-only action, so nothing ever reached the branch with an action the system
+   * must not carry out. The executor would still have refused it, but a second guard that is
+   * never exercised is a guard nobody knows the state of.
+   *
+   * So: approve a DRAFT-ONLY action, and require that the system does not even try.
+   */
+  /**
+   * Also found by mutation.
+   *
+   * Removing the assignee / accountable-owner agreement check survived the whole suite, because
+   * draft 028 writes both in one act and nothing here had ever made them disagree. A guard that
+   * defends against a state the tests never construct is a guard nobody knows the state of.
+   *
+   * So: make them disagree, and require an explicit HOLD rather than a silent repair. The
+   * disagreement is created by writing the task directly — which is the only way to produce it,
+   * and precisely why the check has to exist for the day something else does.
+   */
+  it("a disagreement between the accountable owner and the task assignee HOLDS the item", async () => {
+    const f = await fixture();
+    await cycle(f.co);
+    const itemId = await itemFor(f.co, f.taskId);
+    await settle(f.co, itemId);
+    await approveAsManager(f.co, itemId);
+    await settle(f.co, itemId, 10, executingDeps);
+    expect(await stateOf(itemId)).toBe("needs_routing");
+
+    await assignAsManager(f.co, itemId, f.workerMembership);
+    expect(await stateOf(itemId)).toBe("assigned");
+
+    // The item says WORKER is accountable. Make the task say somebody else.
+    const { rows: effect } = await q(
+      `select effect_ref from management_execution_attempts
+        where item_id=$1 and status='executed'`, [itemId]);
+    await q(`update tasks set assigned_to=$1 where id=$2`, [MANAGER, effect[0].effect_ref]);
+
+    const summary = await cycle(f.co, executingDeps);
+    const note = summary.lifecycle.notes.find((n) => n.itemId === itemId);
+    expect(note?.outcome).toBe("held");
+    expect(note?.reason).toMatch(/different people/);
+
+    // Not advanced, and not quietly corrected. Guessing which record is right would make the
+    // history worse than leaving the disagreement visible.
+    for (let i = 0; i < 3; i++) await cycle(f.co, executingDeps);
+    expect(await stateOf(itemId)).toBe("assigned");
+  }, 300_000);
+
+  it("an APPROVED draft-only action is left for a person; the system does not attempt it", async () => {
+    const f = await fixture();
+    await q(
+      `insert into tasks (company_id, title, status, due_date, estimate_hours)
+       values ($1,'overdue draft-only condition','in_progress','2020-01-01'::date,4)`, [f.co]);
+    await cycle(f.co);
+
+    const { rows: items } = await q(
+      `select id, proposed_action_id from management_items
+        where company_id=$1 and kind='overdue'`, [f.co]);
+    expect(items.length).toBeGreaterThan(0);
+    const itemId = String(items[0].id);
+    // `ops.task.request_progress_update` — registered, and classified draft-only: a person
+    // carries it out, and there is no handler for the system to call.
+    expect(items[0].proposed_action_id).not.toBe("ops.task.create_internal");
+
+    await settle(f.co, itemId);
+    expect(await stateOf(itemId)).toBe("awaiting_approval");
+    await approveAsManager(f.co, itemId);
+    expect(await stateOf(itemId)).toBe("approved");
+
+    // The executing graph, with the local token — so nothing but the action's own classification
+    // stands between this item and an effect.
+    const summary = await cycle(f.co, executingDeps);
+    const note = summary.lifecycle.notes.find((n) => n.itemId === itemId);
+    expect(note?.outcome).toBe("awaiting_human");
+    expect(note?.reason).toMatch(/not one the system performs/);
+
+    for (let i = 0; i < 3; i++) await cycle(f.co, executingDeps);
+    const { rows: attempts } = await q(
+      `select count(*)::int as n from management_execution_attempts where item_id=$1`, [itemId]);
+    // Not "refused" — NOT ATTEMPTED. A refusal recorded against this item would mean the system
+    // tried to carry out an action a person is supposed to perform.
+    expect(attempts[0].n).toBe(0);
+    expect(await stateOf(itemId)).toBe("approved");
+  }, 300_000);
 
   it("with execution disabled it reaches approved and stops, creating nothing", async () => {
     const f = await fixture({ execution: false });

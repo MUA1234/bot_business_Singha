@@ -202,7 +202,33 @@ fairness model was not weakened to make any of this pass.
 
 ---
 
-## 6. Findings register
+## 6. Mutation evidence, and what was not run
+
+The owner named thirteen adversarial cases. `scripts/r1/mutations/lifecycle-assignment-mutations.mjs`
+encodes **nineteen** mutations covering them, each run against the suite that should catch it —
+running both suites every time would be more thorough on paper and nearly three hours slower on a
+host already five times its quiet-run baseline.
+
+**Not all nineteen were run.** Each campaign takes five to eleven minutes here, and a
+partially-completed nineteen-campaign run is weaker evidence than a complete run over the guards
+that matter most. The harness therefore accepts a subset on the command line, and the exact command
+for the remainder is:
+
+```bash
+node scripts/r1/mutations/lifecycle-assignment-mutations.mjs          # all nineteen
+node scripts/r1/mutations/lifecycle-assignment-mutations.mjs L3,L4,L5 # a named subset
+```
+
+### A mistake worth recording
+
+Three commits captured a mutated source file mid-campaign — a deliberately disabled guard,
+committed to the branch. `.gitignore` already stopped the harness's `.bak` files being staged;
+the mutated SOURCE is a tracked file and staged happily, so that was only half a fix.
+
+A campaign now takes `.r1-mutation-campaign.lock`, every harness takes it, and a pre-commit hook in
+`.githooks` refuses while it is held. The offending commits were corrected in place.
+
+## 7. Findings register
 
 | id | statement | state |
 |---|---|---|
