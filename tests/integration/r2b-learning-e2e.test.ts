@@ -96,6 +96,10 @@ async function historyFromDb(companyId: string): Promise<OutcomeRecord[]> {
     deciderId: r.actor_id, deciderType: r.actor_type,
     occurredAt: new Date(r.created_at).toISOString(),
     businessDeadline: null, metOnTime: null, correctsOutcomeId: null, source: "transition",
+    // The distinct identities the contract now carries. Null is "the record does not
+    // say", never "the same person"; every case here is a human-confirmed outcome.
+    taskAssigneeId: null, completionClaimantId: null, assigningManagerId: null,
+    approvingDeciderId: null, verifierKind: "human" as const,
   }));
 }
 

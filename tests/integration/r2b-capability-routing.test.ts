@@ -457,6 +457,10 @@ describe.skipIf(!enabled)("R2B capability routing on a live database", () => {
           outcome: "verified", deciderId: rows[0].actor_id, deciderType: rows[0].actor_type,
           occurredAt: new Date(rows[0].created_at).toISOString(),
           businessDeadline: null, metOnTime: null, correctsOutcomeId: null, source: "transition",
+          // The distinct identities the contract now carries. Null is "the record does not
+          // say", never "the same person"; every case here is a human-confirmed outcome.
+          taskAssigneeId: null, completionClaimantId: null, assigningManagerId: null,
+          approvingDeciderId: null, verifierKind: "human" as const,
         });
       }
 
@@ -477,6 +481,10 @@ describe.skipIf(!enabled)("R2B capability routing on a live database", () => {
         taskKind: "operations.task_exception", role: "assignee", itemId: randomUUID(), outcome: "verified",
         deciderId: `d${i}`, deciderType: "user", occurredAt: new Date().toISOString(),
         businessDeadline: null, metOnTime: null, correctsOutcomeId: null, source: "transition",
+        // The distinct identities the contract now carries. Null is "the record does not
+        // say", never "the same person"; every case here is a human-confirmed outcome.
+        taskAssigneeId: null, completionClaimantId: null, assigningManagerId: null,
+        approvingDeciderId: null, verifierKind: "human" as const,
       }));
       expect(buildSignal(foreignHistory, worker, "operations.task_exception", CO_A, new Date())).toBeNull();
     });

@@ -118,6 +118,10 @@ describe("R2B-F-005 — a reopened outcome must never be reported as a verified 
     outcome: "reopened", deciderId: decider, deciderType: "user",
     occurredAt: new Date(NOW.getTime() - days * 86_400_000).toISOString(),
     businessDeadline: null, metOnTime: null, correctsOutcomeId: null, source: "transition",
+    // The distinct identities the contract now carries. Null is "the record does not
+    // say", never "the same person"; every case here is a human-confirmed outcome.
+    taskAssigneeId: null, completionClaimantId: null, assigningManagerId: null,
+    approvingDeciderId: null, verifierKind: "human" as const,
   });
 
   it("calls the evidence base CONFIRMED outcomes, not verified ones", () => {
@@ -138,6 +142,10 @@ describe("R2B-F-006 — the challenge explanation must match what the fold actua
     outcome: "verified", deciderId: decider, deciderType: "user",
     occurredAt: new Date(NOW.getTime() - days * 86_400_000).toISOString(),
     businessDeadline: null, metOnTime: null, correctsOutcomeId: null, source: "transition",
+    // The distinct identities the contract now carries. Null is "the record does not
+    // say", never "the same person"; every case here is a human-confirmed outcome.
+    taskAssigneeId: null, completionClaimantId: null, assigningManagerId: null,
+    approvingDeciderId: null, verifierKind: "human" as const,
   });
 
   it("excludes obsolete records from the count it shows a manager", () => {

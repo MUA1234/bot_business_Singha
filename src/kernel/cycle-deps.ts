@@ -743,21 +743,70 @@ export function makeCycleDeps(
       const asMembership = (actorId: string | null) =>
         actorId === null ? null : membershipIds.has(actorId) ? actorId : (membershipByUser.get(actorId) ?? null);
 
+      // ── The distinct people, each from the record that actually names them ───────────────
+      //
+      // `accountable_owner_id` used to stand in for every one of these. It is the SUBJECT, and it
+      // is set only by a binding assignment (draft 028), which writes the task's assignee in the
+      // same act — so the two agree by construction and the fold can now check that rather than
+      // assume it.
+      const ids = [...byItem.keys()];
+      const [assignmentRows, claimRows, decisionRows] = await Promise.all([
+        rowsOf(db.from("management_item_assignments")
+          .select("item_id, membership_id, assignee_user_id, assigned_by_user_id, assigned_at")
+          .eq("company_id", companyId).in("item_id", ids)).catch(() => [] as any[]),
+        rowsOf(db.from("management_completion_claims")
+          .select("item_id, claimant_user_id, claimed_at")
+          .eq("company_id", companyId).in("item_id", ids)).catch(() => [] as any[]),
+        rowsOf(db.from("management_item_decisions")
+          .select("item_id, actor_id, decision, created_at")
+          .eq("company_id", companyId).in("item_id", ids)).catch(() => [] as any[]),
+      ]);
+
+      /** The LATEST row per item, by the given timestamp column. Ties break on nothing — a tie
+       *  here would mean two records of the same kind at the same instant, which the boundaries
+       *  make impossible, and picking arbitrarily is what this whole batch is about not doing. */
+      const latestByItem = <T extends Record<string, unknown>>(rows: T[], at: string) => {
+        const out = new Map<string, T>();
+        for (const r of rows) {
+          const k = String(r.item_id);
+          const prev = out.get(k);
+          if (!prev || String(r[at]) > String(prev[at])) out.set(k, r);
+        }
+        return out;
+      };
+      const assignmentOf = latestByItem(assignmentRows, "assigned_at");
+      const claimOf = latestByItem(claimRows, "claimed_at");
+      const approvalOf = latestByItem(
+        decisionRows.filter((d) => String(d.decision) === "approve"), "created_at");
+
       const records: OutcomeRecord[] = [];
       for (const t of transitions) {
         const item = byItem.get(t.item_id);
         if (!item?.proposed_action_id) continue; // no task kind ⇒ nothing task-specific to learn
+        const assignment = assignmentOf.get(String(t.item_id));
+        const claim = claimOf.get(String(t.item_id));
+        const approval = approvalOf.get(String(t.item_id));
         records.push({
           outcomeId: t.id,
           companyId,
           membershipId: item.accountable_owner_id,
           taskKind: item.proposed_action_id,
-          // accountable_owner_id is the ASSIGNEE. A transition records delivery, not advice.
+          // The role the outcome was earned in. `assignee` is now a FACT rather than an
+          // assumption: a binding assignment is recorded with `purpose = 'assignee'`, and this
+          // record exists because that assignment happened.
           role: "assignee",
           itemId: t.item_id,
           outcome: t.to_state === "verified" ? "verified" : "reopened",
           deciderId: asMembership(t.actor_id),
           deciderType: (t.actor_type ?? "system") as "user" | "system" | "ai",
+          taskAssigneeId: assignment ? String(assignment.membership_id) : null,
+          completionClaimantId: claim ? asMembership(String(claim.claimant_user_id)) : null,
+          assigningManagerId: assignment
+            ? asMembership(String(assignment.assigned_by_user_id)) : null,
+          approvingDeciderId: approval ? asMembership(String(approval.actor_id)) : null,
+          // The scheduled sweep writes `system` with no actor. Anything else that moved an item
+          // to a terminal outcome was a person doing it.
+          verifierKind: t.actor_type === "user" && t.actor_id ? "human" : "service",
           occurredAt: new Date(t.created_at).toISOString(),
           businessDeadline: null,
           // Task-level deadline performance is NOT COMPUTABLE (finding F-R2B-1): `tasks` has no

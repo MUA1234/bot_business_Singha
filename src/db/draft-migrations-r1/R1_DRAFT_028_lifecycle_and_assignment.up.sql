@@ -334,22 +334,46 @@ begin
   -- A stale candidate snapshot did not stop the unassigned task being created — correctly, because
   -- the task is about the problem and not about the person. It stops the task being GIVEN to
   -- someone, because that is the decision the eligibility evidence was about.
+  -- The snapshot for THIS TARGET, not "the latest snapshot".
+  --
+  -- The resolver records one row per ranked candidate, all written in the same statement and so
+  -- all carrying the same `created_at`. Taking `order by created_at desc limit 1` picked an
+  -- arbitrary one of them, which meant the eligibility evidence being revalidated belonged to
+  -- whichever candidate the planner happened to return first — not to the person being assigned.
+  -- The tie-break on `id` makes the read deterministic; keying on `candidate_ref` makes it
+  -- CORRECT, because the evidence that matters is the evidence about this person.
   select candidate_ref, eligibility_evidence_digest
     into v_rec
     from public.management_item_recommendations
    where company_id = v_company and item_id = p_item_id and purpose = 'assignee'
-   order by created_at desc
+     and candidate_ref = p_membership_id::text
+   order by created_at desc, id desc
    limit 1;
 
-  if v_rec.eligibility_evidence_digest is distinct from p_expected_eligibility_digest then
-    return jsonb_build_object('ok', false, 'refusal', 'recommendation_stale');
-  end if;
-
-  -- Overriding the recommendation is permitted and must be explained.
-  v_is_override := v_rec.candidate_ref is distinct from p_membership_id::text;
-  if v_is_override and coalesce(btrim(p_override_reason), '') = '' then
-    return jsonb_build_object('ok', false, 'refusal', 'override_reason_required',
-                              'recommended', v_rec.candidate_ref);
+  if found then
+    -- A recommended candidate. Their eligibility evidence is revalidated against what the manager
+    -- saw; if the person's roles, capacity or leave have moved since, this is refused.
+    v_is_override := false;
+    if v_rec.eligibility_evidence_digest is distinct from p_expected_eligibility_digest then
+      return jsonb_build_object('ok', false, 'refusal', 'recommendation_stale');
+    end if;
+  else
+    -- Nobody recommended this person. That is an OVERRIDE — permitted, because a manager may know
+    -- something the resolver does not, and required to be explained, because "the manager knew
+    -- better" has to be written down to be reviewable. There is no candidate evidence to
+    -- revalidate: the target's membership, capability, availability and scope were all checked
+    -- above, against the live record rather than against a snapshot.
+    v_is_override := true;
+    if coalesce(btrim(p_override_reason), '') = '' then
+      select candidate_ref into v_rec
+        from public.management_item_recommendations
+       where company_id = v_company and item_id = p_item_id and purpose = 'assignee'
+         and candidate_ref is not null
+       order by rank_position asc nulls last, created_at desc, id desc
+       limit 1;
+      return jsonb_build_object('ok', false, 'refusal', 'override_reason_required',
+                                'recommended', v_rec.candidate_ref);
+    end if;
   end if;
 
   -- ── 8. Idempotency, before the state comparison so an honest resend is recognised. ──

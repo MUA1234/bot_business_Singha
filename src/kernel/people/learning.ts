@@ -69,6 +69,34 @@ export interface OutcomeRecord {
   deciderId: string | null;
   deciderType: "user" | "system" | "ai";
 
+  /**
+   * ── The distinct people an outcome involves ────────────────────────────────────────────
+   *
+   * The owner's rule is that these must be kept APART and never inferred from one another. They
+   * were absent from this contract entirely, which meant `membershipId` — the accountable owner —
+   * silently stood in for all of them, and `role` was asserted rather than known.
+   *
+   * Each is a MEMBERSHIP id, resolved server-side, so they are comparable to `membershipId` and to
+   * `deciderId`. Null means "the record does not say", which is never read as "the same person".
+   */
+
+  /** The person the work was actually assigned to, from the binding assignment. */
+  taskAssigneeId: string | null;
+  /** The person who reported their own work complete. */
+  completionClaimantId: string | null;
+  /** The manager who made the binding assignment. Never the subject, never the verifier. */
+  assigningManagerId: string | null;
+  /** The person who approved the action, where an approval was required. */
+  approvingDeciderId: string | null;
+  /**
+   * What produced the verification.
+   *
+   * `service` is the deterministic sweep. It is a first-class value rather than an absence,
+   * because "a machine decided this" and "we do not know who decided this" are different facts and
+   * only one of them is a statement about the system working correctly.
+   */
+  verifierKind: "service" | "human" | "none";
+
   occurredAt: string;
 
   /** Only when a real business deadline existed (R1-D-4 forbids inventing one). */
@@ -137,6 +165,34 @@ export function isAdmissible(r: OutcomeRecord, forMembershipId: string, companyI
   if (r.deciderType !== "user") return false;             // AI- and system-authored are not verification
   if (!r.deciderId) return false;                         // unattributed feedback is not evidence
   if (r.deciderId === r.membershipId) return false;       // nobody verifies their own outcome
+
+  // ── Rules the separated identities make expressible ────────────────────────────────────
+  //
+  // Each is a TIGHTENING. None admits a record that was inadmissible before, and each closes a
+  // way for one person to occupy two roles that are supposed to check one another.
+
+  // A machine conclusion is not a person's verification, whatever the transition happens to say.
+  // `deciderType` already excludes it; this states the same refusal in the verifier's own terms,
+  // so a future producer that sets `deciderType: "user"` on a service verification is still
+  // refused rather than quietly admitted.
+  if (r.verifierKind === "service") return false;
+
+  // Nobody verifies the completion they themselves claimed.
+  if (r.completionClaimantId && r.deciderId === r.completionClaimantId) return false;
+
+  // The manager who chose the assignee is not an independent judge of how it went. Their
+  // assessment is real management information; it is not the second opinion the distinct-decider
+  // threshold is counting.
+  if (r.assigningManagerId && r.deciderId === r.assigningManagerId) return false;
+
+  // Nor is the person who approved the action in the first place.
+  if (r.approvingDeciderId && r.deciderId === r.approvingDeciderId) return false;
+
+  // Evidence about the SUBJECT must be about the person who actually did the work. Where the
+  // record names both and they disagree, the system does not know whose outcome this is — and
+  // guessing is how a good worker inherits somebody else's record.
+  if (r.taskAssigneeId && r.taskAssigneeId !== r.membershipId) return false;
+
   return true;
 }
 
@@ -329,6 +385,16 @@ export function explainSignal(
       excluded.push({ outcomeId: r.outcomeId, why: `confirmed by ${r.deciderType}, not a person` });
     } else if (!r.deciderId) {
       excluded.push({ outcomeId: r.outcomeId, why: "unattributed — no decision-maker recorded" });
+    } else if (r.verifierKind === "service") {
+      excluded.push({ outcomeId: r.outcomeId, why: "verified by the scheduled service, not by a person" });
+    } else if (r.completionClaimantId && r.deciderId === r.completionClaimantId) {
+      excluded.push({ outcomeId: r.outcomeId, why: "confirmed by the person who claimed the completion" });
+    } else if (r.assigningManagerId && r.deciderId === r.assigningManagerId) {
+      excluded.push({ outcomeId: r.outcomeId, why: "confirmed by the manager who made the assignment" });
+    } else if (r.approvingDeciderId && r.deciderId === r.approvingDeciderId) {
+      excluded.push({ outcomeId: r.outcomeId, why: "confirmed by the person who approved the action" });
+    } else if (r.taskAssigneeId && r.taskAssigneeId !== r.membershipId) {
+      excluded.push({ outcomeId: r.outcomeId, why: "the accountable owner and the task assignee are different people" });
     } else if (r.deciderId === r.membershipId) {
       excluded.push({ outcomeId: r.outcomeId, why: "self-verified" });
     } else {

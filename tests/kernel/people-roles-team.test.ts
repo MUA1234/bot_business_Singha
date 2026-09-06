@@ -190,7 +190,10 @@ describe("outcomes NEVER cross roles", () => {
     role: "assignee", itemId: "i1", outcome: "verified",
     deciderId: "mgr1", deciderType: "user",
     occurredAt: new Date(NOW.getTime() - 5 * 86_400_000).toISOString(),
-    businessDeadline: null, metOnTime: null, correctsOutcomeId: null, source: "transition", ...over,
+    businessDeadline: null, metOnTime: null, correctsOutcomeId: null, source: "transition",
+    // Null is "the record does not say", never "the same person".
+    taskAssigneeId: null, completionClaimantId: null, assigningManagerId: null,
+    approvingDeciderId: null, verifierKind: "human" as const, ...over,
   });
 
   const deliveryHistory = [

@@ -43,6 +43,13 @@ function outcome(over: Partial<OutcomeRecord> = {}): OutcomeRecord {
     metOnTime: true,
     correctsOutcomeId: null,
     source: "transition",
+    // The distinct identities the contract now carries. Null means "the record does not say",
+    // never "the same person". Every case in this file is a human-confirmed outcome.
+    taskAssigneeId: null,
+    completionClaimantId: null,
+    assigningManagerId: null,
+    approvingDeciderId: null,
+    verifierKind: "human",
     ...over,
   };
 }

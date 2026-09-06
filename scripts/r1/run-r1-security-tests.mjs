@@ -278,6 +278,7 @@ try {
     "tests/integration/r2-operations-slice.test.ts",
     "tests/integration/r2-evidence-contracts.test.ts",
     "tests/integration/r2-lifecycle-orchestrator.test.ts",
+    "tests/integration/r2-assignment-boundary.test.ts",
   ];
 
   const only = (process.env.R1_SEC_ONLY ?? "").split(",").map((x) => x.trim()).filter(Boolean);
