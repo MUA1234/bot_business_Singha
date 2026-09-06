@@ -29,6 +29,7 @@ import {
   type VerificationSweepSummary,
 } from "./verification/schedule";
 import { log } from "@/lib/log";
+import { emptyLifecycleSummary, type LifecycleSweepSummary } from "./orchestrator";
 import {
   detectFinanceObservations, detectWorkforceObservations, detectOperationsObservations,
   detectCrmObservations, detectSystemHealthObservations,
@@ -105,6 +106,8 @@ export interface CycleSummary {
    * can never be `completed`, for the same reason a truncated read cannot.
    */
   verification: VerificationSweepSummary;
+  /** What the lifecycle orchestrator did this cycle, including what it deliberately did not. */
+  lifecycle: LifecycleSweepSummary;
   /**
    * Sources whose page was processed but whose POSITION could not be committed.
    *
@@ -196,6 +199,22 @@ export interface CycleDeps {
    * Given `cycleComplete: false` it must defer everything — a partial cycle cannot support a
    * conclusion about whether a business condition was resolved.
    */
+  /**
+   * Advance the open items of this company by one lifecycle step each (R2F-F-014).
+   *
+   * REQUIRED, for the same reason `verificationSweep` is: an optional dependency whose absence
+   * looks exactly like "there was nothing to do" is not a dependency. Before this existed the
+   * cycle filed an item in `observed` and nothing ever moved it, so the decision boundary, the
+   * completion claim and verification were three correct mechanisms with nothing to operate on.
+   *
+   * Runs BEFORE verification and AFTER observation: an item observed this cycle can be advanced
+   * in the same pass, and anything that reaches `verifying` is picked up by the sweep that
+   * follows.
+   */
+  lifecycleSweep(input: {
+    companyId: string;
+    correlationId: string;
+  }): Promise<LifecycleSweepSummary>;
   verificationSweep(input: {
     companyId: string;
     cycleComplete: boolean;
@@ -971,6 +990,7 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     status: "completed",
     sourcesRegistered: SOURCES.length,
     verification: emptySweepSummary(),
+    lifecycle: emptyLifecycleSummary(),
     sourcesSucceeded: 0,
     sourcesFailed: 0,
     itemsCreated: 0,
@@ -1369,6 +1389,24 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
     //     "completed" claims a sweep that did not happen.
     summary.truncatedSources = [...(deps.truncatedSources?.() ?? [])];
 
+    // ── The lifecycle, advanced one step per item ────────────────────────────────────────
+    //
+    // After observation, so an item filed this cycle can move; before verification, so an item
+    // that reaches `verifying` is swept in the same pass rather than waiting a full period.
+    try {
+      summary.lifecycle = await deps.lifecycleSweep({
+        companyId: req.companyId,
+        correlationId,
+      });
+    } catch (e) {
+      summary.lifecycle = { ...emptyLifecycleSummary(), failed: 1, partial: true };
+      log("error", "lifecycle sweep failed", {
+        event: "cycle.lifecycle_failed",
+        companyId: req.companyId,
+        error: (e as Error).message,
+      });
+    }
+
     // ── Scheduled outcome verification ────────────────────────────────────────────────────
     //
     // Runs only AFTER the source results are established, and only when this cycle actually
@@ -1414,6 +1452,7 @@ export async function runManagementCycle(deps: CycleDeps, req: CycleRequest): Pr
       summary.cursorReset.length > 0 ||
       summary.reconciliationDelayed.length > 0;
     summary.status =
+      summary.lifecycle.partial ||
       summary.sourcesFailed > 0 ||
       summary.unobservedDepartments.length > 0 ||
       summary.truncatedSources.length > 0 ||

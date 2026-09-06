@@ -56,7 +56,7 @@ const TRANSITIONS: Record<ItemState, ItemState[]> = {
   observed: ["understood", "dismissed", "expired"],
   understood: ["prioritised", "dismissed", "expired"],
   prioritised: ["recommended", "dismissed", "expired"],
-  recommended: ["awaiting_approval", "needs_routing", "assigned", "dismissed", "expired"],
+  recommended: ["awaiting_approval", "approved", "needs_routing", "assigned", "dismissed", "expired"],
   awaiting_approval: ["approved", "rejected", "expired"],
   approved: ["needs_routing", "assigned", "expired"],
   needs_routing: ["assigned", "escalated", "dismissed", "expired"],
@@ -170,7 +170,15 @@ export function assertTransition(from: ItemState, to: ItemState, ctx: Transition
     );
   }
 
-  if (from === "recommended" && to === "assigned") {
+  // R2F-F-018. Approval may be skipped ONLY at automatic authority, and only for a
+  // catalogue-registered low-risk reversible action (D-9).
+  //
+  // `recommended → approved` is the addition. Before it, an automatically-authorised item had no
+  // way to become `approved` at all: the only route was `awaiting_approval → approved`, which
+  // requires a person, and the map's approval-skipping edge went straight to `assigned` — a state
+  // that asserts an assignee the automatic action must not have, because it creates the task
+  // UNASSIGNED. So the one action the owner authorised as automatic could never execute.
+  if (from === "recommended" && (to === "assigned" || to === "approved")) {
     if (ctx.authority !== "automatic" || ctx.actionIsAutomaticSafe !== true) {
       throw new IllegalTransitionError(
         from,

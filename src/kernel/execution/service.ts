@@ -224,10 +224,29 @@ export function buildExecutorDeps(env: ExecutionEnvironment): ExecutorDeps {
       };
     },
 
+    /**
+     * The approver's capabilities, from the SAME sources the rest of the system asks (R2F-F-021).
+     *
+     * This read only `user_company_access` — the legacy table. Migration 0038 made MEMBERSHIP
+     * authoritative and `has_capability` reads active membership roles first, falling back to the
+     * legacy table for users who have no membership yet. So an approver whose permissions come
+     * from `membership_roles` — which is every user the current model creates — was found to hold
+     * nothing, and a legitimately approved action was refused `approver_lacks_capability`.
+     *
+     * The union mirrors `has_capability`'s own two branches. It is not a widening: it asks the
+     * question the repository already answers, instead of a narrower one that happens to be
+     * answerable from an older table.
+     */
     async approverCapabilities(req) {
       if (!req.approvedBy) return new Set<string>();
       const { rows } = await sql(
         `select rp.permission_key
+           from memberships m
+           join membership_roles mr on mr.membership_id = m.id
+           join role_permissions rp on rp.role_key = mr.role_key
+          where m.user_id = $1 and m.company_id = $2 and m.status = 'active'
+         union
+         select rp.permission_key
            from user_company_access uca
            join role_permissions rp on rp.role_key = uca.role_key
           where uca.user_id = $1 and uca.company_id = $2`,

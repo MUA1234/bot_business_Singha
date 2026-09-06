@@ -11,6 +11,7 @@ import {
 } from "@/kernel/cycle";
 import { WORKER_ENABLED, runWorkerSweep, WorkerDisabledError } from "@/kernel/worker-boundary";
 import { emptySweepSummary, unavailableSweepSummary } from "@/kernel/verification/schedule";
+import { emptyLifecycleSummary } from "@/kernel/orchestrator";
 
 const CO_A = "11111111-1111-1111-1111-111111111111";
 const CO_B = "22222222-2222-2222-2222-222222222222";
@@ -26,6 +27,12 @@ function makeDeps(over: Partial<CycleDeps> = {}, rec: Recorded = { summaries: []
     // The default stands in for a working verifier with nothing pending — which is what the
     // tests about locking, flags and partial failure need underneath them. A deployment that
     // CANNOT verify is a different thing, and the tests about it construct it explicitly.
+    // Required of every graph, including a fixture: the lifecycle has to be somebody's job.
+    // The default does nothing and says so, which is what the tests about locking, flags and
+    // partial failure need underneath them.
+    async lifecycleSweep() {
+      return emptyLifecycleSummary();
+    },
     async verificationSweep() {
       return { ...emptySweepSummary(), transport: "postgres" };
     },

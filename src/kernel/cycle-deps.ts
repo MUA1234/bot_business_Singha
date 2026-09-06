@@ -25,6 +25,14 @@ import {
 } from "./adapters";
 import type { CycleDeps, CycleSummary, PersistRecommendation } from "./cycle";
 import { planAction } from "./execution/plan";
+import {
+  runLifecycleSweep,
+  type LifecycleSweepSummary,
+  type OrchestratableItem,
+} from "./orchestrator";
+import { executeManagementAction } from "./execution/service";
+import type { SqlExec } from "./execution/ledger";
+import type { ItemState } from "./lifecycle";
 import { EXECUTION_POLICY_VERSION } from "./execution/policy";
 import {
   runVerificationSweep,
@@ -80,6 +88,35 @@ export function makeCycleDeps(
   db: Db = supabaseAdmin(),
   now: () => Date = () => new Date(),
   verificationStore: VerificationStore = createSupabaseVerificationStore(db),
+  /**
+   * The execution service's SQL transport (R2F-F-019).
+   *
+   * `undefined` in every server path today, and that is the honest default rather than an
+   * oversight: the execution service reaches its ledger, its item loader, its plan loader and its
+   * approval loader through direct SQL, and the request path speaks PostgREST, which cannot run
+   * arbitrary SQL. Nothing in production had ever called `executeManagementAction` — the
+   * orchestrator is its first caller, which is how the absence surfaced.
+   *
+   * When it is absent the orchestrator records an explicit "execution transport unavailable" hold
+   * against the item and marks the cycle partial. It never reports the item as advanced, and it
+   * never reports the cycle as calm.
+   *
+   * The remaining work is the same shape as the verification store: a PostgREST transport for the
+   * ledger and the four loaders. It is registered, not hidden behind a default that pretends.
+   */
+  executionSql?: SqlExec,
+  /**
+   * The deterministic-local-test token, and nothing else.
+   *
+   * `EXECUTION_GLOBALLY_ENABLED` is `false as const` — not an environment variable, not a feature
+   * flag, not a database row — so no deployment can switch execution on. A caller that has this
+   * token is a caller that typed it into a test file; no server path has anywhere to get one.
+   *
+   * Absent, the orchestrator reaches `approved`, asks the executor, and records the refusal
+   * `global_boundary_disabled` against the item. That is the deployed system's real behaviour and
+   * the tests assert it as such.
+   */
+  localExecutionToken?: string,
 ): CycleDeps {
   // Sources whose read hit the cap. Reset at the start of each loadFor sweep by the cycle asking
   // for them only once, at the end — see CycleDeps.truncatedSources.
@@ -181,6 +218,162 @@ export function makeCycleDeps(
      * carrying the reason, and marks the cycle partial. It never returns zeroes, because a
      * deployment that cannot verify must not be indistinguishable from one with nothing to verify.
      */
+    /**
+     * The lifecycle orchestrator, wired to the real database.
+     *
+     * Every read is company-scoped from the server-side cycle request. The transition goes through
+     * `r1_draft_transition_item()`, so the orchestrator cannot make a move the database does not
+     * already permit; execution goes through the real execution service, whose two boundaries are
+     * unchanged and remain closed in this build.
+     */
+    async lifecycleSweep({ companyId, correlationId }): Promise<LifecycleSweepSummary> {
+      return runLifecycleSweep(
+        {
+          now,
+
+          async loadOpen(company) {
+            const items = await rowsOf(
+              db.from("management_items")
+                .select(
+                  "id, company_id, state, proposed_action_id, required_authority, " +
+                    "may_run_unattended, accountable_owner_id, subject_table, subject_id",
+                )
+                .eq("company_id", company)
+                .not("state", "in", "(verified,rejected,dismissed,expired,verifying)")
+                .limit(LOADER_ROW_CAP),
+            );
+            if (items.length === 0) return [];
+            const ids = items.map((i) => String(i.id));
+
+            // Evidence counts, execution effects, accountable users and task assignees — each a
+            // company-scoped read, combined here. No join is available through this transport, and
+            // combining is transport work rather than a decision.
+            const [evidence, attempts, memberships] = await Promise.all([
+              rowsOf(db.from("management_item_evidence").select("item_id")
+                .eq("company_id", company).in("item_id", ids)),
+              rowsOf(db.from("management_execution_attempts")
+                .select("item_id, status, effect_ref")
+                .eq("company_id", company).in("item_id", ids)),
+              rowsOf(db.from("memberships").select("id, user_id").eq("company_id", company)),
+            ]);
+
+            const evidenceCount = new Map<string, number>();
+            for (const e of evidence) {
+              const k = String(e.item_id);
+              evidenceCount.set(k, (evidenceCount.get(k) ?? 0) + 1);
+            }
+            const effect = new Map<string, string>();
+            for (const a of attempts) {
+              if (String(a.status) === "executed" && a.effect_ref) {
+                effect.set(String(a.item_id), String(a.effect_ref));
+              }
+            }
+            const userOf = new Map<string, string>(
+              memberships.map((m) => [String(m.id), String(m.user_id)]),
+            );
+
+            // The linked tasks, for the assignee/accountable-owner agreement check.
+            const taskIds = [...new Set([...effect.values()])];
+            const tasks = taskIds.length
+              ? await rowsOf(db.from("tasks").select("id, assigned_to")
+                  .eq("company_id", company).in("id", taskIds))
+              : [];
+            const assigneeOf = new Map<string, string | null>(
+              tasks.map((t) => [String(t.id), t.assigned_to ? String(t.assigned_to) : null]),
+            );
+
+            // Which items carry a recorded PLAN. Without one there is nothing to execute against.
+            const plans = await rowsOf(
+              db.from("management_item_recommendations").select("item_id, planned_parameters")
+                .eq("company_id", company).in("item_id", ids),
+            );
+            const planned = new Set(
+              plans.filter((r) => r.planned_parameters != null).map((r) => String(r.item_id)),
+            );
+
+            return items.map((i): OrchestratableItem => {
+              const id = String(i.id);
+              const effectRef = effect.get(id) ?? null;
+              const owner = i.accountable_owner_id ? String(i.accountable_owner_id) : null;
+              return {
+                id,
+                companyId: String(i.company_id),
+                state: String(i.state) as ItemState,
+                actionId: i.proposed_action_id ? String(i.proposed_action_id) : null,
+                requiredAuthority: i.required_authority ? String(i.required_authority) : null,
+                mayRunUnattended: i.may_run_unattended === true,
+                evidenceCount: evidenceCount.get(id) ?? 0,
+                hasPlan: planned.has(id),
+                effectCreated: effectRef !== null,
+                accountableOwnerId: owner,
+                accountableUserId: owner ? (userOf.get(owner) ?? null) : null,
+                taskAssignee: effectRef ? (assigneeOf.get(effectRef) ?? null) : null,
+              };
+            });
+          },
+
+          async transition({ itemId, from, to, reason }) {
+            const { data, error } = await db.rpc("r1_draft_transition_item", {
+              p_item: itemId,
+              p_from: from,
+              p_to: to,
+              // The SERVICE acted. Recording a person here would make a machine decision look
+              // like somebody's, in the log the learning fold reads.
+              p_actor: null,
+              p_actor_type: "system",
+              p_reason: reason,
+              p_evidence: [],
+            });
+            if (error) throw new Error(error.message);
+            const envelope = (Array.isArray(data) ? data[0] : data) as { ok?: boolean } | null;
+            return envelope?.ok === true;
+          },
+
+          async execute({ companyId: co, itemId }) {
+            // The plan's own parameters, read back from the record. The orchestrator never invents
+            // a request: it carries out the one that was recommended.
+            // Filtered in JS rather than with `.not(col,"is",null)`: that operator form is not
+            // supported by every client this runs against, and a filter that silently widens would
+            // be worse than one that is applied here.
+            const rows = await rowsOf(
+              db.from("management_item_recommendations").select("planned_parameters, created_at")
+                .eq("company_id", co).eq("item_id", itemId)
+                .order("created_at", { ascending: false }),
+            );
+            const parameters = rows.find((r) => r.planned_parameters != null)?.planned_parameters as
+              Record<string, unknown> | undefined;
+            if (!parameters) return { executed: false, detail: "no plan is recorded" };
+
+            if (!executionSql) {
+              // R2F-F-019. Explicit, with a reason, and reported against this item — never a
+              // silent no-op that would leave an approved item looking as though nothing was due.
+              return {
+                executed: false,
+                detail: "execution transport unavailable: no SQL transport is configured",
+              };
+            }
+
+            const outcome = await executeManagementAction(
+              {
+                sql: executionSql,
+                rpc: db,
+                async audit(entry) { await writeAudit(entry as never); },
+                localToken: localExecutionToken,
+              },
+              { companyId: co, itemId, actionId: "ops.task.create_internal", parameters },
+            );
+            return {
+              executed: outcome.status === "executed",
+              detail: outcome.status === "executed"
+                ? `created ${outcome.effectRef}`
+                : outcome.status === "refused" ? outcome.reason : outcome.status,
+            };
+          },
+        },
+        { companyId, correlationId },
+      );
+    },
+
     async verificationSweep({
       companyId, cycleComplete, observedAt, generation, interrupted,
     }): Promise<VerificationSweepSummary> {

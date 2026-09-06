@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { emptySweepSummary } from "@/kernel/verification/schedule";
+import { emptyLifecycleSummary } from "@/kernel/orchestrator";
 import { runManagementCycle, type CycleDeps, type PersistRecommendation } from "@/kernel/cycle";
 import { candidateEvidence, type AvailabilitySignal, type CandidateEvidence } from "@/kernel/people/candidate";
 import { fact } from "@/kernel/people/evidence";
@@ -53,6 +54,12 @@ function makeDeps(over: Partial<CycleDeps> = {}, rec: Recorded = { persisted: []
     // Required of every graph, including a fixture. Stands in for a working verifier with
     // nothing pending; a cycle that CANNOT verify is constructed explicitly where that is the
     // subject (tests/kernel/cycle.test.ts).
+    // Required of every graph, including a fixture: the lifecycle has to be somebody's job.
+    // The default does nothing and says so, which is what the tests about locking, flags and
+    // partial failure need underneath them.
+    async lifecycleSweep() {
+      return emptyLifecycleSummary();
+    },
     async verificationSweep() {
       return { ...emptySweepSummary(), transport: "postgres" };
     },
