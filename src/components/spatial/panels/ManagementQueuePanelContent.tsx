@@ -21,6 +21,8 @@
 import { Badge, Card, CardBody, CardHeader, EmptyState, StatusBadge } from "@/components/ui";
 import DecisionControls from "./DecisionControls";
 import CompletionControl from "./CompletionControl";
+import AssignmentControl, { type AssignmentCandidate } from "./AssignmentControl";
+import type { AssignmentState } from "@/app/app/_actions/assignment-messages";
 import type { CompletionState } from "@/app/app/_actions/completion-messages";
 
 export type QueueStage =
@@ -225,6 +227,25 @@ export interface QueueItem {
    * "unavailable" — never as a quietly missing control.
    */
   completion?: QueueCompletion;
+  /**
+   * Whether THIS viewer may assign the linked work, and to whom.
+   *
+   * Resolved on the SERVER from the real capability and the real recommendation snapshots. Absent
+   * means the assignment state could not be established, which renders as "unavailable" — never as
+   * a quietly missing control.
+   */
+  assignment?: QueueAssignment;
+}
+
+/** The assignment state of an item, as the server resolved it. */
+export interface QueueAssignment {
+  state: AssignmentState;
+  /** Ranked candidates, best first. Empty is a real answer: nobody could be recommended. */
+  candidates: AssignmentCandidate[];
+  /** Who holds it now, when somebody does. */
+  assignedToLabel: string | null;
+  /** The condition digest the server compares an assignment against. */
+  conditionDigest: string;
 }
 
 /** The completion state of the task linked to an item, as the server resolved it. */
@@ -491,6 +512,8 @@ function QueueRow({ item, focused }: { item: QueueItem; focused: boolean }) {
       </details>
 
       <ExecutionSection execution={item.execution} />
+
+      <AssignmentSection item={item} />
 
       <CompletionSection item={item} />
 
@@ -989,6 +1012,34 @@ function HumanOverride({
         Assignment and routing are not yet available from this screen.
       </span>
     </div>
+  );
+}
+
+/**
+ * The assignment area.
+ *
+ * Absent assignment data renders as UNAVAILABLE, not as nothing. A missing control and a
+ * deliberately withheld one look identical to the manager in front of the screen, and only one of
+ * them is a true statement about the work.
+ */
+function AssignmentSection({ item }: { item: QueueItem }) {
+  const a = item.assignment;
+  if (!a) {
+    return (
+      <p className="muted" data-testid="mq-assignment-state" data-state="unavailable">
+        Assignment status is unavailable.
+      </p>
+    );
+  }
+  return (
+    <AssignmentControl
+      itemId={item.id}
+      state={a.state}
+      seenState={item.stage}
+      seenConditionDigest={a.conditionDigest}
+      candidates={a.candidates}
+      assignedToLabel={a.assignedToLabel}
+    />
   );
 }
 

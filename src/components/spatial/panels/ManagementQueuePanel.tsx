@@ -23,7 +23,8 @@ import { EXECUTION_GLOBALLY_ENABLED } from "@/kernel/execution/boundary";
 import { getProfile } from "@/lib/auth";
 import { supabaseRpcClient } from "@/lib/supabase/read";
 import type { CompletionState } from "@/app/app/_actions/completion-messages";
-import type { QueueCompletion } from "./ManagementQueuePanelContent";
+import type { QueueAssignment, QueueCompletion } from "./ManagementQueuePanelContent";
+import type { AssignmentCandidate } from "./AssignmentControl";
 
 interface Props {
   companyId: string;
@@ -354,6 +355,105 @@ export async function ManagementQueuePanel({ companyId, focusId = null }: Props)
       return { ...base, state: "claimable" };
     }
 
+    // ── Assignment: may THIS person hand this work to somebody, and to whom? ────────────
+    //
+    // The system RECOMMENDS and never assigns, so what is resolved here is a suggestion plus the
+    // evidence behind it. Every input is read from the database and used only to decide what to
+    // SHOW; `r1_draft_assign_management_item` re-establishes all of it inside its own transaction,
+    // so a stale page or a permission removed after load produces a refusal rather than an
+    // assignment.
+    let assignmentUnavailable = false;
+    let mayManageTasks = false;
+    const candidatesByItem = new Map<string, AssignmentCandidate[]>();
+    const conditionDigestByItem = new Map<string, string>();
+    const assigneeLabelByItem = new Map<string, string>();
+
+    try {
+      const cap = await supabaseRpcClient().rpc("has_capability", {
+        target_company: companyId,
+        capability: "operations.task.manage",
+      });
+      mayManageTasks = cap.data === true;
+
+      const [recRes, memberRes] = await Promise.all([
+        ids.length
+          ? db.from("management_item_recommendations")
+              .select("item_id, candidate_ref, rank_position, outcome, reasons, " +
+                      "eligibility_evidence_digest, condition_evidence_digest, created_at")
+              .eq("company_id", companyId).in("item_id", ids)
+              .order("created_at", { ascending: false })
+          : Promise.resolve({ data: [] as never[], error: null }),
+        db.from("memberships").select("id, user_id").eq("company_id", companyId),
+      ]);
+      const firstError = recRes.error ?? memberRes.error;
+      if (firstError) throw new Error((firstError as { message?: string }).message ?? "unreadable");
+
+      const nameOf = new Map<string, string>();
+      for (const m of (memberRes.data ?? []) as unknown as Array<Record<string, unknown>>) {
+        // A membership id, shortened. Names are personnel content and the queue does not need one
+        // to let a manager pick between two people they already know.
+        nameOf.set(String(m.id), `member ${String(m.id).slice(0, 8)}`);
+      }
+
+      // The Supabase client types a select as a union with an error shape; the runtime shape is
+      // checked by the guard above. Existing panels narrow the same way for the same reason.
+      for (const r of (recRes.data ?? []) as unknown as Array<Record<string, unknown>>) {
+        const item = String(r.item_id);
+        if (r.condition_evidence_digest && !conditionDigestByItem.has(item)) {
+          conditionDigestByItem.set(item, String(r.condition_evidence_digest));
+        }
+        if (String(r.outcome) !== "candidates" || !r.candidate_ref) continue;
+        const list = candidatesByItem.get(item) ?? [];
+        if (list.some((c) => c.membershipId === String(r.candidate_ref))) continue;
+        list.push({
+          membershipId: String(r.candidate_ref),
+          label: nameOf.get(String(r.candidate_ref)) ?? `member ${String(r.candidate_ref).slice(0, 8)}`,
+          rank: r.rank_position == null ? null : Number(r.rank_position),
+          eligibilityDigest:
+            r.eligibility_evidence_digest == null ? null : String(r.eligibility_evidence_digest),
+          // Reason CODES and their details, as the resolver recorded them. Never model prose.
+          reasons: Array.isArray(r.reasons)
+            ? (r.reasons as Array<Record<string, unknown>>)
+                .map((x) => String(x.detail ?? x.code ?? "")).filter(Boolean)
+            : [],
+        });
+        candidatesByItem.set(item, list);
+      }
+      for (const [k, list] of candidatesByItem) {
+        candidatesByItem.set(k, list.sort((x, y) => (x.rank ?? 99) - (y.rank ?? 99)));
+      }
+
+      for (const [itemId, links] of linkedTasks) {
+        const t = links.effect ? tasksById.get(links.effect) : undefined;
+        if (t?.assigned_to) assigneeLabelByItem.set(itemId, `user ${String(t.assigned_to).slice(0, 8)}`);
+      }
+    } catch {
+      assignmentUnavailable = true;
+    }
+
+    /** The assignment state of one item, in the order a manager needs to be told things. */
+    function assignmentFor(itemId: string, itemState: string): QueueAssignment {
+      const base = {
+        candidates: candidatesByItem.get(itemId) ?? [],
+        assignedToLabel: assigneeLabelByItem.get(itemId) ?? null,
+        conditionDigest: conditionDigestByItem.get(itemId) ?? "",
+      };
+      if (assignmentUnavailable) return { ...base, state: "unavailable" };
+
+      const links = linkedTasks.get(itemId);
+      if (!links?.effect) {
+        // No task yet. Saying "you may not assign" here would be false — there is simply nothing
+        // to give anyone.
+        return { ...base, state: itemState === "approved" ? "no_effect_yet" : "not_applicable" };
+      }
+      if (base.assignedToLabel) return { ...base, state: "assigned" };
+      if (!mayManageTasks) return { ...base, state: "capability_missing" };
+      if (!["needs_routing", "approved", "reopened"].includes(itemState)) {
+        return { ...base, state: "state_not_assignable" };
+      }
+      return { ...base, state: "assignable" };
+    }
+
     const evidenceByItem = new Map<string, QueueItem["evidence"]>();
     for (const e of (evidence ?? []) as Array<Record<string, unknown>>) {
       const list = evidenceByItem.get(String(e.item_id)) ?? [];
@@ -422,6 +522,7 @@ export async function ManagementQueuePanel({ companyId, focusId = null }: Props)
             i.required_authority ? String(i.required_authority) : null,
           ),
           completion: completionFor(String(i.id), String(i.state)),
+          assignment: assignmentFor(String(i.id), String(i.state)),
         };
       }),
       unobservedDepartments: unobserved,

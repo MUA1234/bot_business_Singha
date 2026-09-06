@@ -320,7 +320,7 @@ export function makeCycleDeps(
               // The SERVICE acted. Recording a person here would make a machine decision look
               // like somebody's, in the log the learning fold reads.
               p_actor: null,
-              p_actor_type: "user", // MUTATION
+              p_actor_type: "system",
               p_reason: reason,
               p_evidence: [],
             });

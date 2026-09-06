@@ -17,6 +17,11 @@
  */
 import { readFileSync, writeFileSync, copyFileSync } from "node:fs";
 import { execSync } from "node:child_process";
+import { takeMutationLock } from "./guard.mjs";
+
+// Held for the whole run. The pre-commit hook refuses while it exists, because a commit taken
+// mid-campaign captures a deliberately broken boundary rather than the code under test.
+takeMutationLock("lifecycle-assignment-mutations.mjs");
 
 const ANSI = new RegExp(String.fromCharCode(27) + "\\[[0-9;]*m", "g");
 const NL = String.fromCharCode(10);
