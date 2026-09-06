@@ -69,12 +69,13 @@ A language model appears nowhere in it.
 | Suite | Result |
 |---|---|
 | `r2-evidence-contracts` (live) | **8 passed** — every item created by the real cycle |
-| `r2-lifecycle-orchestrator` (live) | **12 passed** — through `makeCycleDeps` with the real defaults |
+| `r2-lifecycle-orchestrator` (live) | **14 passed** — through `makeCycleDeps` with the real defaults |
 | `r2-assignment-boundary` (live) | **17 passed** |
+| `management-queue-assignment` (unit) | 14 passed |
 | `r2e-execution-ledger` (live) | 26 passed (fixture corrected to the production shape) |
 | `r2-operations-slice` (live) | 3 passed |
 | `r2-completion-claim`, `r2-cycle-composition` | 37 + 7 passed (earlier SHA) |
-| Full unit suite | **2411 passed** / 4 skipped, 224 files |
+| Full unit suite | **2425 passed** / 4 skipped, 225 files |
 | typecheck · lint | clean · clean |
 
 Two substitutions are stated in the orchestrator suite rather than glossed: the HTTP transport
@@ -83,6 +84,42 @@ injected because **no server path has one** (R2F-F-019).
 
 Execution stays off at the global boundary. The deployed-shaped graph reaches `approved` and records
 `global_boundary_disabled`; only a graph handed the deterministic local token creates the effect.
+
+## Mutations
+
+`scripts/r1/mutations/lifecycle-assignment-mutations.mjs` encodes **19** mutations from the
+owner's adversarial list. Each runs against the suite that should catch it; a subset may be named
+on the command line.
+
+| Verdict | Mutation |
+|---|---|
+| CAUGHT | L1 the orchestrator records its advances as a person's act |
+| CAUGHT | L2 the automatic path is opened to every catalogue action *(after strengthening — see below)* |
+| CAUGHT | L6 `assigned → monitoring` ignores the assignee/owner mismatch *(after a missing test was added)* |
+| CAUGHT | A1 the assigner's capability is not checked |
+| INCONCLUSIVE | A5, A7, A11 — the harness could not start a database under host contention |
+| not run | L3, L4, L5, L7, A2, A3, A4, A6, A8, A9, A10, A12 |
+
+**Two survived, and both were worth finding.**
+
+*L6* survived because draft 028 writes the item's owner and the task's assignee in one act, so no
+test had ever made them disagree — a guard defending a state the tests never construct. A test now
+constructs it and requires an explicit HOLD.
+
+*L2* survived **correctly**: `hasPlan` already gates the branch, because `planAction` returns null
+for every action but the authorised one. The action test alone is redundant; the PAIR is the guard.
+The mutation was strengthened to remove both, a test was added that approves a DRAFT-ONLY action and
+requires the system does not even attempt it, and it is now CAUGHT.
+
+Three commits captured a mutated source file mid-campaign — a deliberately disabled guard. Each was
+corrected in place, and a campaign now takes `.r1-mutation-campaign.lock` with a `.githooks`
+pre-commit hook that refuses while it is held.
+
+```bash
+node scripts/r1/mutations/lifecycle-assignment-mutations.mjs                     # all nineteen
+node scripts/r1/mutations/lifecycle-assignment-mutations.mjs L3,L4,L5,L7         # the rest of L
+node scripts/r1/mutations/evidence-contract-mutations.mjs                        # R2F-F-017, 10 more
+```
 
 ## Host measurements
 
