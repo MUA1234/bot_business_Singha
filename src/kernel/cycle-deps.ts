@@ -24,6 +24,8 @@ import {
   ASSETS_SOURCE, LEGAL_SOURCE, PROVIDERS_SOURCE,
 } from "./adapters";
 import type { CycleDeps, CycleSummary, PersistRecommendation } from "./cycle";
+import { planAction } from "./execution/plan";
+import { EXECUTION_POLICY_VERSION } from "./execution/policy";
 import {
   runVerificationSweep,
   unavailableSweepSummary,
@@ -632,7 +634,22 @@ export function makeCycleDeps(
       // R2B: the v2 entry point adds the append-only recommendation snapshots to the SAME
       // transaction. It CALLS the original RPC rather than reimplementing it, so item,
       // evidence, opening transition, audit row and snapshots are still all-or-nothing.
-      const { data, error } = await db.rpc("r1_draft_create_management_item_v2", {
+      // The PLAN. What the system proposes to DO, decided here, deterministically, from the
+      // observation — so that execution has something to compare a request against. Null for the
+      // thirteen draft-only actions, which have no handler and therefore nothing to plan.
+      const planned = rec?.actionId
+        ? planAction(rec.actionId, {
+            kind: o.kind,
+            subjectTable: o.subjectRef.table,
+            subjectId: o.subjectRef.id,
+            department: o.department,
+          })
+        : null;
+
+      // v3 stamps the two evidence digests onto the snapshots v2 just wrote, computing BOTH from
+      // the rows themselves inside the same transaction (R2F-F-017). The condition digest and the
+      // eligibility digest are separate fields with separate meanings from here on.
+      const { data, error } = await db.rpc("r1_draft_create_management_item_v3", {
         p_company: o.companyId,
         p_actor: null,
         p_department: o.department,
@@ -658,6 +675,9 @@ export function makeCycleDeps(
         p_recommendations: snapshots,
         p_resolver_version: snapshots.length > 0 ? RESOLVER_VERSION : null,
         p_signal_rule_version: snapshots.length > 0 ? SIGNAL_RULE_VERSION : null,
+        p_planned_parameters: planned?.parameters ?? null,
+        p_parameter_digest: planned?.parameterDigest ?? null,
+        p_policy_version: planned ? EXECUTION_POLICY_VERSION : null,
       });
       if (error) throw new Error(error.message);
       const result = data as { ok: boolean; result: string; item_id: string };

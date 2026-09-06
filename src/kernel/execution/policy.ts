@@ -36,6 +36,20 @@ import type {
 import { ACTION_CATALOGUE, type CatalogueActionId } from "../catalogue";
 
 /**
+ * The identity of THIS policy table.
+ *
+ * An approval, and an automatic recommendation, are given under a set of rules. If those rules
+ * change — a classification widened, an authority floor lowered, a handler repointed — the advice
+ * that was recorded under the old rules is no longer advice about the new ones, and executing it
+ * would honour a decision nobody made.
+ *
+ * Bumped by hand, in the same diff that changes the table. Deliberately not derived from a hash of
+ * the table: a derived version changes silently with a comment reflow and does not change at all
+ * when a handler behind an unchanged key is rewritten.
+ */
+export const EXECUTION_POLICY_VERSION = "r2e.policy.1" as const;
+
+/**
  * The complete policy. Exhaustive by construction.
  *
  * Every floor here is at or above the catalogue's own `authorityFloor` — asserted by

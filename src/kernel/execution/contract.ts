@@ -91,6 +91,15 @@ export type RefusalReason =
   | "item_state_invalid"
   | "stale_state"
   | "parameters_invalid"
+  /**
+   * The validated parameters differ from the PLAN the advice was recorded with.
+   *
+   * Distinct from `evidence_stale` on purpose: "the world moved" and "you are asking for
+   * something else" call for different responses from whoever sees the refusal.
+   */
+  | "parameters_stale"
+  /** The execution policy itself changed since the advice was recorded. */
+  | "policy_version_changed"
   // ── Durability ──
   | "idempotency_key_missing"
   | "ledger_unavailable";

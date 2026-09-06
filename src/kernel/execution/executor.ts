@@ -60,7 +60,7 @@ import {
   type RefusalReason,
 } from "./contract";
 import { checkExecutionBoundaries } from "./boundary";
-import { policyFor } from "./policy";
+import { policyFor, EXECUTION_POLICY_VERSION } from "./policy";
 import { resolveCanonicalAuthority, type CanonicalAuthority } from "./authority";
 import { deriveIdempotencyKey, validateParameters } from "./parameters";
 
@@ -80,15 +80,40 @@ export interface ApprovalSnapshot {
   readonly companyId: CompanyId;
 }
 
+/**
+ * The RECORDED PLAN — what the system proposed, under which rules, against which condition.
+ *
+ * Every field here was written server-side when the advice was recorded. None of it comes from the
+ * caller, and none of it is about a candidate: eligibility evidence belongs to assignment, and
+ * comparing it here is exactly the defect R2F-F-017 was.
+ */
+export interface RecommendationPlan {
+  /** The CONDITION evidence digest at the time the advice was given. */
+  readonly conditionEvidenceDigest: string;
+  /** The canonical action the advice was for. */
+  readonly actionId: string;
+  /** Digest of the planned parameters, re-derived from the stored plan rather than trusted. */
+  readonly parameterDigest: string;
+  /** The policy table's identity at the time. */
+  readonly policyVersion: string;
+  /** Identifies this recommendation, for the durable execution identity. */
+  readonly version: string;
+}
+
 /** What the item must still look like. */
 export interface ItemSnapshot {
   readonly state: string;
   readonly evidenceCount: number;
   readonly actionId: string;
-  /** The evidence generation NOW. */
+  /** The CONDITION evidence generation NOW — `management_item_evidence`, nothing else. */
   readonly evidenceGeneration: string;
-  /** The generation the current recommendation was computed from. */
-  readonly recommendationGeneration: string;
+  /**
+   * The plan the item currently stands on, or null when none was recorded.
+   *
+   * Null is fail-closed for an automatic action: without a recorded plan there is nothing the
+   * execution was authorised against, so there is nothing to be fresh with respect to.
+   */
+  readonly plan: RecommendationPlan | null;
   readonly companyId: CompanyId;
 }
 
@@ -314,15 +339,49 @@ export async function executeApprovedAction(
     return refusePost("evidence_missing", "the item no longer holds any evidence");
   }
 
-  // R2E-F-006. `evidenceCount >= 1` says SOME evidence exists, not that it is the SAME evidence.
-  // An approval given against three overdue invoices must not execute after those three are paid
-  // and replaced by three unrelated ones — the count is still 3 and the state is still `approved`.
-  const decidedAgainst = approval ? approval.evidenceGeneration : item.recommendationGeneration;
+  // ── 8. Freshness, each set against its OWN kind (R2F-F-017). ──
+  //
+  // R2E-F-006 established why a count is not enough: an approval given against three overdue
+  // invoices must not execute after those three are paid and replaced by three unrelated ones —
+  // the count is still 3 and the state is still `approved`.
+  //
+  // What this used to do, on the automatic branch, was compare the item's CONDITION evidence
+  // against the recommendation's CANDIDATE-ELIGIBILITY evidence: the business facts that raised
+  // the item against the facts that make a person a plausible assignee. Two different record sets
+  // about two different subjects, compared for equality — so no item the real cycle created could
+  // ever execute. The eligibility set is checked at ASSIGNMENT, where it means something.
+  const plan = item.plan;
+  if (!approval && !plan) {
+    // An automatic action with no recorded plan was authorised against nothing.
+    return refusePost("evidence_stale", "no recommendation plan is recorded for this item");
+  }
+
+  const decidedAgainst = approval ? approval.evidenceGeneration : plan!.conditionEvidenceDigest;
   if (decidedAgainst !== item.evidenceGeneration) {
     return refusePost(
       "evidence_stale",
-      "the evidence has changed since the decision was made",
+      "the condition evidence has changed since the decision was made",
     );
+  }
+
+  if (plan) {
+    if (plan.actionId !== req.actionId) {
+      return refusePost("stale_state", "the recommendation was for a different action");
+    }
+    if (plan.policyVersion !== EXECUTION_POLICY_VERSION) {
+      return refusePost(
+        "policy_version_changed",
+        "the execution policy changed after this was recommended",
+      );
+    }
+    if (plan.parameterDigest !== params.hash) {
+      // The caller is asking for something other than what was planned. Not an invalid request —
+      // a DIFFERENT one, which has to be recommended and approved on its own terms.
+      return refusePost(
+        "parameters_stale",
+        "the parameters differ from the recorded plan",
+      );
+    }
   }
 
   // ── 9. The durable identity, DERIVED from what was just checked. ──
@@ -330,7 +389,9 @@ export async function executeApprovedAction(
     companyId: req.companyId,
     itemId: req.itemId,
     actionId: req.actionId,
-    decisionVersion: approval ? approval.decisionVersion : item.recommendationGeneration,
+    // The recommendation's own identity for an automatic action, never a digest of somebody's
+    // eligibility. A new recommendation is a new authorisation and must not collide with the old.
+    decisionVersion: approval ? approval.decisionVersion : (plan?.version ?? "no-plan"),
     evidenceGeneration: item.evidenceGeneration,
     parameterHash: params.hash,
   });

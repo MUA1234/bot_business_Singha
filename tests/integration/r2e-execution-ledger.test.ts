@@ -22,6 +22,8 @@ import {
 } from "@/kernel/execution/service";
 import { executeApprovedAction } from "@/kernel/execution/executor";
 import { LOCAL_EXECUTION_TOKEN } from "@/kernel/execution/boundary";
+import { planAction } from "@/kernel/execution/plan";
+import { EXECUTION_POLICY_VERSION } from "@/kernel/execution/policy";
 import type { SqlExec } from "@/kernel/execution/ledger";
 import { asCompanyId } from "@/kernel/ask-ai/identity";
 import type { CatalogueActionId } from "@/kernel/catalogue";
@@ -335,9 +337,20 @@ describe.skipIf(!enabled)("R2E — the real server execution service", () => {
   });
 
   /**
-   * Seed one complete, executable management item: the item itself, its evidence, and the
-   * recommendation snapshot whose `evidence_refs` establish the generation the recommendation was
-   * computed from.
+   * Seed one complete, executable management item: the item, its evidence, and the recommendation
+   * snapshot — in the shape the RUNTIME produces.
+   *
+   * ── What this fixture used to get wrong (R2F-F-017) ────────────────────────────────────────
+   *
+   * It filled the snapshot's `evidence_refs` with the ITEM's evidence pairs. The runtime fills
+   * them with the CANDIDATE's eligibility evidence — membership roles, capacity, leave — and the
+   * executor then compared one against the other. This suite passed on a record shape that did not
+   * exist, which is why nobody noticed that no cycle-created item could ever execute.
+   *
+   * Everything the executor now reads is produced the way production produces it: the condition
+   * digest by the real SQL function over the real evidence rows, the eligibility digest by the
+   * real SQL function over the candidate's own refs, and the plan by the real `planAction`. The
+   * two digests are DIFFERENT values here, exactly as they are in production.
    */
   async function seedItem(
     companyId: string,
@@ -365,18 +378,58 @@ describe.skipIf(!enabled)("R2E — the real server execution service", () => {
         [companyId, itemId, table, id],
       );
     }
+    // The candidate's ELIGIBILITY evidence — the facts that make this person plausible. Nothing
+    // to do with the item's condition evidence above, and deliberately a different record set so
+    // that a fix which made the two equal would fail here.
+    const eligibility = [
+      { sourceTable: "membership_roles", sourceId: `mr-${itemId}` },
+      { sourceTable: "capacity", sourceId: `cap-${itemId}` },
+    ];
+
+    const actionId = opts.action ?? "ops.task.create_internal";
+    // The real planner, the real policy version, the real digest functions.
+    const plan = planAction(actionId, {
+      kind: "overdue_task",
+      subjectTable: "tasks",
+      subjectId: evidence[0]![1],
+      department: "operations",
+    });
+    const { rows: digestRows } = await raw.query(
+      `select public.r1_draft_evidence_digest($1,$2) as condition,
+              public.r1_draft_eligibility_digest($3::jsonb) as eligibility`,
+      [companyId, itemId, JSON.stringify(eligibility)],
+    );
+
     await q(
       `insert into management_item_recommendations
          (company_id, item_id, purpose, outcome, candidate_ref, candidate_type, rank_position,
-          resolver_version, signal_rule_version, fingerprint, evidence_refs)
+          resolver_version, signal_rule_version, fingerprint, evidence_refs,
+          condition_evidence_digest, eligibility_evidence_digest, action_id,
+          planned_parameters, parameter_digest, policy_version)
        values ($1, $2, 'assignee', 'candidates', $3, 'staff', 1,
-               'r2e-test', 'r2e-test', $4, $5::jsonb)`,
+               'r2e-test', 'r2e-test', $4, $5::jsonb, $6, $7, $8, $9::jsonb, $10, $11)`,
       [
         companyId, itemId, ACTOR, `fp-${itemId}`,
-        JSON.stringify(evidence.map(([t, id]) => ({ sourceTable: t, sourceId: id }))),
+        JSON.stringify(eligibility),
+        digestRows[0].condition, digestRows[0].eligibility, actionId,
+        plan ? JSON.stringify(plan.parameters) : null,
+        plan?.parameterDigest ?? null,
+        plan ? EXECUTION_POLICY_VERSION : null,
       ],
     );
     return itemId;
+  }
+
+  /** The parameters the real planner produced for a seeded item — what a caller must ask for. */
+  async function plannedParametersFor(itemId: string): Promise<Record<string, unknown>> {
+    const { rows } = await raw.query(
+      `select planned_parameters from management_item_recommendations
+        where item_id = $1 and planned_parameters is not null
+        order by created_at desc limit 1`,
+      [itemId],
+    );
+    if (rows.length === 0) throw new Error("the fixture recorded no plan for this item");
+    return rows[0].planned_parameters as Record<string, unknown>;
   }
 
   async function enableExecution(companyId: string, enabled_: boolean): Promise<void> {
@@ -396,11 +449,13 @@ describe.skipIf(!enabled)("R2E — the real server execution service", () => {
 
   it("executes the authorised automatic action end to end, through the real loaders", async () => {
     const itemId = await seedItem(CO_A);
+    // The PLAN's parameters. Since R2F-F-017 a request that differs from what was recommended is
+    // refused `parameters_stale`, so asking for something invented would be testing the refusal.
     const out = await executeManagementAction(env(), {
       companyId: CO_A,
       itemId,
       actionId: "ops.task.create_internal",
-      parameters: { title: "Service-created task" },
+      parameters: await plannedParametersFor(itemId),
     });
 
     expect(out.status, JSON.stringify(out)).toBe("executed");
@@ -417,7 +472,9 @@ describe.skipIf(!enabled)("R2E — the real server execution service", () => {
       expect(rows[0].company_id).toBe(CO_A);
       expect(rows[0].assigned_to).toBeNull();
       expect(rows[0].status).toBe("captured");
-      expect(rows[0].title).toBe("Service-created task");
+      // The planned title, not an invented one — the whole point of the plan is that the effect
+      // matches what was recommended.
+      expect(rows[0].title).toBe(String((await plannedParametersFor(itemId)).title));
     } finally {
       await q("commit");
     }
@@ -449,7 +506,7 @@ describe.skipIf(!enabled)("R2E — the real server execution service", () => {
       companyId: CO_A,
       itemId,
       actionId: "ops.task.create_internal" as CatalogueActionId,
-      parameters: { title: "Retried task" },
+      parameters: await plannedParametersFor(itemId),
     };
     const first = await executeManagementAction(env(), input);
     expect(first.status).toBe("executed");
@@ -461,12 +518,22 @@ describe.skipIf(!enabled)("R2E — the real server execution service", () => {
         first.status === "executed" ? first.effectRef : "",
       );
     }
-    expect(await physicalCount("tasks", "company_id = $1 and title = $2", [CO_A, "Retried task"]))
-      .toBe(1);
+    // Counted through the ITEM, not through the title. The planned title is derived from the
+    // condition and the record type, so two items of the same kind in one company plan the same
+    // title — which is correct advice and a useless key. One attempt, one effect, is the claim.
+    expect(await physicalCount(
+      "management_execution_attempts", "item_id = $1 and status = $2", [itemId, "executed"],
+    )).toBe(1);
+    expect(await physicalCount(
+      "tasks", "company_id = $1 and id::text = $2",
+      [CO_A, first.status === "executed" ? first.effectRef : ""],
+    )).toBe(1);
   });
 
   it("survives a crash after the effect but before the ledger resolves", async () => {
     const itemId = await seedItem(CO_A);
+    const crashParams = await plannedParametersFor(itemId);
+    const crashTitle = String(crashParams.title);
     const deps = buildExecutorDeps(env());
     const crashing = {
       ...deps,
@@ -482,24 +549,22 @@ describe.skipIf(!enabled)("R2E — the real server execution service", () => {
       itemId,
       actionId: "ops.task.create_internal" as CatalogueActionId,
       approvedBy: null,
-      parameters: { title: "Crashed task" },
+      parameters: crashParams,
       requestedAt: new Date(),
     };
     const crashed = await executeApprovedAction(crashing, req);
     expect(crashed.status).toBe("failed");
 
-    const afterCrash = await physicalCount(
-      "tasks", "company_id = $1 and title = $2", [CO_A, "Crashed task"],
-    );
+    const afterCrash = await physicalCount("tasks", "company_id = $1 and title = $2", [CO_A, crashTitle]);
 
     // The retry, through the real service. No SECOND task may appear.
     await executeManagementAction(env(), {
       companyId: CO_A, itemId,
       actionId: "ops.task.create_internal",
-      parameters: { title: "Crashed task" },
+      parameters: crashParams,
     });
     expect(
-      await physicalCount("tasks", "company_id = $1 and title = $2", [CO_A, "Crashed task"]),
+      await physicalCount("tasks", "company_id = $1 and title = $2", [CO_A, crashTitle]),
     ).toBe(afterCrash);
   });
 
@@ -737,10 +802,11 @@ describe.skipIf(!enabled)("R2E — the real server execution service", () => {
     // Refused because the item is in the wrong state; corrected; then executed. Had the refusal
     // claimed the derived identity, the legitimate execution could never happen.
     const itemId = await seedItem(CO_A, { state: "awaiting_approval" });
+    const refusedParams = await plannedParametersFor(itemId);
     const first = await executeManagementAction(env(), {
       companyId: CO_A, itemId,
       actionId: "ops.task.create_internal",
-      parameters: { title: "Refused then run" },
+      parameters: refusedParams,
     });
     expect(first.status === "refused" && first.reason).toBe("item_state_invalid");
 
@@ -754,7 +820,7 @@ describe.skipIf(!enabled)("R2E — the real server execution service", () => {
     const second = await executeManagementAction(env(), {
       companyId: CO_A, itemId,
       actionId: "ops.task.create_internal",
-      parameters: { title: "Refused then run" },
+      parameters: refusedParams,
     });
     expect(second.status).toBe("executed");
   });

@@ -95,35 +95,6 @@ async function noRuntimeWriter(itemId: string, from: string, to: string, actor: 
   if (r?.ok !== true) throw new Error(`transition ${from}→${to} refused: ${JSON.stringify(r)}`);
 }
 
-/**
- * A recommendation snapshot whose `evidence_refs` are the ITEM's evidence — which is what the
- * executor compares against, and which NOTHING in the runtime produces (R2F-F-017).
- *
- * The cycle writes snapshots whose `evidence_refs` are the CANDIDATE's eligibility evidence:
- * membership roles, capacity, leave. The executor digests those and compares the result against
- * the digest of `management_item_evidence`. They are different record sets, so for an automatic
- * action — which takes this branch because it needs no approval — the comparison cannot succeed.
- *
- * The refusal is asserted first, live, so the gap is a regression gate rather than a note.
- */
-async function noRuntimeProducer(companyId: string, itemId: string) {
-  const { rows } = await q(
-    `select source_table, source_id from management_item_evidence
-      where company_id=$1 and item_id=$2`,
-    [companyId, itemId],
-  );
-  await q(
-    `insert into management_item_recommendations
-       (company_id, item_id, purpose, outcome, candidate_ref, candidate_type, rank_position,
-        resolver_version, signal_rule_version, fingerprint, evidence_refs)
-     values ($1,$2,'assignee','candidates',$3,'staff',1,'slice','slice',$4,$5::jsonb)`,
-    [
-      companyId, itemId, MANAGER, `fp-${itemId}`,
-      JSON.stringify(rows.map((r) => ({ sourceTable: r.source_table, sourceId: r.source_id }))),
-    ],
-  );
-}
-
 async function seedPerson(user: string, company: string, roleKey: string) {
   await q(`insert into auth.users (id) values ($1) on conflict do nothing`, [user]);
   await q(
@@ -287,42 +258,53 @@ async function driveToClaim(co: string): Promise<{
   // The action is the item's OWN. Passing a hard-coded id would be asserting an approval the
   // item never carried — and the executor refuses exactly that, with `stale_state`.
   expect(items[0].proposed_action_id).toBe("ops.task.create_internal");
+  // The parameters are the PLAN's, read back from the database. A caller asking for something
+  // else is refused `parameters_stale`, which is asserted separately below.
+  const { rows: plannedRows } = await q(
+    `select planned_parameters from management_item_recommendations
+      where item_id = $1 and planned_parameters is not null
+      order by created_at desc limit 1`,
+    [itemId],
+  );
+  expect(plannedRows, "the cycle planned no parameters").toHaveLength(1);
   const request = {
     companyId: co,
     itemId,
     actionId: String(items[0].proposed_action_id) as "ops.task.create_internal",
-    parameters: {
-      title: "slice: give the unestimated work an estimate",
-      description: "created by the executor under the local test boundary",
-      requiresEvidence: false,
-    },
+    parameters: plannedRows[0].planned_parameters as Record<string, unknown>,
   };
 
-  // R2F-F-017, asserted live: with ONLY what the runtime produced, execution is refused. The
-  // evidence-freshness check digests the recommendation snapshot's `evidence_refs` and compares
-  // them to the item's evidence, and the cycle writes candidate-eligibility refs there. This is
-  // not a fixture problem — it is why no cycle-created item can execute an automatic action.
-  const asRuntimeLeftIt = await executeManagementAction(execEnv(), request);
-  expect(asRuntimeLeftIt.status).toBe("refused");
-  expect(
-    asRuntimeLeftIt.status === "refused" ? asRuntimeLeftIt.reason : null,
-  ).toBe("evidence_stale");
+  // R2F-F-017, now closed. The cycle records a PLAN — the condition digest, the action, the
+  // planned parameters and the policy version — and the executor compares each against its own
+  // kind. Nothing is seeded here: this is what the real cycle left behind.
+  //
+  // The two evidence sets are asserted to be genuinely DIFFERENT first, because a fix that made
+  // them equal would satisfy the executor and destroy the distinction.
+  const { rows: digests } = await q(
+    `select condition_evidence_digest, eligibility_evidence_digest, action_id, policy_version,
+            planned_parameters
+       from management_item_recommendations
+      where item_id = $1 and condition_evidence_digest is not null
+      order by created_at desc limit 1`,
+    [itemId],
+  );
+  expect(digests, "the cycle recorded no plan").toHaveLength(1);
+  expect(digests[0].condition_evidence_digest).not.toBe(digests[0].eligibility_evidence_digest);
+  expect(String(digests[0].condition_evidence_digest)).toMatch(/^[0-9a-f]{32}$/);
+  expect(digests[0].action_id).toBe("ops.task.create_internal");
+  expect(digests[0].planned_parameters).not.toBeNull();
 
-  await noRuntimeProducer(co, itemId); // NO RUNTIME PRODUCER — R2F-F-017
   const outcome = await executeManagementAction(execEnv(), request);
   expect(outcome.status, JSON.stringify(outcome)).toBe("executed");
   const after = await q(`select count(*)::int as n from tasks where company_id=$1`, [co]);
   expect(after.rows[0].n - before.rows[0].n, "exactly one task, not zero and not two").toBe(1);
 
-  // Two attempts are recorded: the refusal above and the execution. A refusal that left no trace
-  // would make the R2F-F-017 gap invisible in the ledger it exists to document.
   const { rows: attempts } = await q(
     `select effect_ref, status from management_execution_attempts
       where item_id=$1 order by created_at`, [itemId]);
-  const executed = attempts.filter((a) => a.status === "executed");
-  expect(attempts.map((a) => a.status)).toEqual(["refused", "executed"]);
-  expect(executed).toHaveLength(1);
-  const effect = String(executed[0]!.effect_ref);
+  // One attempt, and it executed. A cycle-created item now reaches the executor on the first ask.
+  expect(attempts.map((a) => a.status)).toEqual(["executed"]);
+  const effect = String(attempts[0]!.effect_ref);
 
   // The created task is UNASSIGNED. The executor may create work; it may not give it to anyone.
   const { rows: created } = await q(

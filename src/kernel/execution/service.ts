@@ -25,6 +25,7 @@
  * assert them could execute an unapproved action by asserting that it was approved.
  */
 import { createHash } from "node:crypto";
+import { digestOfPlannedParameters } from "./plan";
 import type { CatalogueActionId } from "../catalogue";
 import { asCompanyId, asUserId, type CompanyId, type UserId } from "../ask-ai/identity";
 import type { ExecutionOutcome, ExecutionRequest } from "./contract";
@@ -35,6 +36,7 @@ import {
   type ApprovalSnapshot,
   type ExecutorDeps,
   type ItemSnapshot,
+  type RecommendationPlan,
 } from "./executor";
 import { createSqlLedger, type SqlExec } from "./ledger";
 import { idempotentRpcTransport, type RpcCapableClient } from "./transports";
@@ -93,35 +95,54 @@ async function evidenceGeneration(sql: SqlExec, companyId: string, itemId: strin
 }
 
 /**
- * The evidence generation the CURRENT recommendation was computed from.
+ * The PLAN the item currently stands on.
  *
- * Taken from the recommendation snapshot's own `evidence_refs`, digested the same way, so the two
- * are comparable. No snapshot means no recorded basis for the recommendation, which digests to a
- * value that cannot match — a fail-closed outcome, not a permissive one.
+ * This replaces `recommendationGeneration`, which digested the snapshot's `evidence_refs` — the
+ * CANDIDATE's eligibility evidence — and handed the result to a comparison against the ITEM's
+ * condition evidence. Two record sets about two different subjects, compared for equality, so no
+ * item the real cycle created could execute (R2F-F-017).
+ *
+ * Everything read here was written server-side by the create RPC, in the transaction that wrote
+ * the evidence. The parameter digest is RE-DERIVED from the stored plan rather than read from its
+ * column, so a stored digest that disagreed with the plan it describes cannot authorise anything —
+ * the column is a convenience, never the trust anchor.
+ *
+ * Null when no snapshot carries a plan, which is fail-closed: an automatic action with no recorded
+ * plan was authorised against nothing.
  */
-async function recommendationGeneration(
+async function loadPlan(
   sql: SqlExec,
   companyId: string,
   itemId: string,
-): Promise<string> {
+): Promise<RecommendationPlan | null> {
   const { rows } = await sql(
-    `select evidence_refs
+    `select id, condition_evidence_digest, action_id, planned_parameters, parameter_digest,
+            policy_version
        from management_item_recommendations
-      where company_id = $1 and item_id = $2
+      where company_id = $1 and item_id = $2 and condition_evidence_digest is not null
       order by created_at desc
       limit 1`,
     [companyId, itemId],
   );
-  const refs = rows[0]?.evidence_refs;
-  if (!Array.isArray(refs) || refs.length === 0) return "no-recommendation-snapshot";
+  const row = rows[0];
+  if (!row) return null;
 
-  const pairs = refs
-    .map((r) => {
-      const o = r as { sourceTable?: string; source_table?: string; sourceId?: string; source_id?: string };
-      return `${o.sourceTable ?? o.source_table ?? ""}:${o.sourceId ?? o.source_id ?? ""}`;
-    })
-    .sort();
-  return createHash("md5").update(pairs.join("|")).digest("hex");
+  const stored = row.parameter_digest == null ? null : String(row.parameter_digest);
+  const derived =
+    row.planned_parameters == null ? null : digestOfPlannedParameters(row.planned_parameters);
+  // A plan whose stored digest disagrees with its own parameters is not a plan anyone can rely
+  // on. Returning the derived value would quietly repair it; returning a value that matches
+  // nothing refuses it.
+  const parameterDigest =
+    derived !== null && stored !== null && derived !== stored ? "plan-inconsistent" : (derived ?? "no-parameters");
+
+  return {
+    conditionEvidenceDigest: String(row.condition_evidence_digest),
+    actionId: String(row.action_id ?? ""),
+    parameterDigest,
+    policyVersion: String(row.policy_version ?? ""),
+    version: String(row.id),
+  };
 }
 
 /** Build the real dependencies. Every loader is company-scoped and re-checks what it read. */
@@ -198,7 +219,7 @@ export function buildExecutorDeps(env: ExecutionEnvironment): ExecutorDeps {
         // (R2E-F-010).
         actionId: String(row.proposed_action_id ?? ""),
         evidenceGeneration: await evidenceGeneration(sql, req.companyId, req.itemId),
-        recommendationGeneration: await recommendationGeneration(sql, req.companyId, req.itemId),
+        plan: await loadPlan(sql, req.companyId, req.itemId),
         companyId: asCompanyId(String(row.company_id)),
       };
     },
