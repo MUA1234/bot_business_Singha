@@ -2,14 +2,42 @@
 
 **No staging environment exists.** `railway status --json` for project `singha-central`
 (`cf0cfa34-bdc5-4e10-8753-f8d89907cf65`) lists exactly **one** environment, `production`, with
-exactly one service, `singha-web`. There is no staging, preview or development environment.
+exactly one service, `singha-web`, in workspace `lakshanv's Projects`. There is no staging,
+preview or development environment.
 
-The Release 1 brief permits deploying to *an existing clearly labelled non-production*
-environment and forbids silently creating a paid or production-connected one. So none was
-created, and **Release 1 cannot reach `STAGING VERIFIED`** until one exists.
+## The determination, made deliberately rather than by omission
 
-Creating it costs money on Railway (no free tier — recorded in D-021) and requires a second
-Supabase project. Both are owner decisions.
+The owner authorised creating **one** isolated non-production staging environment *"only if it
+requires no plan upgrade or new charge"*, and directed: *"If the platform presents a charge,
+plan upgrade or uncertain database isolation, do not accept it."*
+
+**It would present both. So none was created.** Three independent reasons, each sufficient:
+
+1. **Railway has no free tier.** Recorded in D-021 when the platform was adopted: *"Railway has
+   no free tier, only a paid Hobby plan"*, and billing is per-usage on the account. A second
+   environment running the service is additional compute — a new charge, not a free allocation.
+2. **The database cannot be reused, and a new one cannot be verified free.** Staging must not
+   touch `gazjughejdzebathpscb`, so it needs a second Supabase project. Whether the owner's
+   Supabase account can add one within its free allowance is not something this process can
+   determine without creating it — and creating it to find out is exactly the thing the
+   instruction forbids.
+3. **"Uncertain database isolation" is itself a stop condition**, and isolation is precisely
+   what is uncertain until the project exists and is inspected.
+
+Guessing here has an asymmetric downside: an unexpected charge, or worse a "staging" environment
+quietly pointed at the production database. Neither is worth the convenience of not asking.
+
+**Consequence: Release 1 cannot reach `STAGING VERIFIED`.** Everything that does not require a
+deployment axis has been done and measured — see [DEPLOYMENT-READINESS.md](DEPLOYMENT-READINESS.md).
+
+## What the owner needs to authorise, exactly
+
+| Resource | Why | Cost |
+|---|---|---|
+| One Railway environment `staging` in `singha-central`, running `singha-web` | The deployment axis | Usage-billed; no free tier |
+| One Supabase project, separate from `gazjughejdzebathpscb` | Isolation. Reusing production's database would make every isolation test meaningless | Free tier may cover it — the owner's account can say |
+
+Neither can be created by this process under the instruction it was given.
 
 ---
 
