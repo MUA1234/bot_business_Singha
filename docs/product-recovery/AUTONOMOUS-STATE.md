@@ -33,6 +33,7 @@ Isolation config fails closed.
 | typecheck · build · lint · secret-scan · audits | ✅ all clean |
 | Unit | ✅ 2506 passed / 4 skipped / 0 failed (234 files) |
 | Core integration | ✅ 76 files, 677 tests, 0 failed (randomised order, draft-free DB) |
+| Kernel integration | ✅ 34 files, 644 tests, 0 failed (randomised order, drafts applied once) |
 | Migration collision vs `origin/main` | ✅ no collision (was 2 errors) |
 | Fresh-DB and `main`-seeded migration rehearsals | ✅ both clean |
 

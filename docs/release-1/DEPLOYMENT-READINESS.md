@@ -47,7 +47,7 @@ scheduler, and RLS now fails closed.
 | IP boundary | `node scripts/autonomy/check-ip-boundary.mjs` | ✅ pass |
 | Dependency audit | `npm run audit-check` | ✅ 2 advisories, both covered by approved exceptions |
 | **Core integration** | `npm run test:integration` | ✅ **76 files, 677 tests, 0 failed** — randomised order, draft-free DB |
-| **Kernel integration** | `npm run test:kernel` | see §Kernel campaign |
+| **Kernel integration** | `npm run test:kernel` | ✅ **34 files, 644 tests, 0 failed** — randomised order, drafts applied once |
 | Browser / accessibility | `npm run browser-check` | ⚠️ **not run** — no application server in this environment |
 
 All database work ran on **disposable local PostgreSQL 16.10** in uniquely labelled containers
@@ -76,6 +76,9 @@ restore-and-retry drill (needs a hosted environment; the procedure is in
 The R1/R2 kernel suites started this work at **5 files / 13 tests failing** under their own
 canonical harness. All thirteen were diagnosed; twelve were stale assertions and one uncovered
 two genuine kernel defects.
+
+**Final: 34 files, 644 tests, 0 failed** on a fresh disposable database with the released
+migrations and the draft chain applied once, in randomised file order.
 
 | Defect | Fix |
 |---|---|
