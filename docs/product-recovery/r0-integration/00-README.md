@@ -52,6 +52,22 @@ exists only on `main`. The branch's `inbound-sweeper` and `dispatch-drain` are d
 it stands, with Vercel disabled, nothing would drive them — the durable inbound processing
 that the branch's 0069 exists to provide would never run.
 
+**4. The test picture, measured rather than assumed** (details in
+[08-LOCAL-VERIFICATION.md](08-LOCAL-VERIFICATION.md)):
+
+| Scope | Result |
+|---|---|
+| Unit | ✅ 2443 passed, 0 failed |
+| **Core integration** (74 files, clean CI-faithful DB) | ✅ **671 passed, 0 failed** |
+| **R1/R2 kernel** (own canonical harness) | ❌ **5 files / 13 tests failed**; 12 reproduce in 11.8s |
+| Whole `tests/integration/**` in one run | ❌ fails either way — cross-test pollution |
+
+The kernel failures **pre-date this work** (`b3e1516` touches no `src/` file) and contradict
+the "Verified at this SHA" table in `../AUTONOMOUS-STATE.md`, now corrected. The three
+`r1-security-baseline` failures are legitimate access **refused**, not data exposed; no
+isolation assertion failed. And CI's integration job cannot be green as configured, because
+it sweeps 35 quarantined kernel files.
+
 ---
 
 ## Tooling added

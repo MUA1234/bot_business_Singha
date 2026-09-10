@@ -156,3 +156,51 @@ regardless of the count. Counts anywhere in this repository are advisory; run th
 
 A rehearsal seeded from a hypothesis proves the hypothesis is self-consistent. It does not
 prove the hypothesis.
+
+---
+
+## C-6 — "Verified at this SHA" overstated the kernel suites
+
+**Where:** `../AUTONOMOUS-STATE.md`, the "Verified at this SHA" table (R5 checkpoint).
+
+**What was said:**
+
+| Suite | Recorded |
+|---|---|
+| `r2-evidence-contracts` (live) | **8 passed** — "every item created by the real cycle" |
+| `r2-operations-slice` (live) | **3 passed** |
+| `r1-security-baseline` | not listed, but the R1 baseline is treated throughout as holding |
+
+**Measured 2026-09-10** at `0c789d36`, via the repository's own canonical harness
+`scripts/r1/run-r1-security-tests.mjs` (own container, migrations + all 28 draft units,
+its explicit 33-file list):
+
+```
+Test Files  5 failed | 28 passed (33)
+     Tests  13 failed | 610 passed (623)
+```
+
+Re-run in isolation on a fresh container, reproducing in 11.83s:
+
+| Suite | Result |
+|---|---|
+| `r2-evidence-contracts` | 8 tests, **5 failed** |
+| `r2-operations-slice` | 3 tests, **3 failed** |
+| `r1-security-baseline` | 38 tests, **3 failed** |
+| `r1-runtime-e2e` | 18 tests, **1 failed** |
+
+**Why the correction is needed:** a table headed "Verified at this SHA" asserts a
+present-tense fact about the current commit. It is not one. Either the earlier measurement
+was taken under a setup the canonical harness does not reproduce, or these suites have
+regressed since. The repository cannot distinguish the two, so neither is asserted.
+
+**Not attributable to the R0 work:** commit `b3e1516` changes no file under `src/`.
+
+**Direction of the security failures:** the three `r1-security-baseline` failures are reads
+returning 0 rows where 1 was expected — legitimate access **refused**, not data exposed. No
+company-isolation assertion failed. This is stated so the finding is not read as a leak.
+
+**Corrected statement:** the kernel suites' status at `0c789d36` is **failing, cause not
+established**. The core (non-kernel) integration suites are green — 74 files, 671 tests —
+and that is a separate claim which the kernel result does not weaken and which does not
+excuse it.

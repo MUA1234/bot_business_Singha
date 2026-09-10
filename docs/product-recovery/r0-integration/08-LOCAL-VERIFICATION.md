@@ -125,32 +125,132 @@ They were **never** run against a hosted database.
 
 ## Integration suite
 
-`npx vitest run -c vitest.integration.config.ts` against a disposable PostgreSQL 16.10,
-with **both** migration tracks applied:
+### Headline
 
-1. `scripts/apply-sql.mjs tests/integration/helpers/supabase-shim.sql`
-2. `npm run migrate` — 109 migrations
-3. `R1_DRAFT_CONFIRM=disposable-local-only node scripts/r1/draft-migrate.mjs --up` — **20
-   draft units**
+| Scope | Files | Result |
+|---|---|---|
+| **Core (non-kernel) suites, clean CI-faithful database** | 74 | ✅ **671 tests passed, 0 failed** (122s) |
+| Whole `tests/integration/**` in one run | 111 | ❌ fails either way — see below |
 
-**A first run without step 3 was invalid** and is discarded: the R1 kernel tables
-(`management_kernel_enablement` and siblings) live in `src/db/draft-migrations-r1/`, outside
-the numbered sequence, so a migrations-only database fails those suites on missing
-relations rather than on behaviour. That is a property of the quarantine (owner decision
-R1-D-1), not a defect.
+**The core integration behaviour of this branch is green.** That covers accounting posting
+and hardening, company isolation, capability RLS, inbound end-to-end, durable inbound
+processing, channel/company resolution, outbox and dispatch drain, concurrency and
+idempotency, settlement, posting authority, and the four enumeration gates.
 
-The suite is **serial by design** (`fileParallelism: false`, one DB connection at a time)
-across **109 integration test files**, and the host carries 15–20 unrelated containers — the
-contention already recorded under "Host measurements" in `../AUTONOMOUS-STATE.md`.
+### The whole-directory run is not reliably green, and the cause is the harness
 
-**Status at the time this document was committed: still running.** Progress was confirmed
-directly (`pg_stat_activity` showing live queries against the R1 kernel RPCs), so it was
-executing rather than hung. The result is recorded in the follow-up commit to this file.
+| Run | Setup | Result |
+|---|---|---|
+| 1 | shim + `npm run migrate` (**exactly what CI does**) | **27 files failed**, 84 passed |
+| 2 | shim + migrate + `draft-migrate --up` (the canonical harness's own step 4) | **24 files failed**, 87 passed; 146 tests failed |
 
-**No result may be reported as "integration verified" on the strength of the run having
-been started.** Until the completed output is recorded below, integration behaviour at this
-SHA is **not** verified by this document.
+Neither is green, and **neither failure set reflects product defects**:
 
-### Result
+* Run 1's failures are dominated by the 35 `r1-*` / `r2-*` **kernel** files, whose tables
+  live in `src/db/draft-migrations-r1/` — outside the numbered sequence, quarantined under
+  owner decision R1-D-1. A migrations-only database fails them on missing relations.
+* Run 2's remaining failure is `secure-definer-grants.test.ts`, which reports
+  `r1_draft_create_management_item`, `..._v2` and `r1_draft_record_feedback` as
+  **unclassified SECURITY DEFINER signatures** — precisely because the draft functions are
+  now present and the allowlist, correctly, does not know about quarantined objects.
 
-_To be filled in from the completed run._
+**Proof that these are pollution, not defects.** The four enumeration suites that failed in
+the whole-directory runs — `rls-coverage`, `rls-matrix-coverage`, `search-path-safety`,
+`secure-definer-grants` — were re-run alone on a clean CI-faithful database:
+
+```
+✅ 4 files passed, 24 tests passed (3.87s)
+```
+
+**Direct evidence of the mutation, and that its teardown is incomplete.**
+`tests/integration/r1-draft-schema.test.ts` applies the draft track and tears it down again
+(`--up` at its start, `--down` at its end) against the *shared* database. The residue is
+observable and differs between runs:
+
+| Moment | `r1_draft_migrations` rows |
+|---|---|
+| after run 1 (which never applied drafts deliberately) | **8** — left behind by that test's own teardown |
+| `draft-migrate --up` before run 2 | applied the remaining **20** → 28 of 28 |
+| after run 2 | **15** |
+
+There are 28 draft units. So run 2 *did* start with a complete draft schema — its failures
+are not an incomplete setup — and both runs ended with the shared database in a state
+neither the suite nor the next run expects. With `fileParallelism: false`, whichever suites
+run while the drafts are up, or after they are partially torn down, see a schema the rest of
+the run does not. Which tests fail is therefore an artefact of file ordering.
+
+### Consequence: CI's integration job cannot be green as configured
+
+`.github/workflows/ci.yml` runs `npm run test:integration`, which includes
+`tests/integration/**` — all 111 files — after shim + migrate only. That sweeps in 35
+kernel files whose schema is deliberately absent. **This is a finding about the test
+configuration, and it is not caused by anything in this R0 work.**
+
+The kernel suites have their own harness — `scripts/r1/run-r1-security-tests.mjs` — which
+builds a purpose-made container, applies migrations **and** drafts, and runs an explicit
+file list rather than the directory. That, not `test:integration`, is their canonical
+entry point (`../AUTONOMOUS-STATE.md` records it as "the canonical command").
+
+**Recommended for the merge candidate** (not performed here — it is a change to the test
+configuration, outside R0's read-only scope):
+
+* split the vitest integration config into `core` and `kernel` projects, so the kernel
+  files never run against a database that lacks their schema;
+* have `r1-draft-schema.test.ts` use its own database rather than mutating the shared one;
+* teach the SECURITY DEFINER allowlist to recognise `r1_draft_*` as quarantined, or assert
+  their absence, so the gate is meaningful under both setups;
+* point CI's integration job at the core project and add the kernel harness as its own job.
+
+### Kernel suites — FAILING at this SHA
+
+Run through their canonical harness (`scripts/r1/run-r1-security-tests.mjs`), which
+provisions its own labelled, loopback-only container, applies migrations **and** all 28
+draft units, audits loader columns, then runs its explicit 33-file list.
+
+```
+══ campaign mtva8ibk-odlxk3 — FAILED in 899s
+   Test Files  5 failed | 28 passed (33)
+        Tests  13 failed | 610 passed (623)
+```
+
+**These are reproducible, not host contention and not ordering.** Re-running the four
+deterministic files alone, on a fresh purpose-built container, reproduces every failure in
+**11.83 seconds**:
+
+| Suite | Result in isolation |
+|---|---|
+| `r1-security-baseline.test.ts` | 38 tests, **3 failed** |
+| `r2-operations-slice.test.ts` | 3 tests, **3 failed** |
+| `r1-runtime-e2e.test.ts` | 18 tests, **1 failed** |
+| `r2-evidence-contracts.test.ts` | 8 tests, **5 failed** |
+
+The fifth file from the full campaign, `r2s-p-fence-and-reset.test.ts` (1 failure —
+*"no source is left permanently partial once the arrivals stop"*, a 900 s convergence
+assertion), was **not** re-run in isolation and is the one failure that could plausibly be
+contention. It is not claimed either way.
+
+**Not caused by this R0 work.** Commit `b3e1516` touches no file under `src/` — only
+`scripts/lib/*`, `scripts/migration-inventory.mjs`, `scripts/migration-lint.mjs`,
+`tests/migration-collision.test.ts`, `package.json` and documentation.
+
+**Nature of the `r1-security-baseline` failures.** All three are reads returning **0 rows
+where 1 was expected** — e.g. *"actor … could not read"* for an owner reading their own
+company's `management_items`. That is a **fail-closed** direction: legitimate access
+refused, not cross-company data exposed. No test asserting isolation failed. The
+roles/permissions seed is present (migrations seed 9 roles including `owner_management`),
+so the cause lies elsewhere and is not diagnosed here.
+
+**This contradicts the "Verified at this SHA" table in `../AUTONOMOUS-STATE.md`**, which
+recorded `r2-evidence-contracts` as 8 passed and `r2-operations-slice` as 3 passed. Both
+now fail completely (5 of 8, and 3 of 3). Exactly one of these is true: the earlier
+measurement was taken under a setup the canonical harness does not reproduce, or the
+suites have regressed since. **The repository cannot tell which**, and this document does
+not guess. Corrected in that file; see also `07-CORRECTIONS.md` C-6.
+
+**Diagnosing these is R1/R2 work, not R0.** R0's task is to establish what is true. What is
+true is: the kernel suites do not pass at `0c789d36` under their own canonical harness.
+
+Host conditions during this work: 15–20 unrelated containers, matching the contention
+already recorded under "Host measurements" in `../AUTONOMOUS-STATE.md`. The whole-directory
+run took **3232s**, of which the kernel files accounted for the large majority; the 74 core
+files take **122s**.

@@ -37,8 +37,15 @@ claude/product-recovery-r1 ●─────────────▶  (prese
 | 0.4 | If not Case A: stop and re-plan; this document assumes A | **blocked on 0.3** |
 | 0.5 | Owner approves the specific numbered migration plan in writing | **blocked on 0.3** |
 | 0.6 | Independent Codex review of this R0 integration-prep package | **outstanding** |
+| 0.7 | The 13 failing R1/R2 kernel tests diagnosed and either fixed or accepted in writing | **outstanding** — blocks Phase 3, not Phases 1–2 |
+| 0.8 | The integration test configuration split so a whole-directory run is meaningful | **outstanding** — blocks the Phase 7 gate |
 
 Phase 0 is where this work currently stops.
+
+0.7 and 0.8 are repository-internal and could be done without any hosted evidence; 0.1–0.5
+cannot. They are listed as preconditions rather than Phase 3 work because a merge candidate
+whose kernel suites fail cannot be reviewed against a green baseline, and a candidate whose
+integration gate cannot be run cannot be gated at all.
 
 ---
 
@@ -166,11 +173,13 @@ against.
 |---|---|---|
 | Format / lint | `npm run lint` | not re-run in this pass |
 | Types | `npm run typecheck` | **clean** |
-| Unit | `npm test` | **2425 passed, 4 skipped, 0 failed** (226 files) |
+| Unit | `npm test` | **2443 passed, 4 skipped, 0 failed** (227 files) |
 | Secret scan | `npm run secret-scan` | **clean** |
 | Migration lint | `npm run migration-lint` | **clean** (0001–0109) |
 | Migration collision | `npm run migration-collision-check` | **FAILS as designed** — 0069 collision, the finding this work exists to surface |
-| Integration / RLS / concurrency | `npm run test:integration` | run locally against a disposable PG 16.10 — see the R0 evidence record for the result |
+| Core integration (74 files) | vitest integration config, core files, clean DB | ✅ **671 passed, 0 failed** |
+| R1/R2 kernel (33 files) | `node scripts/r1/run-r1-security-tests.mjs` | ❌ **5 files / 13 tests failed** — pre-existing, cause not established |
+| Whole `tests/integration/**` | `npm run test:integration` | ❌ not green either way — cross-test pollution (see 08 §Integration suite) |
 | Browser | `npm run browser-check` | not run |
 | Security review | `/security-review` on the candidate diff | not run |
 | Full verify | `npm run verify:merge-candidate` | blocked by the collision gate, correctly |

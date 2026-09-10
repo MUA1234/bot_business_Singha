@@ -111,7 +111,34 @@ A language model appears nowhere in it.
 
 ## Verified at this SHA
 
-| Suite | Result |
+> **⚠️ CORRECTED 2026-09-10 (R0 integration prep). This table is NOT true of `0c789d36`.**
+>
+> Re-measured via the repository's own canonical harness
+> `scripts/r1/run-r1-security-tests.mjs` (own container, migrations + all 28 draft units,
+> its explicit 33-file list):
+>
+> ```
+> Test Files  5 failed | 28 passed (33)
+>      Tests  13 failed | 610 passed (623)
+> ```
+>
+> Reproduced in isolation on a fresh container in **11.83s** — not contention, not ordering:
+> `r2-evidence-contracts` **5 of 8 failed** (recorded below as "8 passed");
+> `r2-operations-slice` **3 of 3 failed** (recorded below as "3 passed");
+> `r1-security-baseline` **3 of 38 failed**; `r1-runtime-e2e` **1 of 18 failed**.
+>
+> The three `r1-security-baseline` failures are reads returning 0 rows where 1 was expected —
+> legitimate access **refused**, not data exposed. No isolation assertion failed.
+>
+> Not attributable to the R0 work: commit `b3e1516` changes no file under `src/`. Either the
+> rows below were measured under a setup the canonical harness does not reproduce, or these
+> suites have regressed since; the repository cannot tell which, and neither is asserted.
+> The **core (non-kernel) integration suites are green** — 74 files, 671 tests, 0 failures.
+> See `r0-integration/08-LOCAL-VERIFICATION.md` and `r0-integration/07-CORRECTIONS.md` C-6.
+>
+> **The rows below are retained as the historical R5 record, not as a current claim.**
+
+| Suite | Result (as recorded at the R5 checkpoint) |
 |---|---|
 | `r2-evidence-contracts` (live) | **8 passed** — every item created by the real cycle |
 | `r2-lifecycle-orchestrator` (live) | **14 passed** — through `makeCycleDeps` with the real defaults |
@@ -209,6 +236,19 @@ approval path covers the gap.
 | Which scheduler is actually running | Railway checklist R3, R4 |
 | Where the Meta webhook points (P0, R0-F-001) | Railway checklist R5 |
 | Migration numbering | blocked on all of the above; no plan is final |
+
+**A second blocker, found 2026-09-10 and internal to the repository:** the R1/R2 kernel
+suites **fail at this SHA** under their own canonical harness — 5 files, 13 tests; 12 of
+them reproduce deterministically in 11.8s in isolation. Cause not established; not caused
+by the R0 work (`b3e1516` touches no `src/` file). This must be resolved before any kernel
+capability is claimed. The **core integration suites are green** (74 files, 671 tests) and
+are a separate claim.
+
+**A third, in the test configuration:** CI runs `npm run test:integration`, which sweeps all
+111 files after shim + migrate only — including the 35 kernel files whose schema is
+deliberately quarantined. CI's integration job therefore cannot be green as configured, and
+`r1-draft-schema.test.ts` mutates the shared database (28 draft units applied; 8 and then 15
+left behind across two runs), so whole-directory results are order-dependent.
 
 Carried over from R5, unchanged: **one product decision** (R2F-F-020) and **one piece of
 registered engineering** (R2F-F-019); host contention remains an environment blocker for
