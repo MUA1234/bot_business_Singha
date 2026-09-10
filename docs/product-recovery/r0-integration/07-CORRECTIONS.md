@@ -38,7 +38,7 @@ read.
 > Whether version `0069` is recorded on the hosted database is **UNKNOWN**. The collision
 > is real and provable from the repository; its *consequence* is conditional on a hosted
 > precondition that has not been established. If, and only if, version `0069` is already
-> recorded, the branch's `0070_durable_inbound_processing.sql` is skipped.
+> recorded, the branch's `0069_durable_inbound_processing.sql` is skipped.
 
 **Settled by:** hosted checklist Q2 and Q4.
 
@@ -60,7 +60,7 @@ PostgreSQL 16.10, ledger seeded with `main` 0001–0069) gives:
 
 ```
 ✅ 0070, 0071, 0072, 0073, 0074, 0075   — six migrations COMMITTED
-❌ 0077_inbound_boundary_correction.sql
+❌ 0076_inbound_boundary_correction.sql
    column "next_attempt_at" does not exist
 ```
 

@@ -10,7 +10,7 @@ renumbering, a migration apply, or any hosted modification.
 A version collision is resolved by **renumbering the whole dependent sequence in order**,
 never by renaming one file.
 
-The branch's `0070_durable_inbound_processing.sql` has **6 direct and 7 transitive
+The branch's `0069_durable_inbound_processing.sql` has **6 direct and 7 transitive
 dependants** (`0076`, `0077`, `0079`, `0083`, `0087`, `0088`, `0089` — see
 [`01-MIGRATION-DEPENDENCY-INVENTORY.md`](01-MIGRATION-DEPENDENCY-INVENTORY.md) §2). Moving
 0069 alone to 0110 would place it *after* every one of them. `npm run migration-collision-check`
@@ -67,10 +67,10 @@ sequence upward, preserving order.
 
 | From (branch) | To (merge candidate) |
 |---|---|
-| `0070_durable_inbound_processing.sql` | `0070_durable_inbound_processing.sql` |
-| `0071_channel_identity_resolution.sql` | `0071_channel_identity_resolution.sql` |
+| `0069_durable_inbound_processing.sql` | `0070_durable_inbound_processing.sql` |
+| `0070_channel_identity_resolution.sql` | `0071_channel_identity_resolution.sql` |
 | … each shifted by exactly **+1**, order preserved … | |
-| `0110_bounded_user_text.sql` | `0110_bounded_user_text.sql` |
+| `0109_bounded_user_text.sql` | `0110_bounded_user_text.sql` |
 
 `main`'s `0069_company_routing_and_catalogue_department.sql` is retained unchanged at 0069.
 Result: **110 migrations, 0001–0110, no gaps.**

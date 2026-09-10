@@ -11,7 +11,7 @@
   "range": "0069-0109",
   "byMigration": {
     "0069": {
-      "filename": "0070_durable_inbound_processing.sql",
+      "filename": "0069_durable_inbound_processing.sql",
       "tables": [],
       "functions": [
         "public.inbound_backoff_seconds",
@@ -31,7 +31,7 @@
       ]
     },
     "0070": {
-      "filename": "0071_channel_identity_resolution.sql",
+      "filename": "0070_channel_identity_resolution.sql",
       "tables": [
         "public.channel_identities"
       ],
@@ -42,7 +42,7 @@
       "columns": []
     },
     "0071": {
-      "filename": "0072_task_identity_dedup.sql",
+      "filename": "0071_task_identity_dedup.sql",
       "tables": [
         "public.task_duplicate_suggestions"
       ],
@@ -62,7 +62,7 @@
       ]
     },
     "0072": {
-      "filename": "0073_task_routing_state.sql",
+      "filename": "0072_task_routing_state.sql",
       "tables": [
         "public.task_routing",
         "public.task_routing_events"
@@ -75,7 +75,7 @@
       "columns": []
     },
     "0073": {
-      "filename": "0074_case_tasks_through_dedup.sql",
+      "filename": "0073_case_tasks_through_dedup.sql",
       "tables": [],
       "functions": [
         "public.create_management_case_atomic"
@@ -85,7 +85,7 @@
       ]
     },
     "0074": {
-      "filename": "0075_channel_account_company_resolution.sql",
+      "filename": "0074_channel_account_company_resolution.sql",
       "tables": [
         "public.channel_accounts"
       ],
@@ -96,7 +96,7 @@
       "columns": []
     },
     "0075": {
-      "filename": "0076_inbound_review_queue.sql",
+      "filename": "0075_inbound_review_queue.sql",
       "tables": [
         "public.inbound_reviews"
       ],
@@ -109,7 +109,7 @@
       "columns": []
     },
     "0076": {
-      "filename": "0077_inbound_boundary_correction.sql",
+      "filename": "0076_inbound_boundary_correction.sql",
       "tables": [],
       "functions": [
         "public.canonical_event_identity",
@@ -143,7 +143,7 @@
       ]
     },
     "0077": {
-      "filename": "0078_inbound_boundary_correction_2.sql",
+      "filename": "0077_inbound_boundary_correction_2.sql",
       "tables": [],
       "functions": [
         "public.record_inbound_dispatch",
@@ -155,7 +155,7 @@
       "columns": []
     },
     "0078": {
-      "filename": "0079_routing_provenance_split.sql",
+      "filename": "0078_routing_provenance_split.sql",
       "tables": [],
       "functions": [
         "public._is_task_routing_owner",
@@ -174,7 +174,7 @@
       ]
     },
     "0079": {
-      "filename": "0080_dispatch_release.sql",
+      "filename": "0079_dispatch_release.sql",
       "tables": [],
       "functions": [
         "public.release_inbound_dispatch"
@@ -182,7 +182,7 @@
       "columns": []
     },
     "0080": {
-      "filename": "0081_owner_configuration_surface.sql",
+      "filename": "0080_owner_configuration_surface.sql",
       "tables": [],
       "functions": [
         "public.admin_upsert_channel_account",
@@ -193,7 +193,7 @@
       "columns": []
     },
     "0081": {
-      "filename": "0082_approval_submitter_provenance.sql",
+      "filename": "0081_approval_submitter_provenance.sql",
       "tables": [],
       "functions": [
         "public.approval_requests_provenance_guard"
@@ -203,7 +203,7 @@
       ]
     },
     "0082": {
-      "filename": "0083_review_loop_corrections.sql",
+      "filename": "0082_review_loop_corrections.sql",
       "tables": [],
       "functions": [
         "public.task_routing_provenance_guard",
@@ -214,7 +214,7 @@
       "columns": []
     },
     "0083": {
-      "filename": "0084_loop2_corrections.sql",
+      "filename": "0083_loop2_corrections.sql",
       "tables": [
         "public.duplicate_reviews"
       ],
@@ -226,7 +226,7 @@
       "columns": []
     },
     "0084": {
-      "filename": "0085_caller_trust_boundary.sql",
+      "filename": "0084_caller_trust_boundary.sql",
       "tables": [],
       "functions": [
         "public._quotation_status_read",
@@ -237,13 +237,13 @@
       "columns": []
     },
     "0085": {
-      "filename": "0086_trust_boundary_corrections.sql",
+      "filename": "0085_trust_boundary_corrections.sql",
       "tables": [],
       "functions": [],
       "columns": []
     },
     "0086": {
-      "filename": "0087_actor_privilege_not_claim.sql",
+      "filename": "0086_actor_privilege_not_claim.sql",
       "tables": [],
       "functions": [
         "public._resolve_actor"
@@ -251,7 +251,7 @@
       "columns": []
     },
     "0087": {
-      "filename": "0088_duplicate_review_resolution.sql",
+      "filename": "0087_duplicate_review_resolution.sql",
       "tables": [],
       "functions": [
         "public.duplicate_reviews_immutable_when_resolved",
@@ -263,7 +263,7 @@
       ]
     },
     "0088": {
-      "filename": "0089_duplicate_review_boundary_corrections.sql",
+      "filename": "0088_duplicate_review_boundary_corrections.sql",
       "tables": [],
       "functions": [
         "public.duplicate_reviews_insert_initial_only",
@@ -275,7 +275,7 @@
       "columns": []
     },
     "0089": {
-      "filename": "0090_duplicate_review_sibling_and_budget.sql",
+      "filename": "0089_duplicate_review_sibling_and_budget.sql",
       "tables": [],
       "functions": [
         "public.resolve_duplicate_review"
@@ -283,7 +283,7 @@
       "columns": []
     },
     "0090": {
-      "filename": "0091_inbound_review_grant_authority.sql",
+      "filename": "0090_inbound_review_grant_authority.sql",
       "tables": [],
       "functions": [
         "public.record_inbound_review",
@@ -292,7 +292,7 @@
       "columns": []
     },
     "0091": {
-      "filename": "0092_model_gateway_telemetry.sql",
+      "filename": "0091_model_gateway_telemetry.sql",
       "tables": [
         "public.ai_model_attempts",
         "public.ai_model_budget_policies"
@@ -301,7 +301,7 @@
       "columns": []
     },
     "0092": {
-      "filename": "0093_model_gateway_budget_policy_rls.sql",
+      "filename": "0092_model_gateway_budget_policy_rls.sql",
       "tables": [],
       "functions": [
         "public.set_ai_model_budget_policy"
@@ -311,7 +311,7 @@
       ]
     },
     "0093": {
-      "filename": "0094_risk_register.sql",
+      "filename": "0093_risk_register.sql",
       "tables": [
         "public.risks"
       ],
@@ -321,7 +321,7 @@
       "columns": []
     },
     "0094": {
-      "filename": "0095_insurance_register.sql",
+      "filename": "0094_insurance_register.sql",
       "tables": [
         "public.insurances"
       ],
@@ -329,7 +329,7 @@
       "columns": []
     },
     "0095": {
-      "filename": "0096_integration_gateway.sql",
+      "filename": "0095_integration_gateway.sql",
       "tables": [
         "public.integrations",
         "public.connectors",
@@ -340,7 +340,7 @@
       "columns": []
     },
     "0096": {
-      "filename": "0097_management_directives.sql",
+      "filename": "0096_management_directives.sql",
       "tables": [
         "public.management_directives"
       ],
@@ -348,7 +348,7 @@
       "columns": []
     },
     "0097": {
-      "filename": "0098_ai_guide_messages.sql",
+      "filename": "0097_ai_guide_messages.sql",
       "tables": [
         "public.ai_guide_messages"
       ],
@@ -356,7 +356,7 @@
       "columns": []
     },
     "0098": {
-      "filename": "0099_conflicting_directive_resolution.sql",
+      "filename": "0098_conflicting_directive_resolution.sql",
       "tables": [
         "public.management_directive_conflicts"
       ],
@@ -370,7 +370,7 @@
       ]
     },
     "0099": {
-      "filename": "0100_directive_escalation.sql",
+      "filename": "0099_directive_escalation.sql",
       "tables": [],
       "functions": [],
       "columns": [
@@ -382,7 +382,7 @@
       ]
     },
     "0100": {
-      "filename": "0101_commitment_expected_payments.sql",
+      "filename": "0100_commitment_expected_payments.sql",
       "tables": [],
       "functions": [],
       "columns": [
@@ -390,7 +390,7 @@
       ]
     },
     "0101": {
-      "filename": "0102_service_provider_registry.sql",
+      "filename": "0101_service_provider_registry.sql",
       "tables": [
         "public.service_providers"
       ],
@@ -400,7 +400,7 @@
       "columns": []
     },
     "0102": {
-      "filename": "0103_counterparty_compliance.sql",
+      "filename": "0102_counterparty_compliance.sql",
       "tables": [],
       "functions": [],
       "columns": [
@@ -413,7 +413,7 @@
       ]
     },
     "0103": {
-      "filename": "0104_task_escalation_chain.sql",
+      "filename": "0103_task_escalation_chain.sql",
       "tables": [],
       "functions": [],
       "columns": [
@@ -426,7 +426,7 @@
       ]
     },
     "0104": {
-      "filename": "0105_communication_preferences.sql",
+      "filename": "0104_communication_preferences.sql",
       "tables": [
         "public.communication_preferences"
       ],
@@ -434,7 +434,7 @@
       "columns": []
     },
     "0105": {
-      "filename": "0106_funding_requirements_and_investments.sql",
+      "filename": "0105_funding_requirements_and_investments.sql",
       "tables": [
         "public.funding_requirements",
         "public.investments"
@@ -443,7 +443,7 @@
       "columns": []
     },
     "0106": {
-      "filename": "0107_incidents_and_statutory_obligations.sql",
+      "filename": "0106_incidents_and_statutory_obligations.sql",
       "tables": [
         "public.incidents"
       ],
@@ -454,7 +454,7 @@
       ]
     },
     "0107": {
-      "filename": "0108_project_risks_decisions_scenarios.sql",
+      "filename": "0107_project_risks_decisions_scenarios.sql",
       "tables": [
         "public.project_risks",
         "public.project_decisions",
@@ -464,7 +464,7 @@
       "columns": []
     },
     "0108": {
-      "filename": "0109_push_subscriptions.sql",
+      "filename": "0108_push_subscriptions.sql",
       "tables": [
         "public.push_subscriptions"
       ],
@@ -472,7 +472,7 @@
       "columns": []
     },
     "0109": {
-      "filename": "0110_bounded_user_text.sql",
+      "filename": "0109_bounded_user_text.sql",
       "tables": [],
       "functions": [],
       "columns": []

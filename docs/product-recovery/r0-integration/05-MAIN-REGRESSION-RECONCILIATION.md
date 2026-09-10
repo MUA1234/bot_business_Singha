@@ -151,7 +151,7 @@ merge of two rewrites is exactly how a cross-company leak gets introduced.
 
 | | `main` | recovery |
 |---|---|---|
-| Mechanism | `companies.whatsapp_phone_number_id` (unique partial index, migration 0069) | `channel_accounts` + `resolve_channel_company()` (migration 0075) |
+| Mechanism | `companies.whatsapp_phone_number_id` (unique partial index, migration 0069) | `channel_accounts` + `resolve_channel_company()` (migration 0074) |
 | Location of the mapping | a column on `companies` | auditable configuration rows, resolved in the database |
 | Ambiguity handling | one number → one company by unique index | typed `CompanyMatch`: `exact`, `single_tenant_fallback`, `unmapped`, `ambiguous`, `empty`, `lookup_error` |
 | Failure behaviour | — | **fail-closed**: only `exact` and `single_tenant_fallback` may carry a message into business processing |

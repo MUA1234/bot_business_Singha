@@ -12,6 +12,22 @@ hosted contact of any kind.
 | Hosted contact | **none** |
 | Production changes | **none** |
 
+> ### ⚠️ Numbering in this directory is PRE-SHIFT, and deliberately so
+>
+> Every migration number written below records what was measured **before** the Release 1
+> reconciliation. On the integration candidate the recovery line was shifted **+1**:
+> `0069–0109` → `0070–0110`, with `main`'s `0069_company_routing_and_catalogue_department.sql`
+> keeping 0069. So the file this directory calls `0076_inbound_boundary_correction.sql` is
+> now `0077_…`, and the collision it calls "the branch's 0069" is now `0070_durable_inbound_
+> processing.sql`.
+>
+> These numbers are **not stale text to be fixed.** They are an evidence record: what was
+> run, against which database, on which date. Rewriting a number inside an observation turns
+> it into a description of a run that never happened. A tooling pass did rewrite them once;
+> that was reverted, and `scripts/migration-renumber.mjs` now excludes this directory.
+>
+> The complete old→new mapping is [`../../release-1/MIGRATION-LINEAGE.md`](../../release-1/MIGRATION-LINEAGE.md).
+
 ---
 
 ## Documents

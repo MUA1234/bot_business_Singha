@@ -93,7 +93,7 @@ compared. Therefore:
 - **A number collision silently skips a migration** (PR-F-001). No warning, no failure.
 - **A renamed migration is a no-op**; a *re-numbered* one re-runs.
 - **Drift is undetectable** — `migrate:status` compares numbers, so a database that ran
-  `0069_company_routing…` and a repository containing `0070_durable_inbound_processing…`
+  `0069_company_routing…` and a repository containing `0069_durable_inbound_processing…`
   report as fully in sync.
 
 **Recommended (not implemented during Phase 0):** make the ledger key

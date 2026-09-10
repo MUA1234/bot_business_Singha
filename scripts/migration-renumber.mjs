@@ -121,12 +121,25 @@ for (const m of descending) {
 
 // 2/3/4. Rewrite references across the repo.
 const TEXT_EXT = /\.(ts|tsx|mjs|js|sql|md|json|yml|yaml)$/;
+/**
+ * `docs/product-recovery/` is deliberately excluded. Those files are an EVIDENCE RECORD:
+ * they state what was measured, on which database, under which numbering, on a given date.
+ * Rewriting a number inside them would turn "the apply halted at 0076_inbound_boundary_
+ * correction.sql" into a description of a run that never happened under that name. Historical
+ * records are corrected by adding a dated note, never by editing the observation. The first
+ * run of this tool did rewrite them, and the damage was reverted; the exclusion is here so it
+ * cannot recur.
+ *
+ * This file is excluded for a duller reason: it walks the tree it is editing, and on the
+ * first run it renumbered the examples in its own docstring.
+ */
 const SKIP_DIR = /(^|[\\/])(node_modules|\.git|\.next|dist|build|coverage|artifacts)([\\/]|$)/;
+const SKIP_PATH = /(^|[\\/])(docs[\\/]product-recovery|scripts[\\/]migration-renumber\.mjs)/;
 
 function walk(dir, out = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, e.name);
-    if (SKIP_DIR.test(p)) continue;
+    if (SKIP_DIR.test(p) || SKIP_PATH.test(p)) continue;
     if (e.isDirectory()) walk(p, out);
     else if (TEXT_EXT.test(e.name)) out.push(p);
   }

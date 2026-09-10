@@ -53,7 +53,7 @@ owner action, not by code. See [11-OWNER-DECISIONS.md](11-OWNER-DECISIONS.md) D-
 - **no** risk register, insurance register, integration gateway, management directives,
   service-provider registry, model-gateway telemetry, inbound review queue, task
   routing/escalation chain, funding requirements, incidents or statutory obligations —
-  all of those are branch-only (migrations 0071–0109).
+  all of those are branch-only (migrations 0070–0109).
 
 The owner's description of the deployed system as "primarily a sales, WhatsApp and
 quotation-handling application with departmental dashboards" is **accurate for `main`**.

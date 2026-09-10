@@ -43,7 +43,7 @@ Both lines define a migration numbered 0069, and they are different migrations:
 | Line | File |
 |---|---|
 | `main` | `0069_company_routing_and_catalogue_department.sql` |
-| branch | `0070_durable_inbound_processing.sql` |
+| branch | `0069_durable_inbound_processing.sql` |
 
 `scripts/migrate.mjs` keys the ledger on the **four-character numeric prefix only**:
 
@@ -54,9 +54,9 @@ const pending = files.filter((f) => !applied.has(version(f)) && …)       // li
 ```
 
 On any database where `main`'s 0069 has been applied, `schema_migrations` contains the
-row `version = '0069'`. The branch's `0070_durable_inbound_processing.sql` is then
+row `version = '0069'`. The branch's `0069_durable_inbound_processing.sql` is then
 **filtered out of `pending` and silently skipped** — not reported, not failed. Every
-subsequent migration 0071–0109 would then execute against a schema missing the durable
+subsequent migration 0070–0109 would then execute against a schema missing the durable
 inbound processing objects that several of them depend on.
 
 **This is a silent-corruption path, not a merge conflict.** It fails closed nowhere.

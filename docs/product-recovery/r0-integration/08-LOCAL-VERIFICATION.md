@@ -72,7 +72,7 @@ All four caught. Restoration verified: `0` mutation remnants in the file, suite 
 
   [SAME_VERSION_DIFFERENT_CONTENT] version 0069
     base: 0069_company_routing_and_catalogue_department.sql
-    head: 0070_durable_inbound_processing.sql
+    head: 0069_durable_inbound_processing.sql
 
   [RUNNER_SILENT_SKIP] version 0069
     16 object(s) would never be created;

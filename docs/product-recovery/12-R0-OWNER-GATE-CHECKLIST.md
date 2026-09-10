@@ -145,7 +145,7 @@ Two possibilities remain, and the repository cannot tell which:
 
 There is a second question layered on top: **two different migrations are numbered `0069`**
 (`main`'s `0069_company_routing_and_catalogue_department.sql` and this line's
-`0070_durable_inbound_processing.sql`), and the runner keys its ledger on the four-digit
+`0069_durable_inbound_processing.sql`), and the runner keys its ledger on the four-digit
 prefix alone. The SQL below tells the two apart by the objects each creates.
 
 ### 1. Where to look

@@ -31,7 +31,7 @@ The owner asked for six classes. Applied here with explicit definitions:
 | **Blocked by external provider** | Implementation cannot complete without a credential, provider or owner-side configuration |
 
 **A deployment caveat governs the whole matrix.** Only `main` is deployed. Everything
-introduced by migrations 0071–0109 or by the 234 branch commits is *at best*
+introduced by migrations 0070–0109 or by the 234 branch commits is *at best*
 "implemented, not integrated", regardless of how well it is tested. The requirement
 register's own totals confirm this from the other direction: of 90 requirements,
 **60 are `locally_verified`, and 0 are `staging_verified` or `production_verified`.**

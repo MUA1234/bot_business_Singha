@@ -34,7 +34,7 @@ narrower reconciliation than "324 commits ahead" suggests.
 
 | Version | `origin/main` | `claude/product-recovery-r1` |
 |---|---|---|
-| 0069 | `0069_company_routing_and_catalogue_department.sql` | `0070_durable_inbound_processing.sql` |
+| 0069 | `0069_company_routing_and_catalogue_department.sql` | `0069_durable_inbound_processing.sql` |
 
 Two entirely different migrations. Not a rename, not an edit — different subject matter.
 
@@ -44,7 +44,7 @@ Two entirely different migrations. Not a rename, not an edit — different subje
 
 Determined from object references, not filenames or sequence.
 
-The branch's `0070_durable_inbound_processing.sql` defines **16 objects**:
+The branch's `0069_durable_inbound_processing.sql` defines **16 objects**:
 
 | Kind | Objects |
 |---|---|
@@ -58,12 +58,12 @@ The branch's `0070_durable_inbound_processing.sql` defines **16 objects**:
 
 | Dependant | Reaches 0069 via |
 |---|---|
-| `0077_inbound_boundary_correction.sql` | `claim_source_events`, `inbound_backoff_seconds`, `source_event_backlog`, and the `lease_*` / `next_attempt_at` / `last_error_code` columns |
-| `0078_inbound_boundary_correction_2.sql` | `claim_source_events`, `lease_*`, `next_attempt_at` |
-| `0084_loop2_corrections.sql` | `lease_expires_at` |
-| `0088_duplicate_review_resolution.sql` | `claim_source_events`, `lease_*`, `next_attempt_at` |
-| `0089_duplicate_review_boundary_corrections.sql` | `complete_source_event`, `fail_source_event`, `dead_lettered_at`, `dead_letter_reason`, `lease_*` |
-| `0090_duplicate_review_sibling_and_budget.sql` | `fail_source_event`, `dead_lettered_at`, `dead_letter_reason`, `lease_*` |
+| `0076_inbound_boundary_correction.sql` | `claim_source_events`, `inbound_backoff_seconds`, `source_event_backlog`, and the `lease_*` / `next_attempt_at` / `last_error_code` columns |
+| `0077_inbound_boundary_correction_2.sql` | `claim_source_events`, `lease_*`, `next_attempt_at` |
+| `0083_loop2_corrections.sql` | `lease_expires_at` |
+| `0087_duplicate_review_resolution.sql` | `claim_source_events`, `lease_*`, `next_attempt_at` |
+| `0088_duplicate_review_boundary_corrections.sql` | `complete_source_event`, `fail_source_event`, `dead_lettered_at`, `dead_letter_reason`, `lease_*` |
+| `0089_duplicate_review_sibling_and_budget.sql` | `fail_source_event`, `dead_lettered_at`, `dead_letter_reason`, `lease_*` |
 
 Verified by hand as well as by tool: `claim_source_events` is first defined in 0069 and
 `create or replace`d in 0076; 0076 also carries the comment *"separate from the consumer
@@ -87,7 +87,7 @@ not an established fact — see [`03-HOSTED-STATE-CHECKLIST.md`](03-HOSTED-STATE
 ```
 ledger seeded: 69 rows, version 0069 = 0069_company_routing_and_catalogue_department.sql
 apply branch:  ✅ 0070 … ✅ 0075   (6 migrations COMMITTED)
-               ❌ 0077_inbound_boundary_correction.sql
+               ❌ 0076_inbound_boundary_correction.sql
                   → column "next_attempt_at" does not exist
 ```
 
