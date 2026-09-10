@@ -12,20 +12,32 @@
  * given external event is processed at most once even if the queue delivers twice.
  */
 import { inngest, WHATSAPP_INBOUND_EVENT } from "./client";
-import { AiGateway } from "@/ai/gateway";
+import { AiGateway, MODEL_ROUTES } from "@/ai/gateway";
 import { makeOpenAiTransport } from "@/ai/openai-transport";
+import { ModelPolicyExecutor, ModelPolicyRouter, ModelProviderRegistry } from "@/ai/model-policy-router";
 import { serviceClient } from "@/db/client";
-import { makeSupabaseConsumerStore, makeSupabaseCostLedger } from "@/db/consumer-store";
+import { loadAiTaskBudget, makeSupabaseConsumerStore, makeSupabaseCostLedger, makeSupabaseModelAttemptTelemetry } from "@/db/consumer-store";
 import { processSourceEvent, type ConsumerDeps } from "./processing";
-import { handleCustomerMessage } from "@/lib/order-intake";
+import { makeInboundDeps } from "@/lib/inbound/production-deps";
+import { recordInboundReceipt } from "@/lib/inbound/receipt";
+import { dispatchReceipt } from "@/lib/inbound/dispatch-receipt";
+import { sha256 } from "@/lib/ids";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { drainOutbox } from "@/events/outbox-drain";
-import { log } from "@/lib/log";
+import { newCorrelationId, log } from "@/lib/log";
 
 /** Build the live deps once per invocation (lazy — no client is created at import). */
 function liveDeps(): ConsumerDeps {
   const db = serviceClient();
-  const gateway = new AiGateway(makeOpenAiTransport(), makeSupabaseCostLedger(db));
+  const transport = makeOpenAiTransport();
+  const registry = new ModelProviderRegistry([{
+    candidate: { provider: "openai", model: MODEL_ROUTES.extraction.model, tasks: ["extraction"], estimatedCostUsd: "0.02", latencyMs: 30_000 },
+    transport,
+  }]);
+  const gateway = new AiGateway(transport, makeSupabaseCostLedger(db), {
+    executor: new ModelPolicyExecutor(registry, new ModelPolicyRouter(registry.candidates()), makeSupabaseModelAttemptTelemetry(db)),
+    loadBudget: (companyId) => loadAiTaskBudget(db, companyId, "extraction"),
+  });
   return { gateway, ...makeSupabaseConsumerStore(db) };
 }
 
@@ -51,6 +63,26 @@ export const onSourceEventReceived = inngest.createFunction(
       processSourceEvent({ source_event_id, correlation_id }, liveDeps()),
     );
 
+    // SETTLE THE RECEIPT (S-01 case b). Nothing here used to write `source_events.status`, so the
+    // scheduled sweeper R1 §4 added went on to claim rows this consumer had already processed
+    // successfully — and once the pipeline became idempotent, re-processing them exhausted the
+    // attempt budget and dead-lettered healthy captures. With the mandated stack configured that
+    // was EVERY finance capture. Settling here is the primary fix; the pipeline being resumable is
+    // the backstop for the crash window between the two.
+    await step.run("settle-source-event", async () => {
+      const { error } = await supabaseAdmin().rpc("settle_processed_source_event", {
+        p_id: source_event_id,
+      });
+      // Not fatal: the receipt is durable and the sweeper's own run is now idempotent. Reporting
+      // the failure beats pretending the settle happened.
+      if (error) {
+        log("error", "could not settle a processed source event", {
+          event: "inbound.settle_failed", sourceEventId: source_event_id, error: error.message,
+        });
+      }
+      return { settled: !error };
+    });
+
     return outcome;
   },
 );
@@ -68,15 +100,42 @@ export const onCustomerWhatsAppMessage = inngest.createFunction(
   },
   { event: WHATSAPP_INBOUND_EVENT },
   async ({ event, step }) => {
-    const { from, text, wa_message_id, company_id } = event.data as {
+    const { from, text, wa_message_id, received_by } = event.data as {
       from: string;
       text: string;
       wa_message_id: string;
-      company_id?: string;
+      received_by?: string | null;
     };
-    return await step.run("handle-customer-message", () =>
-      handleCustomerMessage({ from, text, waMessageId: wa_message_id, companyId: company_id }),
-    );
+
+    // FOUND-003 / migration 0077 — the SAME orchestration the synchronous route runs, on the SAME
+    // canonical receipt. This worker used to call the customer order handler directly, so with
+    // WHATSAPP_ASYNC on every message was a customer order and identity routing did not apply.
+    // Re-recording the receipt is idempotent on the canonical identity: it returns the row the
+    // webhook already created, and creates it only if the webhook's transaction never landed.
+    return await step.run("dispatch-inbound-message", async () => {
+      const db = supabaseAdmin();
+      const receipt = await recordInboundReceipt(db, {
+        source: "whatsapp",
+        providerAccountId: received_by ?? null,
+        providerMessageId: wa_message_id,
+        rawPayload: event.data as Record<string, unknown>,
+        contentHash: sha256(text),
+        correlationId: newCorrelationId(),
+      });
+      const outcome = await dispatchReceipt(
+        db,
+        receipt,
+        { channel: "whatsapp", from, text, providerMessageId: wa_message_id, rawPayload: event.data },
+        received_by ?? null,
+        makeInboundDeps,
+      );
+      // A dispatch that could not be decided must FAIL the step so Inngest retries it — reporting
+      // success would be the false-acknowledgement defect one layer up.
+      if (outcome === "error" || outcome === "retry_pending") {
+        throw new Error(`inbound dispatch is not finished for ${wa_message_id} (${outcome})`);
+      }
+      return { status: outcome };
+    });
   },
 );
 

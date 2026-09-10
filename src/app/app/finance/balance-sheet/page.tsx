@@ -6,6 +6,7 @@ import Link from "next/link";
 import { requireDepartment } from "@/lib/auth";
 import { loadPostedJournals } from "@/lib/ledger-report";
 import { decSub, fmtMoney } from "@/lib/money";
+import { Card, CardHeader, CardBody, EmptyState } from "@/components/ui";
 import { trialBalance, balanceSheet } from "@/accounting/trial-balance";
 
 export const metadata = { title: "Balance Sheet — Singha Central" };
@@ -24,16 +25,20 @@ export default async function BalanceSheetPage() {
     normal === "debit" ? decSub(r.debit, r.credit).toFixed() : decSub(r.credit, r.debit).toFixed();
 
   const Section = ({ title, rows, normal }: { title: string; rows: typeof tb.rows; normal: "debit" | "credit" }) => (
-    <div className="card">
-      <div className="card-title">{title}</div>
-      {rows.length === 0 ? <div className="empty">Nothing posted.</div> : (
-        <div className="table-wrap mt-3">
-          <table className="data">
-            <tbody>{rows.map((r) => <tr key={r.account_code}><td className="mono">{r.account_code}</td><td className="num">{m(amt(r, normal))}</td></tr>)}</tbody>
-          </table>
-        </div>
-      )}
-    </div>
+    <Card>
+      <CardHeader title={title} />
+      <CardBody>
+        {rows.length === 0 ? (
+          <EmptyState title="Nothing posted" />
+        ) : (
+          <div className="table-wrap">
+            <table className="data">
+              <tbody>{rows.map((r) => <tr key={r.account_code}><td className="mono">{r.account_code}</td><td className="num">{m(amt(r, normal))}</td></tr>)}</tbody>
+            </table>
+          </div>
+        )}
+      </CardBody>
+    </Card>
   );
 
   return (

@@ -12,6 +12,8 @@ import { computeCashPosition, type CashAccount, type CashMovement } from "@/modu
 import { projectCash, type CashFlowItem } from "@/management/ai-manager/forecast";
 import { expandRecurring, type Cadence } from "@/modules/finance/recurring";
 import { AreaLineChart } from "@/components/charts";
+import { Card, CardHeader, CardBody, DataTable, type DataTableColumn } from "@/components/ui";
+import { fmtDate } from "@/lib/format";
 
 export const metadata = { title: "Cash Forecast — Singha Central" };
 
@@ -70,6 +72,11 @@ export default async function ForecastPage() {
   // Sample the curve at 0/30/60/90 days for a compact view.
   const sample = [0, 30, 60, 90].map((d) => fc.points[Math.min(d, fc.points.length - 1)]).filter(Boolean);
 
+  const sampleColumns: DataTableColumn<NonNullable<(typeof sample)[number]>>[] = [
+    { key: "date", header: "Date", render: (pt) => <span className="dim small">{fmtDate(pt.date)}</span> },
+    { key: "balance", header: "Balance", align: "right", render: (pt) => fmt(pt.balance) },
+  ];
+
   return (
     <div className="stack gap-3">
       <div className="row between">
@@ -90,33 +97,28 @@ export default async function ForecastPage() {
         <div className="card stat"><div className="k">Lowest point</div><div className="v" style={{ fontSize: "1.4rem", color: dec(fc.lowest.balance).isNegative() ? "var(--danger)" : "var(--info)" }}>{fmt(fc.lowest.balance)}</div><div className="d dim">{fc.lowest.date}</div></div>
       </div>
 
-      <div className="card">
-        <div className="card-title">Projected cash — full 90-day curve</div>
-        <div className="card-sub">The marked point is the trough — pull collections earlier or push payments later to lift it.</div>
-        <div className="mt-2">
+      <Card>
+        <CardHeader
+          title="Projected cash — full 90-day curve"
+          subtitle="The marked point is the trough — pull collections earlier or push payments later to lift it."
+        />
+        <CardBody>
           <AreaLineChart points={fc.points.map((p) => ({ label: p.date.slice(5), value: dec(p.balance).toNumber(), display: fmt(p.balance) }))} />
-        </div>
-        {fc.goesNegative && (
-          <div className="small mt-1" style={{ color: "var(--danger)" }}>
-            ⚠ Projection crosses below zero — trough {fmt(fc.lowest.balance)} on {fc.lowest.date}.
-          </div>
-        )}
-      </div>
+          {fc.goesNegative && (
+            <div className="small mt-1" style={{ color: "var(--danger)" }}>
+              ⚠ Projection crosses below zero — trough {fmt(fc.lowest.balance)} on {fc.lowest.date}.
+            </div>
+          )}
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">Projected balance</div>
-        <div className="table-wrap mt-3">
-          <table className="data">
-            <thead><tr><th>Date</th><th className="num">Balance</th></tr></thead>
-            <tbody>
-              {sample.map((pt) => (
-                <tr key={pt!.date}><td className="dim small">{pt!.date}</td><td className="num">{fmt(pt!.balance)}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="card-sub mt-2">Inflows from {inflows.length} open invoice(s); {outflows.length} scheduled outflow(s) (bills, commitments &amp; recurring).</p>
-      </div>
+      <Card>
+        <CardHeader title="Projected balance" />
+        <CardBody>
+          <DataTable columns={sampleColumns} rows={sample.filter((pt): pt is NonNullable<typeof pt> => !!pt)} keyExtractor={(pt) => pt.date} />
+          <p className="card-sub mt-2">Inflows from {inflows.length} open invoice(s); {outflows.length} scheduled outflow(s) (bills, commitments &amp; recurring).</p>
+        </CardBody>
+      </Card>
     </div>
   );
 }

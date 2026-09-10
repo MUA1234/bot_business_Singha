@@ -6,10 +6,12 @@
  * the service role — guide §2, CLAUDE.md company-isolation rule). The pure pipeline
  * decides *what* to write; this module is the only place that talks to Postgres.
  */
+import Decimal from "decimal.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { approvalPolicy, type ApprovalPolicy } from "@/schemas/approval-policy";
 import { assertTransition, type FinancialEventState } from "@/domain/lifecycle";
 import type { AiRunRecord, CostLedger } from "@/ai/gateway";
+import type { ModelAttemptTelemetry } from "@/ai/model-policy-router";
 import type { ConsumerDeps, LoadedSourceEvent } from "@/inngest/processing";
 import { log } from "@/lib/log";
 
@@ -51,6 +53,54 @@ export function makeSupabaseCostLedger(db: SupabaseClient): CostLedger {
   };
 }
 
+/** Durable MOD-003 attempt/health telemetry. The unique key makes a replay idempotent. */
+export function makeSupabaseModelAttemptTelemetry(db: SupabaseClient): ModelAttemptTelemetry {
+  return {
+    async recordAttempt(attempt): Promise<void> {
+      const { error } = await db.from("ai_model_attempts").upsert({
+        company_id: attempt.companyId,
+        logical_request_id: attempt.logicalRequestId,
+        task: attempt.task,
+        provider: attempt.provider,
+        model: attempt.model,
+        attempt: attempt.attempt,
+        outcome: attempt.outcome,
+        latency_ms: attempt.latencyMs,
+        error_category: attempt.errorCategory ?? null,
+      }, { onConflict: "company_id,logical_request_id,attempt", ignoreDuplicates: true });
+      if (error) throw new Error(`ai_model_attempts upsert failed: ${error.message}`);
+    },
+  };
+}
+
+/** Returns the explicit company/task ceiling; absent configuration fails closed at the caller. */
+export async function loadAiTaskBudget(db: SupabaseClient, companyId: string, task: string): Promise<string | null> {
+  const { data: policy, error: policyError } = await db
+    .from("ai_model_budget_policies")
+    .select("max_cost_usd")
+    .eq("company_id", companyId)
+    .eq("task", task)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (policyError) throw new Error(`ai_model_budget_policies read failed: ${policyError.message}`);
+  if (policy?.max_cost_usd == null) return null;
+
+  const startOfUtcDay = new Date();
+  startOfUtcDay.setUTCHours(0, 0, 0, 0);
+  const { data: runs, error: runsError } = await db
+    .from("ai_runs")
+    .select("cost_usd")
+    .eq("company_id", companyId)
+    .eq("route", task)
+    .gte("created_at", startOfUtcDay.toISOString());
+  if (runsError) throw new Error(`ai_runs budget lookup failed: ${runsError.message}`);
+
+  const limit = new Decimal(String(policy.max_cost_usd));
+  const spent = (runs ?? []).reduce((total, run) => total.plus(new Decimal(String(run.cost_usd ?? "0"))), new Decimal(0));
+  const remaining = limit.minus(spent);
+  return remaining.isNegative() ? "0" : remaining.toString();
+}
+
 export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
   return {
     async loadSourceEvent(sourceEventId): Promise<LoadedSourceEvent> {
@@ -85,21 +135,68 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
       return {
         policy,
         known: { companyKnown: !!companyId, employeeKnown: false, projectKnown: false },
-        // Webhook sender → user/employee resolution is a later step; system-attributed for now.
-        submitterUserId: "system",
+        // Nobody submitted this: the consumer pipeline did. `null` says so, and migration 0082
+        // records `submitted_by_source = 'system'` beside it. The previous value here was the
+        // literal string "system", which is not a uuid — every approval request the pipeline
+        // tried to create failed and the captured payment reached no approver (OF-013).
+        submitterUserId: null,
       };
     },
 
-    async recentEventsForDedup(companyId, within) {
-      const { data } = await db
+    async recentEventsForDedup(companyId, within, sourceEventId) {
+      // TWO exclusions, and BOTH are required. Either one alone leaves the resume path broken.
+      //
+      //  1. THE EVENT ITSELF. On the first pass the event does not exist yet — `findDuplicates`
+      //     runs before `createDraft` — so it cannot appear in its own candidate set. On a RESUME
+      //     it does exist, in `draft`, which is not a terminal state and so is not filtered out
+      //     below. It would then be scored against itself at 1.0 and `openDuplicateReview` would
+      //     try to insert `financial_event_id = matched_event_id`, which 0083's
+      //     `duplicate_reviews_distinct_ck` rejects — the pipeline throws on every sweep and the
+      //     sweeper DEAD-LETTERS the payment a reviewer just released. Reproduced end to end
+      //     before this line existed; see of016-resume-through-real-store.test.ts.
+      //
+      //  2. COUNTERPARTS A PERSON RULED DISTINCT for this event. Without this the dismissal would
+      //     not survive one pass — the same pair would score the same way, raise the same
+      //     suspicion, and re-pause the payment. Deliberately narrow: keyed to THIS event, so the
+      //     same counterpart is still scored against every other event, and derived from the
+      //     authoritative `duplicate_reviews` record rather than a second store of decisions.
+      const dismissed = new Set<string>();
+      let selfId: string | null = null;
+      if (sourceEventId) {
+        const { data: fe, error: feErr } = await db
+          .from("financial_events")
+          .select("id")
+          .eq("source_event_id", sourceEventId)
+          .maybeSingle();
+        if (feErr) throw new Error(`duplicate-dismissal lookup failed: ${feErr.message}`);
+        if (fe?.id) {
+          selfId = String(fe.id);
+          const { data: rows, error: revErr } = await db
+            .from("duplicate_reviews")
+            .select("matched_event_id")
+            .eq("financial_event_id", fe.id)
+            .eq("state", "resolved")
+            .eq("resolution", "dismissed_distinct");
+          // Same rule as the candidate lookup below: a FAILED read is not "nothing was dismissed".
+          // Swallowing it would silently re-pause an event a human already released.
+          if (revErr) throw new Error(`duplicate-dismissal lookup failed: ${revErr.message}`);
+          for (const r of rows ?? []) if (r.matched_event_id) dismissed.add(String(r.matched_event_id));
+        }
+      }
+
+      const { data, error } = await db
         .from("financial_events")
         .select("id, amount, currency, transaction_date, counterparty_name")
         .eq("company_id", companyId)
         .not("state", "in", "(rejected,cancelled,duplicate,reversed,superseded)")
         .order("created_at", { ascending: false })
         .limit(50);
+      // A FAILED lookup is not "no duplicates". Discarding the error let a broken query read as a
+      // clean bill of health, which is the worst possible failure mode for duplicate detection:
+      // silent, and it makes every payment look like the first time it was seen.
+      if (error) throw new Error(`duplicate-candidate lookup failed: ${error.message}`);
       return (data ?? [])
-        .filter((r) => r.id) // scored against the incoming candidate in the pipeline
+        .filter((r) => r.id && String(r.id) !== selfId && !dismissed.has(String(r.id)))
         .map((r) => ({
           id: r.id as string,
           candidate: {
@@ -114,6 +211,34 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
 
     async createDraft(draft) {
       const x = draft.extraction;
+      // IDEMPOTENT PER SOURCE EVENT. `processSourceEvent` documents that idempotency is guaranteed
+      // upstream by the Inngest function key — true for that caller, and NOT true for the sweeper
+      // R1 §4 added, which retries the same event up to five times. Any failure after this insert
+      // used to duplicate the drafted payment. Migration 0082 makes a second draft impossible; this
+      // returns the existing one so a legitimate retry continues rather than dying on the index.
+      if (draft.source_event_id) {
+        const { data: existing, error: exErr } = await db
+          .from("financial_events")
+          .select("id, company_id, state")
+          .eq("source_event_id", draft.source_event_id)
+          .maybeSingle();
+        if (exErr) throw new Error(`financial_events lookup failed: ${exErr.message}`);
+        if (existing?.id) {
+          // FAIL CLOSED on a company mismatch (S-09). Continuing would run policy, approval and
+          // duplicate scoring for one company against a financial event owned by another.
+          if (existing.company_id !== draft.company_id) {
+            throw new Error(
+              `source event ${draft.source_event_id} already has a financial event in a different company`,
+            );
+          }
+          // Tell the pipeline WHERE the previous execution stopped, so it resumes rather than
+          // replaying the state machine from `detected` against an event that has moved on.
+          return {
+            financial_event_id: existing.id as string,
+            resumedFromState: (existing.state as string | undefined) ?? "draft",
+          };
+        }
+      }
       const { data, error } = await db
         .from("financial_events")
         .insert({
@@ -163,7 +288,18 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
         .select("id");
       if (error) throw new Error(`transition ${from}→${to} failed: ${error.message}`);
       if (!data || data.length === 0) {
-        throw new Error(`transition ${from}→${to} blocked: event ${financialEventId} not in state ${from} (reason: ${reason})`);
+        // RESUMABILITY (S-01). The pipeline has two callers and BOTH retry, so a second execution
+        // legitimately arrives at a transition whose `from` has already happened. Landing on the
+        // TARGET state is success, not failure — treating it as failure burned every retry and
+        // dead-lettered a captured payment that was sitting in `awaiting_approval` with no approval
+        // request, invisible on every screen. Anything OTHER than the target is still a real error.
+        const { data: current, error: readErr } = await db
+          .from("financial_events").select("state").eq("id", financialEventId).maybeSingle();
+        if (readErr) throw new Error(`transition ${from}→${to} could not verify state: ${readErr.message}`);
+        if (current?.state === to) return;      // already there — the previous run did it
+        throw new Error(
+          `transition ${from}→${to} blocked: event ${financialEventId} is in state ${current?.state ?? "(missing)"} (reason: ${reason})`,
+        );
       }
     },
 
@@ -180,6 +316,13 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
     },
 
     async createApprovalRequest(input) {
+      // IDEMPOTENT per financial event (S-01 + migration 0084). A resumed run must find the request
+      // the previous one created rather than raising a second one — or dying on the unique index.
+      const { data: existing, error: exErr } = await db
+        .from("approval_requests").select("id").eq("financial_event_id", input.financial_event_id).maybeSingle();
+      if (exErr) throw new Error(`approval_requests lookup failed: ${exErr.message}`);
+      if (existing?.id) return { approval_request_id: existing.id as string };
+
       const { data, error } = await db
         .from("approval_requests")
         .insert({
@@ -188,6 +331,8 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
           status: "pending",
           approvals_required: Math.max(1, input.approvals_required),
           submitted_by: input.submitted_by,
+          // Provenance is derived from WHETHER there is a person, never asserted by a caller.
+          submitted_by_source: input.submitted_by === null ? "system" : "human",
         })
         .select("id")
         .single();
@@ -217,6 +362,45 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
           resolution: "open",
         })),
       );
+    },
+
+    async openDuplicateReview(input) {
+      // THE SECOND LAYER, and it lives here because here is where the financial event id exists.
+      // `findDuplicates` runs BEFORE `createDraft`, so the pipeline cannot know the id yet — a
+      // guard placed there took an argument nothing could supply and was dead code described as
+      // live protection. An event scored against ITSELF produces a review whose
+      // financial_event_id equals its matched_event_id, which 0083's CHECK rejects outright: the
+      // pipeline throws on every sweep and the sweeper dead-letters a payment a reviewer just
+      // released. Dropping it here costs nothing and cannot be bypassed by a caller that forgets.
+      const selfMatches = input.matches.filter((m) => m.matched_event_id === input.financial_event_id);
+      if (selfMatches.length) {
+        log("warn", "duplicate review: an event matched ITSELF — dropping the self-reference", {
+          event: "duplicate.self_match_dropped",
+          financialEventId: input.financial_event_id,
+          dropped: selfMatches.length,
+        });
+      }
+      const matches = input.matches.filter((m) => m.matched_event_id !== input.financial_event_id);
+      if (!matches.length) return;
+      input = { ...input, matches };
+      // Idempotent per (event, matched event) — migration 0084's unique constraint — so a resumed
+      // pipeline run finds the existing review instead of stacking a second one in front of a person.
+      for (const m of input.matches) {
+        const { error } = await db.from("duplicate_reviews").insert({
+          company_id: input.company_id,
+          financial_event_id: input.financial_event_id,
+          matched_event_id: m.matched_event_id,
+          score: m.score,
+          feature_contributions: m.contributions ?? {},
+          evidence_present: m.evidence_present ?? [],
+          evidence_missing: m.evidence_missing ?? [],
+          algorithm_version: input.algorithm_version,
+        });
+        // 23505 is the pair already being open — the expected outcome of a legitimate retry.
+        if (error && !/duplicate key|23505/i.test(error.message)) {
+          throw new Error(`duplicate_reviews insert failed: ${error.message}`);
+        }
+      }
     },
 
     async appendAudit(input) {

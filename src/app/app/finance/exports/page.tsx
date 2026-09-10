@@ -1,5 +1,6 @@
 import { requireDepartment } from "@/lib/auth";
 import { Icon } from "@/components/Icon";
+import { Card, CardHeader, CardBody, Button } from "@/components/ui";
 
 export const metadata = { title: "Excel Exports — Singha Central" };
 
@@ -23,13 +24,17 @@ export default async function ExportsPage() {
       </div>
       <div className="grid cols-2">
         {EXPORTS.map((e) => (
-          <div key={e.kind} className="card row between">
-            <div>
-              <div className="card-title">{e.label}</div>
-              <p className="card-sub mt-1">{e.desc}</p>
+          <Card key={e.kind}>
+            <div className="row between gap-2">
+              <div>
+                <div className="card-title">{e.label}</div>
+                <p className="card-sub mt-1">{e.desc}</p>
+              </div>
+              <a href={`/api/exports/${e.kind}`}>
+                <Button size="sm" leftIcon="download">Export</Button>
+              </a>
             </div>
-            <a className="btn sm" href={`/api/exports/${e.kind}`}><Icon name="download" size={15} /> Export</a>
-          </div>
+          </Card>
         ))}
       </div>
     </div>

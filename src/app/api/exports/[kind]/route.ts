@@ -5,7 +5,7 @@
  */
 import { NextResponse } from "next/server";
 import { getProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 import { toCsv } from "@/documents/templates";
 
 export const runtime = "nodejs";
@@ -19,7 +19,7 @@ export async function GET(_req: Request, { params }: { params: { kind: string } 
   if (params.kind === "audit" && !p.isAdmin)
     return new NextResponse("Forbidden", { status: 403 });
 
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
   let headers: string[] = [];
   let rows: (string | number | null | undefined)[][] = [];
 

@@ -10,7 +10,7 @@
  * "Manager" here is the app's current manager notion (admin or Operations). Once the
  * capability cutover lands, manager = holds the `approve` capability (migration 0023).
  */
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 import type { SessionProfile } from "@/lib/auth";
 import { canActOnTask, type TaskAction } from "@/modules/identity/can-act-on-task";
 
@@ -24,7 +24,7 @@ export interface LoadedTask {
 
 async function loadTask(id: string, companyId: string): Promise<LoadedTask | null> {
   if (!id) return null;
-  const { data } = await supabaseAdmin()
+  const { data } = await supabaseReadClient()
     .from("tasks")
     .select("id, status, requires_evidence, company_id, assigned_to")
     .eq("id", id)
@@ -35,7 +35,7 @@ async function loadTask(id: string, companyId: string): Promise<LoadedTask | nul
 
 /** Membership ids for this user in this company (forward-compat assignment path). */
 async function membershipIds(userId: string, companyId: string): Promise<string[]> {
-  const { data } = await supabaseAdmin()
+  const { data } = await supabaseReadClient()
     .from("memberships")
     .select("id")
     .eq("user_id", userId)
@@ -45,7 +45,7 @@ async function membershipIds(userId: string, companyId: string): Promise<string[
 }
 
 async function assigneeMembershipIds(taskId: string, companyId: string): Promise<string[]> {
-  const { data } = await supabaseAdmin()
+  const { data } = await supabaseReadClient()
     .from("task_assignments")
     .select("membership_id")
     .eq("task_id", taskId)

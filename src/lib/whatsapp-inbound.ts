@@ -1,15 +1,20 @@
 /**
- * Parsing of Meta's inbound WhatsApp webhook payload.
+ * Parsing of Meta's inbound WhatsApp webhook payload — LEGACY, off the production path.
  *
- * Lives outside the route handler because a Next.js route file may only export its HTTP
- * verbs — and because this is the boundary that decides WHICH COMPANY an event belongs to,
- * which deserves its own tests.
+ * SUPERSEDED (Release 1). The live webhook parses through `src/lib/inbound/adapters/whatsapp.ts`
+ * and resolves the company through `channel_accounts` + `resolve_channel_company`, which is the
+ * canonical design (owner decision 3). This module is retained ONLY because its pure parser and
+ * its regression tests still pin behaviour the canonical adapter must also honour: the receiving
+ * number is read per change, a missing metadata block yields null rather than a guess, and a
+ * malformed event never throws. No route, job or service imports it.
  *
- * `value.metadata.phone_number_id` identifies the business number that RECEIVED the message.
- * It used to be discarded, which is why the pipeline fell back to a hardcoded
- * `DEFAULT_COMPANY_ID` and could never have served a second company without writing its
- * traffic into the first company's records. It is now carried through so the company is
- * derived from the event rather than assumed.
+ * `value.metadata.phone_number_id` identifies the business number that RECEIVED the message. It
+ * used to be discarded, and the pipeline then fell back to a single compiled-in company id — it
+ * could never have served a second company without writing that company's traffic into the
+ * first one's records. That constant no longer exists anywhere in the codebase; the company is
+ * derived from the event.
+ *
+ * Do not add callers. If something here is needed, move it into the canonical adapter.
  */
 
 export interface InboundText {

@@ -10,6 +10,7 @@
  * Skipped unless `DATABASE_URL` is set.  Run:  DATABASE_URL=… npm run test:integration
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { authClaims, seedCapableActor, TEST_ACTOR } from "./helpers/capable-actor";
 
 const URL = process.env.DATABASE_URL ?? "";
 const enabled = !!URL;
@@ -57,9 +58,10 @@ describe.skipIf(!enabled)("settlement + reversal — live, zero-persistence", ()
     await client.connect();
     await client.query("begin");
     // Posting/settlement RPCs run on the service path; present a service_role JWT (WP17/0049).
-    await client.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+    await client.query(`select set_config('request.jwt.claims', '${authClaims()}', true)`);
     company = (await client.query(`insert into companies (name, base_currency) values ('wp_set','LKR') returning id`)).rows[0].id;
-    poster = (await client.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(),'wp_set_poster',true) returning id`)).rows[0].id;
+    await seedCapableActor(client, company);
+    poster = TEST_ACTOR;   // FOUND-006/0086: the acting human is the JWT subject
     customer = (await client.query(`insert into customers (company_id, name) values ($1,'Cust') returning id`, [company])).rows[0].id;
     await client.query(`insert into chart_of_accounts (company_id, code, name, type) values ($1,'1000','Cash','asset'),($1,'1100','AR','asset'),($1,'4000','Sales','income')`, [company]);
   });

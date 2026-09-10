@@ -4,13 +4,15 @@ import { useEffect, useRef } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { createEmployee, type EmployeeFormState } from "./actions";
 import { DEPARTMENTS } from "@/lib/departments";
+import { FormField } from "@/components/ui/FormField";
+import { Button } from "@/components/ui/Button";
 
 function Submit() {
   const { pending } = useFormStatus();
   return (
-    <button className="btn" type="submit" disabled={pending}>
+    <Button type="submit" loading={pending} aria-label="Create employee">
       {pending ? "Creating…" : "Create employee"}
-    </button>
+    </Button>
   );
 }
 
@@ -27,26 +29,20 @@ export function CreateEmployeeForm() {
       {state.error && <div className="notice err">{state.error}</div>}
       {state.ok && <div className="notice ok">{state.ok}</div>}
       <div className="grid cols-2">
-        <div className="field">
-          <label className="label">Full name</label>
-          <input name="full_name" className="input" placeholder="Nimal Perera" />
-        </div>
-        <div className="field">
-          <label className="label">Username</label>
-          <input
-            name="username"
-            className="input"
-            placeholder="nimal"
-            autoCapitalize="none"
-            spellCheck={false}
-            required
-          />
-        </div>
+        <FormField label="Full name" name="full_name" placeholder="Nimal Perera" />
+        <FormField
+          label="Username"
+          name="username"
+          placeholder="nimal"
+          autoCapitalize="none"
+          spellCheck={false}
+          required
+        />
       </div>
       <div className="grid cols-2">
         <div className="field">
-          <label className="label">Department</label>
-          <select name="department" className="select" defaultValue="sales" required>
+          <label htmlFor="department" className="label">Department</label>
+          <select id="department" name="department" className="select" defaultValue="sales" required>
             {DEPARTMENTS.map((d) => (
               <option key={d.key} value={d.key}>
                 {d.label}
@@ -54,13 +50,16 @@ export function CreateEmployeeForm() {
             ))}
           </select>
         </div>
-        <div className="field">
-          <label className="label">Temporary password</label>
-          <input name="password" type="text" className="input" placeholder="min 8 characters" required />
-        </div>
+        <FormField
+          label="Temporary password"
+          name="password"
+          type="text"
+          placeholder="min 8 characters"
+          required
+        />
       </div>
       <label className="row gap-1" style={{ fontSize: "0.85rem" }}>
-        <input type="checkbox" name="is_admin" /> Grant administrator access (can manage all departments)
+        <input type="checkbox" name="is_admin" aria-label="Grant administrator access" /> Grant administrator access (can manage all departments)
       </label>
       <div className="mt-1">
         <Submit />

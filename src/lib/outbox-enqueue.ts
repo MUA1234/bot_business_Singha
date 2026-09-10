@@ -6,18 +6,35 @@
  * worker path (a tightly-scoped privileged write, permitted by the Brief).
  */
 import { supabaseAdmin } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildOutboxRow, type OutboxEntry } from "@/events/outbox";
 import { log } from "@/lib/log";
+import { getCommunicationPreference } from "@/lib/comms/preferences";
+import { isOptedOut } from "@/modules/comms/preferences";
 
-export type EnqueueResult = "enqueued" | "duplicate" | "unavailable";
+export type EnqueueResult = "enqueued" | "duplicate" | "unavailable" | "opted_out";
 
-export async function enqueueOutbox(entry: OutboxEntry): Promise<EnqueueResult> {
+export async function enqueueOutbox(entry: OutboxEntry, db?: SupabaseClient): Promise<EnqueueResult> {
   try {
+    // COM-007: respect opt-out before persisting any outbound message.
+    const pref = await getCommunicationPreference(entry.companyId, entry.channel, entry.recipient);
+    if (isOptedOut(pref)) {
+      log("info", "outbound send blocked by opt-out", {
+        event: "outbox.opted_out",
+        companyId: entry.companyId,
+        channel: entry.channel,
+        recipient: entry.recipient,
+      });
+      return "opted_out";
+    }
+
     const row = buildOutboxRow(entry);
+    const client = db ?? supabaseAdmin();
     // Atomic, service-only enqueue via `enqueue_outbox_row` (migration 0061): a single INSERT …
     // ON CONFLICT (idempotency_key) DO NOTHING inside the DB, so two concurrent finalisers can never
     // create two logical rows (the key is a globally-unique SHA). Returns 'enqueued' | 'duplicate'.
-    const { data, error } = await supabaseAdmin().rpc("enqueue_outbox_row", {
+    // The RPC is service-only; callers that need RLS for table work pass a separate client.
+    const { data, error } = await client.rpc("enqueue_outbox_row", {
       p_company: row.company_id,
       p_channel: row.channel,
       p_recipient: row.recipient,

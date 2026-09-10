@@ -7,6 +7,8 @@ import { requireDepartment } from "@/lib/auth";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
 import { createPurchaseRequest, setPurchaseRequestStatus } from "./actions";
+import { Card, CardHeader, CardBody, Badge, EmptyState, DataTable, type DataTableColumn } from "@/components/ui";
+import { fmtDate } from "@/lib/format";
 
 export const metadata = { title: "Purchase Requests — Singha Central" };
 
@@ -19,10 +21,19 @@ const NEXT: Record<string, string[]> = {
   closed: [],
 };
 
+interface PurchaseRequestRow {
+  id: string;
+  title: string;
+  estimated_cost: string | null;
+  currency: string | null;
+  status: string;
+  created_at: string;
+}
+
 export default async function PurchaseRequestsPage() {
   const p = await requireDepartment("procurement");
 
-  let rows: any[] = [];
+  let rows: PurchaseRequestRow[] = [];
   try {
     const { data } = await supabaseReadClient()
       .from("purchase_requests")
@@ -30,10 +41,54 @@ export default async function PurchaseRequestsPage() {
       .eq("company_id", p.companyId)
       .order("created_at", { ascending: false })
       .limit(200);
-    rows = data ?? [];
+    rows = (data ?? []) as PurchaseRequestRow[];
   } catch {
     rows = [];
   }
+
+  const columns: DataTableColumn<PurchaseRequestRow>[] = [
+    {
+      key: "title",
+      header: "Request",
+      render: (r) => <span style={{ fontWeight: 600 }}>{r.title}</span>,
+    },
+    {
+      key: "estimatedCost",
+      header: "Est. cost",
+      className: "dim small",
+      render: (r) => r.estimated_cost != null ? fmtMoney(r.estimated_cost, r.currency ?? "LKR") : "—",
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => <Badge>{r.status}</Badge>,
+    },
+    {
+      key: "created",
+      header: "Created",
+      className: "dim small",
+      render: (r) => fmtDate(r.created_at),
+    },
+    {
+      key: "move",
+      header: "Move to",
+      render: (r) => {
+        const moves = NEXT[r.status] ?? [];
+        if (moves.length === 0) return <span className="small dim">—</span>;
+        return (
+          <div className="row gap-1 wrap">
+            {moves.map((s) => (
+              <form action={setPurchaseRequestStatus} key={s}>
+                <input type="hidden" name="id" value={r.id} />
+                <input type="hidden" name="status" value={s} />
+                <button className="btn ghost sm" type="submit">{s}</button>
+              </form>
+            ))}
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
     <div className="stack gap-3">
@@ -42,49 +97,29 @@ export default async function PurchaseRequestsPage() {
         <p className="muted mt-1">Raise a request, then move it through approval to order.</p>
       </div>
 
-      <div className="card">
-        <div className="card-title">New request</div>
-        <form action={createPurchaseRequest} className="stack gap-2 mt-2" style={{ maxWidth: 560 }}>
-          <input name="title" className="input" placeholder="What do you need?" required />
-          <textarea name="description" className="textarea" placeholder="Details (optional)" />
-          <input name="estimated_cost" className="input" style={{ width: 180 }} placeholder="Estimated cost" inputMode="numeric" />
-          <button className="btn" type="submit">Create request</button>
-        </form>
-      </div>
+      <Card>
+        <CardHeader title="New request" />
+        <CardBody>
+          <form action={createPurchaseRequest} className="stack gap-2 mt-2" style={{ maxWidth: 560 }}>
+            <input name="title" className="input" placeholder="What do you need?" required />
+            <textarea name="description" className="textarea" placeholder="Details (optional)" />
+            <input name="estimated_cost" className="input" style={{ width: 180 }} placeholder="Estimated cost" inputMode="numeric" />
+            <button className="btn" type="submit">Create request</button>
+          </form>
+        </CardBody>
+      </Card>
 
-      <div className="card">
-        <div className="card-title">All requests ({rows.length})</div>
-        {rows.length === 0 ? (
-          <div className="empty">No purchase requests yet.</div>
-        ) : (
-          <div className="table-wrap mt-3">
-            <table className="data">
-              <thead><tr><th>Request</th><th>Est. cost</th><th>Status</th><th>Move to</th></tr></thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id}>
-                    <td style={{ fontWeight: 600 }}>{r.title}</td>
-                    <td className="dim small">{r.estimated_cost != null ? fmtMoney(r.estimated_cost, r.currency ?? "LKR") : "—"}</td>
-                    <td><span className="badge">{r.status}</span></td>
-                    <td>
-                      <div className="row gap-1 wrap">
-                        {(NEXT[r.status] ?? []).length === 0 ? <span className="small dim">—</span> :
-                          (NEXT[r.status] ?? []).map((s) => (
-                            <form action={setPurchaseRequestStatus} key={s}>
-                              <input type="hidden" name="id" value={r.id} />
-                              <input type="hidden" name="status" value={s} />
-                              <button className="btn ghost sm" type="submit">{s}</button>
-                            </form>
-                          ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <Card>
+        <CardHeader title={`All requests (${rows.length})`} />
+        <CardBody>
+          <DataTable
+            columns={columns}
+            rows={rows}
+            keyExtractor={(r) => r.id}
+            emptyTitle="No purchase requests yet"
+          />
+        </CardBody>
+      </Card>
     </div>
   );
 }

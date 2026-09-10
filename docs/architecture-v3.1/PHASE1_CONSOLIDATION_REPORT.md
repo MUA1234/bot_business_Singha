@@ -510,7 +510,7 @@ follow-up and added a genuine concurrency finding. Migration **0067**:
    parent quotation row: the item-freeze guard reads the parent `FOR UPDATE` (every non-trusted item write
    serializes on it), and enqueue takes NO item-row locks — Postgres locks the target item row BEFORE its
    row trigger fires, so child-row locking inside enqueue would form a genuine AB-BA deadlock (found by the
-   pre-submission adversarial pass, reproduced on live PostgreSQL 16; one lock object cannot cycle).
+   pre-submission adversarial pass, reproduced on a disposable local PostgreSQL 16; one lock object cannot cycle).
    Under the parent lock enqueue requires UNCONDITIONALLY that `p_expected_total` equal the live
    `SUM(line_total)` — NO item-count exemption (delete-ALL-items leaves sum 0 ≠ a non-zero total →
    `stale`; the earlier `v_item_count > 0` guard let that race ship a total backed by zero items) — and

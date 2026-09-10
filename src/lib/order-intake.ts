@@ -10,41 +10,19 @@
  *
  * Idempotent on the provider message id (a redelivered webhook is a no-op).
  */
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { randomUUID } from "node:crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { makeOpenAiTransport } from "@/ai/openai-transport";
-import { runQuotationTurn } from "@/ai/quotation";
+import { MODEL_ROUTES } from "@/ai/gateway";
+import { ModelPolicyExecutor, ModelPolicyRouter, ModelProviderRegistry } from "@/ai/model-policy-router";
+import { runPolicyRoutedQuotationTurn, QUOTATION_PROMPT_VERSION } from "@/ai/quotation";
+import { loadAiTaskBudget, makeSupabaseCostLedger, makeSupabaseModelAttemptTelemetry } from "@/db/consumer-store";
 import { withPendingFooter } from "@/lib/whatsapp";
 import { enqueueOutbox } from "@/lib/outbox-enqueue";
 import { drainOutbox } from "@/events/outbox-drain";
 import { createQuotationFromItems, tryFinalizeAndSend } from "@/lib/quotations";
-import { log, newCorrelationId } from "@/lib/log";
+import { log } from "@/lib/log";
 import { writeAudit } from "@/lib/audit";
-import { makeSupabaseCostLedger } from "@/db/consumer-store";
-import type { SupabaseClient } from "@supabase/supabase-js";
-
-/**
- * Resolve the company that owns the Meta business number a customer messaged.
- *
- * Replaces the compiled-in `DEFAULT_COMPANY_ID`. Returns null when the number is not
- * mapped (migration 0069 `companies.whatsapp_phone_number_id`) so the caller can fail
- * closed rather than guess. Exported for testing.
- */
-export async function resolveCompanyByPhoneNumberId(
-  db: SupabaseClient,
-  phoneNumberId: string | null | undefined,
-): Promise<string | null> {
-  if (!phoneNumberId) return null;
-  const { data, error } = await db
-    .from("companies")
-    .select("id")
-    .eq("whatsapp_phone_number_id", phoneNumberId)
-    .maybeSingle();
-  if (error) {
-    log("error", "company lookup by phone number failed", { event: "wa.company_lookup_failed", error: error.message });
-    return null;
-  }
-  return (data?.id as string | undefined) ?? null;
-}
 
 interface ConvState {
   name?: string | null;
@@ -54,31 +32,28 @@ interface ConvState {
   quotationId?: string | null;
 }
 
-export async function handleCustomerMessage(input: {
-  from: string; // customer WA id (digits, no '+')
-  text: string;
-  waMessageId: string;
-  /** Meta business number that received the message — resolves the company (0069). */
-  phoneNumberId?: string | null;
-  companyId?: string;
-}): Promise<{ status: string }> {
-  const db = supabaseAdmin();
+/**
+ * WhatsApp order-intake conversation engine. The caller supplies the Supabase client so this
+ * module stays client-agnostic: the production service path passes the service-role client;
+ * tests and future callers may inject an RLS-bound client without editing this file.
+ */
+export async function handleCustomerMessage(
+  input: {
+    from: string; // customer WA id (digits, no '+')
+    text: string;
+    waMessageId: string;
+    /**
+     * FOUND-003 — REQUIRED. This used to default to a hardcoded pilot company, which meant every
+     * conversation, quotation and reply belonged to that company whoever the message was actually
+     * for. The caller resolves the company from the receiving account; there is no fallback.
+     */
+    companyId: string;
+  },
+  db: SupabaseClient,
+): Promise<{ status: string }> {
+  const companyId = input.companyId;
   const from = input.from.replace(/^\+/, "");
 
-  // Company comes from the number the customer messaged — never a compiled-in default.
-  // A message we cannot attribute is NOT processed: writing it into an assumed company is
-  // exactly the cross-company leakage the constitution calls a critical failure. The source
-  // event is already persisted at the webhook boundary, so an unmapped number loses nothing
-  // — map it and replay. The error is loud because silence here looks like a healthy system.
-  const companyId = input.companyId ?? (await resolveCompanyByPhoneNumberId(db, input.phoneNumberId));
-  if (!companyId) {
-    log("error", "inbound WhatsApp message could not be attributed to a company", {
-      event: "wa.company_unresolved",
-      phoneNumberId: input.phoneNumberId ?? null,
-      waMessageId: input.waMessageId,
-    });
-    return { status: "company_unresolved" };
-  }
 
   // Idempotency + resume-safety (§WP-C): treat as a duplicate ONLY if a prior run fully
   // HANDLED this message (reply sent). If a prior attempt crashed after logging the
@@ -150,18 +125,58 @@ export async function handleCustomerMessage(input: {
     .eq("is_active", true);
   const catalogNames = (catalog ?? []).map((c: any) => c.name);
 
-  const correlationId = newCorrelationId();
-  const turn = await runQuotationTurn(
-    makeOpenAiTransport(),
-    {
-      message: input.text,
-      companyId,
-      correlationId,
-      state: { name: state.name, address: state.address, email: state.email, items: state.items },
-      catalogNames,
+  const budgetRemainingUsd = await loadAiTaskBudget(db, companyId, "quotation");
+  const registry = new ModelProviderRegistry([{
+    candidate: {
+      provider: "openai",
+      model: MODEL_ROUTES.quotation.model,
+      tasks: ["quotation"],
+      estimatedCostUsd: "0.02",
+      latencyMs: 30_000,
     },
-    makeSupabaseCostLedger(db), // persist model/tokens/cost/latency per customer turn
+    transport: makeOpenAiTransport(),
+  }]);
+  const executor = new ModelPolicyExecutor(
+    registry,
+    new ModelPolicyRouter(registry.candidates()),
+    makeSupabaseModelAttemptTelemetry(db),
   );
+  const costLedger = makeSupabaseCostLedger(db);
+  const turn = budgetRemainingUsd == null
+    ? await (async () => {
+      await executor.recordRejection({
+        logicalRequestId: `quotation:${inboundId}`,
+        companyId,
+        task: "quotation",
+        reason: "budget_exceeded",
+      });
+      // MOD-002: the budget-exceeded path is still a customer-facing AI decision and must be
+      // recorded in ai_runs so spend and failure rates are complete.
+      await costLedger.record({
+        ai_run_id: `ai_${randomUUID()}`,
+        route: "quotation",
+        model: "unselected",
+        prompt_version: QUOTATION_PROMPT_VERSION,
+        input_tokens: 0,
+        output_tokens: 0,
+        cost_usd: "0",
+        validation_ok: false,
+        validation_issues: ["policy_rejection: budget_exceeded"],
+        confidence_overall: null,
+        correlation_id: `quotation:${inboundId}`,
+        company_id: companyId,
+        latency_ms: 0,
+      });
+      return { ok: false as const, reason: "budget_exceeded" };
+    })()
+    : await runPolicyRoutedQuotationTurn(executor, {
+    message: input.text,
+    state: { name: state.name, address: state.address, email: state.email, items: state.items },
+    catalogNames,
+    companyId,
+    logicalRequestId: `quotation:${inboundId}`,
+    budgetRemainingUsd,
+  }, costLedger);
 
   let reply: string;
   const awaitingAlready = status === "awaiting_price";
@@ -195,18 +210,21 @@ export async function handleCustomerMessage(input: {
 
     // Create the quotation once (only if we don't already have one in flight).
     if (haveEnough && !state.quotationId && !awaitingAlready && status !== "quoted") {
-      const { quotationId, awaitingPrice } = await createQuotationFromItems({
-        companyId,
-        conversationId,
-        customer: {
-          name: state.name,
-          phone: from,
-          address: state.address,
-          email: state.email,
-          requestText: input.text,
+      const { quotationId, awaitingPrice } = await createQuotationFromItems(
+        {
+          companyId,
+          conversationId,
+          customer: {
+            name: state.name,
+            phone: from,
+            address: state.address,
+            email: state.email,
+            requestText: input.text,
+          },
+          items: state.items!,
         },
-        items: state.items!,
-      });
+        db,
+      );
       state.quotationId = quotationId;
 
       // AUDIT. A customer-initiated order and quotation are business records created with no
@@ -237,7 +255,7 @@ export async function handleCustomerMessage(input: {
         // Fully priced — finalize + send the quotation link (its own message). The conversation
         // advances to `quoted` ONLY on durable provider success (via the fenced completion RPC);
         // while the send is merely queued/failed it stays `quoting` (truthful, not delivered).
-        const res = await tryFinalizeAndSend(companyId, quotationId);
+        const res = await tryFinalizeAndSend(companyId, quotationId, db);
         status = res.sent ? "quoted" : "quoting";
         reply = res.sent
           ? "Perfect — I've just sent your quotation. Please check the message above. 🦁"
@@ -261,7 +279,27 @@ export async function handleCustomerMessage(input: {
   // than sending directly — a transport/provider failure can never lose or double-send it.
   // A best-effort inline drain delivers it promptly; the outbox sweep is the recovery path.
   // Delivery is at-least-once (the outbox idempotency key makes a redelivery a no-op).
-  await enqueueOutbox({ channel: "whatsapp", companyId, recipient: from, body: reply, dedupeKey: `wa_reply:${input.waMessageId}` });
+  const enqueued = await enqueueOutbox({ channel: "whatsapp", companyId, recipient: from, body: reply, dedupeKey: `wa_reply:${input.waMessageId}` }, db);
+
+  // Migration 0058 exists because writing the outbound history row before the message is durably
+  // queued makes the thread claim a delivery that never happened. That rule was applied to the
+  // quotation path and not to this one: the enqueue result used to be discarded, so an
+  // "unavailable" outbox (RPC missing or erroring) still rendered a sent-looking message to staff.
+  // Record the reply ONLY when it is durably queued. Being precise about what this does and does
+  // NOT achieve: the customer does not get a reply either way, and there is currently NO automatic
+  // retry — the webhook acknowledges 200 regardless of this outcome, and nothing sweeps inbound
+  // rows with a null `handled_at`. What changes is that the failure is now truthful and visible
+  // (an error log, and no outbound row) instead of staff seeing a message the system never queued.
+  // A sweeper for unhandled inbound messages is a recorded follow-up, not something claimed here.
+  if (enqueued === "unavailable") {
+    log("error", "reply not queued — outbox unavailable; inbound left unhandled", {
+      event: "order_intake.reply_not_queued",
+      conversationId,
+      companyId,
+    });
+    return { status };
+  }
+
   await db.from("wa_messages").insert({
     conversation_id: conversationId, company_id: companyId, direction: "outbound", body: reply, wa_message_id: null,
   });

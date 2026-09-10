@@ -664,7 +664,7 @@ not merge; do not begin Phase 2; do not migrate hosted / deploy / enable flags /
    row that enqueue already locks; (b) `enqueue_quotation_outbox` takes NO item-row locks — the target item
    row is locked by Postgres BEFORE its row trigger fires, so an enqueue that then locked item rows would
    form a genuine parent→child vs child→parent AB-BA deadlock (found by the pre-submission adversarial
-   pass, reproduced on live PostgreSQL 16; one lock object cannot form a cycle) — and, under the parent
+   pass, reproduced on a disposable local PostgreSQL 16; one lock object cannot form a cycle) — and, under the parent
    lock, requires UNCONDITIONALLY that the caller's expected total equal the live `SUM(line_total)`: there
    is NO item-count exemption (the adversarial pass showed the earlier `v_item_count > 0` guard let a
    delete-ALL-items race ship a customer-facing total backed by zero items — now sum 0 ≠ a non-zero total →

@@ -1,0 +1,410 @@
+/*
+ * ═══════════════════════════════════════════════════════════════════════════
+ * SINGHA — CINEMATIC SPATIAL EXECUTIVE OS
+ * Layer 1 of 4: TOKENS
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * The single source of truth for colour, typography, spacing, radius, material,
+ * border, shadow, blur, reflection, lighting, depth, camera, motion, breakpoint
+ * and semantic-status values. Nothing below this layer may hard-code a colour,
+ * a blur radius, a depth offset or a duration.
+ *
+ * Direction: obsidian environment, smoky aubergine secondary atmosphere, warm
+ * champagne accent used sparingly and never for status. Self-contained — no
+ * external fonts or assets, so it renders identically offline and on Vercel.
+ *
+ * Legacy names (--accent, --panel, --bg-0, --ok/--warn/--danger/--info,
+ * --radius, --shadow, --font) are PRESERVED and re-pointed at the new system so
+ * every existing screen inherits the new material world without being edited.
+ */
+
+:root {
+  /* ── ENVIRONMENT ──────────────────────────────────────────────────────
+   * The space the interface floats in. Three obsidian depths plus a smoky
+   * aubergine that only ever appears as atmosphere, never as a fill. */
+  --env-0: #08090b;          /* deepest — the void behind everything */
+  --env-1: #0d0e11;          /* mid environment */
+  --env-2: #111014;          /* near environment */
+  --env-plum-0: #17121c;     /* secondary environmental colour */
+  --env-plum-1: #211720;
+  --env-plum-2: #2a1c24;
+
+  /* Legacy aliases. */
+  --bg-0: var(--env-0);
+  --bg-1: var(--env-1);
+  --bg-2: var(--env-2);
+
+  /* ── ACCENT — warm champagne / brushed gold ───────────────────────────
+   * Strategic only: the current location, the primary action, a focused
+   * instrument needle, an edge catching light. NEVER a status colour, and
+   * never a page-wide wash. */
+  --accent: #d9b477;
+  --accent-hi: #e3bf82;
+  --accent-lo: #c99a56;
+  --accent-2: var(--accent-lo);
+  --accent-rgb: 217, 180, 119;
+  --accent-ink: #17110a;     /* text ON champagne — 10.4:1 */
+  --accent-grad: linear-gradient(135deg, #e3bf82 0%, #c99a56 100%);
+  --accent-edge: linear-gradient(
+    100deg,
+    rgba(227, 191, 130, 0) 0%,
+    rgba(227, 191, 130, 0.55) 35%,
+    rgba(217, 180, 119, 0.9) 50%,
+    rgba(201, 154, 86, 0.4) 68%,
+    rgba(201, 154, 86, 0) 100%
+  );
+  --singha-red: #e2231a;     /* the lion mark red — logo only, never UI */
+
+  /* ── NEUTRALS ─────────────────────────────────────────────────────────
+   * Warm ivory down through smoke to graphite. Warm, because a cold grey on
+   * an obsidian ground reads as cheap plastic. */
+  --ivory: #f5f1ea;
+  --smoke: #cfc9c1;
+  --silver: #a8a29a;
+  --graphite: #6e6862;
+  --graphite-deep: #423e3a;
+
+  /* THE NEUTRAL RAMP.
+   *
+   * Measured on the real application at 1440x900: the peak edge gradient of a
+   * glyph rendered in each of these tokens on the card ground was
+   *
+   *   --text        184    --text-dim      91
+   *   --text-muted  114    --text-ghost    59
+   *
+   * against a uniform 76-83% stem coverage — so the rendering was correct and
+   * the paint was simply too dark. An edge that transitions over only 59 of 255
+   * levels reads as hazy rather than as quiet, which is why secondary copy
+   * across the whole interface looked slightly out of focus.
+   *
+   * The ramp is now stepped EVENLY (about 35 luminance levels apart) instead of
+   * 66/38/37, so each level is distinguishable from the one above it while
+   * every level stays legible. --text-ghost also failed contrast against the
+   * signature panels at its old value (2.87:1); it now clears AA everywhere. */
+  --text: var(--ivory);
+  --text-muted: #d6d0c6;     /* secondary copy — 11.9:1 */
+  --text-dim: #b2aba1;       /* tertiary copy, captions — 8.0:1 */
+  --text-ghost: #8f887f;     /* structural labels only; never body copy — 5.2:1 */
+
+  /* ── SEMANTIC STATUS ──────────────────────────────────────────────────
+   * Restrained and hue-separated from champagne. Status is NEVER communicated
+   * by colour alone — every status token has a paired glyph and a text label
+   * (see .sig-* in materials.css). */
+  --ok: #6ec89b;             /* on track */
+  --ok-rgb: 110, 200, 155;
+  --warn: #e08a45;           /* at risk — orange, clearly not the gold accent */
+  --warn-rgb: 224, 138, 69;
+  --danger: #dc5b52;         /* critical */
+  --danger-rgb: 220, 91, 82;
+  --info: #7fa8c9;           /* informational — dusty blue */
+  --info-rgb: 127, 168, 201;
+  --offline: #6e6862;        /* offline / unavailable */
+  --offline-rgb: 110, 104, 98;
+  --blocked: #9b7fb0;        /* blocked / waiting on someone else */
+  --blocked-rgb: 155, 127, 176;
+
+  /* ── MATERIAL ─────────────────────────────────────────────────────────
+   * Five materials, not one repeated glass card. Each is a complete recipe:
+   * ground, edge, light and shadow. See materials.css for the classes. */
+
+  /* A. Spatial glass — high-level floating surfaces.
+   * The alpha is deliberately high enough that a panel reads as a SURFACE
+   * against the obsidian environment rather than as a slightly different shade
+   * of the same dark. Below about 0.55 the edge illumination is doing all the
+   * work, and on a dim monitor the panel disappears entirely. */
+  --mat-glass: rgba(24, 23, 30, 0.66);
+  --mat-glass-edge: rgba(255, 252, 246, 0.13);
+  --mat-glass-blur: 26px;
+  --mat-glass-sheen: linear-gradient(
+    168deg,
+    rgba(255, 250, 242, 0.075) 0%,
+    rgba(255, 250, 242, 0.018) 34%,
+    rgba(255, 250, 242, 0) 62%
+  );
+
+  /* B. Smoked glass — secondary operational panels, higher readability. */
+  --mat-smoked: rgba(16, 15, 20, 0.86);
+  --mat-smoked-edge: rgba(255, 252, 246, 0.1);
+  --mat-smoked-blur: 16px;
+
+  /* C. Instrument — gauges, meters, wheels, time-sensitive controls. */
+  --mat-instrument: radial-gradient(
+      120% 140% at 50% -14%,
+      rgba(255, 250, 242, 0.075) 0%,
+      rgba(255, 250, 242, 0) 58%
+    ),
+    linear-gradient(180deg, #16151a 0%, #0e0d11 100%);
+  --mat-instrument-edge: rgba(255, 252, 246, 0.13);
+  --mat-instrument-well: inset 0 1px 0 rgba(255, 250, 242, 0.09),
+    inset 0 -14px 26px -18px rgba(0, 0, 0, 0.95),
+    inset 0 2px 10px -6px rgba(0, 0, 0, 0.8);
+
+  /* D. Paper / evidence — documents behave as thin physical sheets. */
+  --mat-paper: linear-gradient(178deg, #1b1a1d 0%, #141317 100%);
+  --mat-paper-edge: rgba(243, 239, 232, 0.16);
+  --mat-paper-shadow: 0 1px 0 rgba(243, 239, 232, 0.07),
+    0 18px 34px -22px rgba(0, 0, 0, 0.9);
+
+  /* E. Metal — structural rails, dividers, major frame elements. */
+  --mat-metal: linear-gradient(96deg, #17161a 0%, #1e1d22 42%, #191820 58%, #141317 100%);
+  --mat-metal-edge: rgba(255, 252, 246, 0.09);
+  --mat-metal-grain: repeating-linear-gradient(
+    92deg,
+    rgba(255, 252, 246, 0.026) 0px,
+    rgba(255, 252, 246, 0) 2px,
+    rgba(0, 0, 0, 0.032) 3px,
+    rgba(255, 252, 246, 0) 5px
+  );
+
+  /* Legacy panel aliases → the new materials. */
+  --panel: var(--mat-glass);
+  --panel-strong: var(--mat-smoked);
+  --panel-border: var(--mat-glass-edge);
+  --panel-blur: var(--mat-glass-blur);
+
+  /* ── LIGHTING & REFLECTION ────────────────────────────────────────────
+   * A single restrained key light from upper-left, a champagne bounce from
+   * the lower-right, and a specular edge that only the focused surface gets. */
+  --light-key: radial-gradient(
+    72% 58% at 18% -8%,
+    rgba(255, 249, 238, 0.09) 0%,
+    rgba(255, 249, 238, 0) 68%
+  );
+  --light-bounce: radial-gradient(
+    62% 52% at 92% 108%,
+    rgba(217, 180, 119, 0.08) 0%,
+    rgba(217, 180, 119, 0) 66%
+  );
+  --reflect-top: inset 0 1px 0 rgba(255, 252, 246, 0.1);
+  --reflect-focus: inset 0 1px 0 rgba(255, 252, 246, 0.2),
+    inset 0 0 0 1px rgba(var(--accent-rgb), 0.16);
+
+  /* ── DEPTH ────────────────────────────────────────────────────────────
+   * Depth has functional meaning. A surface Z states WHY it is where it is:
+   * environment, background intelligence, department, standard information,
+   * active workspace, priority matter, critical alert, or focus. Each level
+   * pairs a translation, a shadow and a scale so "forward" is legible without
+   * motion (reduced-motion keeps the static depth, drops the transition). */
+  --z-env: -300px;
+  --z-backdrop: -180px;      /* background intelligence */
+  --z-dept: -100px;          /* department layer */
+  --z-base: 0px;             /* standard information */
+  --z-active: 40px;          /* active workspace */
+  --z-priority: 90px;        /* priority matter */
+  --z-critical: 140px;       /* critical alert */
+  --z-focus: 180px;          /* modal / approval focus */
+
+  /* Stacking order (2D) that mirrors the Z scale. */
+  --layer-env: -2;
+  --layer-backdrop: -1;
+  --layer-base: 1;
+  --layer-active: 10;
+  --layer-priority: 20;
+  --layer-critical: 30;
+  --layer-rail: 40;
+  --layer-presence: 50;
+  --layer-focus: 60;
+  --layer-palette: 70;
+
+  /* Depth-matched shadows: further = softer and wider, nearer = tighter and
+   * darker directly beneath, so the surface reads as lifted, not just bigger. */
+  --shadow-recessed: 0 6px 18px -14px rgba(0, 0, 0, 0.55);
+  --shadow-base: 0 18px 46px -26px rgba(0, 0, 0, 0.78), 0 2px 8px -6px rgba(0, 0, 0, 0.6);
+  --shadow-active: 0 30px 66px -30px rgba(0, 0, 0, 0.84), 0 4px 14px -8px rgba(0, 0, 0, 0.66);
+  --shadow-priority: 0 44px 92px -34px rgba(0, 0, 0, 0.88), 0 8px 22px -12px rgba(0, 0, 0, 0.7);
+  --shadow-critical: 0 56px 120px -38px rgba(0, 0, 0, 0.92),
+    0 10px 28px -14px rgba(0, 0, 0, 0.74), 0 0 0 1px rgba(var(--danger-rgb), 0.22);
+  --shadow-focus: 0 70px 150px -40px rgba(0, 0, 0, 0.94), 0 12px 34px -16px rgba(0, 0, 0, 0.78);
+  --shadow: var(--shadow-base);   /* legacy alias */
+
+  /* ── CAMERA ───────────────────────────────────────────────────────────
+   * Almost subconscious. Pointer influence is capped here, once, so no
+   * component can invent a more dramatic parallax. */
+  --cam-perspective: 2400px;
+  --cam-origin: 50% 42%;
+  --cam-tilt-max: 1.5deg;    /* horizontal */
+  --cam-pitch-max: 1deg;     /* vertical */
+  --cam-dolly-max: 8px;      /* depth translation */
+
+  /* ── MOTION ───────────────────────────────────────────────────────────
+   * Every duration below is attached to a purpose. There is no decorative
+   * duration token, because there is no approved decorative motion. */
+  --mo-tap: 90ms;            /* confirmation of a press */
+  --mo-state: 160ms;         /* status change on a small element */
+  --mo-focus: 240ms;         /* a surface takes or loses focus */
+  --mo-panel: 320ms;         /* a panel opens, expands or recedes */
+  --mo-module: 480ms;        /* camera move between modules */
+  --mo-arrival: 560ms;       /* a new matter enters the field */
+  --ease-out: cubic-bezier(0.22, 0.68, 0.24, 1);      /* settle */
+  --ease-in-out: cubic-bezier(0.62, 0.02, 0.24, 1);   /* travel */
+  --ease-spatial: cubic-bezier(0.32, 0.9, 0.24, 1);   /* physical, no bounce */
+
+  /* ── TYPOGRAPHY ───────────────────────────────────────────────────────
+   * A humanist/grotesk system stack. Display sizes carry the hierarchy so the
+   * layout needs fewer boxes; data sizes are tabular so columns align. */
+  --font: "Segoe UI Variable Display", "Segoe UI", -apple-system, BlinkMacSystemFont,
+    "Inter", "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  --font-data: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont,
+    "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* ROLE-BASED RESPONSIVE SCALE.
+   *
+   * Every size is declared for a ROLE, not for a magnitude, and every one of
+   * them scales with the viewport. The previous scale pinned body, data, small
+   * and label to fixed rem values, so a 1920 px executive monitor rendered
+   * table headers, stat keys and badges at 11.2 px — an audit of the real
+   * application found 1,697 instances of it. Small text is a deliberate
+   * typographic choice at a readable size, never a way to survive a container
+   * that is too narrow.
+   *
+   * Floors are the phone size; ceilings are the 1920+ size. */
+  --t-display: clamp(2.4rem, 1.5rem + 4.2vw, 4.4rem);
+  --t-page-title: clamp(1.55rem, 1.15rem + 1.9vw, 2.35rem);
+  --t-section-title: clamp(1rem, 0.92rem + 0.42vw, 1.32rem);
+  --t-subsection: clamp(0.95rem, 0.9rem + 0.24vw, 1.12rem);
+  --t-value: clamp(1.02rem, 0.94rem + 0.4vw, 1.34rem);   /* a figure in a row */
+  --t-body: clamp(0.94rem, 0.9rem + 0.26vw, 1.08rem);
+  --t-body-2: clamp(0.89rem, 0.86rem + 0.2vw, 1rem);     /* secondary body */
+  --t-data: clamp(0.9rem, 0.87rem + 0.22vw, 1.02rem);    /* table cells */
+  --t-small: clamp(0.86rem, 0.84rem + 0.16vw, 0.96rem);
+  --t-label: clamp(0.77rem, 0.75rem + 0.13vw, 0.86rem);  /* uppercase labels */
+  --t-meta: clamp(0.79rem, 0.77rem + 0.12vw, 0.87rem);   /* timestamps, refs */
+  --t-numeric-xl: clamp(2rem, 1.2rem + 3vw, 3.4rem);
+  --t-numeric-lg: clamp(1.5rem, 1.1rem + 1.6vw, 2.3rem);
+
+  /* Legacy heading aliases, re-pointed at the role scale. */
+  --t-h1: var(--t-page-title);
+  --t-h2: var(--t-section-title);
+  --t-h3: var(--t-subsection);
+
+  /* Uppercase micro-labels need looser tracking at small sizes to stay
+   * legible, and they must never be the reason a column is sized down. */
+  --label-min-ch: 7ch;
+
+  --tracking-label: 0.14em;
+  --tracking-display: -0.035em;
+  --tracking-tight: -0.02em;
+  --leading-tight: 1.08;
+  --leading-body: 1.55;
+
+  /* ── SPACING ──────────────────────────────────────────────────────────
+   * A 4 px base. Gutters are fluid so a spatial composition breathes on a
+   * large touchscreen without leaving phones cramped. */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+  --sp-9: 96px;
+  --gutter: clamp(16px, 1.4vw + 10px, 34px);
+
+  /* ── RADIUS ───────────────────────────────────────────────────────────
+   * Curved geometry, but a document is squarer than a floating surface — the
+   * radius itself carries material meaning. */
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius: 18px;
+  --radius-lg: 26px;
+  --radius-xl: 34px;
+  --radius-pill: 999px;
+  --radius-paper: 6px;
+
+  /* ── BORDER ───────────────────────────────────────────────────────────*/
+  --border-hair: 1px solid rgba(255, 252, 246, 0.06);
+  --border-edge: 1px solid var(--mat-glass-edge);
+  --border-firm: 1px solid rgba(255, 252, 246, 0.14);
+  --border-accent: 1px solid rgba(var(--accent-rgb), 0.4);
+
+  /* ── BLUR ─────────────────────────────────────────────────────────────*/
+  --blur-near: 10px;
+  --blur-mid: 18px;
+  --blur-far: 30px;
+
+  /* ── CONTROL SIZING ───────────────────────────────────────────────────
+   * Touch first: 44 px is the floor for anything tappable, 48 px for primary
+   * actions on a large touchscreen. Pointer users get the same targets. */
+  --touch-min: 44px;
+  --touch-primary: 48px;
+  --rail-w: 76px;            /* command rail, collapsed */
+  --rail-w-open: 232px;      /* command rail, labelled */
+  --strip-h: 56px;           /* global top strip */
+
+  /* ── CANVAS ───────────────────────────────────────────────────────────
+   * How wide the working surface is allowed to grow. A single 1680 px cap
+   * treated a 1920 monitor as though it were a 1440 one; the working surface
+   * now widens with the viewport and only stops where a text line would
+   * become genuinely hard to track back. Prose still gets --measure. */
+  --canvas-max: clamp(1180px, 94vw, 2040px);
+  --canvas-max-focus: 1180px;   /* a single reading/decision column */
+  --measure: 74ch;              /* longest comfortable prose line */
+
+  /* ── COLUMN SIZING ────────────────────────────────────────────────────
+   * Width is allocated by INFORMATION TYPE, not divided equally. These are
+   * the intrinsic minimums a column of each kind needs before its content
+   * starts to wrap; a table uses them through .col-* classes. */
+  --col-date: clamp(96px, 7vw, 124px);
+  --col-status: clamp(104px, 7.5vw, 136px);
+  --col-money: clamp(132px, 10vw, 176px);
+  --col-action: clamp(84px, 6.5vw, 112px);
+  --col-ref: clamp(112px, 9vw, 150px);
+  --col-qty: clamp(72px, 5.5vw, 96px);
+  --col-text-min: 240px;        /* the flexible, dominant column */
+
+  /* ── PANEL SIZING ─────────────────────────────────────────────────────
+   * Minimum readable, ideal, and maximum useful. A panel below its readable
+   * minimum must drop to a stacked composition rather than compress. */
+  --panel-min: 320px;
+  --panel-ideal: 480px;
+  --panel-wide: 620px;
+  --aside-min: 300px;
+  --aside-max: 400px;
+}
+
+/* ── BREAKPOINTS (documented; used by media queries throughout) ──────────
+ *   ≥1920  ultrawide / 4K      full spatial environment
+ *   ≥1440  large desktop       full spatial environment
+ *   ≥1200  desktop             reduced atmospherics
+ *   ≥1024  small desktop / landscape tablet
+ *   ≥834   tablet              one dominant workspace + one context layer
+ *   ≥768   portrait tablet
+ *   <768   phone               2.5D layered sheets, no camera
+ */
+
+/* ── PERFORMANCE TIERS ───────────────────────────────────────────────────
+ * Applied to <html> by SpatialEnvironment after measuring the device. A tier
+ * only ever removes atmosphere — never a control, a label or a route. */
+html[data-tier="standard"] {
+  --mat-glass-blur: 14px;
+  --mat-smoked-blur: 10px;
+  --blur-far: 16px;
+}
+html[data-tier="light"] {
+  --mat-glass-blur: 0px;
+  --mat-smoked-blur: 0px;
+  --blur-near: 0px;
+  --blur-mid: 0px;
+  --blur-far: 0px;
+  --mat-glass: rgba(17, 16, 21, 0.94);
+  --mat-smoked: rgba(11, 11, 14, 0.96);
+}
+
+/* Reduced motion keeps every depth cue and drops every transition. Depth is
+ * expressed by shadow, scale and contrast — all static — so hierarchy survives
+ * intact for a user who has asked the system to stop moving. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --mo-tap: 0.01ms;
+    --mo-state: 0.01ms;
+    --mo-focus: 0.01ms;
+    --mo-panel: 0.01ms;
+    --mo-module: 0.01ms;
+    --mo-arrival: 0.01ms;
+    --cam-tilt-max: 0deg;
+    --cam-pitch-max: 0deg;
+    --cam-dolly-max: 0px;
+  }
+}

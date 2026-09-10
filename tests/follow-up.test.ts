@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluateFollowUp, DEFAULT_FOLLOW_UP, type FollowUpTask } from "@/modules/work/follow-up";
+import { evaluateFollowUp, selectEscalationTarget, DEFAULT_FOLLOW_UP, type FollowUpTask } from "@/modules/work/follow-up";
 
 const now = new Date("2026-08-15T12:00:00Z");
 const hoursAgo = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
@@ -58,5 +58,39 @@ describe("evaluateFollowUp (§WP3.8 / §WP4.7)", () => {
   it("in-progress and not overdue → no follow-up", () => {
     const r = evaluateFollowUp(task({ status: "in_progress", dueDate: "2026-08-20", lastActivityAt: hoursAgo(48) }), DEFAULT_FOLLOW_UP, now);
     expect(r.due).toBe(false);
+  });
+});
+
+describe("selectEscalationTarget", () => {
+  it("advances one step into a defined chain", () => {
+    const r = selectEscalationTarget(["u1", "u2", "u3"], 0);
+    expect(r.targetId).toBe("u1");
+    expect(r.nextLevel).toBe(1);
+    expect(r.reason).toBe("escalation_step_1");
+  });
+
+  it("advances to the next person on a subsequent escalation", () => {
+    const r = selectEscalationTarget(["u1", "u2", "u3"], 1);
+    expect(r.targetId).toBe("u2");
+    expect(r.nextLevel).toBe(2);
+  });
+
+  it("reports chain_exhausted when the chain is empty", () => {
+    const r = selectEscalationTarget([], 0);
+    expect(r.targetId).toBeNull();
+    expect(r.reason).toBe("chain_exhausted");
+  });
+
+  it("reports chain_exhausted after the last step", () => {
+    const r = selectEscalationTarget(["u1"], 1);
+    expect(r.targetId).toBeNull();
+    expect(r.nextLevel).toBe(1);
+    expect(r.reason).toBe("chain_exhausted");
+  });
+
+  it("ignores non-string entries in the chain", () => {
+    const r = selectEscalationTarget(["u1", "", "u2"] as unknown as string[], 0);
+    expect(r.targetId).toBe("u1");
+    expect(r.nextLevel).toBe(1);
   });
 });

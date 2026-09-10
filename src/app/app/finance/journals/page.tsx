@@ -7,6 +7,8 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
+import { Card, CardHeader, CardBody, Button, StatusBadge, EmptyState, DataTable, type DataTableColumn } from "@/components/ui";
+import { fmtDate } from "@/lib/format";
 
 export const metadata = { title: "Journals — Singha Central" };
 
@@ -26,6 +28,15 @@ export default async function JournalsPage() {
     rows = [];
   }
 
+  const columns: DataTableColumn<(typeof rows)[number]>[] = [
+    { key: "date", header: "Date", render: (r) => <span className="dim small">{fmtDate(r.posting_date)}</span> },
+    { key: "memo", header: "Memo", render: (r) => r.memo ?? "—" },
+    { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
+    { key: "debit", header: "Debit", align: "right", render: (r) => fmtMoney(r.total_debit, r.currency) },
+    { key: "credit", header: "Credit", align: "right", render: (r) => fmtMoney(r.total_credit, r.currency) },
+    { key: "action", header: "", render: (r) => <Link className="btn ghost sm" href={`/app/finance/journals/${r.id}`}>View</Link> },
+  ];
+
   return (
     <div className="stack gap-3">
       <div className="row between">
@@ -33,35 +44,22 @@ export default async function JournalsPage() {
           <h1>Journals</h1>
           <p className="muted mt-1">Posted double-entry journals — the accounting source of truth.</p>
         </div>
-        <div className="row gap-1">
+        <div className="row gap-1 wrap">
           <Link className="btn ghost sm" href="/app/finance/trial-balance">Trial balance</Link>
           <Link className="btn sm" href="/app/finance/journals/new">New journal</Link>
         </div>
       </div>
 
-      <div className="card">
+      <Card>
         {rows.length === 0 ? (
-          <div className="empty">No journals yet. <Link href="/app/finance/journals/new">Post one →</Link></div>
+          <EmptyState
+            title="No journals yet"
+            action={{ label: "Post one", href: "/app/finance/journals/new" }}
+          />
         ) : (
-          <div className="table-wrap">
-            <table className="data">
-              <thead><tr><th>Date</th><th>Memo</th><th>Status</th><th className="num">Debit</th><th className="num">Credit</th><th></th></tr></thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id}>
-                    <td className="dim small">{r.posting_date}</td>
-                    <td>{r.memo ?? "—"}</td>
-                    <td><span className={`badge ${r.status === "posted" ? "ok" : r.status === "reversed" ? "warn" : ""}`}>{r.status}</span></td>
-                    <td className="num">{fmtMoney(r.total_debit, r.currency)}</td>
-                    <td className="num">{fmtMoney(r.total_credit, r.currency)}</td>
-                    <td><Link className="btn ghost sm" href={`/app/finance/journals/${r.id}`}>View</Link></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable columns={columns} rows={rows} keyExtractor={(r) => r.id} />
         )}
-      </div>
+      </Card>
     </div>
   );
 }

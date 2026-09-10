@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { computeCapacity } from "@/modules/work/capacity";
 
 const CONTRACTED_HOURS = 40;
@@ -22,7 +22,7 @@ function mondayOf(d: Date): string {
 export async function recomputeCapacity(): Promise<void> {
   const p = await requireProfile();
   if (!p.isAdmin && p.department !== "hr") return;
-  const db = supabaseAdmin();
+  const db = supabaseWriteClient();
   const weekStart = mondayOf(new Date());
 
   const [{ data: tasks }, { data: memberships }] = await Promise.all([

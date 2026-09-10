@@ -47,7 +47,7 @@ export default async function ContractDetail({ params }: { params: { id: string 
           <table className="data">
             <thead><tr><th>Obligation</th><th>Due</th><th>Status</th><th></th></tr></thead>
             <tbody>
-              {(obligations ?? []).length === 0 && <tr><td colSpan={4}><div className="empty">No obligations.</div></td></tr>}
+              {(obligations ?? []).length === 0 && <tr><td colSpan={4}><span className="dim small">No obligations.</span></td></tr>}
               {(obligations ?? []).map((o: any) => {
                 const s = o.status === "open" ? renewalStatus(o.due_date ?? null, now, 30) : "none";
                 const b = s === "expired" ? "danger" : s === "due_soon" ? "warn" : "";

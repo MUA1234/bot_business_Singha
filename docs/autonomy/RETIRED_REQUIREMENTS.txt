@@ -1,0 +1,4 @@
+# Retired requirements — an id may only appear here after an explicit OWNER decision.
+# Format: <ID>  <date>  <owner decision reference>
+# The audit fails if a requirement disappears from the register without an entry here.
+# (empty)

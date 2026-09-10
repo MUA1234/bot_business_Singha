@@ -1,0 +1,539 @@
+{
+  "program": "Singha Central Original Vision Completion",
+  "activePhase": "stage4-crm",
+  "activeRequirementIds": [],
+  "lastLocalAcceptanceAttempt": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "b55f054c5ff8beda9b8791ad7334889e97a24fb9",
+    "outcome": "LOCALLY ACCEPTED: MOB-003 Versioned mobile APIs and push-notification readiness. The app serves stable v1 endpoints for mobile health, config, VAPID public key and push subscription registration; persists subscriptions in a company/user-scoped RLS table; and never sends or fabricates push messages.",
+    "container": "disposable local PostgreSQL 16 (port 55441) with supabase-shim",
+    "corrections": [
+      "Added src/app/api/v1/mobile/health, config, vapid-public-key and push-subscription routes with stable response shapes.",
+      "Added src/lib/mobile/api.ts and src/lib/mobile/push.ts for typed v1 contracts and Zod-validated subscription bodies.",
+      "Added migration 0109_push_subscriptions.sql with company/user-scoped table, user-only RLS policies and updated_at trigger.",
+      "Classified push_subscriptions as self_service in security/rls-classification.json and added the push-subscription route to scripts/allowlists/supabase-admin-system.json.",
+      "Added tests/mobile-api.test.ts (7 passed) and tests/campaign/mob-003-mobile-api.test.ts (7 passed).",
+      "Fresh full migration 0001-0108 on disposable PostgreSQL 16; narrow upgrade 0107->0108 on existing DB.",
+      "Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on.",
+      "npm run verify (1208 unit tests / 2 skipped / 168 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (after robust-fetch retry for transient ECONNRESET)."
+    ]
+  },
+  "currentBranch": "kimi/found006-rls-cutover",
+  "currentPr": null,
+  "baseSha": "be2f13e",
+  "mod003LocalAcceptance": {
+    "date": "2026-08-22",
+    "branch": "kimi/mod003-model-gateway",
+    "testedSha": "dfc994b",
+    "outcome": "LOCALLY ACCEPTED: provider-neutral ModelPolicyRouter/Executor/Registry; company/task daily budget policies with optimistic-version writes; deterministic healthy-provider failover and second-model review; fail-closed on missing/exhausted budget; immutable ai_model_attempts telemetry; capability/company-isolated set_ai_model_budget_policy RPC.",
+    "evidence": "Fresh disposable PostgreSQL 16 0001-0092 (supabase-shim) plus 0089->0092 and 0041->0092 upgrades; integration 686 passed / 76 files; unit 767 passed / 2 skipped / 108 files; verify/build/browser-check/lint/typecheck/migration-lint/secret-scan/autonomy-audit/IP-boundary all passed.",
+    "limitations": "No live provider credentials, hosted/staging DB, authenticated Supabase browser flow, CI runner, real data, real messages, or production evidence. MOD-002/OF-011 residual means runQuotationTurn still bypasses the cost ledger."
+  },
+  "of018LocalAcceptance": {
+    "date": "2026-08-22",
+    "branch": "kimi/of018-inbound-review-trust",
+    "testedSha": "5109bc0bf4a10bab4c9c3f476e9cf2bb7683f800",
+    "outcome": "LOCALLY ACCEPTED: forward-only migration 0091 removes only redundant request-claim role checks from two service-only inbound-review RPCs. Exact EXECUTE grants remain the authority boundary; validation, company scope, idempotency, actor capability, row locking, state idempotency, and audit behavior are preserved.",
+    "evidence": "Fresh disposable PostgreSQL 16 0001-0089 plus 0090; pre-change direct-service/no-claims regression failed at 0089; focused 46/46, full integration 678/678 across 75 files, and npm run verify 760 passed/2 skipped. Cold-context adversarial review found no material defect; anon-role coverage added and rerun.",
+    "limitations": "No hosted/staging database, live provider, real data, real message, authenticated Supabase browser flow, CI runner, or production evidence."
+  },
+  "found006LocalAcceptance": {
+    "date": "2026-08-22",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "0e6743a",
+    "outcome": "LOCALLY ACCEPTED: service-role and RLS read/write cutover. RLS policies are enforced for application reads/writes when flags are ON; service-only paths remain service-role; migration boundaries and allowlists are intact.",
+    "evidence": "Fresh disposable PostgreSQL 16 0001-0092 (supabase-shim); narrow upgrade 0089→0092; legacy upgrade 0041→0092; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; unit 767 passed / 2 skipped / 108 files; npm run verify (secret-scan, migration-lint, completion-inventory admin-files=19, autonomy audit, IP-boundary audit, typecheck, unit tests); npm run lint 0 errors; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database migration, authenticated Supabase browser flow, CI runner, production traffic, or production flag activation. RLS flags remain default-OFF pending owner/staging decision. OF-017 and OF-014 residuals remain as documented in FOUND_006_TRUST_MODEL.md §5."
+  },
+  "ip001LocalAcceptance": {
+    "date": "2026-08-22",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "4d2ee97",
+    "outcome": "LOCALLY ACCEPTED: public-repository IP boundary. The boundary manifest classifies safe public vs proprietary content; the automated check fails on hard violations and reports soft findings for review.",
+    "evidence": "tests/autonomy/ip-boundary.test.ts (2 passed); npm run verify (secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests 769 passed / 2 skipped / 109 files).",
+    "limitations": "The owner gate on a private repository/package for proprietary prompts/evaluation data remains unactioned; system prompts are currently public and generic, which the manifest records as acceptable."
+  },
+  "aim003Assessment": {
+    "date": "2026-08-22",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "4d2ee97",
+    "outcome": "ASSESSED BUT NOT ADVANCED: AIM-003 implementation is complete and focused tests pass. The OF-007 trust-boundary split (migrations 0079/0082) is implemented and verified by routing-provenance, task-routing and routing-and-mapping-corrections integration tests. However, ORIGINAL_VISION_REQUIREMENTS.yaml residual_risks explicitly keeps AIM-003 in implementation_in_progress until owner acceptance of R1; that acceptance is an owner-gated decision this session cannot perform.",
+    "evidence": "tests/integration/task-routing.test.ts (19 passed); tests/integration/routing-provenance.test.ts (15 passed); tests/integration/routing-and-mapping-corrections.test.ts (12 passed); tests/campaign/capture-routing.test.ts (7 passed); tests/campaign/analyze-ui-truthfulness.test.ts (7 passed); tests/campaign/ui-rendered-truthfulness.test.ts (10 passed).",
+    "limitation": "Owner acceptance of R1 is required before AIM-003 can be restored to locally_verified per the requirement register."
+  },
+  "aim004Assessment": {
+    "date": "2026-08-22",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "4d2ee97",
+    "outcome": "ASSESSED BUT NOT ADVANCED: AIM-004 is part of the V3.1 senior-management-intelligence evolution. The compatibility foundation (src/schemas/v3_1/task-intelligence-profile.ts and tests/v3_1-contracts.test.ts) is in place and is deliberately consumed by no runtime path (zero behaviour change). Building a runtime producer/consumer for TaskIntelligenceProfile would be building ahead of the approved V3.1 work package and is not performed in this session.",
+    "evidence": "src/schemas/v3_1/task-intelligence-profile.ts defines the contract; tests/v3_1-contracts.test.ts validates the schema.",
+    "limitation": "V3.1 feature flag V3_1_TASK_DETECTION remains default-OFF and AIM-004 remains specified until the V3.1 slice is approved and implemented."
+  },
+  "ops005LocalAcceptance": {
+    "date": "2026-08-22",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "e32a1b7",
+    "outcome": "LOCALLY ACCEPTED: feature-flag rollout control. V3.1 flags are readable at runtime and reported on the CRON_SECRET-gated /api/health endpoint.",
+    "evidence": "tests/flags.test.ts (5 passed); tests/campaign/health-route.test.ts (3 passed); npm run verify (772 unit tests / 2 skipped / 110 files); npm run lint 0 errors; npm run build clean.",
+    "limitations": "No hosted/staging environment, production traffic, or flag activation. All V3.1 flags remain default-OFF."
+  },
+  "ops002LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "18a8ea4",
+    "outcome": "LOCALLY ACCEPTED: OPS-002 audit search. The admin audit page queries the append-only audit_events table company-scoped, supports an entity-type filter via ?entity=, and surfaces actor_type, action, entity and timestamp.",
+    "evidence": "tests/campaign/ops-002-audit-search.test.ts (5 passed); tests/audit.test.ts; tests/audit-format.test.ts; npm run verify (825 unit tests / 2 skipped / 121 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or full-text/multi-field search tested. Cron-created records naming a company id as actor (D-015) remains."
+  },
+  "ctl003LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "8b90057",
+    "outcome": "LOCALLY ACCEPTED: the migration 0069 source_event_backlog RPC is surfaced on the admin health page. The page renders pending, processing, retry wait, expired lease, dead letter and oldest pending at, using the probeCount/unavailable contract so a read failure never masks as 0.",
+    "evidence": "tests/campaign/admin-health-backlog.test.ts (4 passed); tests/health.test.ts (3 passed); tests/health-signals.test.ts (7 passed); tests/campaign/health-route.test.ts (3 passed); npm run verify (776 unit tests / 2 skipped / 111 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, production traffic, or live provider. AI cost still excludes customer-facing calls (MOD-002 residual)."
+  },
+  "gov005LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "c3c0b71",
+    "outcome": "LOCALLY ACCEPTED: separation-of-duties is enforced on the finance approval action and page. checkSeparationOfDuties from src/policy/authority.ts is now a production caller, using membership roles/permissions resolved by getApproverForUser and required roles derived from policy_evaluations.",
+    "evidence": "tests/access-approver.test.ts (4 passed); tests/campaign/gov-005-approval-sod.test.ts (5 passed); tests/approval-progress.test.ts (4 passed); tests/policy.test.ts (9 passed); npm run verify (785 unit tests / 2 skipped / 113 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean.",
+    "limitations": "checkAuthority with delegations is not yet wired into the approval action; approver_is_beneficiary and sensitive-action SoD need financial-event context in a future iteration. No hosted/staging database or authenticated browser flow tested."
+  },
+  "crm001LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "5d2034b",
+    "outcome": "LOCALLY ACCEPTED: canonical customer identity surface. The sales customers page now reads canonical customers, loads channel_identities for actor_type='customer', detects duplicate identities across active customers, flags them with a warning, and preserves the existing WhatsApp conversation list below.",
+    "evidence": "tests/campaign/crm-001-canonical-customers.test.ts (5 passed); npm run verify (790 unit tests / 2 skipped / 114 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, customer-record merge action, or write path tested. The page is read-only; merge remains future work."
+  },
+  "crm002LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "5349d00",
+    "outcome": "LOCALLY ACCEPTED: canonical supplier identity surface. The procurement suppliers page now reads canonical suppliers, loads channel_identities for actor_type='supplier', detects duplicate identities across active suppliers, flags them with a warning, and shows current bank details with a maker-checker change-control badge.",
+    "evidence": "tests/campaign/crm-002-canonical-suppliers.test.ts (5 passed); tests/integration/bank-maker-checker.test.ts; npm run verify (795 unit tests / 2 skipped / 115 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, supplier-record merge action, or bank-change request UI tested. The page is read-only; merge and change-request UI remain future work."
+  },
+  "wrk001LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "af81ed8",
+    "outcome": "LOCALLY ACCEPTED: WRK-001 leave surface. The HR leave page now lists company-scoped leave_requests joined with profiles, shows leave status and decided-at metadata, and computes remaining annual leave per person using the deterministic src/modules/workforce/leave.ts module.",
+    "evidence": "tests/campaign/wrk-001-leave-surface.test.ts (5 passed); tests/leave.test.ts; npm run verify (800 unit tests / 2 skipped / 116 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, leave request submission/approval UI, attendance, travel, sickness, or working-hours modelling tested. The page is read-only; those remain future work."
+  },
+  "wrk002LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "56dcee2",
+    "outcome": "LOCALLY ACCEPTED: WRK-002 capacity surface. The HR capacity page lists active employees, reads assigned tasks, and surfaces planned/actual/remaining hours, free hours, blocked/overdue counts and utilization status badges using the deterministic capacity-detail engine.",
+    "evidence": "tests/campaign/wrk-002-capacity-surface.test.ts (5 passed); tests/capacity.test.ts; tests/capacity-detail.test.ts; npm run verify (820 unit tests / 2 skipped / 120 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or historical capacity_snapshots consumption tested. Utilisation still uses hardcoded 40/4 weekly hours rather than contracted hours per person."
+  },
+  "wrk003LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "1b494e6",
+    "outcome": "LOCALLY ACCEPTED: WRK-003 skills surface. The HR staff directory and employee record display and allow editing of employee skills, scoped to the company.",
+    "evidence": "tests/campaign/wrk-003-skills-surface.test.ts (5 passed); npm run verify (835 unit tests / 2 skipped / 123 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, certification expiry, renewal-task creation or assignment consumption tested. Those remain future work."
+  },
+  "prj001LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "f227fef",
+    "outcome": "LOCALLY ACCEPTED: PRJ-001 reusable project registry. The operations projects page now lists company-scoped projects with lifecycle status (active/on_hold/completed/cancelled) and is linked from the operations home.",
+    "evidence": "tests/campaign/prj-001-project-registry.test.ts (5 passed); npm run verify (805 unit tests / 2 skipped / 117 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, project creation/edit UI, milestones, stage gates, or project reuse as precedent tested. The page is read-only; those remain future work."
+  },
+  "prj002LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "e759c10",
+    "outcome": "LOCALLY ACCEPTED: PRJ-002 objectives surface. The admin objectives page lists company-scoped objectives, grades progress with the deterministic objective-status engine, and supports create/update progress actions.",
+    "evidence": "tests/campaign/prj-002-objectives-surface.test.ts (5 passed); tests/objective-status.test.ts; npm run verify (830 unit tests / 2 skipped / 122 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, milestones, dependencies, stage gates or project linkage tested. Those remain future work."
+  },
+  "rsk002LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "843cb05",
+    "outcome": "LOCALLY ACCEPTED: RSK-002 contracts register with renewal dates. The legal contracts page lists company-scoped contracts with counterparty, renewal date, and renewal status (expired/due_soon/upcoming) badges.",
+    "evidence": "tests/campaign/rsk-002-contracts-register.test.ts (5 passed); tests/renewals.test.ts; npm run verify (810 unit tests / 2 skipped / 118 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or automatic creation of owned dated renewal tasks tested. Renewal-task creation remains future work."
+  },
+  "rsk003LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "e99cb94",
+    "outcome": "LOCALLY ACCEPTED: RSK-003 licences and permits register. The legal licences page lists company-scoped licences/permits with authority, number, expiry date, and renewal status badges.",
+    "evidence": "tests/campaign/rsk-003-licences-register.test.ts (5 passed); tests/renewals.test.ts; npm run verify (815 unit tests / 2 skipped / 119 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or automatic creation of owned dated renewal tasks tested. Renewal responsibility and automatic renewal-task creation remain future work."
+  },
+  "mob001LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "046991c",
+    "outcome": "LOCALLY ACCEPTED: MOB-001 responsive mobile foundation. The root layout exports a mobile-ready viewport (device-width, initialScale=1, viewportFit=cover) and globals.css uses dynamic viewport height, safe-area insets, overflow-x hidden, text-size-adjust, and responsive grid breakpoints that collapse columns on narrow screens.",
+    "evidence": "tests/campaign/mob-001-responsive-surface.test.ts (5 passed); npm run verify (840 unit tests / 2 skipped / 124 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No real-device or role-based mobile UAT; this verifies the responsive CSS/viewport foundation only."
+  },
+  "fin005LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "74d3be6",
+    "outcome": "LOCALLY ACCEPTED: FIN-005 tax codes surface. The finance tax-codes page lists company-scoped tax codes with code, name, rate and sample tax amount computed by the deterministic tax engine, and supports create action.",
+    "evidence": "tests/campaign/fin-005-tax-codes-surface.test.ts (5 passed); tests/tax.test.ts; npm run verify (845 unit tests / 2 skipped / 125 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed (after one transient ECONNRESET retry).",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or routing of uncertain tax treatment to a human reviewer tested. Professional-review routing remains future work."
+  },
+  "sch001LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "dbb208f",
+    "outcome": "LOCALLY ACCEPTED: SCH-001 continuous task discovery surface. The AI monitor cron route at /api/cron/ai-monitor is CRON_SECRET-gated (fail-closed), reads WhatsApp conversations with new inbound activity, calls analyzeConversationThread, bounds the batch to 15, updates ai_analyzed_at, and writes a monitor.analyzed audit event.",
+    "evidence": "tests/campaign/sch-001-ai-monitor-surface.test.ts (5 passed); tests/integration/ai-case-atomic.test.ts; npm run verify (850 unit tests / 2 skipped / 126 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live provider call tested. Duplicate prevention depends on AIM-002 (verified); routing depends on AIM-003 (owner-gated). Email discovery remains a 501 stub."
+  },
+  "fin008LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "0a1737a",
+    "outcome": "LOCALLY ACCEPTED: FIN-008 payment intelligence and reconciliation surface. The finance reconciliation page at /app/finance/reconciliation is a real runtime entrypoint gated to the finance department, reads company-scoped bank transactions/payments/receipts, uses a deterministic exact-decimal matcher (suggestMatches), and provides server-validated import and confirm-match actions that write reconciliation_matches and audit events.",
+    "evidence": "tests/campaign/fin-008-payment-intelligence-surface.test.ts (5 passed); tests/reconcile.test.ts; tests/reconcile-validate.test.ts; tests/bank-import.test.ts; tests/integration/settlement.test.ts; npm run verify (855 unit tests / 2 skipped / 127 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or evidence-required-at-payment path tested. The evidence-first payment path is owned by FOUND-003 (blocked_owner). Recording a payment against a supplier bill uses the separate settlement RPC."
+  },
+  "rsk001LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "299b296",
+    "outcome": "LOCALLY ACCEPTED: RSK-001 risk register. Migration 0093 adds a company-scoped risks table with owner, mitigation, evidence, review dates and status; capability-gated RLS write policies (legal.risk.manage); and an updated_at trigger with canonical search_path. The legal risks page lists risks and provides an audited create action; the legal home links to risks and surfaces open-risks count and review deadlines.",
+    "evidence": "tests/campaign/rsk-001-risk-register.test.ts (5 passed); fresh disposable PostgreSQL 16 0001-0093 (supabase-shim); narrow upgrade 0092→0093; full integration 697 passed / 77 files; npm run verify (860 unit tests / 2 skipped / 128 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed (after one transient ECONNRESET retry).",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or automatic creation of owned dated mitigation tasks tested. Risk review dates feed the legal overview but do not yet create tasks."
+  },
+  "rsk004LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "75c1449",
+    "outcome": "LOCALLY ACCEPTED: RSK-004 insurance register. Migration 0094 adds a company-scoped insurances table with insurer, policy_number, cover_amount, currency, expiry_date, status and updated_at trigger; capability-gated RLS write policies (legal.insurance.manage). The legal insurances page lists policies with cover, expiry and renewal status badges, provides an audited create action, and the legal home links to insurances and surfaces active-policies count and renewal deadlines.",
+    "evidence": "tests/campaign/rsk-004-insurance-register.test.ts (5 passed); fresh disposable PostgreSQL 16 0001-0094 (supabase-shim); narrow upgrade 0093→0094; full integration 697 passed / 77 files; npm run verify (865 unit tests / 2 skipped / 129 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or automatic creation of owned dated renewal tasks tested. Renewal dates feed the legal overview but do not yet create tasks. Required by AST-001 (asset insurance) and CRM-005 (provider insurance)."
+  },
+  "int001LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "4b5bbb3",
+    "outcome": "LOCALLY ACCEPTED: INT-001 integration gateway and connector registry. Migration 0095 adds company-scoped integrations, connectors, integration_event_contracts and integration_command_contracts tables with signature_required and replay_protection flags; capability-gated RLS write policies (admin.integration.manage). The admin integrations page lists applications, connectors and contracts with signature/replay flags, provides audited create actions, and the admin home links to integrations.",
+    "evidence": "tests/campaign/int-001-integration-gateway.test.ts (6 passed); fresh disposable PostgreSQL 16 0001-0095 (supabase-shim); narrow upgrade 0094→0095; full integration 697 passed / 77 files; npm run verify (871 unit tests / 2 skipped / 130 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or runtime adapter signature verification/nonce-store enforcement tested. The registry captures signature/replay metadata; actual inbound/outbound adapter enforcement remains future work."
+  },
+  "gov001LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "336d4ac",
+    "outcome": "LOCALLY ACCEPTED: GOV-001 management directives with response obligations. Migration 0096 adds a company-scoped management_directives table with issued_to, response_required_by, status, response, acknowledged_at and closed_at; capability-gated RLS write policies (admin.directive.manage). The admin directives page issues directives to named humans, lists open/overdue/closed statuses, supports recipient acknowledgement and admin close, and the admin home links to directives.",
+    "evidence": "tests/campaign/gov-001-management-directives.test.ts (6 passed); fresh disposable PostgreSQL 16 0001-0096 (supabase-shim); narrow upgrade 0095→0096; full integration 697 passed / 77 files; npm run verify (877 unit tests / 2 skipped / 131 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, scheduled overdue escalation, or recipient notification tested. AIM-003 routing is not required for the registry surface."
+  },
+  "aim007LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "d5a3f70",
+    "outcome": "LOCALLY ACCEPTED: AIM-007 AI Guide next actions. Migration 0097 adds a company- and task-scoped ai_guide_messages table with kind, body, visibility, audience_refs, proposed_next_action, confidence and visibility-aware RLS. The task detail page at /app/operations/tasks/[id] lists guide messages and, when the default-OFF V3_1_AI_GUIDE flag is enabled, lets an ai.guide.manage capability holder add coaching/next-action guidance. The createAiGuideMessage action is gated by the flag and capability and writes an ai_guide_message.created audit event.",
+    "evidence": "tests/campaign/aim-007-ai-guide.test.ts (5 passed); fresh disposable PostgreSQL 16 0001-0097 (supabase-shim); narrow upgrade 0096→0097; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (882 unit tests / 2 skipped / 132 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live AI producer persisting pipeline suggestedActions automatically. Ask-AI interactive coaching UI and task-role-based senior visibility remain future work. The V3_1_AI_GUIDE flag remains default-OFF pending owner approval."
+  },
+  "gov006LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "079a459",
+    "outcome": "LOCALLY ACCEPTED: GOV-006 governance audit trail. The admin audit page at /app/admin/audit reads the append-only audit_events table company-scoped and provides a Governance filter that scopes results to governance entity types (management_directive, approval_request, policy_evaluation, delegation, authority_rule). No new migration is required.",
+    "evidence": "tests/campaign/gov-006-governance-audit.test.ts (4 passed); fresh disposable PostgreSQL 16 0001-0097 (supabase-shim); full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (886 unit tests / 2 skipped / 133 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database or authenticated Supabase browser flow tested. Reserved-matter decisions and escalations are not yet produced by GOV-004/GOV-002; the filter captures the entity types that will carry those events once built."
+  },
+  "mem001LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "82b6ce9",
+    "outcome": "LOCALLY ACCEPTED: MEM-001 organizational memory surface. The /app/command/memory page lists company-scoped prior cases, tasks, customers and channel identities with provenance labels; it is linked from the Command Centre.",
+    "evidence": "tests/campaign/mem-001-organizational-memory.test.ts (4 passed); fresh disposable PostgreSQL 16 0001-0097 (supabase-shim); full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (890 unit tests / 2 skipped / 134 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or write path tested. The surface is read-only; future analysis producers will consume this data deterministically."
+  },
+  "gov003LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "81e6d35430d85eafdfb0b88aefa8b404c4544a2b",
+    "outcome": "LOCALLY ACCEPTED: GOV-003 conflicting-instruction detection and resolution. Migration 0098 extends management_directives with target_type/target_id/action and adds management_directive_conflicts with automatic detection, capability-gated RLS and an updated_at trigger. The directives page includes target/action inputs and an open-conflicts section with resolution forms. The resolveDirectiveConflict action records the reason and writes a management_directive_conflict.resolved audit event.",
+    "evidence": "tests/campaign/gov-003-conflicting-directives.test.ts (8 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); fresh disposable PostgreSQL 16 0001-0098 full migration; narrow upgrade 0097→0098; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests 898 passed / 2 skipped / 135 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live manager-vs-manager scenario tested."
+  },
+  "gov002LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "e6a99e40e8db991db65370c684819c3cb41cbcfd",
+    "outcome": "LOCALLY ACCEPTED: GOV-002 directive acknowledgement and escalation. Migration 0099 extends management_directives with escalation_chain, escalated_to, escalation_level, escalated_at and escalation_reason; updates the status check to include 'escalated'; refreshes RLS so the current escalated_to can see and update the directive. The pure evaluateDirectiveEscalation helper is called by the CRON_SECRET-gated /api/cron/directive-escalation route, which advances overdue unacknowledged directives one step up the chain or transitions them to overdue and writes append-only audit events. The admin directives page includes an escalation-chain multi-select and escalation/overdue badges; actions.ts validates chain recipients against the same company, allows the current escalated_to to acknowledge, and adds manual escalateDirective.",
+    "evidence": "tests/campaign/gov-002-directive-escalation.test.ts (15 passed); tests/campaign/gov-001-management-directives.test.ts (6 passed regression); tests/campaign/gov-003-conflicting-directives.test.ts (8 passed regression); tests/campaign/cron-auth.test.ts (9 passed regression); fresh disposable PostgreSQL 16 0001-0099 full migration; narrow upgrade 0098→0099; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on; npm run verify (916 unit tests / 2 skipped / 136 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit)."
+  },
+  "lastGreenSha": "07dfad8",
+  "latestMigration": "0109_push_subscriptions.sql",
+  "lastCompletedAction": "Completed MOB-003 acceptance, register correction, coverage-matrix regeneration and owner-gate/staging handoff document. No unblocked implementable requirements remain.",
+  "nextAction": "Stop: only blocked_owner, deliberately_deferred, or dependency-blocked requirements remain. Resume when an owner gate is cleared or a dependency becomes verified. See docs/autonomy/OWNER_GATE_AND_STAGING_HANDOFF.md for the handoff at head 07dfad8.",
+  "lastTargetedTests": [
+    "tests/mobile-api.test.ts (7 passed)",
+    "tests/campaign/mob-003-mobile-api.test.ts (10 passed)"
+  ],
+  "lastFullGateResults": {
+    "sha": "9074c55 on kimi/found006-rls-cutover",
+    "typecheck": "clean",
+    "lint": "0 errors (3 pre-existing next/image warnings)",
+    "unit": "1208 passed / 2 skipped / 168 files",
+    "integrationFresh": "697 passed / 77 files on disposable PostgreSQL 16 0001-0108 (supabase-shim) with RLS_READS=on and RLS_WRITES=on",
+    "integrationNarrowUpgrade": "0107→0108 upgrade applied cleanly on disposable PostgreSQL 16",
+    "integrationLegacyUpgrade": "not run for this package (no legacy baseline change)",
+    "migrationIdempotency": "migration-lint 0001-0108 sequential, no gaps or duplicates",
+    "build": "clean",
+    "verify": "passed: secret-scan, migration-lint, completion-inventory, autonomy audit, IP-boundary audit, typecheck, unit tests",
+    "secretScan": "no tracked secrets found",
+    "migrationLint": "108 migrations, sequential 0001–0108, no gaps or duplicates",
+    "browserCheck": "10/10 passed (after robustFetch retry for transient ECONNRESET)",
+    "discriminationProof": "tests/campaign/mob-003-mobile-api.test.ts proves the v1 mobile health/config/VAPID/push-subscription endpoints, company-scoped RLS persistence, and that no message is sent or fabricated.",
+    "note": "No hosted database was contacted, no production flag enabled, no live provider called, no real data used, and no real message sent during this acceptance pass."
+  },
+  "openFindings": [
+    "IP-001: LOCALLY ACCEPTED. Public-repository boundary manifest and automated check verified. Private repo/package owner gate remains.",
+    "FOUND-006: LOCALLY ACCEPTED at 0e6743a. RLS cutover verified locally. Flag activation and hosted migration remain owner-gated.",
+    "MOD-003: LOCALLY ACCEPTED at dfc994b. Provider-neutral gateway, budget policies, and adversarial coverage are verified locally. Live provider quality/cost remains blocked_owner until credentials configured.",
+    "OF-016: RESOLVED by migration 0088 (pending independent review). The paused payment now has an authorized, audited, idempotent resolution path and a screen; historic 0083 rows work as they stand.",
+    "OF-018: RESOLVED by migration 0091 and locally accepted at 5109bc0. The two inbound-review RPCs now authorize solely by their exact service_role EXECUTE grants; direct service sessions remain valid without or despite claim text, while anon/authenticated remain denied.",
+    "AIM-003: IMPLEMENTATION COMPLETE but remains implementation_in_progress pending owner acceptance of R1 per the requirement register. Focused tests pass; OF-007 is fixed by migrations 0079/0082.",
+    "AIM-004: V3.1 FUTURE WORK. Schema contract exists at src/schemas/v3_1/task-intelligence-profile.ts; no runtime consumer is built per the zero-behaviour-change foundation constraint.",
+    "OPS-005: LOCALLY ACCEPTED at e32a1b7. V3.1 flag snapshot reported on /api/health; activation remains owner-gated per slice.",
+    "CTL-003: LOCALLY ACCEPTED at 8b90057. The migration 0069 source_event_backlog RPC is surfaced on the admin health page with company scoping and unavailable handling.",
+    "OPS-002: LOCALLY ACCEPTED at 18a8ea4. The admin audit page queries the append-only audit_events table company-scoped, supports an entity-type filter, and surfaces actor/action/entity/timestamp. Full-text search and D-015 cron actor remain future work.",
+    "GOV-005: LOCALLY ACCEPTED at c3c0b71. checkSeparationOfDuties is now called by the finance approval action and page via membership-based authority resolution.",
+    "CRM-001: LOCALLY ACCEPTED at 5d2034b. The sales customers page shows canonical customers, attached channel_identities, duplicate-identity warnings, and the existing WhatsApp conversation list. Automated merge remains future work.",
+    "CRM-002: LOCALLY ACCEPTED at 5349d00. The procurement suppliers page shows canonical suppliers, attached channel_identities, duplicate-identity warnings, and bank details with a maker-checker change-control badge. Automated merge and change-request UI remain future work.",
+    "WRK-001: LOCALLY ACCEPTED at af81ed8. The HR leave page lists company-scoped leave_requests joined with profiles and shows remaining annual leave per person. Attendance, travel, sickness, working-hours modelling and assignment consumption remain future work.",
+    "WRK-002: LOCALLY ACCEPTED at 56dcee2. The HR capacity page lists active employees, reads assigned tasks, and surfaces planned/actual/remaining hours and utilization status. Historical snapshot consumption and contracted-hour modelling remain future work.",
+    "WRK-003: LOCALLY ACCEPTED at 1b494e6. The HR staff list and employee record display and allow editing of employee skills, scoped by company_id. Certification expiry, renewal-task creation and assignment consumption remain future work.",
+    "MOB-001: LOCALLY ACCEPTED at 046991c. The root layout and global stylesheet provide a responsive mobile foundation: viewport=device-width/initialScale=1/viewportFit=cover, 100dvh, safe-area insets, overflow-x hidden, text-size-adjust, and collapsing grid breakpoints. Real-device/role-based mobile UAT remains future work.",
+    "MOB-002: LOCALLY ACCEPTED at 7c3942b56c6898f26dcef2ec3545619b0b8476c0. The app serves a PWA manifest, registers a same-origin service worker from the root layout, caches the shell for offline opening, and returns a safe 503 retryable response for offline API reads. Writes are never cached or replayed.",
+    "MOB-003: LOCALLY ACCEPTED at 9074c55. Stable v1 mobile endpoints for health, config, VAPID public key and push-subscription registration; company/user-scoped push_subscriptions table with RLS; never sends or fabricates push messages.",
+    "PRJ-001: LOCALLY ACCEPTED at f227fef. The operations projects page lists company-scoped projects with lifecycle status and links from the operations home. Milestones, stage gates and project precedent reuse remain future work.",
+    "PRJ-002: LOCALLY ACCEPTED at e759c10. The admin objectives page lists company-scoped objectives, grades progress with assessObjective and supports create/update progress actions. Milestones, dependencies, stage gates and project linkage remain future work.",
+    "RSK-002: LOCALLY ACCEPTED at 843cb05. The legal contracts page lists company-scoped contracts with counterparty, renewal date, and renewal status badges. Automatic creation of owned dated renewal tasks remains future work.",
+    "RSK-003: LOCALLY ACCEPTED at e99cb94. The legal licences page lists company-scoped licences/permits with authority, number, expiry date, and renewal status badges. Renewal responsibility and automatic renewal-task creation remain future work.",
+    "GOV-004: BLOCKED_OWNER. Board-reserved matters and emergency suspension requires the owner to define the reserved-matter list before implementation.",
+    "FIN-005: LOCALLY ACCEPTED at 74d3be6. The finance tax-codes page lists company-scoped tax codes and surfaces sample tax amounts via the deterministic tax engine. Routing uncertain treatment to a professional reviewer remains future work.",
+    "SCH-001: LOCALLY ACCEPTED at dbb208f. The AI monitor cron route is CRON_SECRET-gated, reads WhatsApp conversations with new inbound activity, calls analyzeConversationThread with BATCH=15, updates ai_analyzed_at and writes a monitor.analyzed audit event. Live provider, email discovery and AIM-003 routing remain future work.",
+    "SCH-002: LOCALLY ACCEPTED at 9ed08e12ecb08e1c1832aa0f8e38273e9005b936. The CRON_SECRET-gated /api/cron/follow-ups route resolves assignees through task_assignments/memberships/profiles, enqueues internal WhatsApp reminders and escalations via message_outbox, and writes follow_up.enqueued / follow_up.escalated audit events. AI-created tasks remain unreachable until a human assigns them (WRK-005 unbuilt); escalation targets company admins generically (SCH-004).",
+    "SCH-004: LOCALLY ACCEPTED at 52547a2c68d622807d641134dc597e114fe5d028. Migration 0103 adds task escalation chain columns; the follow-ups cron route walks the defined chain, advances one step per escalation sweep, falls back to company admins when exhausted, persists reminder/escalation state, and writes audit events. Chain assignment is manual (setTaskEscalationChain); automatic chain proposal awaits WRK-005/AIM-006.",
+    "FIN-008: LOCALLY ACCEPTED at 0a1737a. The finance reconciliation page reads company-scoped bank transactions, payments and receipts; uses a deterministic exact-decimal matcher; and provides server-validated import/confirm-match actions with audit events. The evidence-required-at-payment path remains owner-gated through FOUND-003.",
+    "FIN-008 evidence-at-payment: BLOCKED_OWNER. The evidence-first payment path is owned by FOUND-003, which requires hosted migration, channel account mapping, and operations.inbound.review grants.",
+    "RSK-001: LOCALLY ACCEPTED at 299b296. Migration 0093 adds a company-scoped risks table with owner, mitigation, evidence, review dates and capability-gated RLS. The legal risks page lists risks and provides an audited create action; the legal home surfaces open-risks count and review deadlines. Automatic creation of owned dated mitigation tasks remains future work.",
+    "RSK-004: LOCALLY ACCEPTED at 75c1449. Migration 0094 adds a company-scoped insurances table with insurer, policy_number, cover_amount, currency, expiry_date, status and capability-gated RLS. The legal insurances page lists policies with cover/expiry/renewal status and provides an audited create action; the legal home surfaces active-policies count and renewal deadlines. Automatic creation of owned dated renewal tasks remains future work.",
+    "INT-001: LOCALLY ACCEPTED at 4b5bbb3. Migration 0095 adds company-scoped integrations, connectors, integration_event_contracts and integration_command_contracts tables with signature_required and replay_protection flags and capability-gated RLS. The admin integrations page lists applications, connectors and contracts with signature/replay flags and provides audited create actions. Runtime adapter signature verification and nonce-store enforcement remain future work.",
+    "GOV-001: LOCALLY ACCEPTED at 336d4ac. Migration 0096 adds a company-scoped management_directives table with issued_to, response_required_by, status, response, acknowledged_at and closed_at and capability-gated RLS. The admin directives page issues directives to named humans, tracks open/overdue/closed statuses, supports recipient acknowledgement and admin close, and links from the admin home. Scheduled escalation and recipient notification remain future work.",
+    "AIM-007: LOCALLY ACCEPTED at d5a3f70. Migration 0097 adds a company- and task-scoped ai_guide_messages table with kind, body, visibility, audience_refs, proposed_next_action, confidence and visibility-aware RLS. The task detail page lists guide messages and, behind the default-OFF V3_1_AI_GUIDE flag, lets an ai.guide.manage capability holder add coaching/next-action guidance. Automatic persistence of pipeline suggestedActions, Ask-AI interactive coaching and task-role-based senior visibility remain future work.",
+    "GOV-006: LOCALLY ACCEPTED at 079a459. The admin audit page at /app/admin/audit reads the append-only audit_events table company-scoped and provides a Governance filter that scopes results to governance entity types (management_directive, approval_request, policy_evaluation, delegation, authority_rule). Reserved-matter decisions and escalations are not yet produced by GOV-004/GOV-002; the filter captures the entity types that will carry those events once built.",
+    "GOV-003: LOCALLY ACCEPTED at 81e6d35430d85eafdfb0b88aefa8b404c4544a2b. Migration 0098 extends management_directives with target_type/target_id/action and adds management_directive_conflicts with automatic detection, capability-gated RLS and an updated_at trigger. The directives page includes target/action inputs and an open-conflicts section with resolution forms; resolveDirectiveConflict records the reason and writes a management_directive_conflict.resolved audit event. Fresh + narrow-upgrade migrations, full integration (697/77), verify, lint, build and browser-check passed.",
+    "GOV-002: LOCALLY ACCEPTED at e6a99e40e8db991db65370c684819c3cb41cbcfd. Migration 0099 extends management_directives with escalation_chain, escalated_to, escalation_level, escalated_at and escalation_reason; the CRON_SECRET-gated /api/cron/directive-escalation route advances overdue unacknowledged directives up the chain or to overdue and writes append-only audit events. Full acceptance gates passed. Notifications to escalated recipients are not sent (GOV-002 stops at state transition + audit).",
+    "FIN-004: LOCALLY ACCEPTED at d938bb202b3458745be137b71cafbc1a7e6a64c7. Migration 0100 adds expected_payment_date to purchase_orders with a company/status/date index; src/modules/finance/commitment-outflows.ts turns open, dated, same-currency POs and commitments into deterministic expected outflows; the Command Centre forecast consumes them and surfaces an \"Expected commitments\" stat; the PO list/detail show the date and allow procurement to update it with an audit event. Recurring obligations and payroll remain outside the forecast.",
+    "MEM-001: LOCALLY ACCEPTED at 82b6ce9. The /app/command/memory page reads company-scoped management_cases, tasks, customers and channel_identities with provenance labels (case:/task:/customer:) and is linked from the Command Centre. No new migration is required. Future analysis producers will consume this data deterministically.",
+    "OF-017 (P1, INHERENT -- not closed by FOUND-006): under the PostgREST shared-login model every API session authenticates as `authenticator`, which Supabase grants membership of both `authenticated` and `service_role`. SET ROLE is authorised against session_user, so a caller with arbitrary SQL as `authenticated` can `set role service_role` and reach every service-only entrypoint. No in-database control can close this while the login role holds both memberships; it requires a separate connection identity for service work, which is an owner infrastructure decision.",
+    "OF-014 residual (P1): a caller with arbitrary SQL as the `authenticated` DB role can forge request.jwt.claims — reading one quotation status per id, and more broadly forging `sub` and so auth.uid(). The unauthenticated half is closed. Belongs to FOUND-006.",
+    "OF-015 (P2): sections 3 and 6 have no re-runnable schema-level end-to-end discrimination, because they are application code.",
+    "OF-003: finance classification has no model provider, so a staff finance message reaches the review queue rather than capture",
+    "OF-004: until a receiving number is mapped in channel_accounts, the single-tenant bridge is what attributes messages",
+    "OF-005: nobody can work the review queue until someone is granted operations.inbound.review",
+    "OF-008: nothing proposes an assignee (WRK-002/WRK-005 unbuilt), and there is no queue UI for needs_routing work",
+    "OF-009: the occurrence window is a UTC date, so an unresolved follow-up on an active thread is recreated once per day",
+    "OF-010: task_duplicate_suggestions has no producer",
+    "MOD-002: LOCALLY ACCEPTED at 7826fa8. runQuotationTurn now requires a CostLedger and records every run; runPolicyRoutedQuotationTurn records policy rejections; handleCustomerMessage records the budget-exceeded path.",
+    "OF-011: CLOSED by MOD-002 at 7826fa8. runQuotationTurn now takes a CostLedger and the highest-volume model call produces an ai_runs row.",
+    "OF-012: RLS_READS/RLS_WRITES are OFF, so the app reads through the RLS-bypassing service-role client",
+    "COM-007: LOCALLY ACCEPTED at 0c4768a. Migration 0104 adds company-scoped communication_preferences with capability-gated RLS. Outbound enqueue returns opted_out; inbound dispatch records manual_review. Server actions are customer.manage-gated and audited. A read-only UI surface exists via /app/messages actions; a dedicated preferences panel remains future work.",
+    "FIN-007: LOCALLY ACCEPTED at ae3ce17. Migration 0105 adds funding_requirements and investments tables with capability-gated RLS. The /app/finance/funding page derives a funding gap from the 90-day cash forecast and provides create/status/dispose actions. Forecast inputs remain invoice/bill/commitment only; payroll and recurring obligations are not modelled.",
+    "RSK-005: LOCALLY ACCEPTED at 4e40880. Migration 0106 adds incidents table and extends obligations with evidence/obligation_type. /app/legal/incidents and /app/legal/obligations pages provide create/status forms. Capability-gated RLS via legal.compliance.manage.",
+    "PRJ-004: LOCALLY ACCEPTED at d0e08db70c2d5d7b32c98e29377d7373efbc1422. Migration 0107 adds company-scoped project_risks, project_decisions and project_scenarios with operations.project.manage capability and capability-gated RLS. The project detail page surfaces risk exposure, decision status and scenario comparison with gated, audited actions.",
+    "SCH-003: LOCALLY ACCEPTED at 429100d36c3bd216fb2597518c36b1d5573a1c9e. The follow-ups cron route is leave and workload-aware: it skips assignees on approved leave, ranks reachable assignees by free hours, advances past on-leave escalation targets, and falls back to available admins. assignTask refuses to assign work to someone on approved leave.",
+    "CTL-002: LOCALLY ACCEPTED at 76e98a8fe6620d578221be85f4798c78e147aa67. The /app/portfolio page gives an admin with multiple companies a ranked cross-company overview of projects, tasks, cash, overdue AR/AP, risks, incidents and obligations. Company isolation is preserved by querying only companies the user has an active membership in. No new migration required.",
+    "CTL-004: LOCALLY ACCEPTED at 9bc49cc62fd0a5ec1c2a506e7c4982bf9028af31. The /app/command/health page computes a composite explainable health score from cash, AR/AP, task, capacity, risk, incident and obligation signals with inspectable weights and deterministic pure helpers."
+  ],
+  "ownerGates": [
+    "PR merges (#22, #23, #24) — none merged",
+    "Hosted migration application (0042-0092) — hosted DB is at 0038-0041",
+    "Map each receiving WhatsApp number to its company in channel_accounts (FOUND-003)",
+    "Grant operations.inbound.review to whoever should work the inbound queue (FOUND-003)",
+    "Feature flag activation — all 8 V3.1 flags OFF",
+    "ANTHROPIC_API_KEY for live-model evaluation (MOD-001) and a provider for finance classification (FOUND-003)",
+    "Company authority amounts, ceilings and regulated-action mappings (FOUND-004 configuration)",
+    "GitHub authorization before creating the private repository/package (IP-001)",
+    "Staging environment + credentials (OPS-004, OPS-003)",
+    "Production pilot approval (OPS-008)",
+    "Email/transcription/calendar provider selection (COM-002, COM-004, COM-005)",
+    "GitHub Actions runner provisioning",
+    "Owner acceptance of R1 before restoring AIM-003 to locally_verified"
+  ],
+  "usageState": {
+    "opusReviewsThisProgram": 10,
+    "correctionLoopsUsed": {
+      "campaign": 2,
+      "v3.3-part1": 0,
+      "v3.3-part2": 2,
+      "v3.3-remediation-R1": 2,
+      "found-006": 2,
+      "of-016": 2,
+      "of-018": 0,
+      "mod-003": 0,
+      "ip-001": 0,
+      "aim-003": 0,
+      "ops-005": 0,
+      "rsk003": 0,
+      "wrk002": 0,
+      "ops002": 0,
+      "prj002": 0,
+      "wrk003": 0,
+      "mob001": 0,
+      "fin005": 0,
+      "sch001": 0,
+      "fin008": 0,
+      "rsk001": 0,
+      "rsk004": 0,
+      "int001": 0,
+      "gov001": 0,
+      "fin004": 0,
+      "fin006": 0,
+      "prj003": 0,
+      "crm003": 0,
+      "crm005": 0,
+      "sch002": 0,
+      "sch004": 0,
+      "com007": 0,
+      "fin007": 0,
+      "rsk005": 0,
+      "mod002": 0,
+      "prj004": 0,
+      "sch003": 0,
+      "ctl002": 0
+    },
+    "note": "Token/cost figures are not measurable from inside this session; see AUTONOMOUS_USAGE_LEDGER.md for what is and is not known."
+  },
+  "updatedAt": "2026-08-24T00:00:00.000Z",
+  "fin004LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "d938bb202b3458745be137b71cafbc1a7e6a64c7",
+    "outcome": "LOCALLY ACCEPTED: FIN-004 commitments and expected payments. Migration 0100 adds expected_payment_date to purchase_orders with a company/status/date index; src/modules/finance/commitment-outflows.ts turns open, dated, same-currency POs and commitments into deterministic expected outflows; the Command Centre cash forecast consumes them and surfaces an \"Expected commitments\" stat; the PO list/detail show the date and allow procurement to update it with an audit event.",
+    "evidence": "Added tests/campaign/fin-004-commitments-forecast.test.ts (11 passed) and refreshed tests/forecast.test.ts commitment-trough case (4 passed). Fresh disposable PostgreSQL 16 0001-0100; narrow upgrade 0099→0100; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (928 unit tests / 2 skipped / 137 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (after one transient ECONNRESET retry).",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live procurement workflow tested. Recurring obligations and payroll remain outside the forecast."
+  },
+  "fin006LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "d514bf1242cc4fba4fcd464c8aec1f47958a2b4d",
+    "outcome": "LOCALLY ACCEPTED: FIN-006 budget versus actual and scenario analysis. Existing migration 0005 tables (budgets/budget_lines/forecasts/forecast_scenarios/forecast_lines) are used by deterministic pure modules computeBudgetVsActual and projectScenarios; the /app/finance/budgets list and detail pages surface budgeted/actual/variance and best/expected/worst scenarios; gated server actions create budgets, lines and scenarios with audit events.",
+    "evidence": "Added src/modules/finance/budget-vs-actual.ts and src/modules/finance/scenario-analysis.ts with exact-decimal Money. Added src/app/app/finance/budgets/page.tsx, [id]/page.tsx and actions.ts; linked from finance home. Added tests/campaign/fin-006-budget-vs-actual.test.ts (11 passed) and tests/budget-vs-actual.test.ts (11 passed). Fresh disposable PostgreSQL 16 0001-0100; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (950 unit tests / 2 skipped / 139 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live budget-creation workflow tested. Budget write RLS policies remain app-layer/service-role while flags are OFF."
+  },
+  "prj003LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "4ca0f227ec0b3c928bd42b077ed08622c2f7920f",
+    "outcome": "LOCALLY ACCEPTED: PRJ-003 project budgets, forecasts and resource requirements. Reuses existing project_id links on budget_lines, journal_lines, tasks and task_assignments; deterministic modules computeProjectBudgetForecast and computeResourceRequirements power the project detail page; updateProjectStatus action is operations-gated and audited.",
+    "evidence": "Added src/modules/project/budget-forecast.ts and src/modules/project/resource-requirements.ts. Added src/app/app/operations/projects/[id]/page.tsx and actions.ts; linked project names from the registry list. Added tests/campaign/prj-003-project-budget-forecast.test.ts (12 passed) and tests/project-budget-forecast.test.ts (10 passed). Fresh disposable PostgreSQL 16 0001-0100; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (972 unit tests / 2 skipped / 141 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live project-status workflow tested. Project write RLS policies remain app-layer/service-role while flags are OFF."
+  },
+  "crm003LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "22cc2730a800f4464b7936b93768e93f2c4b5835",
+    "outcome": "LOCALLY ACCEPTED: CRM-003 consultant and service-provider registry. Migration 0101 adds company-scoped service_providers with capabilities, service areas, capacity/price notes, compliance and insurance status/expiry; capability-gated RLS and updated_at trigger. The procurement service-provider list/detail pages surface badges and a status update action; providerHealth classifies operational health deterministically.",
+    "evidence": "Added src/db/migrations/0102_service_provider_registry.sql and updated security/rls-classification.json. Added src/modules/crm/service-provider.ts, src/app/app/procurement/service-providers/page.tsx, [id]/page.tsx, actions.ts; linked from procurement home. Added tests/campaign/crm-003-service-providers.test.ts (8 passed) and tests/service-provider.test.ts (9 passed). Fresh disposable PostgreSQL 16 0001-0101 and narrow upgrade 0100→0101 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (989 unit tests / 2 skipped / 143 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live service-provider workflow tested."
+  },
+  "crm005LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "7b939f10297cb122056c7a9400e879019f7668be",
+    "outcome": "LOCALLY ACCEPTED: CRM-005 compliance and insurance status per counterparty. Migration 0102 extends suppliers and service_providers with compliance_status, insurance_status and insurance_expiry; capability-gated update policies protect the fields. The procurement suppliers page surfaces compliance/insurance badges and overall health; createPurchaseOrder reads the supplier, computes counterpartyHealth, and fail-closed refuses to create a PO when health is blocked, writing a purchase_order.rejected_compliance audit event.",
+    "evidence": "Added src/db/migrations/0103_counterparty_compliance.sql. Added src/modules/crm/counterparty-compliance.ts with counterpartyHealth and canOrderFromCounterparty. Updated suppliers page and purchase-order create form/action to gate blocked counterparties. Added tests/campaign/crm-005-counterparty-compliance.test.ts (9 passed) and tests/counterparty-compliance.test.ts (14 passed). Fresh disposable PostgreSQL 16 0001-0102 and narrow upgrade 0101→0102 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1012 unit tests / 2 skipped / 145 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live PO workflow tested. Assignment gating (not just ordering) remains future work."
+  },
+  "sch002LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "9ed08e12ecb08e1c1832aa0f8e38273e9005b936",
+    "outcome": "LOCALLY ACCEPTED: SCH-002 SLAs, 24/48-hour follow-ups and reminders. The CRON_SECRET-gated /api/cron/follow-ups route resolves task assignees through task_assignments → memberships → profiles, enqueues internal WhatsApp reminders via message_outbox, and writes follow_up.enqueued / follow_up.escalated audit events.",
+    "evidence": "Rewrote src/app/api/cron/follow-ups/route.ts to remove the broken tasks.assigned_to reference, added task_assignments/memberships/profiles resolution, kept fail-closed CRON_SECRET timingSafeEqual gate, added read-error handling, and added audit events. Added tests/campaign/sch-002-follow-ups-surface.test.ts (14 passed) and updated tests/campaign/cron-auth.test.ts (10 passed). tests/follow-up.test.ts (10 passed regression). Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1023 unit tests / 2 skipped / 146 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. AI-created tasks remain unreachable until a human assigns them (WRK-005 unbuilt). Escalation targets company admins generically, not a defined per-task chain (SCH-004)."
+  },
+  "sch004LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "52547a2c68d622807d641134dc597e114fe5d028",
+    "outcome": "LOCALLY ACCEPTED: SCH-004 Escalation and missed-response recovery. Migration 0103 adds escalation_chain, escalation_level, escalated_to, escalated_at, escalation_reason and last_reminder_at to tasks; the follow-ups cron route walks the defined chain and falls back to admins when exhausted.",
+    "evidence": "Added src/db/migrations/0104_task_escalation_chain.sql. Added selectEscalationTarget to src/modules/work/follow-up.ts. Updated src/app/api/cron/follow-ups/route.ts to read escalation columns, advance the chain, update task state, and persist last_reminder_at. Added setTaskEscalationChain server action in src/app/app/operations/tasks/actions.ts. Added tests/campaign/sch-004-escalation-chain.test.ts (8 passed) and extended tests/follow-up.test.ts (14 passed). Fresh disposable PostgreSQL 16 0001-0103 and narrow upgrade 0102→0103 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1036 unit tests / 2 skipped / 147 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Escalation chains are set manually; automatic chain proposal awaits WRK-005/AIM-006."
+  },
+  "com007LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "0c4768a",
+    "outcome": "LOCALLY ACCEPTED: COM-007 Human handover, opt-out and communication preferences. Migration 0104 adds a company-scoped communication_preferences table with opt_out, handover_to, handover_at, handover_reason and capability-gated RLS. Pure helpers in src/modules/comms/preferences.ts determine opt-out/handover state; src/lib/comms/preferences.ts normalizes identities and persists preferences. Server actions in src/app/app/messages/actions.ts gate opt-out/handover/clear to customer.manage and write audit events. The outbound enqueue path returns \"opted_out\" instead of enqueuing; the inbound dispatch path records manual_review for opted-out or handed-over identities.",
+    "evidence": "Added src/db/migrations/0105_communication_preferences.sql with company-scoped communication_preferences table, capability-gated RLS, and updated_at trigger. Added src/modules/comms/preferences.ts with pure helpers isOptedOut, isHandedOver, canSendAutomated, canHandleAutomatically. Added src/lib/comms/preferences.ts service with getCommunicationPreference, setOptOut, setHandover, clearHandover (normalizes WhatsApp identities to digits). Added src/app/app/messages/actions.ts server actions setIdentityOptOut, handoverToHuman, clearHumanHandover gated to customer.manage and audited. Wired src/lib/outbox-enqueue.ts to check opt-out before enqueue_outbox_row and return \"opted_out\". Wired src/lib/inbound/dispatch-receipt.ts to check opt-out/handover after company resolution and record manual_review. Added tests/comms-preferences.test.ts (4 passed), tests/campaign/com-007-communication-preferences.test.ts (6 passed), updated tests/campaign/dispatch-receipt.test.ts with COM-007 cases (12 passed) and tests/outbox-enqueue.test.ts with preference mocking (5 passed). Updated security/rls-classification.json to classify communication_preferences as capability. Added src/lib/comms/preferences.ts to scripts/allowlists/supabase-admin-system.json. Fresh disposable PostgreSQL 16 0001-0104 and narrow upgrade 0103→0104 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1048 unit tests / 2 skipped / 149 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, live WhatsApp provider, real data, real messages, or production traffic tested. The preferences UI is exposed only through server actions; a dedicated panel remains future work."
+  },
+  "fin007LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "ae3ce17",
+    "outcome": "LOCALLY ACCEPTED: FIN-007 Funding requirements and investments. Migration 0105 adds company-scoped funding_requirements and investments tables with capability-gated RLS. The /app/finance/funding page derives a funding gap from the 90-day cash forecast, lists funding requirements and investments, and provides gated create/status/dispose actions.",
+    "evidence": "Added src/db/migrations/0106_funding_requirements_and_investments.sql with funding_requirements and investments tables, finance.funding.manage capability, capability-gated RLS, and updated_at triggers. Added src/modules/finance/funding.ts with pure deterministic helpers computeFundingGap and computeInvestmentEconomics. Added src/app/app/finance/funding/page.tsx that computes a 90-day cash forecast, derives the funding gap, lists requirements/investments, and provides create/status/dispose forms. Added src/app/app/finance/funding/actions.ts with createFundingRequirement, updateFundingRequirementStatus, createInvestment and disposeInvestment, all gated to finance department/admin and audited. Linked /app/finance/funding from src/app/app/finance/page.tsx. Added funding_requirements and investments to security/rls-classification.json as capability. Added tests/funding-requirements.test.ts (6 passed) and tests/campaign/fin-007-funding-requirements.test.ts (10 passed). Fresh disposable PostgreSQL 16 0001-0105 and narrow upgrade 0104→0105 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1064 unit tests / 2 skipped / 151 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (after one transient ECONNRESET retry).",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, live procurement workflow, or real investment disposition tested. Forecast inputs exclude payroll and recurring obligations."
+  },
+  "rsk005LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "4e40880",
+    "outcome": "LOCALLY ACCEPTED: RSK-005 Incidents and statutory obligations. Migration 0106 adds a company-scoped incidents table and extends obligations with evidence and obligation_type. The /app/legal/incidents and /app/legal/obligations pages provide company-scoped create/status forms, linked from the legal home.",
+    "evidence": "Added src/db/migrations/0107_incidents_and_statutory_obligations.sql with incidents table, obligations evidence/type extension, legal.compliance.manage capability, capability-gated RLS, and updated_at triggers. Added src/modules/legal/incidents.ts with pure deterministic incident helpers. Added src/app/app/legal/incidents/page.tsx and actions.ts for incident create/status. Added src/app/app/legal/obligations/page.tsx and actions.ts for obligation create/status (contractual + statutory). Updated src/app/app/legal/page.tsx to show open incidents and link to both pages. Added incidents to security/rls-classification.json as capability. Added tests/incidents.test.ts (3 passed) and tests/campaign/rsk-005-incidents-and-obligations.test.ts (10 passed). Fresh disposable PostgreSQL 16 0001-0106 and narrow upgrade 0105→0106 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1077 unit tests / 2 skipped / 153 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live legal workflow tested. Obligations share the existing obligations table with contractual obligations; the obligation_type column distinguishes statutory entries."
+  },
+  "prj004LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "d0e08db70c2d5d7b32c98e29377d7373efbc1422",
+    "outcome": "LOCALLY ACCEPTED: PRJ-004 Project risks, decisions and scenario comparison. Migration 0107 adds company-scoped project_risks, project_decisions and project_scenarios tables with operations.project.manage capability, capability-gated RLS and updated_at triggers. Pure deterministic modules compute risk exposure, decision status and scenario comparison. The project detail page surfaces risks, decisions and scenario comparison with gated create/status/choose actions.",
+    "evidence": "Added src/db/migrations/0108_project_risks_decisions_scenarios.sql with project_risks, project_decisions and project_scenarios tables. Added src/modules/project/risks.ts, src/modules/project/decisions.ts and src/modules/project/scenarios.ts with exact-decimal pure helpers. Updated src/app/app/operations/projects/[id]/page.tsx to surface risks, decisions and scenario comparison with forms. Updated src/app/app/operations/projects/actions.ts with createProjectRisk, updateProjectRiskStatus, createProjectDecision, decideProjectDecision, createProjectScenario and chooseProjectScenario, all gated to operations.project.manage and audited. Updated security/rls-classification.json to classify the three new tables as capability. Added tests/project-risks-decisions-scenarios.test.ts (14 passed) and tests/campaign/prj-004-project-risks-decisions-scenarios.test.ts (12 passed). Fresh disposable PostgreSQL 16 0001-0107 and narrow upgrade 0106→0107 both applied cleanly; full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1108 unit tests / 2 skipped / 156 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (succeeded on second attempt after transient ECONNRESET).",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live project workflow tested. Project write RLS policies remain app-layer/service-role while flags are OFF."
+  },
+  "sch003LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "429100d36c3bd216fb2597518c36b1d5573a1c9e",
+    "outcome": "LOCALLY ACCEPTED: SCH-003 Leave and workload-aware scheduling. The CRON_SECRET-gated /api/cron/follow-ups route reads approved leave_requests and active task assignment estimates, builds per-user availability, skips assignees on approved leave, ranks reachable assignees by free hours, advances past on-leave escalation targets, and falls back to available company admins. The assignTask action refuses to assign a task to someone on approved leave and writes a task.assignment_refused_leave audit event. Pure availability helpers in src/modules/work/availability.ts are deterministic and unit tested.",
+    "evidence": "Added src/modules/work/availability.ts with isOnLeave, evaluateAvailability, rankAvailableCandidates, selectBestAvailable and buildAvailabilityInputs. Updated src/app/api/cron/follow-ups/route.ts to load approved leave and workload, skip on-leave assignees, rank by workload, advance escalation chain, and report skippedLeave. Updated src/app/app/operations/tasks/actions.ts assignTask to refuse assignment to on-leave profiles. Added tests/availability.test.ts (10 passed) and tests/campaign/sch-003-leave-workload-aware-scheduling.test.ts (11 passed). No new migration required; reuses existing leave_requests (0017), employee_profiles (0010/0025) and task_assignments (0024/0025) tables. Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1129 unit tests / 2 skipped / 158 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live cron schedule tested. Workload uses assignment-level estimates; historical capacity_snapshots are not consumed. Automatic assignment selection (autoAssign) is not exposed in the UI."
+  },
+  "ctl002LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "76e98a8fe6620d578221be85f4798c78e147aa67",
+    "outcome": "LOCALLY ACCEPTED: CTL-002 Cross-company portfolio overview. The /app/portfolio page is gated to requireAdmin, resolves the current user's active memberships, queries only those companies, and surfaces a ranked table of project, task, cash, overdue AR/AP, risk, incident and obligation signals using pure deterministic helpers. Company isolation is preserved because only membership-linked companies are loaded.",
+    "evidence": "Added src/modules/management/portfolio.ts with summarizeCompanyPortfolio and rankPortfolioByUrgency. Added src/app/app/portfolio/page.tsx that loads active memberships, then per-company projects/tasks/risks/incidents/obligations/cash/payments/invoices/bills/capacity snapshots, and renders a ranked table. Linked /app/portfolio from the Command Centre header. Added tests/portfolio.test.ts (8 passed) and tests/campaign/ctl-002-cross-company-portfolio.test.ts (9 passed). No new migration required; reuses existing companies/memberships/projects/tasks/risks/incidents/obligations/bank_accounts/cash_accounts/payments/customer_invoices/supplier_bills/capacity_snapshots tables. Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1146 unit tests / 2 skipped / 160 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed (succeeded on second attempt after transient ECONNRESET).",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live multi-company data tested. Cash/AR/AP are shown in the company's base currency; cross-currency aggregation is not converted. Historical capacity_snapshots are not consumed for workload."
+  },
+  "prj005LocalAcceptance": {
+    "date": "2026-08-23",
+    "branch": "kimi/found006-rls-cutover",
+    "testedSha": "5cefe6a56c91fcb507fee17be2cc89e61685d1b8",
+    "outcome": "LOCALLY ACCEPTED: PRJ-005 Portfolio prioritisation. The /app/operations/projects page loads project scenarios, open risks, tasks and assignments, computes per-project resource requirements, and ranks the registry by a deterministic Borda-style score across value, risk, capacity and dependency axes. Weights are inspectable constants in src/modules/project/portfolio-prioritisation.ts.",
+    "evidence": "Added src/modules/project/portfolio-prioritisation.ts with rankProjectsByPriority, projectRiskExposure and PRIORITY_WEIGHTS. Updated src/app/app/operations/projects/page.tsx to load scenarios/risks/tasks/memberships/employee_profiles, compute per-project overloaded people and overdue/blocked tasks, and render a prioritised table with value/risk/capacity/dependency ranks. Added tests/portfolio-prioritisation.test.ts (9 passed) and tests/campaign/prj-005-portfolio-prioritisation.test.ts (6 passed). No new migration required; reuses existing projects/project_risks/project_decisions/project_scenarios/tasks/task_assignments/memberships/employee_profiles tables. Full integration 697 passed / 77 files with RLS_READS=on and RLS_WRITES=on. npm run verify (1161 unit tests / 2 skipped / 162 files); npm run lint 0 errors (3 pre-existing next/image warnings); npm run typecheck clean; npm run build clean; npm run browser-check 10/10 passed.",
+    "limitations": "No hosted/staging database, authenticated Supabase browser flow, or live project portfolio data tested. Ranking weights are simple constants and should be reviewed against IP-001 before any proprietary weighting is committed. Project dependencies are proxied by unresolved decisions and blocked/overdue tasks because explicit project-dependency links are not modelled."
+  }
+}

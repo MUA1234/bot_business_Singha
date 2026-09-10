@@ -3,7 +3,7 @@
  * (trial balance, P&L, balance sheet). Derivation stays in the pure accounting core
  * so every statement reconciles to the ledger. Company-scoped; graceful pre-data.
  */
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 import type { PostedJournal } from "@/accounting/journal";
 import type { AccountType } from "@/domain/accounts";
 
@@ -16,7 +16,7 @@ async function safe<T>(run: () => Promise<{ data: T[] | null }>): Promise<T[]> {
 }
 
 export async function loadPostedJournals(companyId: string): Promise<{ journals: PostedJournal[]; currency: string }> {
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
   const [journals, lines, accounts] = await Promise.all([
     safe<any>(() => db.from("journal_entries").select("id, currency").eq("company_id", companyId).eq("status", "posted") as any),
     safe<any>(() => db.from("journal_lines").select("journal_id, account_code, debit, credit").eq("company_id", companyId) as any),

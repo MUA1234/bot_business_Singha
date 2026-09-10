@@ -1,0 +1,333 @@
+/*
+ * ═══════════════════════════════════════════════════════════════════════════
+ * SINGHA — CINEMATIC SPATIAL EXECUTIVE OS
+ * Layer 2 of 4: MATERIALS, DEPTH, SIGNAL, TYPOGRAPHY
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Five materials, one depth system, one signal system. Screens are composed
+ * from these; they do not invent their own surfaces. Every class here is
+ * additive — it changes how a surface is MADE, never what it contains.
+ */
+
+/* ═══ A. SPATIAL GLASS ═══════════════════════════════════════════════════
+ * The high-level floating surface. Translucent, blurred, environment-tinted,
+ * with a fine edge illumination catching the key light along its top edge. */
+.mat-glass {
+  position: relative;
+  background: var(--mat-glass);
+  background-image: var(--mat-glass-sheen), var(--light-key);
+  border: var(--border-edge);
+  border-radius: var(--radius);
+  backdrop-filter: blur(var(--mat-glass-blur)) saturate(1.14);
+  -webkit-backdrop-filter: blur(var(--mat-glass-blur)) saturate(1.14);
+  box-shadow: var(--shadow-base), var(--reflect-top);
+}
+/* Edge illumination: a single hairline that brightens where the key light
+ * grazes the upper-left corner and fades out around the far edge. */
+.mat-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    150deg,
+    rgba(255, 252, 246, 0.22) 0%,
+    rgba(255, 252, 246, 0.04) 26%,
+    rgba(255, 252, 246, 0) 52%,
+    rgba(217, 180, 119, 0.06) 88%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ═══ B. SMOKED GLASS ════════════════════════════════════════════════════
+ * Secondary operational panels. Less transparent so dense data stays crisp. */
+.mat-smoked {
+  background: var(--mat-smoked);
+  border: 1px solid var(--mat-smoked-edge);
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(var(--mat-smoked-blur));
+  -webkit-backdrop-filter: blur(var(--mat-smoked-blur));
+  box-shadow: var(--shadow-recessed);
+}
+
+/* ═══ C. INSTRUMENT ══════════════════════════════════════════════════════
+ * Gauges, meters, wheels, capacity dials, time-sensitive controls. Subtle
+ * neo-skeuomorphic depth: a machined well with a lit top lip. */
+.mat-instrument {
+  background: var(--mat-instrument);
+  border: 1px solid var(--mat-instrument-edge);
+  border-radius: var(--radius);
+  box-shadow: var(--mat-instrument-well), var(--shadow-base);
+}
+.mat-instrument-well {
+  background: linear-gradient(180deg, #0a0a0d 0%, #121116 100%);
+  border-radius: var(--radius-pill);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.9), inset 0 -1px 0 rgba(255, 252, 246, 0.05);
+}
+
+/* ═══ D. PAPER / EVIDENCE ════════════════════════════════════════════════
+ * Documents, receipts, invoices, contracts. A thin physical sheet inside the
+ * spatial system — squarer corners, a lifted top edge, a real drop shadow.
+ * A document is NOT another glass rectangle. */
+.mat-paper {
+  position: relative;
+  background: var(--mat-paper);
+  border: 1px solid var(--mat-paper-edge);
+  border-radius: var(--radius-paper);
+  box-shadow: var(--mat-paper-shadow);
+  color: var(--text);
+}
+/* Stacked sheets: the suggestion of more pages beneath this one. */
+.mat-paper.stacked::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: -5px;
+  height: 5px;
+  border-radius: 0 0 var(--radius-paper) var(--radius-paper);
+  background: linear-gradient(180deg, #131217 0%, #0d0c10 100%);
+  border: 1px solid rgba(243, 239, 232, 0.08);
+  border-top: none;
+  z-index: -1;
+}
+
+/* ═══ E. METAL / STRUCTURAL ══════════════════════════════════════════════
+ * Navigation rails, dividers, major frame elements. Anodised, not chrome. */
+.mat-metal {
+  position: relative;
+  background: var(--mat-metal);
+  border: 1px solid var(--mat-metal-edge);
+}
+.mat-metal::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--mat-metal-grain);
+  opacity: 0.65;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.mat-divider {
+  height: 1px;
+  border: none;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 252, 246, 0) 0%,
+    rgba(255, 252, 246, 0.1) 18%,
+    rgba(255, 252, 246, 0.1) 82%,
+    rgba(255, 252, 246, 0) 100%
+  );
+}
+.mat-divider-v {
+  width: 1px;
+  align-self: stretch;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 252, 246, 0) 0%,
+    rgba(255, 252, 246, 0.1) 22%,
+    rgba(255, 252, 246, 0.1) 78%,
+    rgba(255, 252, 246, 0) 100%
+  );
+}
+
+/* ═══ DEPTH ══════════════════════════════════════════════════════════════
+ * A depth class states a surface's role in the hierarchy. It sets the Z
+ * translation, the matching shadow and a matching scale together — those three
+ * always move as one, which is what makes "forward" legible rather than merely
+ * "bigger". Reduced motion drops the transition, keeps the depth. */
+[class*="depth-"] {
+  transition:
+    transform var(--mo-focus) var(--ease-spatial),
+    box-shadow var(--mo-focus) var(--ease-out),
+    opacity var(--mo-focus) var(--ease-out),
+    filter var(--mo-focus) var(--ease-out);
+}
+.depth-backdrop {
+  transform: translateZ(var(--z-backdrop)) scale(0.955);
+  box-shadow: var(--shadow-recessed);
+  opacity: 0.58;
+  filter: saturate(0.72);
+}
+.depth-dept {
+  transform: translateZ(var(--z-dept)) scale(0.978);
+  box-shadow: var(--shadow-recessed);
+  opacity: 0.76;
+}
+.depth-base {
+  transform: translateZ(var(--z-base));
+  box-shadow: var(--shadow-base);
+}
+.depth-active {
+  transform: translateZ(var(--z-active)) scale(1.008);
+  box-shadow: var(--shadow-active);
+}
+.depth-priority {
+  transform: translateZ(var(--z-priority)) scale(1.016);
+  box-shadow: var(--shadow-priority);
+}
+.depth-critical {
+  transform: translateZ(var(--z-critical)) scale(1.024);
+  box-shadow: var(--shadow-critical);
+}
+.depth-focus {
+  transform: translateZ(var(--z-focus)) scale(1.03);
+  box-shadow: var(--shadow-focus);
+}
+/* Receding: what a completed or low-priority matter does. */
+.depth-receding {
+  transform: translateZ(var(--z-dept)) scale(0.97);
+  opacity: 0.5;
+  filter: saturate(0.6);
+}
+
+/* ═══ SIGNAL SYSTEM ══════════════════════════════════════════════════════
+ * Status is never colour alone. A signal is a glyph + a colour + a text label,
+ * so it survives greyscale, colour blindness and a screen reader. */
+.sig {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--t-small);
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: var(--text-muted);
+}
+.sig-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: currentColor;
+  box-shadow: 0 0 0 3px rgba(255, 252, 246, 0.05);
+}
+.sig-ok { color: var(--ok); }
+.sig-warn { color: var(--warn); }
+.sig-critical { color: var(--danger); }
+.sig-info { color: var(--info); }
+.sig-offline { color: var(--offline); }
+.sig-blocked { color: var(--blocked); }
+/* Shape differentiates where colour cannot: critical is a square, warning a
+ * diamond, blocked a bar, offline a hollow ring. */
+.sig-critical .sig-dot { border-radius: 2px; }
+.sig-warn .sig-dot { border-radius: 1px; transform: rotate(45deg); }
+.sig-blocked .sig-dot { border-radius: 1px; width: 4px; height: 10px; }
+.sig-offline .sig-dot { background: transparent; box-shadow: inset 0 0 0 2px currentColor; }
+
+/* ═══ PROVENANCE ═════════════════════════════════════════════════════════
+ * AI advice, deterministic system state, a human decision, an approved action
+ * and a completed action must never look alike. The left rule and the label
+ * carry the distinction; they are applied by the <Provenance> component and by
+ * the .prov-* wrappers. */
+.prov {
+  position: relative;
+  padding-left: var(--sp-4);
+  border-left: 2px solid var(--graphite-deep);
+}
+.prov-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--t-label);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-ghost);
+}
+/* AI advice — dashed rule and a distinct hue. Advice is never mistaken for a
+ * fact the system holds, nor for a decision a human has taken. */
+.prov-ai {
+  border-left: 2px dashed rgba(var(--info-rgb), 0.55);
+}
+.prov-ai .prov-label { color: var(--info); }
+/* Deterministic system state — solid neutral rule. */
+.prov-system { border-left-color: var(--graphite); }
+.prov-system .prov-label { color: var(--silver); }
+/* Human decision — champagne, because a person acted. */
+.prov-human { border-left-color: rgba(var(--accent-rgb), 0.8); }
+.prov-human .prov-label { color: var(--accent); }
+/* Approved — solid green rule. */
+.prov-approved { border-left-color: rgba(var(--ok-rgb), 0.8); }
+.prov-approved .prov-label { color: var(--ok); }
+/* Completed — recedes. */
+.prov-done { border-left-color: var(--graphite-deep); opacity: 0.72; }
+.prov-done .prov-label { color: var(--text-ghost); }
+
+/* ═══ TYPOGRAPHY UTILITIES ═══════════════════════════════════════════════
+ * Typography carries the hierarchy so the layout needs fewer boxes. */
+.t-display {
+  font-size: var(--t-display);
+  font-weight: 300;
+  letter-spacing: var(--tracking-display);
+  line-height: var(--leading-tight);
+}
+.t-label {
+  font-size: var(--t-label);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-ghost);
+}
+.t-numeric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  letter-spacing: var(--tracking-tight);
+}
+.t-numeric-xl {
+  font-size: var(--t-numeric-xl);
+  font-weight: 300;
+  letter-spacing: var(--tracking-display);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.t-numeric-lg {
+  font-size: var(--t-numeric-lg);
+  font-weight: 400;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.t-lede {
+  font-size: clamp(0.98rem, 0.9rem + 0.3vw, 1.12rem);
+  line-height: 1.5;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* ═══ ACCENT EDGE ════════════════════════════════════════════════════════
+ * The single champagne gesture: a light catching one edge. Used for the
+ * current location and the focused surface. Never as a fill. */
+.accent-edge {
+  position: relative;
+}
+.accent-edge::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--accent-edge);
+  pointer-events: none;
+}
+.accent-edge-left::after {
+  left: 0;
+  top: 0;
+  bottom: 0;
+  right: auto;
+  width: 2px;
+  height: auto;
+  background: linear-gradient(
+    180deg,
+    rgba(217, 180, 119, 0) 0%,
+    rgba(227, 191, 130, 0.9) 30%,
+    rgba(217, 180, 119, 0.7) 70%,
+    rgba(217, 180, 119, 0) 100%
+  );
+  border-radius: 2px;
+}

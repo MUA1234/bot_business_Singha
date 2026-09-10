@@ -32,13 +32,113 @@ const SERVICE_ONLY = new Set([
   "_journal_post_internal(uuid,date,text,text,uuid,text,jsonb,text,text,text,uuid)",
   "_journal_post_internal(uuid,date,text,text,uuid,jsonb,text)", // legacy 7-arg (upgrade only)
   "claim_outbox_batch(integer,text,integer)",
+  // 0070 durable inbound processing — leases, bounded retry, dead-letter, company-scoped backlog.
+  // Each gates on caller_jwt_role() = 'service_role' internally AND is granted to service_role only;
+  // migration 0070 carries its own fail-closed assertion that anon/authenticated cannot execute them.
+  "claim_source_events(integer,text,integer)",
+  "complete_source_event(uuid,text)",
+  "fail_source_event(uuid,text,text,text,integer)",
+  "source_event_backlog(uuid)",
   "complete_outbox_and_advance(uuid,text,text)",
   "create_management_case_atomic(uuid,text,jsonb,jsonb,uuid,text)", // 0068 atomic AI-case boundary
   "enqueue_outbox_row(uuid,text,text,text,text,text,text,jsonb,text,uuid,text)",
   "enqueue_quotation_outbox(uuid,uuid,text,text,text,numeric,text,text,text)",
   "ledger_integrity_report(uuid)",
   "reconcile_quotation_from_outbox(uuid)",
+  // 0070 trusted channel identity resolution — service-only, in-function caller_jwt_role gate,
+  // company-scoped, fails closed on unknown/ambiguous. Migration 0070 asserts anon/authenticated
+  // cannot execute it.
+  "resolve_channel_identity(uuid,text,text)",
+  // 0071 AIM-002 task identity + deduplication. Service-only with an in-function caller_jwt_role
+  // gate; the identity hash is recomputed by a trigger so a caller can never forge it.
+  "create_task_deduplicated(uuid,text,text,text,text,text,text,uuid,boolean,uuid)",
+  // 0071 trigger function. SECURITY DEFINER because it computes the identity hash with
+  // extensions.digest, which `authenticated` cannot reach; it reads and writes no table. Fired by
+  // the trigger, never called directly.
+  "tasks_set_identity_hash()",
+  // 0072 AIM-003 durable routing. route_task is the atomic transition boundary (service-only,
+  // in-function role gate); task_assignee_ineligible_reason revalidates a proposed assignee at
+  // commit time; the append-only trigger refuses any rewrite of routing history.
+  // 0078 — provenance is derived, not asserted. route_task (which took actor_source and actor as
+  // ARGUMENTS) is dropped; the shared implementation is reachable from no role at all, and the two
+  // machine wrappers fix their own source. route_task_as_human is deliberately NOT here: it is
+  // granted to `authenticated` and NOT to service_role, and is classified below.
+  // (_route_task_internal is OWNER_ONLY below — reachable by no role at all, including
+  //  service_role. _is_task_routing_owner is NOT security definer: it reads pg_catalog only.)
+  "route_task_as_ai(uuid,uuid,text,text,text,text,text,text,jsonb,uuid,text,uuid,uuid)",
+  "route_task_as_system(uuid,uuid,text,text,text,text,text,jsonb,uuid,text,uuid,uuid)",
+  "task_assignee_ineligible_reason(uuid,uuid,text,uuid)",
+  // 0074 FOUND-003 — the RECEIVING company is resolved from trusted channel configuration rather
+  // than a hardcoded constant. Service-only: the mapping decides which company owns a message.
+  "resolve_channel_company(text,text)",
+  // 0083 — the durable consumer settles a receipt it finished, so the scheduled sweeper does not
+  // re-process it. Service-only: it decides that a receipt is done.
+  "settle_processed_source_event(uuid)",
+  // 0083 — the reviewer LIST, using the same capability predicate inbound_setup_status counts by.
+  "inbound_reviewer_user_ids(uuid)",
+  // 0084 (FOUND-006) — the SERVICE half of the quotation-status split. There is no branch inside
+  // it: the EXECUTE grant IS the authorization, which is the whole point of the change.
+  "quotation_status_for_service(uuid,uuid)",
+  // 0075 FOUND-003 — the manual-review queue. record is idempotent per message; resolve
+  // INDEPENDENTLY re-checks the named actor's capability rather than trusting the application.
+  "record_inbound_review(uuid,text,text,text,text,uuid,text,text,text,text)",
+  // 0076 — the canonical inbound receipt and its dispatch lifecycle. Service-only: these decide
+  // which company owns a message and whether it becomes consumer work.
+  // (canonical_event_identity, channel_accounts_normalize and task_routing_events_no_truncate are
+  //  NOT SECURITY DEFINER — a plain immutable function and two trigger functions — so they are
+  //  deliberately absent from a list that governs SECURITY DEFINER signatures.)
+  "record_inbound_receipt(text,text,text,jsonb,text,text,text)",
+  "claim_inbound_dispatch(uuid,text,integer)",
+  "claim_inbound_dispatch_batch(integer,text,integer)",
+  "record_inbound_dispatch(uuid,text,text,uuid,text,uuid)",
+  "fail_inbound_dispatch(uuid,text,text,text,integer)",
+  "inbound_dispatch_health()",
+  // 0077 — hand a claimed row back, unharmed, when nothing can process it yet.
+  "release_source_event(uuid,text)",
+  // 0079 — the dispatch-lifecycle twin: a drain that runs out of time hands work back UNCHARGED
+  // rather than failing it, so a slow run cannot dead-letter healthy receipts.
+  "release_inbound_dispatch(uuid,text)",
+  // 0080 — the owner configuration surface. Each re-checks the ACTING PERSON's capability inside
+  // the transaction and audits the change in it; none of them grants anything by itself.
+  "admin_upsert_channel_account(uuid,text,text,text,uuid)",
+  "admin_set_channel_account_active(uuid,uuid,boolean,uuid)",
+  "admin_set_membership_role(uuid,uuid,text,boolean,uuid)",
+  "inbound_setup_status(uuid)",
+  "resolve_inbound_review(uuid,uuid,uuid,text,text)",
+  // 0075 — the single capability implementation, for an EXPLICIT actor. Service-only because it
+  // takes an arbitrary user id; has_capability (same owner) wraps it for RLS in the caller's role.
+  "actor_has_capability(uuid,uuid,text)",
+  // (task_routing_events_append_only is a plain trigger function, not SECURITY DEFINER — it only
+  //  raises. This allowlist governs SECURITY DEFINER signatures, so it is deliberately absent.)
 ]);
+/**
+ * INTERNAL: reachable by NO API role, not even the service context.
+ *
+ * `_route_task_internal` is the shared routing implementation. Provenance is decided by WHICH
+ * WRAPPER calls it, so letting any role call it directly would hand back the exact forgery
+ * migration 0079 removes. It runs only because the three SECURITY DEFINER wrappers execute as its
+ * owner.
+ */
+const OWNER_ONLY = new Set([
+  "_route_task_internal(uuid,uuid,text,text,text,jsonb,uuid,text,uuid,uuid,text,uuid,text,text,text)",
+  // 0081 (OF-013) — the approval-submitter provenance guard. A TRIGGER function: it runs as part of
+  // the statement that fires it, never as a callable entrypoint, so EXECUTE is revoked from every
+  // role including service_role. SECURITY DEFINER so its `search_path` is pinned and its refusal
+  // cannot be bypassed by a caller's own search_path.
+  "approval_requests_provenance_guard()",
+  // 0098 (GOV-003) — trigger function that detects conflicting management directives. SECURITY DEFINER
+  // so its search_path is pinned; it is fired by the table trigger, never called directly.
+  "detect_management_directive_conflicts()",
+  // 0084 (FOUND-006) — the shared quotation-status implementation. It carries NO authorization of
+  // its own, so it is reachable by no role at all: only its two wrappers, and the WP12 delivery
+  // functions, run as the owner that can execute it.
+  "_quotation_status_read(uuid,uuid)",
+  // 0082 (R-07) — counts the ACTIVE holders of a role in a company, so the admin surface can refuse
+  // to remove the last one. SECURITY DEFINER because it reads memberships across the RLS boundary;
+  // reachable by no role at all, and called only from inside admin_set_membership_role.
+  "_role_holder_count(uuid,text)",
+]);
+
 // Must exist AND be locked on any DB reaching this migration (the legacy 7-arg is intentionally excluded).
 const SERVICE_ONLY_REQUIRED = [...SERVICE_ONLY].filter((s) => s !== "_journal_post_internal(uuid,date,text,text,uuid,jsonb,text)");
 
@@ -46,10 +146,16 @@ const SERVICE_ONLY_REQUIRED = [...SERVICE_ONLY].filter((s) => s !== "_journal_po
 // evaluate in the CALLER's role, and the authenticated write-path RPCs (fail-closed internally). Each
 // classified by its exact signature — NOT by name — so a new overload of any of these must be re-approved.
 const AUTHENTICATED_OK = new Set([
-  // Self-gating read helper (0066): returns a quotation status enum ONLY to a caller who already holds
-  // sales.quotation.manage in that company (or the service worker), so the quotation_items freeze trigger
-  // can read the parent status even when the department-scoped read policy would hide it — no cross-company leak.
-  "_quotation_status_for_guard(uuid,uuid)",
+  // 0084 (FOUND-006) — the HUMAN half of the quotation-status split. Granted to `authenticated`
+  // only, and it authorizes on the CAPABILITY rather than on anything the caller can assert.
+  "quotation_status_for_capable(uuid,uuid)",
+  // 0087 (OF-016) — the duplicate-review workflow. Both are HUMAN-ONLY on purpose: a suspected
+  // duplicate is released or confirmed by a named person, never by a worker, so `service_role` is
+  // excluded from the EXECUTE grant rather than merely unused. Each derives the acting human from
+  // `auth.uid()` and re-checks `finance.duplicate.resolve` against live membership — the queue
+  // read inside its own predicate, the resolver under the row locks.
+  "resolve_duplicate_review(uuid,text,text)",
+  "duplicate_review_queue(uuid)",
   "authority_ceiling(uuid,text)",
   "has_capability(uuid,text)",
   "has_company_access(uuid)",
@@ -70,6 +176,15 @@ const AUTHENTICATED_OK = new Set([
   "request_supplier_bank_change(uuid,uuid,text,text,uuid)",
   "decide_supplier_bank_change(uuid,uuid,text,uuid,text)",
   "decide_approval(uuid,uuid,text,text)",
+  // 0078 — the HUMAN routing path. Executable by `authenticated` BY DESIGN and explicitly NOT by
+  // service_role: that grant is what makes "a service caller cannot make a human decision" a
+  // property of the boundary rather than of a check someone could forget. Identity comes from
+  // auth.uid(); there is no actor parameter.
+  "route_task_as_human(uuid,uuid,text,text,text,jsonb,uuid,text,uuid,uuid)",
+  // 0092 MOD-003 — model budget policy configuration. Authenticated-only: a human with
+  // ai.model_budget.manage sets the daily per-task ceiling; the function re-checks the
+  // acting person's capability inside the transaction and audits the change.
+  "set_ai_model_budget_policy(uuid,text,numeric,boolean,integer)",
 ]);
 
 async function callAs(role: "authenticated" | "service", sql: string): Promise<{ ok: boolean; code?: string }> {
@@ -112,7 +227,8 @@ describe.skipIf(!enabled)("0062/0063 SECURITY DEFINER grants — signature-exact
   afterAll(async () => { if (client) { await client.query("rollback").catch(() => {}); await client.end().catch(() => {}); } });
 
   it("ALLOWLIST (signature-exact): every SECURITY DEFINER signature is classified", async () => {
-    const unclassified = rows.map((r) => r.sig).filter((s: string) => !SERVICE_ONLY.has(s) && !AUTHENTICATED_OK.has(s));
+    const unclassified = rows.map((r) => r.sig)
+      .filter((s: string) => !SERVICE_ONLY.has(s) && !AUTHENTICATED_OK.has(s) && !OWNER_ONLY.has(s));
     // A NEW overload of an approved name has a different signature → it lands here and fails the test.
     expect(unclassified, `unclassified SECURITY DEFINER signature(s): ${unclassified.join(", ")}`).toEqual([]);
     // Every required service-only signature is actually present.
@@ -127,6 +243,16 @@ describe.skipIf(!enabled)("0062/0063 SECURITY DEFINER grants — signature-exact
       expect(r.auth_x, `${r.sig} authenticated EXECUTE`).toBe(false);
       expect(r.anon_x, `${r.sig} anon EXECUTE`).toBe(false);
       expect(r.svc_x, `${r.sig} service_role EXECUTE`).toBe(true);
+    }
+  });
+
+  it("OWNER-ONLY signatures are reachable by NO api role — not even service_role", async () => {
+    const internal = rows.filter((r) => OWNER_ONLY.has(r.sig));
+    expect(internal.length, "the internal routing implementation is missing").toBe(OWNER_ONLY.size);
+    for (const r of internal) {
+      expect(r.auth_x, `${r.sig} authenticated EXECUTE`).toBe(false);
+      expect(r.anon_x, `${r.sig} anon EXECUTE`).toBe(false);
+      expect(r.svc_x, `${r.sig} service_role EXECUTE — the forgery would be reachable again`).toBe(false);
     }
   });
 

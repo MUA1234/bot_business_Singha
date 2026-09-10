@@ -6,6 +6,9 @@ import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
 import { createNotification } from "@/lib/notify";
 import { computeApprovalProgress, canActOnApproval } from "@/policy/approval-progress";
+import { checkSeparationOfDuties } from "@/policy/authority";
+import { role, type Role } from "@/schemas/approval-policy";
+import { getApproverForUser } from "@/lib/access";
 
 /** Approve or reject a pending approval request — company-scoped and SoD-gated. */
 export async function actOnApproval(formData: FormData): Promise<void> {
@@ -19,7 +22,7 @@ export async function actOnApproval(formData: FormData): Promise<void> {
   // Load the request scoped to the caller's company (never act by bare id).
   const { data: req } = await db
     .from("approval_requests")
-    .select("id, status, approvals_required, submitted_by")
+    .select("id, status, approvals_required, submitted_by, financial_event_id")
     .eq("id", requestId)
     .eq("company_id", p.companyId)
     .maybeSingle();
@@ -32,16 +35,38 @@ export async function actOnApproval(formData: FormData): Promise<void> {
     .eq("company_id", p.companyId);
   const acted = (actions ?? []).map((a: any) => a.actor_user_id);
 
-  // Separation of duties (interim profile model): finance/admin, not the submitter,
-  // not already acted, request still pending.
-  const gate = canActOnApproval({
+  // GOV-005 — use the deterministic separation-of-duties engine (src/policy/authority.ts)
+  // instead of the interim profile-model string comparison. Load the actor's membership
+  // roles/permissions and the policy-evaluation required roles (default finance_reviewer).
+  const approver = await getApproverForUser(p.userId, p.companyId);
+  if (!approver) return;
+  const { data: evalRow } = await db
+    .from("policy_evaluations")
+    .select("required_approver_roles")
+    .eq("financial_event_id", req.financial_event_id)
+    .eq("company_id", p.companyId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const rawRoles = (evalRow?.required_approver_roles as string[] | null) ?? ["finance_reviewer"];
+  const allowedRoles = new Set(role.options as readonly string[]);
+  const requiredRoles: Role[] = rawRoles.filter((r): r is Role => allowedRoles.has(r));
+  if (requiredRoles.length === 0) requiredRoles.push("finance_reviewer");
+  const sod = checkSeparationOfDuties(approver, requiredRoles, {
+    submitter_user_id: req.submitted_by,
+    approver_is_beneficiary: false,
+    action: null,
+  });
+
+  // Interim progress gate still guards status / already-acted (defence in depth).
+  const interim = canActOnApproval({
     submitterUserId: req.submitted_by,
     actorUserId: p.userId,
-    actorIsApprover: p.isAdmin || p.department === "finance",
+    actorIsApprover: sod.allowed,
     alreadyActedUserIds: acted,
     status: req.status,
   });
-  if (!gate.allowed) return;
+  if (!sod.allowed || !interim.allowed) return;
 
   const { error } = await db.from("approval_actions").insert({
     approval_request_id: requestId,

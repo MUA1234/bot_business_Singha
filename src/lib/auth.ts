@@ -5,7 +5,8 @@
  * `requireAdmin()`.
  */
 import { redirect } from "next/navigation";
-import { supabaseServer, supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseReadClient } from "@/lib/supabase/read";
 
 export interface SessionProfile {
   userId: string;
@@ -23,8 +24,10 @@ export async function getProfile(): Promise<SessionProfile | null> {
   } = await supabaseServer().auth.getUser();
   if (!user) return null;
 
-  // Read the profile with the service client (server-only) for reliability.
-  const { data: profile } = await supabaseAdmin()
+  // Read the profile through the RLS-aware read client. With RLS_READS off this is
+  // still the service-role client; with the cutover on, the database enforces that a
+  // user can only read their own profile (or all profiles in their company if admin).
+  const { data: profile } = await supabaseReadClient()
     .from("profiles")
     .select("username, full_name, department, is_admin, is_active, company_id")
     .eq("id", user.id)
@@ -75,7 +78,7 @@ export async function requireDepartment(department: string): Promise<SessionProf
 export type CapabilityResult = "granted" | "denied_suspended" | "denied_no_cap" | "no_membership";
 
 export async function resolveCapability(userId: string, companyId: string, capability: string): Promise<CapabilityResult> {
-  const db = supabaseAdmin();
+  const db = supabaseReadClient();
   const { data: mems } = await db.from("memberships").select("id, status").eq("user_id", userId).eq("company_id", companyId);
   if (!mems || mems.length === 0) return "no_membership";
   const activeIds = mems.filter((m) => m.status === "active").map((m) => m.id);

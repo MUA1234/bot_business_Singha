@@ -1,0 +1,1134 @@
+/*
+ * ═══════════════════════════════════════════════════════════════════════════
+ * SINGHA — CINEMATIC SPATIAL EXECUTIVE OS
+ * INSTRUMENTS & SPATIAL COMPOSITION
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * The vocabulary that replaces the card wall: a central condition instrument,
+ * a change ledger, an executive briefing, a priority-matter field, a decision
+ * chamber, a work constellation, spatial timelines, evidence sheets and the
+ * command palette.
+ *
+ * Every instrument here is driven by real records. None of them renders a
+ * decorative number, a fabricated trend or a health score with no source.
+ */
+
+/* ═══ SECTION HEADINGS ═══════════════════════════════════════════════════
+ * Typography, not a box. A section is announced by a rule and a label. */
+.sec {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  margin: var(--sp-6) 0 var(--sp-4);
+}
+.sec:first-child { margin-top: 0; }
+.sec-title {
+  font-size: var(--t-label);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-ghost);
+  white-space: nowrap;
+}
+.sec-rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 252, 246, 0.11) 0%, rgba(255, 252, 246, 0) 100%);
+}
+.sec-meta { font-size: var(--t-small); color: var(--text-dim); white-space: nowrap; }
+/* On a phone the caption matters and the annotation does not — an annotation
+ * that clips mid-word is worse than one that is not shown. */
+@media (max-width: 767px) {
+  .sec { flex-wrap: wrap; }
+  .sec-meta { white-space: normal; flex-basis: 100%; }
+}
+
+/* ═══ PAGE HEAD ══════════════════════════════════════════════════════════
+ * Every operational screen opens the same way: what this is, what scope it is
+ * in, and what can be done here. */
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-5);
+}
+.page-head-text { min-width: 0; }
+.page-eyebrow {
+  font-size: var(--t-label);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: var(--sp-2);
+  display: block;
+}
+.page-title {
+  font-size: var(--t-h1);
+  font-weight: 300;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.06;
+}
+.page-lede {
+  margin-top: var(--sp-2);
+  font-size: var(--t-body);
+  color: var(--text-muted);
+  max-width: var(--measure);
+}
+.page-actions { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; flex: none; }
+/* On a phone `flex: none` let a row of five actions exceed the viewport and clip
+ * the last one — present in the DOM, invisible and unreachable. Giving the group
+ * its own line lets its own flex-wrap do the work. */
+@media (max-width: 767px) {
+  .page-head { flex-direction: column; align-items: stretch; }
+  .page-actions { flex: 1 1 100%; min-width: 0; }
+}
+
+/* ═══ THE CONDITION INSTRUMENT ═══════════════════════════════════════════
+ * The signature object of the Command Centre: a layered radial composition
+ * whose centre states today's operating condition and whose ring segments are
+ * the real counts behind it. Every segment is a live query result; a segment
+ * with no records renders as an empty arc, never as a filled decoration. */
+.instr {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  width: 100%;
+  max-width: 420px;
+  margin-inline: auto;
+}
+.instr-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.instr-track { fill: none; stroke: rgba(255, 252, 246, 0.055); stroke-linecap: round; }
+.instr-arc {
+  fill: none;
+  stroke-linecap: round;
+  transition: stroke-dashoffset var(--mo-panel) var(--ease-spatial), opacity var(--mo-state) var(--ease-out);
+}
+.instr-arc.is-dim { opacity: 0.32; }
+/* The lit arc glows into the bezel around it, the way an illuminated needle
+ * does behind glass. `drop-shadow` on the stroke colour follows whatever tone
+ * the segment already carries, so the glow can never disagree with the status
+ * it is drawn from. Dropped entirely on the light performance tier. */
+.instr-arc { filter: drop-shadow(0 0 7px currentColor); }
+html[data-tier="light"] .instr-arc { filter: none; }
+@media (prefers-reduced-transparency: reduce) {
+  .instr-arc { filter: none; }
+}
+.instr-tick { stroke: rgba(255, 252, 246, 0.13); stroke-width: 1; }
+.instr-tick.is-major { stroke: rgba(255, 252, 246, 0.26); }
+/* The machined face the arcs are cut into. */
+.instr-face {
+  position: absolute;
+  inset: 17%;
+  border-radius: 50%;
+  background: var(--mat-instrument);
+  border: 1px solid var(--mat-instrument-edge);
+  box-shadow: var(--mat-instrument-well), 0 22px 50px -24px rgba(0, 0, 0, 0.9);
+}
+.instr-core {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+  padding: 14%;
+}
+.instr-core-label {
+  font-size: var(--t-label);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-ghost);
+}
+.instr-core-value {
+  font-size: var(--t-numeric-xl);
+  font-weight: 200;
+  letter-spacing: var(--tracking-display);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ivory);
+}
+.instr-core-state {
+  font-size: var(--t-small);
+  font-weight: 700;
+  margin-top: 4px;
+}
+/* The note used to sit INSIDE the dial face, where the usable width narrows
+ * towards the top and bottom of the circle — at 22ch it ran to four lines and
+ * crowded the figure it was meant to caption. It now sits BELOW the instrument,
+ * on the full width of the column, where it reads as a caption rather than as
+ * clutter in the middle of a gauge. Nothing is truncated: hiding part of a
+ * caption would be exactly the kind of silent omission this interface forbids. */
+.instr-core-note {
+  font-size: var(--t-small);
+  color: var(--text-dim);
+  margin-top: var(--sp-3);
+  line-height: 1.4;
+  text-align: center;
+  text-wrap: pretty;
+  max-width: 46ch;
+  margin-inline: auto;
+}
+/* The legend: each segment named, counted and coloured, so the ring is
+ * readable as data rather than admired as a graphic. */
+.instr-legend {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.instr-legend-row {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  /* +2px: a fractional grid rounds a bare 44px down to 43 in some layouts,
+   * and the floor has to hold after rounding, not before it. */
+  min-height: calc(var(--touch-min) + 2px);
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-xs);
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: var(--t-data);
+  text-align: left;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
+  transition: background var(--mo-state) var(--ease-out), border-color var(--mo-state) var(--ease-out);
+}
+.instr-legend-row:hover { background: rgba(255, 252, 246, 0.045); border-color: rgba(255, 252, 246, 0.07); color: var(--text); }
+.instr-legend-row[aria-current="true"] {
+  background: rgba(var(--accent-rgb), 0.08);
+  border-color: rgba(var(--accent-rgb), 0.26);
+  color: var(--text);
+}
+.instr-legend-row .mark { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.instr-legend-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.instr-legend-row .count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: var(--t-body);
+  color: var(--text);
+}
+.instr-legend-row .count.is-zero { color: var(--text-ghost); font-weight: 400; }
+
+/* Command Centre composition: instrument left, briefing right, change ledger
+ * beneath. Collapses to a single column on tablet and phone. */
+.centre {
+  display: grid;
+  /* Proportions taken from the 1920 composition study (Figma: "Grid &
+   * Composition"). The instrument is a fixed-character object — a dial does not
+   * become more legible when it is wider — so it takes a bounded track, and the
+   * work the reader must act on takes everything left over. The previous
+   * 0.85fr / 1.15fr split let the instrument grow to 46% of a 4K canvas while
+   * the brief beside it stayed narrow. */
+  grid-template-columns: minmax(320px, 0.28fr) minmax(0, 1fr);
+  gap: var(--gutter);
+  align-items: start;
+  /* A LOCAL perspective, so the depth classes on the two columns actually move
+   * in Z. `.stage` establishes the camera, but every element between it and a
+   * card would have to carry `preserve-3d` for a descendant's translateZ to
+   * mean anything; giving the composition its own perspective is both simpler
+   * and safer than making the whole tree a 3D context. */
+  perspective: 1800px;
+}
+/* The Command Centre's own surfaces are signature surfaces: a diagonal plum
+ * ground rather than the flat glass every operational card uses, so the room a
+ * reader opens the day in does not look like the same grey panel repeated. The
+ * proportions and this ground come from the 1920 composition study in the Figma
+ * file "Singha — Spatial Executive OS: Grid & Type System". */
+.centre > * > .card,
+.centre > .card {
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(146deg, rgba(30, 24, 37, 0.94) 0%, rgba(16, 15, 20, 0.95) 58%),
+    var(--mat-glass-sheen);
+  box-shadow: 0 28px 58px -26px rgba(0, 0, 0, 0.66), var(--reflect-top);
+}
+/* The instrument's own housing is darker still, so the dial reads as recessed
+ * into the panel rather than printed on it. */
+.centre > .centre-summary > .card {
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(42, 28, 36, 0.6) 0%, rgba(13, 12, 16, 0.96) 62%),
+    linear-gradient(180deg, rgba(20, 17, 25, 0.94) 0%, rgba(12, 11, 15, 0.96) 100%);
+}
+
+/* What the reader must ACT ON sits nearer than the instrument summarising it.
+ * The instrument is the anchor; the brief and the change ledger are the work. */
+/* DEPTH WITHOUT RESAMPLING THE TEXT.
+ *
+ * These two columns used to carry `translateZ(-30px)` and `translateZ(28px)`
+ * under the composition's 1800px perspective. That is a real depth cue, and it
+ * had a cost that outweighed it: perspective turns a Z translation into a
+ * SCALE, so the columns rendered at 0.984x and 1.016x of their layout size.
+ * Measured on the real page — layout 943px, rendered 958.03px. The browser
+ * rasterises a composited layer once and resamples the bitmap, so every glyph
+ * in both panels was being resampled by a non-integer factor. The result is
+ * exactly the softness a reader notices: text that looks very slightly out of
+ * focus everywhere on the Command Centre.
+ *
+ * Legibility beats a 1.6% parallax, especially on a screen carrying money.
+ * Depth is now carried by cues that are pixel-exact — a heavier shadow, a
+ * brighter top edge and higher contrast for the nearer surface; a softer
+ * shadow, a dimmer edge and receded contrast for the further one. That is the
+ * same vocabulary the reduced-motion path already used, and it survives
+ * screenshotting, zooming and low-DPI displays intact. */
+.centre > .centre-summary > * {
+  box-shadow: var(--shadow-recessed);
+  border-color: rgba(255, 252, 246, 0.07);
+}
+.centre > .centre-summary { opacity: 0.94; }
+.centre > .centre-action > * {
+  box-shadow: var(--shadow-priority), inset 0 1px 0 rgba(255, 252, 246, 0.16);
+  border-color: rgba(255, 252, 246, 0.15);
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Depth is static here, so it survives reduced motion untouched — only the
+   * transitions elsewhere are removed. */
+  .centre > .centre-summary,
+  .centre > .centre-action { transition: none; }
+}
+@media (max-width: 1199px) {
+  /* Stacked, the two columns are read in sequence rather than compared, so the
+   * near/far distinction has nothing to express. Both return to the base
+   * surface treatment. */
+  .centre { perspective: none; }
+  .centre > .centre-summary { opacity: 1; }
+  .centre > .centre-summary > *,
+  .centre > .centre-action > * {
+    box-shadow: var(--shadow-base), var(--reflect-top);
+    border-color: var(--mat-glass-edge);
+  }
+}
+/* The instrument column is far shorter than the briefing column, which left a
+ * tall empty gutter down the left of the screen as the reader scrolled. Making
+ * it STICKY turns that dead space into the thing the space was for: the
+ * condition instrument stays in view while the reader works through the brief
+ * and the change ledger beside it. */
+@media (min-width: 1200px) {
+  .centre > :first-child {
+    position: sticky;
+    top: calc(var(--strip-h) + var(--sp-4));
+  }
+}
+@media (max-width: 1199px) { .centre { grid-template-columns: minmax(0, 1fr); } }
+
+/* ═══ CHANGE LEDGER — "WHAT CHANGED?" ════════════════════════════════════
+ * A vertical spine of real deltas since a stated moment. Each entry expands to
+ * the records underneath it. Nothing here is generated; every line is a row. */
+.changes { display: flex; flex-direction: column; gap: 0; position: relative; }
+.changes::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 10px;
+  bottom: 10px;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0) 0%, rgba(255, 252, 246, 0.1) 12%, rgba(255, 252, 246, 0.1) 88%, rgba(255, 252, 246, 0) 100%);
+}
+.change {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) 0;
+  min-height: var(--touch-min);
+  border: none;
+  background: none;
+  border-radius: var(--radius-xs);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  transition: background var(--mo-state) var(--ease-out);
+}
+.change:hover { background: rgba(255, 252, 246, 0.035); }
+.change-node {
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--env-1);
+  border: 1px solid rgba(255, 252, 246, 0.16);
+  z-index: 1;
+}
+.change-node i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: block; }
+.change.is-critical .change-node { border-color: rgba(var(--danger-rgb), 0.6); color: var(--danger); }
+.change.is-warn .change-node { border-color: rgba(var(--warn-rgb), 0.55); color: var(--warn); }
+.change.is-ok .change-node { border-color: rgba(var(--ok-rgb), 0.5); color: var(--ok); }
+.change.is-info .change-node { border-color: rgba(var(--info-rgb), 0.5); color: var(--info); }
+.change-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.change-title { font-size: var(--t-data); font-weight: 650; color: var(--text); line-height: 1.35; display: block; }
+.change-meta { font-size: var(--t-small); color: var(--text-dim); display: block; line-height: 1.4; }
+.change-when { font-size: var(--t-small); color: var(--text-ghost); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ═══ EXECUTIVE BRIEFING ═════════════════════════════════════════════════
+ * Grouped by what the reader must DO, not by which subsystem produced it.
+ * Act now / Decide today / Watch / Opportunities / No action required. */
+.brief-groups { display: flex; flex-direction: column; gap: var(--sp-4); }
+.brief-group { min-width: 0; }
+.brief-group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.brief-group-name {
+  font-size: var(--t-label);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.brief-group[data-band="act"] .brief-group-name { color: var(--danger); }
+.brief-group[data-band="decide"] .brief-group-name { color: var(--warn); }
+.brief-group[data-band="watch"] .brief-group-name { color: var(--info); }
+.brief-group[data-band="opportunity"] .brief-group-name { color: var(--accent); }
+.brief-group[data-band="clear"] .brief-group-name { color: var(--ok); }
+.brief-group-count {
+  font-size: var(--t-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-ghost);
+  font-weight: 700;
+}
+.brief-items { display: flex; flex-direction: column; gap: 2px; }
+
+/* ═══ MATTER — a priority item as a spatial object ═══════════════════════
+ * The unit of the priority field. Nearer to the viewer means more urgent; a
+ * completed matter recedes. Selecting one moves it into focus. */
+.matter {
+  position: relative;
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: var(--mat-smoked);
+  border: 1px solid var(--mat-smoked-edge);
+  box-shadow: var(--shadow-recessed);
+  transition:
+    transform var(--mo-focus) var(--ease-spatial),
+    box-shadow var(--mo-focus) var(--ease-out),
+    border-color var(--mo-state) var(--ease-out),
+    opacity var(--mo-focus) var(--ease-out);
+}
+.matter:hover { transform: translateY(-2px); box-shadow: var(--shadow-active); border-color: rgba(255, 252, 246, 0.15); }
+/* Priority bands. The band is set from the record — a due date, an approval
+ * threshold, a blocked state — never from a decorative preference. */
+.matter[data-band="critical"] {
+  border-color: rgba(var(--danger-rgb), 0.34);
+  box-shadow: var(--shadow-priority);
+  transform: translateY(-3px);
+}
+.matter[data-band="critical"]::before {
+  content: "";
+  position: absolute;
+  left: 0; top: var(--sp-4); bottom: var(--sp-4);
+  width: 2px; border-radius: 2px;
+  background: linear-gradient(180deg, rgba(var(--danger-rgb), 0) 0%, var(--danger) 30%, var(--danger) 70%, rgba(var(--danger-rgb), 0) 100%);
+}
+.matter[data-band="high"] { border-color: rgba(var(--warn-rgb), 0.26); box-shadow: var(--shadow-active); transform: translateY(-1px); }
+.matter[data-band="done"] { opacity: 0.5; box-shadow: none; }
+.matter[data-band="done"]:hover { opacity: 0.78; }
+.matter-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--sp-3); margin-bottom: var(--sp-2);
+}
+.matter-kind {
+  font-size: var(--t-label); font-weight: 800; letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--text-ghost);
+}
+.matter-title { font-size: var(--t-body); font-weight: 650; line-height: 1.35; color: var(--text); }
+.matter-value {
+  font-size: var(--t-numeric-lg); font-weight: 300; line-height: 1;
+  letter-spacing: var(--tracking-display); font-variant-numeric: tabular-nums;
+  margin: var(--sp-2) 0;
+}
+/* 108px was narrower than the labels these facts actually carry ("Overdue or
+ * blocked", "Awaiting a second approval"), so every one of them wrapped or
+ * spilled. Sized to the real vocabulary instead. */
+.matter-facts {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 172px), 1fr));
+  gap: var(--sp-2) var(--sp-4); margin-top: var(--sp-3);
+  padding-top: var(--sp-3); border-top: 1px solid rgba(255, 252, 246, 0.055);
+}
+.matter-fact { min-width: 0; }
+.matter-fact .k {
+  font-size: var(--t-label); font-weight: 800; letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--text-ghost); display: block;
+}
+.matter-fact .v {
+  font-size: var(--t-small); color: var(--text); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.matter-foot { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-3); }
+
+/* The priority field: matters ordered by band, nearest first. */
+/* `auto-fill` was reserving empty tracks. With one matter in the field, the
+ * grid still cut the canvas into three 340px columns, put the matter in the
+ * first, and left the other two blank — which is exactly the "narrow panel with
+ * a large empty region beside it" the Calendar's missed-commitments panel
+ * showed. `auto-fit` COLLAPSES the empty tracks, so a single matter takes the
+ * width available to it and its facts spread out instead of stacking into two
+ * cramped columns. Several matters still lay out side by side. */
+.field-matters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: var(--sp-4);
+  align-items: start;
+}
+
+/* ═══ ARRIVAL ════════════════════════════════════════════════════════════
+ * A new matter enters at the edge of the relevant context and settles. It
+ * never teleports into the middle of the interface. */
+@keyframes arrive-right {
+  from { opacity: 0; transform: translateX(26px) translateZ(-40px); }
+  to { opacity: 1; transform: translateX(0) translateZ(0); }
+}
+.is-arriving { animation: arrive-right var(--mo-arrival) var(--ease-spatial) both; }
+@media (prefers-reduced-motion: reduce) { .is-arriving { animation: none; } }
+
+/* ═══ DECISION CHAMBER ═══════════════════════════════════════════════════
+ * The approval focus state. The surrounding application recedes; the matter
+ * under decision comes to the focus depth. The consequence is made obvious,
+ * and the authority requirement is stated in words, not implied by styling. */
+.chamber-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-focus);
+  background: rgba(5, 5, 8, 0.72);
+  backdrop-filter: blur(var(--blur-near)) saturate(0.7);
+  -webkit-backdrop-filter: blur(var(--blur-near)) saturate(0.7);
+  display: grid;
+  place-items: center;
+  padding: var(--gutter);
+  overflow-y: auto;
+  animation: chamber-in var(--mo-panel) var(--ease-out) both;
+}
+@keyframes chamber-in { from { opacity: 0; } to { opacity: 1; } }
+.chamber {
+  position: relative;
+  width: 100%;
+  max-width: 940px;
+  max-height: calc(100dvh - var(--gutter) * 2);
+  overflow-y: auto;
+  border-radius: var(--radius-lg);
+  background: var(--mat-glass);
+  background-image: var(--mat-glass-sheen), var(--light-key);
+  border: var(--border-firm);
+  backdrop-filter: blur(var(--mat-glass-blur)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--mat-glass-blur)) saturate(1.15);
+  box-shadow: var(--shadow-focus), var(--reflect-focus);
+  animation: chamber-rise var(--mo-panel) var(--ease-spatial) both;
+}
+@keyframes chamber-rise {
+  from { opacity: 0; transform: translateY(16px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chamber-scrim, .chamber { animation: none; }
+}
+.chamber-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: var(--sp-5) var(--sp-6) var(--sp-4);
+  background: linear-gradient(180deg, rgba(15, 14, 19, 0.94) 0%, rgba(15, 14, 19, 0.6) 100%);
+  backdrop-filter: blur(var(--blur-mid));
+  -webkit-backdrop-filter: blur(var(--blur-mid));
+  border-bottom: 1px solid rgba(255, 252, 246, 0.07);
+}
+.chamber-body { padding: var(--sp-5) var(--sp-6); }
+.chamber-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  padding: var(--sp-4) var(--sp-6);
+  padding-bottom: max(var(--sp-4), env(safe-area-inset-bottom));
+  background: linear-gradient(0deg, rgba(15, 14, 19, 0.96) 0%, rgba(15, 14, 19, 0.7) 100%);
+  backdrop-filter: blur(var(--blur-mid));
+  -webkit-backdrop-filter: blur(var(--blur-mid));
+  border-top: 1px solid rgba(255, 252, 246, 0.07);
+}
+/* The consequence line: what this decision actually does, in one sentence and
+ * one figure, at a size that cannot be skimmed past. */
+.consequence {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: var(--radius-sm);
+  background: var(--mat-instrument);
+  border: 1px solid var(--mat-instrument-edge);
+  box-shadow: var(--mat-instrument-well);
+  margin-bottom: var(--sp-5);
+}
+.consequence-value {
+  font-size: var(--t-numeric-xl);
+  font-weight: 200;
+  letter-spacing: var(--tracking-display);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.consequence-text { font-size: var(--t-data); color: var(--text-muted); min-width: 0; }
+/* Authority notice: says plainly that a human with a named authority must act.
+ * It is never styled as a suggestion and never sits next to an AI action. */
+.authority-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-xs);
+  background: rgba(var(--accent-rgb), 0.07);
+  border: 1px solid rgba(var(--accent-rgb), 0.28);
+  color: var(--text);
+  font-size: var(--t-data);
+  line-height: 1.45;
+}
+.authority-notice .authority-mark { color: var(--accent); flex: none; margin-top: 2px; }
+
+/* Fact grid — the record laid out as facts, not as a form. */
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 208px), 1fr));
+  gap: var(--sp-4) var(--sp-5);
+}
+.fact { min-width: 0; }
+.fact .k {
+  font-size: var(--t-label); font-weight: 800; letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--text-ghost); display: block; margin-bottom: 3px;
+}
+.fact .v { font-size: var(--t-data); color: var(--text); line-height: 1.4; overflow-wrap: anywhere; }
+.fact .v.is-numeric { font-variant-numeric: tabular-nums; font-size: var(--t-body); }
+.fact .v.is-missing { color: var(--text-ghost); font-style: italic; }
+
+/* ═══ CONSTELLATION — work / organisation / relationships ════════════════
+ * A spatial grouping of records by a real dimension (urgency, department,
+ * project, owner, blocked state). It is a LAYOUT, not a chart: every node is a
+ * record and opens that record. A list/board/timeline view of the same data is
+ * always one control away. */
+.constellation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+.cluster { min-width: 0; }
+.cluster-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+.cluster-name { font-size: var(--t-data); font-weight: 700; color: var(--text); white-space: nowrap; }
+.cluster-count {
+  font-size: var(--t-small); font-variant-numeric: tabular-nums; color: var(--text-ghost);
+  padding: 2px 8px; border-radius: var(--radius-pill); background: rgba(255, 252, 246, 0.05);
+}
+.cluster-rule { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,252,246,0.09), rgba(255,252,246,0)); }
+.cluster-nodes { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+/* A node: compact, tappable, and carrying its own status glyph. */
+.node {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--touch-min);
+  max-width: 100%;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-xs);
+  background: var(--mat-smoked);
+  border: 1px solid var(--mat-smoked-edge);
+  color: var(--text-muted);
+  font-size: var(--t-small);
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform var(--mo-focus) var(--ease-spatial), box-shadow var(--mo-focus) var(--ease-out),
+    border-color var(--mo-state) var(--ease-out), color var(--mo-state) var(--ease-out);
+}
+.node:hover { transform: translateY(-2px); box-shadow: var(--shadow-active); color: var(--text); border-color: rgba(255,252,246,0.16); }
+.node-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 26ch; }
+.node[data-band="critical"] { border-color: rgba(var(--danger-rgb), 0.36); color: var(--text); }
+.node[data-band="high"] { border-color: rgba(var(--warn-rgb), 0.3); }
+.node[data-band="blocked"] { border-color: rgba(var(--blocked-rgb), 0.34); }
+.node[data-band="done"] { opacity: 0.5; }
+.node-meta { color: var(--text-ghost); font-variant-numeric: tabular-nums; font-weight: 500; }
+
+/* Board view: columns of work by state. Scrolls horizontally inside its own
+ * container on narrow screens — the page body never scrolls sideways. */
+.board-grid { min-width: 0; }
+@media (max-width: 1023px) {
+  .board-grid {
+    display: flex !important;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    padding-bottom: var(--sp-2);
+  }
+  .board-grid > section {
+    flex: 0 0 min(78vw, 300px);
+    scroll-snap-align: start;
+  }
+}
+
+/* View switcher — the constellation is a default, never a cage. */
+.views {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-xs);
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(255, 252, 246, 0.07);
+}
+.views button {
+  /* A view control is a primary way to change what the screen shows, so it
+   * meets the same 44 px floor as every other control. */
+  min-height: var(--touch-min);
+  padding: 0 var(--sp-4);
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: var(--t-small);
+  font-weight: 650;
+  cursor: pointer;
+  transition: background var(--mo-state) var(--ease-out), color var(--mo-state) var(--ease-out);
+}
+.views button:hover { color: var(--text); }
+.views button[aria-pressed="true"] {
+  background: rgba(255, 252, 246, 0.08);
+  color: var(--ivory);
+  box-shadow: inset 0 1px 0 rgba(255, 252, 246, 0.1);
+}
+
+/* ═══ NODE CARD ══════════════════════════════════════════════════════════
+ * A doorway into another surface. Deliberately NOT a full glass card: a module
+ * index of twenty destinations built from twenty glass cards is the card wall
+ * this design exists to replace. It is a row with a glyph, a name and a line of
+ * what is behind the door. */
+/* A record in a list. Three regions with explicit roles: a fixed icon, a
+ * DOMINANT flexible content region that never falls below a readable width,
+ * and a status region that sizes to its own content and never wraps.
+ *
+ * Previously a plain flex row, which let the content region be compressed
+ * until titles broke across several lines while the surrounding panel had room
+ * to spare. Grid states the intent instead of hoping flex resolves it. */
+.node-card {
+  display: grid;
+  grid-template-columns: auto minmax(min(100%, var(--col-text-min)), 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3) var(--sp-4);
+  min-height: 62px;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 252, 246, 0.028);
+  border: 1px solid rgba(255, 252, 246, 0.06);
+  color: var(--text-muted);
+  min-width: 0;
+  transition: background var(--mo-state) var(--ease-out), border-color var(--mo-state) var(--ease-out),
+    transform var(--mo-focus) var(--ease-spatial), box-shadow var(--mo-focus) var(--ease-out);
+}
+.node-card:hover {
+  background: rgba(255, 252, 246, 0.06);
+  border-color: rgba(var(--accent-rgb), 0.26);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-active);
+  color: var(--text);
+}
+.node-card-ico {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-xs);
+  background: rgba(var(--accent-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-rgb), 0.16);
+  color: var(--accent);
+}
+/* A card with no icon must not leave an empty first track. */
+.node-card:not(:has(.node-card-ico)) { grid-template-columns: minmax(min(100%, var(--col-text-min)), 1fr) auto; }
+/* Below the readable minimum the row becomes two lines rather than squeezing
+ * the title — a composition change, not a compression. */
+@media (max-width: 640px) {
+  .node-card { grid-template-columns: auto minmax(0, 1fr); }
+  .node-card > .sig { grid-column: 2; justify-self: start; }
+  .node-card:not(:has(.node-card-ico)) { grid-template-columns: minmax(0, 1fr); }
+  .node-card:not(:has(.node-card-ico)) > .sig { grid-column: 1; }
+}
+
+.node-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.node-card-title {
+  font-size: var(--t-subsection); font-weight: 650; color: var(--text);
+  /* A title may use two lines; it may not be broken mid-word. */
+  overflow-wrap: break-word;
+}
+.node-card-note {
+  font-size: var(--t-small);
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ═══ SPATIAL TIMELINE ═══════════════════════════════════════════════════
+ * Past recedes, the current milestone is prominent, the future extends
+ * forward. Used by projects, audit history and asset history. */
+.timeline { position: relative; padding-left: var(--sp-6); }
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(255,252,246,0.03) 0%, rgba(255,252,246,0.13) 20%, rgba(255,252,246,0.13) 72%, rgba(217,180,119,0.2) 100%);
+}
+.tl-item { position: relative; padding: 0 0 var(--sp-5) 0; }
+.tl-item:last-child { padding-bottom: 0; }
+
+/* On a wide canvas the day label moves into a left gutter and the records
+ * take the full remaining width, instead of every record being stacked under
+ * a heading in one narrow column while the rest of the surface sits empty.
+ * This is the composition the Calendar's missed-commitments panel needed. */
+@media (min-width: 1100px) {
+  .tl-item {
+    display: grid;
+    grid-template-columns: var(--col-ref) minmax(0, 1fr);
+    column-gap: var(--sp-5);
+    align-items: start;
+  }
+  .tl-item > .tl-when { padding-top: 2px; text-align: right; }
+  .tl-item > .tl-node { top: 6px; }
+  /* Everything after the day label occupies the record column. */
+  .tl-item > :not(.tl-when):not(.tl-node) { grid-column: 2; }
+}
+.tl-node {
+  position: absolute;
+  left: calc(var(--sp-6) * -1 + 4px);
+  top: 3px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--env-1);
+  border: 1px solid rgba(255, 252, 246, 0.2);
+  display: grid;
+  place-items: center;
+}
+.tl-node i { width: 5px; height: 5px; border-radius: 50%; background: var(--text-ghost); }
+.tl-item[data-when="past"] { opacity: 0.55; }
+.tl-item[data-when="current"] .tl-node {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.14), 0 0 14px rgba(var(--accent-rgb), 0.4);
+}
+.tl-item[data-when="current"] .tl-node i { background: var(--accent); }
+.tl-item[data-when="future"] .tl-node { border-style: dashed; }
+.tl-when {
+  font-size: var(--t-label); font-weight: 800; letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--text-ghost); font-variant-numeric: tabular-nums;
+}
+.tl-title { font-size: var(--t-data); font-weight: 650; color: var(--text); margin-top: 2px; }
+.tl-body { font-size: var(--t-small); color: var(--text-muted); margin-top: 3px; line-height: 1.45; }
+.tl-item[data-when="current"] .tl-title { font-size: var(--t-h3); font-weight: 700; }
+
+/* ═══ EVIDENCE SHEET ═════════════════════════════════════════════════════
+ * A document is a sheet, not another glass card. */
+.sheet {
+  padding: var(--sp-4);
+  background: var(--mat-paper);
+  border: 1px solid var(--mat-paper-edge);
+  border-radius: var(--radius-paper);
+  box-shadow: var(--mat-paper-shadow);
+  min-width: 0;
+}
+.sheet-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3);
+  padding-bottom: var(--sp-3); margin-bottom: var(--sp-3);
+  border-bottom: 1px solid rgba(243, 239, 232, 0.09);
+}
+.sheet-kind {
+  font-size: var(--t-label); font-weight: 800; letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--text-ghost);
+}
+.sheet-title { font-size: var(--t-data); font-weight: 700; margin-top: 2px; }
+/* Draft / expired / unapproved must be unmissable on a document. */
+.sheet[data-state="draft"]::after,
+.sheet[data-state="expired"]::after,
+.sheet[data-state="unapproved"]::after {
+  content: attr(data-state);
+  position: absolute;
+  top: var(--sp-3);
+  right: var(--sp-3);
+  font-size: var(--t-label);
+  font-weight: 900;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.sheet[data-state] { position: relative; }
+.sheet[data-state="draft"]::after { color: var(--warn); border: 1px solid rgba(var(--warn-rgb), 0.45); }
+.sheet[data-state="expired"]::after { color: var(--danger); border: 1px solid rgba(var(--danger-rgb), 0.45); }
+.sheet[data-state="unapproved"]::after { color: var(--info); border: 1px solid rgba(var(--info-rgb), 0.45); }
+
+/* ═══ CONVERSATION THREAD ════════════════════════════════════════════════
+ * Deliberately not a WhatsApp clone. Ours and theirs are distinguished by
+ * SIDE, GROUND and a written attribution — never by a green bubble, and never
+ * by colour alone. The customer's words keep the higher-contrast ground,
+ * because they are what the reader is trying to understand. */
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  max-height: 64vh;
+  overflow-y: auto;
+  padding-right: var(--sp-2);
+}
+.bubble {
+  align-self: flex-start;
+  max-width: min(78%, 62ch);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-sm) var(--radius-sm) var(--radius-sm) 4px;
+  background: rgba(255, 252, 246, 0.07);
+  border: 1px solid rgba(255, 252, 246, 0.09);
+}
+.bubble.is-ours {
+  align-self: flex-end;
+  border-radius: var(--radius-sm) var(--radius-sm) 4px var(--radius-sm);
+  background: rgba(var(--accent-rgb), 0.1);
+  border-color: rgba(var(--accent-rgb), 0.26);
+}
+.bubble-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--t-data);
+  line-height: 1.5;
+  color: var(--text);
+}
+.bubble-when {
+  font-size: var(--t-label);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-ghost);
+  margin-top: 6px;
+}
+.bubble.is-ours .bubble-when { text-align: right; }
+
+/* ═══ COMMAND PALETTE ════════════════════════════════════════════════════ */
+.palette-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-palette);
+  background: rgba(5, 5, 8, 0.6);
+  backdrop-filter: blur(var(--blur-near));
+  -webkit-backdrop-filter: blur(var(--blur-near));
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(48px, 12vh, 140px) var(--sp-4) var(--sp-4);
+}
+.palette {
+  width: 100%;
+  max-width: 660px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--mat-glass);
+  background-image: var(--mat-glass-sheen);
+  border: var(--border-firm);
+  backdrop-filter: blur(var(--mat-glass-blur)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--mat-glass-blur)) saturate(1.15);
+  box-shadow: var(--shadow-focus), var(--reflect-focus);
+  animation: palette-in var(--mo-focus) var(--ease-spatial) both;
+}
+@keyframes palette-in { from { opacity: 0; transform: translateY(-10px) scale(0.99); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .palette { animation: none; } }
+.palette-input {
+  width: 100%;
+  min-height: 58px;
+  padding: 0 var(--sp-5);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 252, 246, 0.08);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 1.02rem;
+  outline: none;
+}
+.palette-input::placeholder { color: var(--text-ghost); }
+.palette-list { max-height: min(52vh, 430px); overflow-y: auto; padding: var(--sp-2); }
+.palette-group-label {
+  padding: var(--sp-3) var(--sp-3) var(--sp-1);
+  font-size: var(--t-label); font-weight: 800; letter-spacing: var(--tracking-label);
+  text-transform: uppercase; color: var(--text-ghost);
+}
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: var(--touch-min);
+  padding: 0 var(--sp-3);
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--t-data);
+  text-align: left;
+  cursor: pointer;
+}
+.palette-item .palette-ico { color: var(--text-ghost); flex: none; display: inline-flex; }
+.palette-item .palette-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-item .palette-hint { font-size: var(--t-small); color: var(--text-ghost); flex: none; }
+.palette-item[aria-selected="true"], .palette-item:hover {
+  background: rgba(var(--accent-rgb), 0.1);
+  color: var(--ivory);
+}
+.palette-item[aria-selected="true"] .palette-ico { color: var(--accent); }
+.palette-empty { padding: var(--sp-5); text-align: center; color: var(--text-dim); font-size: var(--t-data); }
+.palette-foot {
+  display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap;
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid rgba(255, 252, 246, 0.06);
+  font-size: var(--t-small); color: var(--text-ghost);
+}
+.palette-foot kbd {
+  font-family: var(--font-mono); font-size: 0.66rem; padding: 2px 6px; border-radius: 4px;
+  background: rgba(255, 252, 246, 0.06); border: 1px solid rgba(255, 252, 246, 0.08); margin-right: 5px;
+}
+
+/* ═══ AI MANAGEMENT ROOM ═════════════════════════════════════════════════
+ * When the AI is engaged the application partially recedes and the AI
+ * workspace moves forward. It is a room, not a chat drawer. */
+.airoom-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-focus);
+  background: rgba(6, 6, 9, 0.62);
+  backdrop-filter: blur(var(--blur-near)) saturate(0.68);
+  -webkit-backdrop-filter: blur(var(--blur-near)) saturate(0.68);
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+}
+.airoom {
+  position: relative;
+  width: min(920px, 100%);
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(200deg, rgba(22, 20, 27, 0.9) 0%, rgba(12, 12, 16, 0.94) 100%);
+  border-left: 1px solid rgba(255, 252, 246, 0.1);
+  backdrop-filter: blur(var(--mat-glass-blur)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--mat-glass-blur)) saturate(1.15);
+  box-shadow: var(--shadow-focus);
+  animation: airoom-in var(--mo-panel) var(--ease-spatial) both;
+}
+@keyframes airoom-in { from { transform: translateX(38px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .airoom { animation: none; } }
+.airoom-head {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid rgba(255, 252, 246, 0.07);
+}
+.airoom-context {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: var(--radius-pill);
+  background: rgba(var(--info-rgb), 0.1); border: 1px solid rgba(var(--info-rgb), 0.28);
+  color: var(--info); font-size: var(--t-label); font-weight: 800;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.airoom-body { flex: 1; overflow-y: auto; padding: var(--sp-5); min-height: 0; }
+.airoom-foot {
+  padding: var(--sp-4) var(--sp-5);
+  padding-bottom: max(var(--sp-4), env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(255, 252, 246, 0.07);
+}
+.airoom-prompts { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.airoom-prompt {
+  min-height: 38px; padding: 0 var(--sp-3); border-radius: var(--radius-pill);
+  background: rgba(255, 252, 246, 0.045); border: 1px solid rgba(255, 252, 246, 0.08);
+  color: var(--text-muted); font-family: inherit; font-size: var(--t-small); cursor: pointer;
+  transition: background var(--mo-state) var(--ease-out), color var(--mo-state) var(--ease-out);
+}
+.airoom-prompt:hover { background: rgba(255, 252, 246, 0.09); color: var(--text); }
+.airoom-compose { display: flex; gap: var(--sp-2); align-items: flex-end; }
+@media (max-width: 767px) {
+  .airoom { width: 100%; border-left: none; }
+  .airoom-scrim { align-items: flex-end; }
+}
+
+/* ═══ CAPABILITY / STATE SURFACES ════════════════════════════════════════
+ * Honest states are first-class components, not afterthoughts. */
+.state-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-radius: var(--radius-sm);
+  background: var(--mat-smoked);
+  border: 1px solid var(--mat-smoked-edge);
+  font-size: var(--t-data);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.state-note .state-mark { flex: none; margin-top: 2px; }
+.state-note[data-state="denied"] { border-color: rgba(var(--warn-rgb), 0.3); }
+.state-note[data-state="denied"] .state-mark { color: var(--warn); }
+.state-note[data-state="offline"] { border-color: rgba(var(--offline-rgb), 0.4); }
+.state-note[data-state="offline"] .state-mark { color: var(--offline); }
+.state-note[data-state="error"] { border-color: rgba(var(--danger-rgb), 0.34); }
+.state-note[data-state="error"] .state-mark { color: var(--danger); }
+.state-note[data-state="config"] { border-color: rgba(var(--info-rgb), 0.3); }
+.state-note[data-state="config"] .state-mark { color: var(--info); }
+.state-note[data-state="partial"] { border-color: rgba(var(--warn-rgb), 0.26); }
+.state-note[data-state="partial"] .state-mark { color: var(--warn); }
+.state-note-title { font-weight: 700; color: var(--text); display: block; margin-bottom: 2px; }
+
+/* Measured / inferred / missing — an asset or forecast figure must say which
+ * it is. A number with no provenance is not evidence. */
+.provenance-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--t-label); font-weight: 800; letter-spacing: 0.06em;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 4px;
+  border: 1px solid currentColor; opacity: 0.85;
+}
+.provenance-tag[data-kind="measured"] { color: var(--ok); }
+.provenance-tag[data-kind="inferred"] { color: var(--info); }
+.provenance-tag[data-kind="missing"] { color: var(--text-ghost); }
+
+/* ═══ SPLIT WORKSPACE ════════════════════════════════════════════════════
+ * The dominant workspace plus one contextual layer. Tablet keeps both; phone
+ * shows the workspace and moves context into a sheet. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  gap: var(--gutter);
+  align-items: start;
+}
+.split-wide { grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(280px, 340px); }
+@media (max-width: 1279px) {
+  .split-wide { grid-template-columns: minmax(0, 1fr) minmax(280px, 330px); }
+  .split-wide > .split-aside-left { display: none; }
+}
+@media (max-width: 1023px) {
+  .split, .split-wide { grid-template-columns: minmax(0, 1fr); }
+}
+.split-aside { position: sticky; top: calc(var(--strip-h) + var(--sp-4)); min-width: 0; }
+@media (max-width: 1023px) { .split-aside { position: static; } }

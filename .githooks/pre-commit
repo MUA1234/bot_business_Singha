@@ -1,0 +1,13 @@
+#!/bin/sh
+# Refuse a commit while a mutation campaign holds the lock.
+#
+# A harness rewrites real source in place and restores it at the end. A commit taken mid-run
+# captures a deliberately broken boundary — which happened three times before this hook existed,
+# each time committing a disabled security check into the branch.
+if [ -f .r1-mutation-campaign.lock ]; then
+  echo "✖ a mutation campaign is running ($(cat .r1-mutation-campaign.lock))."
+  echo "  Source files are rewritten in place during a run; committing now would capture a"
+  echo "  deliberately broken boundary. Wait for it to finish, or stop it."
+  exit 1
+fi
+exit 0

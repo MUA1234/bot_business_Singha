@@ -39,4 +39,20 @@ describe("cash forecast (change plan §6.2 / §8.5, decimal money §8)", () => {
     });
     expect(r.closingBalance).toBe("100.00");
   });
+
+  it("FIN-004 — commitment outflows lower the trough", () => {
+    const r = projectCash({
+      currency: "LKR",
+      openingCash: "10000.00",
+      inflows: [{ date: iso(20), amount: "5000.00" }],
+      outflows: [
+        { date: iso(5), amount: "3000.00" },
+        { date: iso(10), amount: "8000.00" }, // commitment-style outflow
+      ],
+      horizonDays: 30,
+    });
+    expect(r.goesNegative).toBe(true);
+    expect(r.lowest.balance).toBe("-1000.00"); // 10000 - 3000 - 8000
+    expect(r.closingBalance).toBe("4000.00"); // -1000 + 5000
+  });
 });

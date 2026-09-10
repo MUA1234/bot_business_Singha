@@ -86,7 +86,7 @@ item currency equal to the LOCKED quotation currency — mirrored 1:1 by `refres
 `priceQuotation` auto-pricing only from a same-currency catalogue entry (else a human price confirmation
 posed in the quotation currency) and `resolvePriceConfirmation` stamping the item to the quotation
 currency (no float, no conversion); (c) the predicted draft-deletion cascade regression was shown NOT to
-occur on live PostgreSQL 16 — RI cascade queries run as the `quotation_items` TABLE OWNER (= the trusted
+occur on a disposable local PostgreSQL 16 — RI cascade queries run as the `quotation_items` TABLE OWNER (= the trusted
 delivery owner), so authorised pre-queue deletes of itemised quotations cascade cleanly; that ownership
 invariant is now ASSERTED fail-closed by the migration and pinned by regression tests) live on the
 integration branch `feature/v3-1-phase-1-external-review-fixes` (PR #3 foundation + stack PRs #4–#12 +

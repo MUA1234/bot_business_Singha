@@ -8,6 +8,8 @@ import { requireDepartment } from "@/lib/auth";
 
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { decGtZero, fmtMoney } from "@/lib/money";
+import { Card, CardHeader, CardBody, Button, StatusBadge } from "@/components/ui";
+import { fmtDate } from "@/lib/format";
 import { reverseJournal } from "../actions";
 
 export const metadata = { title: "Journal — Singha Central" };
@@ -36,42 +38,44 @@ export default async function JournalDetail({ params }: { params: { id: string }
       <div className="row between">
         <div>
           <h1>Journal</h1>
-          <p className="muted mt-1">{j.posting_date} · <span className="badge">{j.status}</span> {j.memo ? `· ${j.memo}` : ""}</p>
+          <p className="muted mt-1">{fmtDate(j.posting_date)} · <StatusBadge status={j.status} /> {j.memo ? `· ${j.memo}` : ""}</p>
         </div>
-        <div className="row gap-1">
+        <div className="row gap-1 wrap">
           {j.status === "posted" && (
             <form action={reverseJournal}>
               <input type="hidden" name="journal_id" value={j.id} />
-              <button className="btn ghost sm danger" type="submit">Reverse</button>
+              <Button variant="danger" size="sm" type="submit">Reverse</Button>
             </form>
           )}
           <Link className="btn ghost sm" href="/app/finance/journals">← Journals</Link>
         </div>
       </div>
 
-      <div className="card">
-        <div className="table-wrap">
-          <table className="data">
-            <thead><tr><th>#</th><th>Account</th><th>Description</th><th className="num">Debit</th><th className="num">Credit</th></tr></thead>
-            <tbody>
-              {(lines ?? []).map((l: any) => (
-                <tr key={l.line_no}>
-                  <td className="dim small">{l.line_no}</td>
-                  <td className="mono">{l.account_code}</td>
-                  <td>{l.description ?? "—"}</td>
-                  <td className="num">{decGtZero(l.debit) ? fmtMoney(l.debit, j.currency) : "—"}</td>
-                  <td className="num">{decGtZero(l.credit) ? fmtMoney(l.credit, j.currency) : "—"}</td>
+      <Card>
+        <CardBody>
+          <div className="table-wrap">
+            <table className="data">
+              <thead><tr><th>#</th><th>Account</th><th>Description</th><th className="num">Debit</th><th className="num">Credit</th></tr></thead>
+              <tbody>
+                {(lines ?? []).map((l: any) => (
+                  <tr key={l.line_no}>
+                    <td className="dim small">{l.line_no}</td>
+                    <td className="mono">{l.account_code}</td>
+                    <td>{l.description ?? "—"}</td>
+                    <td className="num">{decGtZero(l.debit) ? fmtMoney(l.debit, j.currency) : "—"}</td>
+                    <td className="num">{decGtZero(l.credit) ? fmtMoney(l.credit, j.currency) : "—"}</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td></td><td></td><td style={{ textAlign: "right", fontWeight: 700 }}>Total</td>
+                  <td className="num" style={{ fontWeight: 700 }}>{fmtMoney(j.total_debit, j.currency)}</td>
+                  <td className="num" style={{ fontWeight: 700 }}>{fmtMoney(j.total_credit, j.currency)}</td>
                 </tr>
-              ))}
-              <tr>
-                <td></td><td></td><td style={{ textAlign: "right", fontWeight: 700 }}>Total</td>
-                <td className="num" style={{ fontWeight: 700 }}>{fmtMoney(j.total_debit, j.currency)}</td>
-                <td className="num" style={{ fontWeight: 700 }}>{fmtMoney(j.total_credit, j.currency)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+              </tbody>
+            </table>
+          </div>
+        </CardBody>
+      </Card>
     </div>
   );
 }

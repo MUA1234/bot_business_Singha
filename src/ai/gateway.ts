@@ -14,6 +14,7 @@
 import { randomUUID } from "node:crypto";
 import { parseAiExtraction, type AiExtraction } from "@/schemas/ai-extraction";
 import { EXTRACTION_PROMPT_VERSION, EXTRACTION_SYSTEM_PROMPT, wrapUntrusted } from "./prompts";
+import type { ModelPolicyExecutor } from "./model-policy-router";
 
 /** Logical model routing. Real model IDs live ONLY in this table.
  *  Per owner instruction (2026-08-02) both routes use `gpt-5.6-sol` — a Responses-API
@@ -26,6 +27,10 @@ export const MODEL_ROUTES = {
   quotation: { model: "gpt-5.6-sol", maxTokens: 2000 },
   // business analysis assistant: observe a business update → structured ManagementObservation.
   management: { model: "gpt-5.6-sol", maxTokens: 4000 },
+  // EVALUATION ONLY — never used by a production path. The verification campaign scores the
+  // scenario pack against this route when the owner supplies ANTHROPIC_API_KEY; without a key the
+  // evaluation is reported as BLOCKED rather than estimated. Model ids stay in this table (D-006).
+  evaluation: { model: "claude-opus-5", maxTokens: 2000 },
 } as const;
 export type RouteName = keyof typeof MODEL_ROUTES;
 
@@ -73,6 +78,11 @@ export interface CostLedger {
   record(run: AiRunRecord): Promise<void> | void;
 }
 
+export interface ModelPolicyExecutionConfig {
+  executor: ModelPolicyExecutor;
+  loadBudget(companyId: string, task: "extraction"): Promise<string | null>;
+}
+
 export interface ExtractionRequest {
   /** Untrusted external text (WhatsApp/email/receipt OCR). */
   content: string;
@@ -92,6 +102,7 @@ export class AiGateway {
   constructor(
     private readonly transport: CompletionTransport,
     private readonly ledger: CostLedger,
+    private readonly policy?: ModelPolicyExecutionConfig,
   ) {}
 
   async runExtraction(req: ExtractionRequest): Promise<ExtractionResult> {
@@ -122,7 +133,28 @@ export class AiGateway {
     const startedAt = Date.now();
     let resp: CompletionResponse;
     try {
-      resp = await this.transport.complete({ model, system: EXTRACTION_SYSTEM_PROMPT, user, maxTokens });
+      if (this.policy) {
+        if (!req.companyId) throw new Error("model policy requires a company-scoped request");
+        const budgetRemainingUsd = await this.policy.loadBudget(req.companyId, "extraction");
+        if (!budgetRemainingUsd) {
+          await this.policy.executor.recordRejection({
+            logicalRequestId: baseRun.ai_run_id,
+            companyId: req.companyId,
+            task: "extraction",
+            reason: "budget_exceeded",
+          });
+          throw new Error("no active model budget policy");
+        }
+        const execution = await this.policy.executor.execute({
+          logicalRequestId: baseRun.ai_run_id,
+          selection: { companyId: req.companyId, task: "extraction", budgetRemainingUsd, highRisk: req.hard },
+          completion: { system: EXTRACTION_SYSTEM_PROMPT, user, maxTokens },
+        });
+        if (!execution.ok) throw new Error(`model policy ${execution.reason}`);
+        resp = execution.response;
+      } else {
+        resp = await this.transport.complete({ model, system: EXTRACTION_SYSTEM_PROMPT, user, maxTokens });
+      }
     } catch (e) {
       baseRun.latency_ms = Date.now() - startedAt;
       const run: AiRunRecord = { ...baseRun, validation_ok: false, confidence_overall: null };

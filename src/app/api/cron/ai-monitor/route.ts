@@ -42,7 +42,12 @@ export async function GET(req: Request): Promise<Response> {
     .from("wa_conversations")
     .select("id, company_id, last_inbound_at, ai_analyzed_at")
     .not("last_inbound_at", "is", null)
-    .order("last_inbound_at", { ascending: true })
+    // DESCENDING: most recently active threads first. Ascending order meant every new inbound
+    // message pushed a thread towards the END of the window, so past 200 conversations the threads
+    // with new customer activity were systematically excluded while this job reported success. It
+    // also let a thread whose persistence keeps failing (which is deliberately left due, below) sit
+    // at the head of the batch on every run and starve everything else.
+    .order("last_inbound_at", { ascending: false })
     .limit(200);
 
   const due = (convos ?? [])
@@ -54,8 +59,22 @@ export async function GET(req: Request): Promise<Response> {
   for (const c of due) {
     try {
       const res = await analyzeConversationThread(db, { companyId: c.company_id, conversationId: c.id, actorId: c.company_id, actorType: "ai" });
-      // Mark analysed regardless of outcome so a persistently-empty thread isn't retried forever.
-      await db.from("wa_conversations").update({ ai_analyzed_at: new Date().toISOString() }).eq("id", c.id).eq("company_id", c.company_id);
+
+      // Mark analysed so a persistently-empty thread isn't retried forever — but NOT when the
+      // durable write itself failed. analyzeConversationThread documents persistence failure as a
+      // hard failure ("never 'analysed' without a durable record"); stamping it here anyway broke
+      // that contract, because the `due` filter would then skip the thread until a NEW customer
+      // message arrived, silently and permanently losing the analysis. A transient RPC error must
+      // leave the thread due so the next run retries it.
+      const lostDurably = !res.ok && res.reason === "persist_failed";
+      if (lostDurably) {
+        log("error", "ai-monitor: analysis not durable — leaving thread due for retry", {
+          event: "monitor.persist_failed",
+          conversationId: c.id,
+        });
+      } else {
+        await db.from("wa_conversations").update({ ai_analyzed_at: new Date().toISOString() }).eq("id", c.id).eq("company_id", c.company_id);
+      }
       if (res.ok) {
         analyzed++;
         tasks += res.createdTasks ?? 0;

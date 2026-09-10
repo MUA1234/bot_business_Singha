@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { resolvePriceConfirmation } from "@/lib/quotations";
 
 async function requirePricer() {
@@ -20,12 +20,15 @@ export async function resolvePrice(formData: FormData): Promise<void> {
   const raw = String(formData.get("price") ?? "").trim();
   if (!confirmationId || !/^\d+(\.\d+)?$/.test(raw)) return;
 
-  await resolvePriceConfirmation({
-    companyId: p.companyId,
-    confirmationId,
-    resolvedPrice: raw,
-    userId: p.userId,
-  });
+  await resolvePriceConfirmation(
+    {
+      companyId: p.companyId,
+      confirmationId,
+      resolvedPrice: raw,
+      userId: p.userId,
+    },
+    supabaseWriteClient(),
+  );
 
   revalidatePath("/app/sales/price-requests");
   revalidatePath("/app/finance/price-requests");
@@ -37,7 +40,7 @@ export async function dismissPrice(formData: FormData): Promise<void> {
   const p = await requirePricer();
   const confirmationId = String(formData.get("confirmation_id") ?? "");
   if (!confirmationId) return;
-  await supabaseAdmin()
+  await supabaseWriteClient()
     .from("price_confirmations")
     .update({ status: "dismissed", resolved_by: p.userId, resolved_at: new Date().toISOString() })
     .eq("id", confirmationId)

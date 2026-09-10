@@ -3,7 +3,7 @@
  * best-effort server write (a failure never breaks the triggering action). The pure
  * `unreadCount` is used by the nav/badge and is unit-tested.
  */
-import { supabaseAdmin } from "@/lib/supabase/server";
+import { supabaseWriteClient } from "@/lib/supabase/read";
 import { log } from "@/lib/log";
 
 export interface NewNotification {
@@ -17,7 +17,7 @@ export interface NewNotification {
 
 export async function createNotification(n: NewNotification): Promise<void> {
   try {
-    await supabaseAdmin().from("notifications").insert({
+    await supabaseWriteClient().from("notifications").insert({
       company_id: n.companyId,
       recipient_id: n.recipientId,
       type: n.type,

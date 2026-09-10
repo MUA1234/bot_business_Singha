@@ -9,6 +9,7 @@
  * ROLLED BACK, so no journals/payments persist. Skipped unless `DATABASE_URL` is set.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { authClaims, seedCapableActor, TEST_ACTOR } from "./helpers/capable-actor";
 
 const URL = process.env.DATABASE_URL ?? "";
 const enabled = !!URL;
@@ -35,7 +36,8 @@ describe.skipIf(!enabled)("settlement concurrency — live, two connections", ()
     };
     setup = await mk();
     company = (await setup.query(`insert into companies (name, base_currency) values ('wp_conc','LKR') returning id`)).rows[0].id;
-    poster = (await setup.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(),'wp_conc_p',true) returning id`)).rows[0].id;
+    await seedCapableActor(setup, company);
+    poster = TEST_ACTOR;   // FOUND-006/0086: the acting human is the JWT subject
     await setup.query(`insert into chart_of_accounts (company_id, code, name, type) values ($1,'1000','Cash','asset'),($1,'1100','AR','asset')`, [company]);
     const customer = (await setup.query(`insert into customers (company_id, name) values ($1,'Conc') returning id`, [company])).rows[0].id;
     invoice = (
@@ -70,12 +72,12 @@ describe.skipIf(!enabled)("settlement concurrency — live, two connections", ()
   it("a second concurrent settlement BLOCKS on the FOR UPDATE lock", async () => {
     // #1 begins a settlement and holds the invoice row lock (not committed).
     await c1.query("begin");
-    await c1.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+    await c1.query(`select set_config('request.jwt.claims', '${authClaims()}', true)`);
     await c1.query(settle(100), [company, invoice, poster]);
 
     // #2 tries the same invoice with a short statement timeout — it must block, then time out.
     await c2.query("begin");
-    await c2.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+    await c2.query(`select set_config('request.jwt.claims', '${authClaims()}', true)`);
     await c2.query("set local statement_timeout = '1500ms'");
     let blocked = false;
     try {
