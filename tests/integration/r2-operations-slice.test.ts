@@ -231,12 +231,25 @@ async function driveToClaim(co: string): Promise<{
 
   // ── 4. The decision. ──
   //
-  // NO RUNTIME WRITER for the four hops from `observed` to `awaiting_approval`: nothing in the
-  // application advances an item past `observed`, so the decision boundary — which is real, and
-  // tested — is unreachable by a real item (R2F-F-014).
-  expect(items[0].state, "an item created by the cycle starts here and nothing moves it").toBe("observed");
+  // This block used to assert the opposite: that the item sat in `observed` because "nothing in
+  // the application advances an item past `observed`" (R2F-F-014). **R5 closed that finding.**
+  // `src/kernel/orchestrator.ts` decides the next transition, `runLifecycleSweep` is wired into
+  // the cycle through `makeCycleDeps`, and it advances ONE step per item per cycle.
+  //
+  // So the assertion is inverted rather than deleted: the item must have MOVED under its own
+  // power, and it must have moved exactly one step — one step per cycle is the property that
+  // keeps the loop auditable, and an item that raced to `recommended` in a single cycle would be
+  // a different defect. Leaving the old assertion in place would have pinned the defect as if it
+  // were the specification.
+  expect(
+    items[0].state,
+    "the cycle's lifecycle sweep must advance a fresh observation off `observed`",
+  ).toBe("understood");
+
+  // The hops the cycle does NOT perform are still the human boundary, and still refused to a
+  // service caller. `recommended → awaiting_approval → approved` needs a person.
   for (const [from, to] of [
-    ["observed", "understood"], ["understood", "prioritised"],
+    ["understood", "prioritised"],
     ["prioritised", "recommended"], ["recommended", "awaiting_approval"],
   ] as const) {
     await noRuntimeWriter(itemId, from, to, null); // NO RUNTIME WRITER

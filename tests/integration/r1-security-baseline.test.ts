@@ -81,13 +81,13 @@ async function seedUser(id: string, company: string, roleKey: string | null, sta
   return membershipId;
 }
 
-async function newItem(company: string, state = "observed", owner: string | null = null) {
+async function newItem(company: string, state = "observed", owner: string | null = null, department = "finance") {
   const id = randomUUID();
   await db.query(
     `insert into management_items (id, company_id, department, kind, subject_table, subject_id,
                                    identity_key, state, accountable_owner_id)
-     values ($1,$2,'finance','receivable_overdue','customer_invoices',$3,$4,$5,$6)`,
-    [id, company, `inv-${id.slice(0, 8)}`, `${company}:k:${id}`, state, owner],
+     values ($1,$2,$7,'receivable_overdue','customer_invoices',$3,$4,$5,$6)`,
+    [id, company, `inv-${id.slice(0, 8)}`, `${company}:k:${id}`, state, owner, department],
   );
   await db.query(
     `insert into management_item_evidence (company_id, item_id, source_table, source_id, facts)
@@ -117,22 +117,71 @@ describe.skipIf(!enabled)("R1 security baseline — RLS and authority matrix", (
   }, 120_000);
 
   // ── reads ────────────────────────────────────────────────────────────────────────────
-  it("owner, manager and ordinary staff can all READ their company's items", async () => {
-    const id = await newItem(CO_A);
-    for (const actor of [OWNER, MANAGER, STAFF]) {
-      const seen = await asUser(actor, async () =>
-        (await db.query(`select id from management_items where id=$1`, [id])).rows,
-      );
-      expect(seen, `actor ${actor} could not read`).toHaveLength(1);
-    }
+  /**
+   * These three assertions used to read "owner, manager and ordinary staff can all READ their
+   * company's items" and "a member with NO role can still read (company-scoped)". That was the
+   * ORIGINAL, looser model: membership alone conferred read.
+   *
+   * The R5 work deliberately replaced it — `r1_draft_may_see_management_item` now gates on a
+   * CAPABILITY, in this order: an active membership, then the domain capability for a sensitive
+   * department, then a company-wide grant, then the capability for the department the item is
+   * in, then an active advisor relationship plus the baseline work capability. Membership is a
+   * precondition, never a grant.
+   *
+   * The assertions below state that model and prove it DISCRIMINATES, which the old ones could
+   * not: they passed for a member with no capability at all. This is a tightening — every case
+   * that used to read and now does not is asserted as a refusal, not deleted.
+   */
+  it("company-wide visibility is a CAPABILITY: the owner reads, a manager outside the domain does not", async () => {
+    const id = await newItem(CO_A); // department: finance
+
+    // owner_management holds `management.queue.view_company` — the explicit cross-domain grant.
+    const ownerSaw = await asUser(OWNER, async () =>
+      (await db.query(`select id from management_items where id=$1`, [id])).rows,
+    );
+    expect(ownerSaw, "owner holds management.queue.view_company").toHaveLength(1);
+
+    // project_manager holds operations.* and finance.approve.expense — but NOT `finance.reconcile`,
+    // which is the department capability for finance. Being a manager of something else is not a
+    // key to this.
+    const managerSaw = await asUser(MANAGER, async () =>
+      (await db.query(`select id from management_items where id=$1`, [id])).rows,
+    );
+    expect(managerSaw, "project_manager lacks finance.reconcile").toEqual([]);
+
+    // staff_submitter holds neither, and does not own this item.
+    const staffSaw = await asUser(STAFF, async () =>
+      (await db.query(`select id from management_items where id=$1`, [id])).rows,
+    );
+    expect(staffSaw, "staff_submitter holds no finance capability").toEqual([]);
   });
 
-  it("a company member with NO role can still read (company-scoped) but cannot write", async () => {
+  it("the SAME manager reads an item in a department they actually manage", async () => {
+    // The pair matters: without it, the refusal above could be caused by anything at all.
+    const opsId = await newItem(CO_A, "observed", null, "operations");
+
+    // project_manager holds `operations.task.manage` — the department capability for operations.
+    const managerSaw = await asUser(MANAGER, async () =>
+      (await db.query(`select id from management_items where id=$1`, [opsId])).rows,
+    );
+    expect(managerSaw, "project_manager holds operations.task.manage").toHaveLength(1);
+
+    // staff_submitter holds `operations.task.work`, which is NOT `.manage`. Doing the work does
+    // not confer sight of the queue that assigns it.
+    const staffSaw = await asUser(STAFF, async () =>
+      (await db.query(`select id from management_items where id=$1`, [opsId])).rows,
+    );
+    expect(staffSaw, "operations.task.work is not operations.task.manage").toEqual([]);
+  });
+
+  it("a company member with NO role reads NOTHING and cannot write", async () => {
     const id = await newItem(CO_A);
     const seen = await asUser(UNAUTHORISED, async () =>
       (await db.query(`select id from management_items where id=$1`, [id])).rows,
     );
-    expect(seen).toHaveLength(1);
+    // Tightened from the original "can still read (company-scoped)": a bare membership is a
+    // precondition for access, not a grant of it.
+    expect(seen, "a roleless member holds no capability").toEqual([]);
 
     const err = await refusalFor(
       UNAUTHORISED,
@@ -345,12 +394,16 @@ describe.skipIf(!enabled)("R1 security baseline — RLS and authority matrix", (
 
   // ── revoked membership ───────────────────────────────────────────────────────────────
   it("a REVOKED (suspended) member loses read AND write access immediately", async () => {
-    const id = await newItem(CO_A);
+    // REVOKED is seeded as project_manager, so the item is created in `operations` — the
+    // department that role actually manages. The point of this test is that SUSPENDING the
+    // membership removes access; using a department the role cannot see anyway would prove
+    // nothing, because the "after" read would be empty whatever the membership said.
+    const id = await newItem(CO_A, "observed", null, "operations");
 
     const before = await asUser(REVOKED, async () =>
       (await db.query(`select id from management_items where id=$1`, [id])).rows,
     );
-    expect(before).toHaveLength(1);
+    expect(before, "an ACTIVE operations manager can see an operations item").toHaveLength(1);
 
     await db.query(`update memberships set status='suspended' where company_id=$1 and user_id=$2`, [CO_A, REVOKED]);
 

@@ -111,27 +111,62 @@ async function observe(co: string, taskId: string) {
   return rows[0];
 }
 
+/** The lifecycle path from a fresh observation to a state that admits execution. */
+const APPROVAL_PATH = [
+  "observed", "understood", "prioritised", "recommended", "awaiting_approval", "approved",
+] as const;
+
 /**
- * Advance a freshly observed item to a state that admits execution.
+ * Advance an item to a state that admits execution, RESUMING from wherever it actually is.
  *
- * R2F-F-014: nothing in the application performs these hops, so the test performs them through the
- * database boundary — where the transition map, the evidence requirement and the append-only
- * history all still apply. Batch 2 replaces this with the real orchestrator; until it does, an item
- * created by the cycle sits in `observed`, which is the finding itself.
+ * This used to start unconditionally at `observed`, with a comment saying nothing in the
+ * application performed these hops (R2F-F-014) so an item created by the cycle sat in
+ * `observed`. **R5 closed that finding**: `src/kernel/orchestrator.ts` is now the one place that
+ * decides the next transition, `runLifecycleSweep` is wired into the cycle through
+ * `makeCycleDeps`, and it advances one step per item per cycle. So by the time `observe()`
+ * returns, the item has ALREADY moved — and the hardcoded `observed → understood` hop was being
+ * refused with `conflict` (actual `understood`, expected `observed`).
+ *
+ * Reading the current state first is not a workaround for that: it is the assertion that the
+ * orchestrator did its job. If the item were still sitting in `observed`, the sweep would not be
+ * running, and `expectOrchestratorAdvanced` below says so directly.
+ *
+ * The remaining hops still go through the database boundary, where the transition map, the
+ * evidence requirement and the append-only history all apply. They are performed here rather than
+ * by the cycle because `recommended → awaiting_approval → approved` is a HUMAN decision for any
+ * item without automatic authority, and R2F-F-020 keeps cycle-created items off that path.
  */
 async function advanceToApproved(itemId: string) {
-  for (const [from, to] of [
-    ["observed", "understood"], ["understood", "prioritised"],
-    ["prioritised", "recommended"], ["recommended", "awaiting_approval"],
-    ["awaiting_approval", "approved"],
-  ] as const) {
+  const { rows: cur } = await q(`select state from management_items where id=$1`, [itemId]);
+  const current = String(cur[0]?.state ?? "");
+  const start = APPROVAL_PATH.indexOf(current as (typeof APPROVAL_PATH)[number]);
+  if (start < 0) throw new Error(`item ${itemId} is in ${current}, which is not on the approval path`);
+
+  for (let i = start; i < APPROVAL_PATH.length - 1; i++) {
+    const from = APPROVAL_PATH[i]!;
+    const to = APPROVAL_PATH[i + 1]!;
     const { rows } = await q(
       `select public.r1_draft_transition_item($1,$2,$3,null,'system',$4,'[]'::jsonb) as r`,
-      [itemId, from, to, "R2F-F-014: no runtime writer exists yet"],
+      [itemId, from, to, "test: human hops the cycle does not perform (R2F-F-020)"],
     );
     const r = rows[0].r as { ok?: boolean };
     if (r?.ok !== true) throw new Error(`transition ${from}->${to} refused: ${JSON.stringify(r)}`);
   }
+}
+
+/**
+ * The orchestrator moved this item off `observed` under its own power.
+ *
+ * Asserted separately so the resumption above can never quietly paper over a dead sweep: if the
+ * cycle stopped advancing items, this fails loudly instead of `advanceToApproved` simply doing
+ * all five hops itself.
+ */
+async function expectOrchestratorAdvanced(itemId: string) {
+  const { rows } = await q(`select state from management_items where id=$1`, [itemId]);
+  expect(
+    String(rows[0]?.state),
+    "the real cycle's lifecycle sweep should have advanced this item past `observed`",
+  ).not.toBe("observed");
 }
 
 const run = (co: string, itemId: string, parameters: Record<string, unknown>) =>
@@ -202,6 +237,8 @@ describe.skipIf(!enabled)("execution freshness, each set against its own kind", 
   it("a REAL cycle-created item reaches the automatic executor and runs once", async () => {
     const { co, taskId } = await freshCompanyWithCondition();
     const rec = await observe(co, taskId);
+    // The cycle's own lifecycle sweep must have moved it — not the test.
+    await expectOrchestratorAdvanced(String(rec.id));
     await advanceToApproved(String(rec.id));
 
     const out = await run(co, String(rec.id), rec.planned_parameters as Record<string, unknown>);

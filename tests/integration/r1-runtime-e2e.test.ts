@@ -124,7 +124,22 @@ describe.skipIf(!enabled)("R1 runtime — live end-to-end", () => {
       `select id, department, state, priority, proposed_action_id, required_authority
          from management_items where company_id=$1`, [CO_A]);
     expect(items.length).toBeGreaterThan(0);
-    expect(items.every((i) => i.state === "observed")).toBe(true);
+    // This used to require every item to still be `observed`, which was true only while nothing
+    // in the application advanced them (R2F-F-014). R5 closed that: the cycle now runs
+    // `runLifecycleSweep`, which advances ONE step per item per cycle. After a single cycle an
+    // item with evidence is therefore `understood`, and one held back — no evidence, or no usable
+    // action — legitimately stays `observed`.
+    //
+    // Asserted as a bounded set rather than a single value, because the point is that the sweep
+    // moves items WITHOUT racing them: a single cycle must never carry an item past `understood`.
+    expect(
+      items.every((i) => i.state === "observed" || i.state === "understood"),
+      `one cycle advances at most one step; saw ${JSON.stringify(items.map((i) => i.state))}`,
+    ).toBe(true);
+    expect(
+      items.some((i) => i.state === "understood"),
+      "at least one evidenced item must have been advanced by the cycle's own lifecycle sweep",
+    ).toBe(true);
 
     // EVIDENCE is linked for every item.
     for (const i of items) {
