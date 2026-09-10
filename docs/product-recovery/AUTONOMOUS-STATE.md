@@ -57,9 +57,7 @@ Isolation config fails closed.
 * The deployed revision carries **no commit hash** — `railway up` from the CLI. Its only
   durable identifier is an image digest. PR-F-014 confirmed, not inferred.
 
-## Previous checkpoint — R0 integration preparation
-
-## Current checkpoint — R0 integration preparation (2026-09-10)
+## Previous checkpoint — R0 integration preparation (2026-09-10)
 
 Owner instruction of 2026-09-10: **do not deploy, merge, rebase or renumber migrations.**
 The proposed single-file rename of branch `0069` → `0110` was **refused by the owner** and
