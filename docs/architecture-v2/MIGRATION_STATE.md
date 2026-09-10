@@ -36,11 +36,37 @@ _Last reviewed: 2026-09-02 (Product Recovery Phase R0 — see
 > `scripts/migrate.mjs` keys `schema_migrations` on the **four-character numeric prefix
 > only** (`const version = (f) => f.slice(0, 4)`), and never compares the stored filename.
 > On a database where `main`'s 0069 is applied, the branch's 0069 is therefore filtered out
-> of `pending` and **silently skipped — not reported, not failed** — after which 0070–0109
-> run against a schema missing the durable-inbound objects several of them depend on.
-> This is a silent-corruption path. It must be resolved by renumbering the branch line
-> above the deployed high-water mark (Phase R2), and the runner should be hardened to key
-> on version **and** filename/content hash first.
+> of `pending` and **silently skipped — not reported, not failed**.
+>
+> **CORRECTED 2026-09-10 (R0 integration prep).** The previous sentence continued "after
+> which 0070–0109 run against a schema missing the durable-inbound objects several of them
+> depend on. This is a silent-corruption path." **That is not what happens**, and the
+> difference changes the recovery procedure. Measured by executing the scenario on a
+> disposable PostgreSQL 16.10 (Rehearsal A,
+> `docs/product-recovery/r0-integration/01-MIGRATION-DEPENDENCY-INVENTORY.md` §3):
+>
+> ```
+> ledger seeded with main 0001–0069
+> → ✅ 0070, 0071, 0072, 0073, 0074, 0075   (six migrations COMMITTED)
+> → ❌ 0076_inbound_boundary_correction.sql
+>      column "next_attempt_at" does not exist
+> ```
+>
+> The skip is silent, but the **consequence is loud**: the run halts at 0076. Because each
+> migration commits in its own transaction, six are durable. The database is left
+> **partially migrated** at ledger high-water `0075` — carrying `main`'s 0069 line, six
+> migrations of the branch line, and neither line's inbound-processing objects. It is not
+> a silent-corruption path; it is a **partial-migration path with no down-migrations**,
+> recoverable only by restore. That is why the collision must be resolved before any
+> apply, and why a rollback rehearsal is a precondition rather than a follow-up.
+>
+> It must be resolved by renumbering the branch line **as a whole dependent sequence**
+> above the deployed high-water mark — the branch's 0069 has 6 direct and 7 transitive
+> dependants, so a single-file rename would place it after its own dependants. The runner
+> should also be hardened to key on version **and** filename/content hash. A base-aware
+> gate now detects this class: `npm run migration-collision-check`
+> (`scripts/migration-lint.mjs --base origin/main`), with behavioural tests in
+> `tests/migration-collision.test.ts`.
 >
 > **3. 41 migrations had no state record at all (PR-F-011 — now corrected below).**
 > This file previously stopped at 0068 while the branch line had reached 0109.

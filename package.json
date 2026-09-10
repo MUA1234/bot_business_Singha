@@ -14,6 +14,8 @@
     "test:integration": "vitest run -c vitest.integration.config.ts",
     "secret-scan": "node scripts/secret-scan.mjs",
     "migration-lint": "node scripts/migration-lint.mjs",
+    "migration-collision-check": "node scripts/migration-lint.mjs --base origin/main",
+    "migration-inventory": "node scripts/migration-inventory.mjs",
     "audit-check": "node scripts/audit-check.mjs",
     "migrate": "node scripts/migrate.mjs",
     "migrate:status": "node scripts/migrate.mjs --status",
@@ -24,7 +26,8 @@
     "autonomy:audit": "node scripts/autonomy/audit-requirements.mjs",
     "autonomy:ip-check": "node scripts/autonomy/check-ip-boundary.mjs",
     "autonomy:checkpoint": "npm run autonomy:audit && npm run autonomy:ip-check",
-    "browser-check": "node scripts/verify/browser-check.mjs"
+    "browser-check": "node scripts/verify/browser-check.mjs",
+    "verify:merge-candidate": "npm run verify && npm run migration-collision-check"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

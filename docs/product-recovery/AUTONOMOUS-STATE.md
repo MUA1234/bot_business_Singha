@@ -10,10 +10,55 @@ Updated after every checkpoint and before any unavoidable response.
 |---|---|
 | Repository | `MUA1234/bot_business_Singha` |
 | Branch | `claude/product-recovery-r1` |
-| Phase | **R5** — evidence contracts, the lifecycle orchestrator, assignment, learning identities |
+| Phase | **R0 integration preparation** (returned to R0 by owner instruction, 2026-09-10) |
 | Staging / production | **zero**. Nothing deployed, nothing merged, no hosted contact |
 
-## What this checkpoint did
+## Current checkpoint — R0 integration preparation (2026-09-10)
+
+Owner instruction of 2026-09-10: **do not deploy, merge, rebase or renumber migrations.**
+The proposed single-file rename of branch `0069` → `0110` was **refused by the owner** and
+is now refused mechanically by tooling. Deliverables in
+[`r0-integration/`](r0-integration/00-README.md).
+
+**Three findings that change the plan:**
+
+1. **The divergence is one migration, not forty.** 0001–0068 are **byte-identical**
+   between `main` and this branch (SHA-256, 68 versions). The whole migration divergence is
+   one collision at `0069` plus a clean 40-migration append.
+2. **The collision's consequence was described wrongly everywhere and is now measured.**
+   Applying the branch over a ledger seeded with `main` 0001–0069 does **not** silently run
+   0070–0109. It commits **0070–0075**, then **halts** at 0076
+   (`column "next_attempt_at" does not exist`), leaving a **partially migrated** database at
+   high-water `0075`. The numbered sequence has **no down-migrations**, so recovery means
+   restore-from-backup — a proven rollback is a *precondition* of any apply.
+3. **The branch's central capability is inert without `main`'s scheduler.**
+   `src/lib/scheduler.ts` is `main`-only. The branch's `inbound-sweeper` and
+   `dispatch-drain` are declared **only** as Vercel crons and are absent from `DEFAULT_JOBS`.
+   On Railway with Vercel disabled, nothing would drive them.
+
+**Branch 0069 has 6 direct / 7 transitive dependants** (`0076`, `0077`, `0079`, `0083`,
+`0087`, `0088`, `0089`) — the reason a single-file rename is unsafe.
+
+**Rehearsals** (disposable PostgreSQL 16.10; no hosted contact):
+
+| Rehearsal | Result |
+|---|---|
+| A — branch over a `main`-seeded ledger | ❌ halts at 0076; partial migration at 0075 |
+| B — branch alone on a fresh database | ✅ 109 applied |
+| C — candidate +1 shift over a `main`-seeded ledger | ✅ 41 applied, high-water 0110; both lineages coexist |
+
+Rehearsal C staged the shift in a **temporary directory**. No real migration was renumbered.
+The mapping is **not final** until the hosted read-only results are supplied.
+
+**Hosted migration state remains UNKNOWN.** The blocking external evidence is
+`r0-integration/03-HOSTED-STATE-CHECKLIST.md` Q2 + Q4, and
+`r0-integration/04-RAILWAY-EVIDENCE-CHECKLIST.md` R1 + R3.
+
+**Tooling added:** `npm run migration-inventory`, `npm run migration-collision-check`,
+`npm run verify:merge-candidate`. The collision gate **fails as designed** on the real
+repository; it is deliberately not yet in `npm run verify`.
+
+## What the previous checkpoint (R5) did
 
 **The management loop now runs end to end**, from a detector observing a real condition to a
 verification recording a truthful outcome — with every human boundary held by a person and every
@@ -155,5 +200,23 @@ approval path covers the gap.
 
 ## Hard blockers
 
-**One product decision** (R2F-F-020), **one piece of registered engineering** (R2F-F-019) and **one
-environment blocker** (host contention). Staging and production remain **zero**.
+**As of 2026-09-10 the binding blocker is external evidence, not engineering.**
+
+| Blocker | Needs |
+|---|---|
+| Hosted migration state **UNKNOWN** | `r0-integration/03-HOSTED-STATE-CHECKLIST.md` Q1–Q9, run by the owner/developer |
+| Deployment provenance **UNAVAILABLE** (PR-F-014 / R0-F-007) | `r0-integration/04-RAILWAY-EVIDENCE-CHECKLIST.md` R1 |
+| Which scheduler is actually running | Railway checklist R3, R4 |
+| Where the Meta webhook points (P0, R0-F-001) | Railway checklist R5 |
+| Migration numbering | blocked on all of the above; no plan is final |
+
+Carried over from R5, unchanged: **one product decision** (R2F-F-020) and **one piece of
+registered engineering** (R2F-F-019); host contention remains an environment blocker for
+the mutation campaign. Staging and production remain **zero**.
+
+## Exact next action
+
+**Nothing further can be settled inside the repository.** The next action belongs to the
+owner: run the two read-only checklists and return the results. Then identify the
+decision-tree case (`r0-integration/02-MIGRATION-DECISION-TREE.md`) — **Case A must not be
+assumed** — and only then draw the numbered plan for owner approval.
