@@ -3,7 +3,7 @@
 > Regenerate with `node scripts/completion-inventory.mjs`. Deterministic: changes only when code changes.
 > Suspect lists are HEURISTIC work lists (each entry needs triage), not verdicts.
 
-## 1. supabaseAdmin() usage — 26 file(s)
+## 1. supabaseAdmin() usage — 27 file(s)
 
 | file | refs |
 |---|---|
@@ -13,6 +13,7 @@
 | src/app/api/cron/dispatch-drain/route.ts | 2 |
 | src/app/api/cron/follow-ups/route.ts | 2 |
 | src/app/api/cron/inbound-sweeper/route.ts | 2 |
+| src/app/api/cron/management-cycle/route.ts | 2 |
 | src/app/api/cron/outbox/route.ts | 2 |
 | src/app/api/health/route.ts | 2 |
 | src/app/api/management/cycle/route.ts | 2 |
@@ -32,7 +33,7 @@
 | src/lib/documents.ts | 2 |
 | src/lib/inbound/production-deps.ts | 4 |
 | src/lib/outbox-enqueue.ts | 2 |
-| src/lib/quotations.ts | 7 |
+| src/lib/quotations.ts | 8 |
 
 Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 
@@ -53,10 +54,10 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/app/sales/opportunities/page.tsx:49 | `const summary = summarizePipeline(deals.map((r): Opportunity => ({ amount: String(r.amount ?? "0"), ` |
 | src/components/os/ConditionInstrument.tsx:123 | `const gapBetween = total > 0 ? Math.min(4, usable / Math.max(segments.length, 1) / 6) : 0;` |
 | src/kernel/ask-ai/retrieval.ts:162 | `const limit = Math.max(1, Math.min(EVIDENCE_LIMIT, req.limit ?? EVIDENCE_LIMIT));` |
-| src/kernel/cycle.ts:1081 | `const budget = new RowBudget(Math.max(PAGE_SIZE, CYCLE_ROW_BUDGET - reserve));` |
+| src/kernel/cycle.ts:1135 | `const budget = new RowBudget(Math.max(PAGE_SIZE, CYCLE_ROW_BUDGET - reserve));` |
 | src/kernel/pagination.ts:423 | `return Math.max(0, Math.min(pageSize, this.total - this.used));` |
-| src/kernel/people/learning.ts:245 | `const weakerShare = Math.min(positive, negative) / totalWeight;` |
-| src/kernel/people/learning.ts:257 | `weightedSuccessRate: Number((positive / totalWeight).toFixed(6)),` |
+| src/kernel/people/learning.ts:301 | `const weakerShare = Math.min(positive, negative) / totalWeight;` |
+| src/kernel/people/learning.ts:313 | `weightedSuccessRate: Number((positive / totalWeight).toFixed(6)),` |
 | src/lib/money.ts:236 | `* `Number(v).toLocaleString()` — the latter both floats the amount and hides its currency scale.` |
 | src/modules/finance/reconcile.ts:66 | `reason: `${best.c.kind} of equal amount, ${Math.round(best.days)}d apart`,` |
 | src/modules/management/health-score.ts:62 | `return clamp(60 + 40 * Math.min(1, amount.div(1_000_000).toNumber()));` |
@@ -80,8 +81,8 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 
 | env | consumers |
 |---|---|
-| RLS_READS | src/lib/auth.ts<br>src/lib/supabase/read.ts |
-| RLS_WRITES | src/app/app/finance/customer-invoices/actions.ts<br>src/app/app/finance/supplier-bills/actions.ts<br>src/lib/auth.ts<br>src/lib/supabase/read.ts |
+| RLS_READS | src/instrumentation.ts<br>src/lib/auth.ts<br>src/lib/supabase/read.ts |
+| RLS_WRITES | src/app/app/finance/customer-invoices/actions.ts<br>src/app/app/finance/supplier-bills/actions.ts<br>src/instrumentation.ts<br>src/lib/auth.ts<br>src/lib/supabase/read.ts |
 | WHATSAPP_ASYNC | src/app/api/webhooks/whatsapp/route.ts<br>src/inngest/functions.ts<br>src/lib/inbound/production-deps.ts |
 
 ## 5. TODO/FIXME markers — 3
@@ -96,13 +97,13 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 
 - src/app/api/webhooks/email/route.ts
 
-## 7. Error-masking suspects (catch → empty return) — 102 (Phase-1C triage list)
+## 7. Error-masking suspects (catch → empty return) — 103 (Phase-1C triage list)
 
 | file:line | returns |
 |---|---|
-| src/ai/gateway.ts:189 | `null` |
+| src/ai/gateway.ts:196 | `null` |
 | src/ai/manager-observation.ts:129 | `null` |
-| src/ai/quotation.ts:209 | `null` |
+| src/ai/quotation.ts:293 | `null` |
 | src/app/api/cron/daily-digest/route.ts:22 | `0` |
 | src/app/api/exports/[kind]/route.ts:28 | `error-discarding destructure` |
 | src/app/api/exports/[kind]/route.ts:40 | `error-discarding destructure` |
@@ -183,8 +184,8 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/components/spatial/panels/TasksPanel.tsx:65 | `error-discarding destructure` |
 | src/components/spatial/panels/VehiclesPanel.tsx:15 | `error-discarding destructure` |
 | src/db/consumer-store.ts:124 | `error-discarding destructure` |
-| src/kernel/cycle-deps.ts:551 | `error-discarding destructure` |
-| src/kernel/cycle.ts:401 | `0` |
+| src/kernel/cycle-deps.ts:852 | `error-discarding destructure` |
+| src/kernel/cycle.ts:439 | `0` |
 | src/kernel/people/delegation-scope.ts:64 | `null` |
 | src/lib/access.ts:54 | `error-discarding destructure` |
 | src/lib/access.ts:108 | `error-discarding destructure` |
@@ -198,6 +199,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/lib/os-shell-data.ts:33 | `null` |
 | src/lib/os-shell-data.ts:48 | `error-discarding destructure` |
 | src/lib/os-shell-data.ts:54 | `null` |
+| src/lib/quotations.ts:280 | `error-discarding destructure` |
 | src/lib/task-access.ts:27 | `error-discarding destructure` |
 | src/lib/task-access.ts:38 | `error-discarding destructure` |
 | src/lib/task-access.ts:48 | `error-discarding destructure` |

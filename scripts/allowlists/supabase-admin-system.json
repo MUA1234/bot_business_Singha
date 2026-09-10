@@ -5,6 +5,7 @@
   "src/app/api/cron/dispatch-drain/route.ts",
   "src/app/api/cron/follow-ups/route.ts",
   "src/app/api/cron/inbound-sweeper/route.ts",
+  "src/app/api/cron/management-cycle/route.ts",
   "src/app/api/cron/outbox/route.ts",
   "src/app/api/health/route.ts",
   "src/app/api/management/cycle/route.ts",
