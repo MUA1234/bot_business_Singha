@@ -1,0 +1,371 @@
+{
+  "ledgerStatus": 200,
+  "ledger": [
+    {
+      "version": "0001",
+      "filename": "0001_org_and_access.sql",
+      "applied_at": "2026-08-06T17:16:35.083333+00:00"
+    },
+    {
+      "version": "0002",
+      "filename": "0002_accounting_core.sql",
+      "applied_at": "2026-08-06T17:16:35.223966+00:00"
+    },
+    {
+      "version": "0003",
+      "filename": "0003_subledgers.sql",
+      "applied_at": "2026-08-06T17:16:35.367595+00:00"
+    },
+    {
+      "version": "0004",
+      "filename": "0004_intelligence_and_evidence.sql",
+      "applied_at": "2026-08-06T17:16:35.504033+00:00"
+    },
+    {
+      "version": "0005",
+      "filename": "0005_banking_and_planning.sql",
+      "applied_at": "2026-08-06T17:16:35.645013+00:00"
+    },
+    {
+      "version": "0006",
+      "filename": "0006_approval_policies.sql",
+      "applied_at": "2026-08-06T17:16:35.78258+00:00"
+    },
+    {
+      "version": "0007",
+      "filename": "0007_app_profiles_and_orders.sql",
+      "applied_at": "2026-08-06T17:16:35.918375+00:00"
+    },
+    {
+      "version": "0008",
+      "filename": "0008_phase0_rls_hardening.sql",
+      "applied_at": "2026-08-06T17:16:36.058727+00:00"
+    },
+    {
+      "version": "0009",
+      "filename": "0009_composite_company_fks.sql",
+      "applied_at": "2026-08-06T17:16:36.195691+00:00"
+    },
+    {
+      "version": "0010",
+      "filename": "0010_identity_foundation.sql",
+      "applied_at": "2026-08-06T17:16:36.341748+00:00"
+    },
+    {
+      "version": "0011",
+      "filename": "0011_message_outbox.sql",
+      "applied_at": "2026-08-06T17:16:36.478438+00:00"
+    },
+    {
+      "version": "0012",
+      "filename": "0012_work_tasks.sql",
+      "applied_at": "2026-08-06T17:16:36.628124+00:00"
+    },
+    {
+      "version": "0013",
+      "filename": "0013_capacity_snapshots.sql",
+      "applied_at": "2026-08-06T17:16:36.777819+00:00"
+    },
+    {
+      "version": "0014",
+      "filename": "0014_departments_expansion.sql",
+      "applied_at": "2026-08-06T17:16:36.913993+00:00"
+    },
+    {
+      "version": "0015",
+      "filename": "0015_post_journal_rpc.sql",
+      "applied_at": "2026-08-06T17:16:37.055307+00:00"
+    },
+    {
+      "version": "0016",
+      "filename": "0016_settlement_and_reversal.sql",
+      "applied_at": "2026-08-06T17:16:37.193652+00:00"
+    },
+    {
+      "version": "0017",
+      "filename": "0017_hr_workforce.sql",
+      "applied_at": "2026-08-06T17:16:37.342757+00:00"
+    },
+    {
+      "version": "0018",
+      "filename": "0018_marketing_objectives.sql",
+      "applied_at": "2026-08-06T17:16:37.484012+00:00"
+    },
+    {
+      "version": "0019",
+      "filename": "0019_task_assignment.sql",
+      "applied_at": "2026-08-06T17:16:37.628633+00:00"
+    },
+    {
+      "version": "0020",
+      "filename": "0020_rfq.sql",
+      "applied_at": "2026-08-06T17:16:37.773529+00:00"
+    },
+    {
+      "version": "0021",
+      "filename": "0021_inventory.sql",
+      "applied_at": "2026-08-06T17:16:37.919896+00:00"
+    },
+    {
+      "version": "0022",
+      "filename": "0022_notifications.sql",
+      "applied_at": "2026-08-06T17:16:38.071865+00:00"
+    },
+    {
+      "version": "0023",
+      "filename": "0023_identity_capabilities_rls.sql",
+      "applied_at": "2026-08-06T17:16:38.20488+00:00"
+    },
+    {
+      "version": "0024",
+      "filename": "0024_composite_company_fks.sql",
+      "applied_at": "2026-08-06T17:16:38.350309+00:00"
+    },
+    {
+      "version": "0025",
+      "filename": "0025_task_progress_capacity.sql",
+      "applied_at": "2026-08-06T17:16:38.497833+00:00"
+    },
+    {
+      "version": "0026",
+      "filename": "0026_idempotency_keys.sql",
+      "applied_at": "2026-08-06T17:16:38.634325+00:00"
+    },
+    {
+      "version": "0027",
+      "filename": "0027_ai_run_trail.sql",
+      "applied_at": "2026-08-06T17:16:38.783422+00:00"
+    },
+    {
+      "version": "0028",
+      "filename": "0028_management_cases.sql",
+      "applied_at": "2026-08-06T17:16:38.922552+00:00"
+    },
+    {
+      "version": "0029",
+      "filename": "0029_bank_change_status.sql",
+      "applied_at": "2026-08-06T17:16:39.053617+00:00"
+    },
+    {
+      "version": "0030",
+      "filename": "0030_fix_reversal_link_immutability.sql",
+      "applied_at": "2026-08-06T17:16:39.203989+00:00"
+    },
+    {
+      "version": "0031",
+      "filename": "0031_outbox_next_retry.sql",
+      "applied_at": "2026-08-06T17:16:39.349877+00:00"
+    },
+    {
+      "version": "0032",
+      "filename": "0032_outbox_template.sql",
+      "applied_at": "2026-08-06T17:16:39.500371+00:00"
+    },
+    {
+      "version": "0033",
+      "filename": "0033_conversation_ai_analyzed.sql",
+      "applied_at": "2026-08-06T17:16:39.649593+00:00"
+    },
+    {
+      "version": "0034",
+      "filename": "0034_domain_write_rls.sql",
+      "applied_at": "2026-08-06T17:16:39.789917+00:00"
+    },
+    {
+      "version": "0035",
+      "filename": "0035_posting_hardening.sql",
+      "applied_at": "2026-08-06T17:17:52.088084+00:00"
+    },
+    {
+      "version": "0036",
+      "filename": "0036_approval_write_rls.sql",
+      "applied_at": "2026-08-06T18:08:55.613049+00:00"
+    },
+    {
+      "version": "0037",
+      "filename": "0037_settlement_row_locks.sql",
+      "applied_at": "2026-08-06T18:47:31.524146+00:00"
+    },
+    {
+      "version": "0038",
+      "filename": "0038_capability_authority.sql",
+      "applied_at": "2026-08-07T07:47:52.538954+00:00"
+    },
+    {
+      "version": "0039",
+      "filename": "0039_accounting_rpc_hardening.sql",
+      "applied_at": "2026-08-07T07:47:52.538954+00:00"
+    },
+    {
+      "version": "0040",
+      "filename": "0040_durable_messaging.sql",
+      "applied_at": "2026-08-07T07:47:52.538954+00:00"
+    },
+    {
+      "version": "0041",
+      "filename": "0041_ledger_integrity_report.sql",
+      "applied_at": "2026-08-07T07:47:52.538954+00:00"
+    },
+    {
+      "version": "0042",
+      "filename": "0042_authority_tightening.sql",
+      "applied_at": "2026-08-08T05:08:46.17617+00:00"
+    },
+    {
+      "version": "0043",
+      "filename": "0043_transactional_finance.sql",
+      "applied_at": "2026-08-08T05:08:46.17617+00:00"
+    },
+    {
+      "version": "0044",
+      "filename": "0044_canonical_idempotency_and_lifecycle.sql",
+      "applied_at": "2026-08-08T05:08:46.17617+00:00"
+    },
+    {
+      "version": "0045",
+      "filename": "0045_bank_change_maker_checker.sql",
+      "applied_at": "2026-08-08T05:08:46.17617+00:00"
+    },
+    {
+      "version": "0046",
+      "filename": "0046_authority_and_approvals.sql",
+      "applied_at": "2026-08-08T05:08:46.17617+00:00"
+    },
+    {
+      "version": "0047",
+      "filename": "0047_rls_write_matrix.sql",
+      "applied_at": "2026-08-08T05:08:46.17617+00:00"
+    },
+    {
+      "version": "0048",
+      "filename": "0048_wp10_sensitive_write_rls.sql",
+      "applied_at": "2026-09-01T06:08:47.566288+00:00"
+    },
+    {
+      "version": "0049",
+      "filename": "0049_wp17_system_actor.sql",
+      "applied_at": "2026-09-01T06:08:48.376731+00:00"
+    },
+    {
+      "version": "0050",
+      "filename": "0050_wp13_posted_journal_immutability.sql",
+      "applied_at": "2026-09-01T06:08:48.989015+00:00"
+    },
+    {
+      "version": "0051",
+      "filename": "0051_wp14_canonical_json_fingerprint.sql",
+      "applied_at": "2026-09-01T06:08:49.702638+00:00"
+    },
+    {
+      "version": "0052",
+      "filename": "0052_wp15_invoice_bill_invariants.sql",
+      "applied_at": "2026-09-01T06:08:50.496472+00:00"
+    },
+    {
+      "version": "0053",
+      "filename": "0053_wp16_reimbursement_reuse_validation.sql",
+      "applied_at": "2026-09-01T06:08:51.146772+00:00"
+    },
+    {
+      "version": "0054",
+      "filename": "0054_wp11_approval_scope_currency_delegation.sql",
+      "applied_at": "2026-09-01T06:08:51.802801+00:00"
+    },
+    {
+      "version": "0055",
+      "filename": "0055_wp12_truthful_delivery_state.sql",
+      "applied_at": "2026-09-01T06:08:52.457813+00:00"
+    },
+    {
+      "version": "0056",
+      "filename": "0056_wp15_source_binding_fingerprint.sql",
+      "applied_at": "2026-09-01T06:08:53.106839+00:00"
+    },
+    {
+      "version": "0057",
+      "filename": "0057_wp11_approval_failclose_domain_caps.sql",
+      "applied_at": "2026-09-01T06:08:53.709122+00:00"
+    },
+    {
+      "version": "0058",
+      "filename": "0058_wp12_message_history_on_completion.sql",
+      "applied_at": "2026-09-01T06:08:54.361137+00:00"
+    },
+    {
+      "version": "0059",
+      "filename": "0059_wp15_fp_matches_privilege.sql",
+      "applied_at": "2026-09-01T06:08:54.943492+00:00"
+    },
+    {
+      "version": "0060",
+      "filename": "0060_wp11_composite_fk_money_failclose.sql",
+      "applied_at": "2026-09-01T06:08:55.56672+00:00"
+    },
+    {
+      "version": "0061",
+      "filename": "0061_final_review_currency_enqueue_reconcile.sql",
+      "applied_at": "2026-09-01T06:08:56.176812+00:00"
+    },
+    {
+      "version": "0062",
+      "filename": "0062_secure_definer_function_grants.sql",
+      "applied_at": "2026-09-01T06:08:56.813443+00:00"
+    },
+    {
+      "version": "0063",
+      "filename": "0063_wp12_atomic_quotation_enqueue.sql",
+      "applied_at": "2026-09-01T06:08:57.468777+00:00"
+    },
+    {
+      "version": "0064",
+      "filename": "0064_wp12_delivery_transition_boundary.sql",
+      "applied_at": "2026-09-01T06:08:58.086545+00:00"
+    },
+    {
+      "version": "0065",
+      "filename": "0065_wp12_claim_and_insert_boundary.sql",
+      "applied_at": "2026-09-01T06:08:58.71923+00:00"
+    },
+    {
+      "version": "0066",
+      "filename": "0066_wp12_snapshot_and_delete_boundary.sql",
+      "applied_at": "2026-09-01T06:08:59.353697+00:00"
+    },
+    {
+      "version": "0067",
+      "filename": "0067_systemic_search_path_and_enqueue_item_boundary.sql",
+      "applied_at": "2026-09-01T06:09:00.007335+00:00"
+    },
+    {
+      "version": "0068",
+      "filename": "0068_ai_atomic_case_persistence.sql",
+      "applied_at": "2026-09-01T06:09:00.6376+00:00"
+    },
+    {
+      "version": "0069",
+      "filename": "0069_company_routing_and_catalogue_department.sql",
+      "applied_at": "2026-09-01T12:10:52.335474+00:00"
+    }
+  ],
+  "gaps": [],
+  "row0069": {
+    "version": "0069",
+    "filename": "0069_company_routing_and_catalogue_department.sql",
+    "applied_at": "2026-09-01T12:10:52.335474+00:00"
+  },
+  "markers": {
+    "main-0069: companies.whatsapp_phone_number_id": true,
+    "main-0069: companies.default_price_confirmation_department": true,
+    "branch-0069: source_events.next_attempt_at": false,
+    "branch-0069: source_events.lease_owner": false,
+    "branch-0069: source_events.dead_lettered_at": false
+  },
+  "q5": {
+    "table channel_accounts": false,
+    "table channel_identities": false
+  },
+  "branchRangePresent": [],
+  "draft_r1_draft_migrations": false,
+  "draft_management_kernel_enablement": false,
+  "draft_management_items": false
+}

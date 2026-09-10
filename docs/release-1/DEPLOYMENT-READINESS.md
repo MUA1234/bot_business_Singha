@@ -1,15 +1,16 @@
 # Release 1 — deployment readiness
 
-> **Verdict: READY FOR STAGING is NOT claimed.** Two of the definition-of-done conditions
-> cannot be met from here, and one is an environment that does not exist. Details in
-> §Verdict. Nothing has been deployed, merged, or applied to any hosted database.
+> **Verdict: READY FOR STAGING is NOT claimed** — see §Verdict for what remains.
+> **Nothing has been deployed, merged, or applied to any hosted database.** The one hosted
+> operation performed was a SELECT-only probe, which the owner authorised explicitly and which
+> proved **CASE A**: [HOSTED-MIGRATION-EVIDENCE.md](HOSTED-MIGRATION-EVIDENCE.md).
 
 | | |
 |---|---|
 | Candidate branch | `claude/product-recovery-deploy-candidate` |
 | Base | `origin/main` @ `acd9fbec35d3075c8faba1c6bbb9b4aaca1ab164` |
 | Recovery line integrated | `claude/product-recovery-r1` @ `b3e43b3e4b468482bcbe2be50e8bb881c0436f55` — **preserved unchanged, never rebased** |
-| Hosted contact | Railway metadata only, read-only. **No hosted database was read or written.** |
+| Hosted contact | Railway metadata, and one **SELECT-only** database probe (owner-authorised). No hosted write, DDL, RPC or business-data read. |
 
 ---
 
@@ -20,7 +21,7 @@
 | # | Blocker | Who clears it |
 |---|---|---|
 | **B-1** | **No staging environment exists.** `singha-central` has one environment: `production`. The brief forbids silently creating a paid or production-connected one | **Owner** — see [STAGING-REQUIREMENTS.md](STAGING-REQUIREMENTS.md) |
-| **B-2** | **Hosted migration state is still UNKNOWN.** The read-only probe was written and is ready, but `railway run` was refused by this session's permission sandbox | **Owner or a permission grant** — see [09-HOSTED-EVIDENCE-OBTAINED.md](../product-recovery/r0-integration/09-HOSTED-EVIDENCE-OBTAINED.md) §D |
+| ~~B-2~~ | ~~Hosted migration state is UNKNOWN~~ — **CLEARED 2026-09-10.** The SELECT-only probe ran. **CASE A proven**: ledger high-water `0069` is main's migration, recovery markers absent, ledger and physical objects agree. The candidate's +1 reconciliation is correct as it stands; pending for production is exactly `0070`–`0110` (41 migrations, none colliding) | — [HOSTED-MIGRATION-EVIDENCE.md](HOSTED-MIGRATION-EVIDENCE.md) |
 | **B-3** | **`r1-draft-schema` is broken two ways** (below). Excluded from both campaigns so it cannot decide other suites' results, but not fixed | Engineering — bounded, not started |
 
 Everything the brief listed that *can* be done from here has been done and measured. The
@@ -60,14 +61,22 @@ on OS-assigned ports. No pre-existing container was touched.
 | Fresh database, candidate 0001–0110 | ✅ 110 applied, then 28 draft units |
 | `main`-seeded ledger + the +1 shift | ✅ 41 applied, high-water 0110, both lineages coexist |
 | Recovery line **unshifted** over a `main`-seeded ledger | ❌ halts at old-0076, partial migration at 0075 — the defect the shift removes |
+| **Production-ledger-shaped** — the real 69-row ledger, filenames and all | ✅ **41 applied, 0070→0110, final high-water 0110** |
 
 The third is the evidence that the reconciliation was necessary, kept because it is the thing
 that would have happened.
 
-**Not rehearsed:** the production-ledger-seeded run against the *real* ledger (blocked by B-2 —
-seeding from a document rather than the live ledger would rehearse a hypothesis), and the
-restore-and-retry drill (needs a hosted environment; the procedure is in
-[RUNBOOK.md](RUNBOOK.md) §A).
+The fourth is the strongest evidence available short of touching production, and it only became
+possible once the probe proved Case A. `scripts/hosted/rehearse-from-ledger.mjs` stages a
+disposable database to the hosted high-water, rewrites its ledger to the **exact rows and
+filenames** read from production, and then applies whatever the runner considers pending. The
+runner reported `applied: 69  pending: 41` and applied all 41. Post-state verified: the 0070
+lease columns and `claim_source_events` exist, `channel_accounts` and `resolve_channel_company`
+exist, `companies.whatsapp_phone_number_id` is **retained**, and **no R1 draft object leaked in**.
+
+A skipped migration is silent by design — `migrate.mjs` keys on the four-digit prefix — so
+reproducing the real ledger and looking at the objects afterwards is the only way to see one.
+None was skipped.
 
 ---
 
@@ -195,7 +204,7 @@ production value **today** is `off`, set explicitly, until staging proves `on`.
 | Deterministic test failures | ✅ fixed — kernel 13 → see §Kernel campaign |
 | CI can be green | ✅ both campaigns isolated and order-independent |
 | **A hosted environment** | ❌ **none** — no staging, and production untouched |
-| **The real hosted schema state** | ❌ **UNKNOWN** — probe blocked (B-2) |
+| **The real hosted schema state** | ✅ **MEASURED** — CASE A, high-water `0069`, ledger and objects agree |
 
 A disposable container is not a deployment. It proves the code and the schema agree; it proves
 nothing about a hosted environment, its configuration, or its data. Nothing in this release is

@@ -18,21 +18,28 @@ _Last reviewed: 2026-09-10 (Release 1 integration candidate). Previous: 2026-09-
 > single-file rename was refused because the recovery 0069 has **6 direct and 7 transitive
 > dependants**. The complete old→new mapping is `docs/release-1/MIGRATION-LINEAGE.md`.
 >
-> **2. The hosted high-water mark is 0068 per this record, and 0069 has NEVER been applied.**
-> The rows below record 0001–0068 applied to production on 2026-09-01, owner-authorised and
-> ledger-verified. **There is no row for 0069.** Yet the deployed `main` code resolves the
-> inbound company from `companies.whatsapp_phone_number_id` — a column only 0069 creates.
-> **If 0069 really is unapplied, inbound company resolution is broken in production right now.**
-> Settle this with the live probe before applying anything:
-> `docs/product-recovery/r0-integration/09-HOSTED-EVIDENCE-OBTAINED.md` §D.
+> **2. MEASURED 2026-09-10: the hosted high-water is `0069`, and 0069 IS applied.**
+> This record stops at 0068 and says so; the live ledger holds **69 rows**, contiguous, with
+> `0069_company_routing_and_catalogue_department.sql` stamped `2026-09-01T12:10:52Z`. The record
+> was one short, not wrong about the rest.
+>
+> The warning this banner previously carried — *"if 0069 really is unapplied, inbound company
+> resolution is broken in production right now"* — is **WITHDRAWN**. It was the right thing to
+> worry about given the record then available, and the only way to settle it was to read the
+> database. `companies.whatsapp_phone_number_id` exists; production code and schema agree.
+>
+> Classification: **CASE A** — main marker present, recovery marker absent, ledger and objects
+> agree. Evidence: `docs/release-1/HOSTED-MIGRATION-EVIDENCE.md`.
 >
 > **3. Nothing in this candidate has been applied to any hosted database.** Every rehearsal ran
 > on disposable local PostgreSQL 16. The migration runner now REFUSES to apply against a
 > database whose recorded lineage contradicts the repository (the lineage guard in
 > `scripts/migrate.mjs`), so a contradictory state fails closed instead of migrating.
 >
-> **4. Pending migrations for production are 0069 (main) then 0070–0110 (renumbered recovery)** —
-> 42 in total. Applying them is an owner-approved production boundary that has NOT been crossed.
+> **4. Pending migrations for production are `0070`–`0110` — 41 in total**, the renumbered
+> recovery line. 0069 is already applied (item 2), so the earlier estimate of 42 was one too
+> many. No pending version collides with a recorded one, so nothing would be silently skipped.
+> Applying them is an owner-approved production boundary that has NOT been crossed.
 
 
 > **2026-09-01 production application (owner-authorised).** The owner supplied hosted credentials and
