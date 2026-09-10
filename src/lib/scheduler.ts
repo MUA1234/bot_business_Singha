@@ -46,6 +46,51 @@ export const DEFAULT_JOBS: readonly ScheduledJob[] = [
   { job: "follow-ups", everyMs: 15 * MINUTE },
   { job: "ai-monitor", everyMs: 1 * HOUR },
   { job: "daily-digest", everyMs: 24 * HOUR },
+
+  // ── Release 1: Railway is the SOLE scheduler host (owner decisions 1 and 2) ──────────
+  //
+  // These three routes existed with nothing driving them here. Two were declared only as
+  // Vercel crons, and the Vercel origin has been serving 402 since at least 2026-09-01 — so
+  // on Railway, with Vercel disabled, NOTHING swept inbound messages or drained dispatch.
+  // The durable inbound processing that migration 0070 exists to provide was inert.
+  //
+  // `dispatch-drain` — decides what an inbound message IS. Until it runs, a failed dispatch
+  //   is recovered only if the provider redelivers, and Meta stops retrying after a bounded
+  //   period. Cheapest of the three and the closest to the customer: every 5 minutes, the
+  //   cadence its Vercel declaration already used.
+  { job: "dispatch-drain", everyMs: 5 * MINUTE },
+  // `inbound-sweeper` — drives the CONSUMER lifecycle: bounded retry, backoff, dead-letter.
+  //   Its own backoff decides when a row is eligible, so a tighter sweep would not retry
+  //   anything sooner. Every 10 minutes, as declared for Vercel.
+  { job: "inbound-sweeper", everyMs: 10 * MINUTE },
+  // `directive-escalation` — a governance sweep over directives past their response window.
+  //   NOTHING scheduled it on either host. Bounded DB work, no model calls, and the windows
+  //   it enforces are measured in hours, so hourly is responsive without being noisy.
+  { job: "directive-escalation", everyMs: 1 * HOUR },
+  // `management-cycle` — the loop's own heartbeat. Without it an item sits in `observed`
+  //   until a person presses a button on `/api/management/cycle`. Every 15 minutes: the
+  //   cycle is row-budgeted per company and the signals it observes (overdue receivables,
+  //   stalled tasks) change on the scale of hours, not seconds. It is a no-op that reports
+  //   `disabled` unless the kernel is switched on, so this costs nothing until it is.
+  { job: "management-cycle", everyMs: 15 * MINUTE },
+];
+
+/**
+ * Cron routes that must NOT be scheduled here, and why.
+ *
+ * `scheduler-coverage.test.ts` requires every `src/app/api/cron/*` route to be either in
+ * `DEFAULT_JOBS` or on this list, so a new route cannot be added and silently left with
+ * nothing driving it — which is exactly how `directive-escalation` came to exist unscheduled.
+ */
+export const UNSCHEDULED_CRON_ROUTES: readonly { readonly job: string; readonly reason: string }[] = [
+  {
+    job: "heartbeat",
+    reason:
+      "A FAN-OUT SHIM for Vercel's Hobby cron limits: it calls outbox, follow-ups, ai-monitor " +
+      "and daily-digest over internal HTTP. All four are scheduled individually above, so " +
+      "scheduling heartbeat as well would run each of them TWICE per tick. It stays reachable " +
+      "for a Vercel preview and for manual use, and is deliberately never scheduled here.",
+  },
 ];
 
 /** True only when an in-process scheduler is wanted (a persistent server). */

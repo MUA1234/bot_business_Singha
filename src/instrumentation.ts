@@ -14,6 +14,20 @@ export async function register(): Promise<void> {
 
   // Only in the Node.js server runtime — never during build, and never on the edge runtime.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+
+  // Isolation being OFF is a permitted, explicit choice while the cutover to `on` waits on the
+  // staging proof (owner decision 5) — but it must never be a quiet one. Said at boot, at error
+  // level, so it appears in the deployment log an operator actually reads.
+  const { isolationDisabledDeliberately } = await import("@/config/env");
+  if ((process.env.APP_ENV ?? "development") === "production" && isolationDisabledDeliberately()) {
+    const { log } = await import("@/lib/log");
+    log("error", "starting with DATABASE ISOLATION DISABLED — company separation rests on application code", {
+      event: "config.isolation_disabled",
+      rlsReads: process.env.RLS_READS ?? null,
+      rlsWrites: process.env.RLS_WRITES ?? null,
+    });
+  }
+
   const { startScheduler } = await import("@/lib/scheduler");
   startScheduler();
 }

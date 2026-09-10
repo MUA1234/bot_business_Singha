@@ -171,9 +171,25 @@ describe("R1 §3 — the scheduled dispatch drain is REACHABLE, not just written
     expect(route).toContain("makeInboundDeps");
   });
 
-  it("it is scheduled, and the schedule is configuration rather than code", () => {
-    const vercel = JSON.parse(readFileSync("vercel.json", "utf8")) as { crons: { path: string }[] };
-    expect(vercel.crons.map((c) => c.path)).toContain("/api/cron/dispatch-drain");
+  /**
+   * This used to require the schedule to live in `vercel.json` — "configuration rather than
+   * code". Owner decisions 1 and 2 supersede that: **Railway is the sole scheduler host**, and
+   * Railway's schedule is the in-process `DEFAULT_JOBS` table, which is code.
+   *
+   * The assertion the test actually exists to make is unchanged and is now stronger: the drain
+   * is REACHABLE on a schedule, and reachable from exactly ONE host. When it was declared only
+   * as a Vercel cron and the Vercel origin was serving 402, "it is scheduled" was true of a file
+   * and false of the running system.
+   */
+  it("it is scheduled by the ONE scheduler host, and not by the other", async () => {
+    const { DEFAULT_JOBS } = await import("@/lib/scheduler");
+    expect(DEFAULT_JOBS.map((j) => j.job)).toContain("dispatch-drain");
+
+    const vercel = JSON.parse(readFileSync("vercel.json", "utf8")) as { crons?: { path: string }[] };
+    expect(
+      (vercel.crons ?? []).map((c) => c.path),
+      "Vercel must not also schedule it — two hosts would double-drain",
+    ).not.toContain("/api/cron/dispatch-drain");
   });
 
   it("no secret is committed — the route reads it from the environment", () => {

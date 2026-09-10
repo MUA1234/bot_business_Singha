@@ -72,6 +72,58 @@ export function missingProductionConfig(): string[] {
   return mandatory.filter((k) => !process.env[k]);
 }
 
+/** The isolation switches that must never be left to a default in production. */
+export const ISOLATION_SETTINGS = ["RLS_READS", "RLS_WRITES"] as const;
+
+/**
+ * Problems with the database-isolation configuration. Empty list = safe to start.
+ *
+ * WHY THIS IS SEPARATE FROM `missingProductionConfig`. Those settings are absent-or-present:
+ * a missing `WHATSAPP_APP_SECRET` breaks loudly the first time it is used. The isolation
+ * switches are worse than that, because absence is INDISTINGUISHABLE FROM A DECISION. The
+ * repository's convention is that a flag is on only when its value is exactly `"on"`, so an
+ * unset `RLS_READS` silently means "read through the service-role client, bypassing RLS" — and
+ * that is precisely the state production was found in on 2026-09-10 (finding H-2 /  PR-F-012):
+ * both switches unset, company isolation resting on application code rather than the database,
+ * with nothing anywhere saying so.
+ *
+ * So absence is refused. Either switch must be set EXPLICITLY to `on` or `off`. Choosing `off`
+ * remains possible — the cutover to `on` is gated on the staging proof owner decision 5
+ * requires — but it becomes a recorded decision that someone typed, not a default nobody saw.
+ *
+ * Returns human-readable problems rather than booleans because this text is what an operator
+ * reads at 3am when the server refuses to boot.
+ */
+export function isolationConfigProblems(env: NodeJS.ProcessEnv = process.env): string[] {
+  const problems: string[] = [];
+  for (const key of ISOLATION_SETTINGS) {
+    const raw = env[key];
+    if (raw === undefined || raw === "") {
+      problems.push(
+        `${key} is not set. It must be exactly "on" or "off". Unset means OFF — the app would ` +
+          `read and write through the service-role client and database tenant isolation would ` +
+          `not be enforced. Set it deliberately.`,
+      );
+      continue;
+    }
+    if (raw !== "on" && raw !== "off") {
+      problems.push(
+        `${key} is "${raw}", which is neither "on" nor "off". Any value other than "on" is ` +
+          `treated as OFF, so a typo silently disables isolation. Use "on" or "off".`,
+      );
+    }
+  }
+  return problems;
+}
+
+/**
+ * True when production is running with database isolation disabled by explicit choice.
+ * Not an error — the staging proof gates the cutover — but it is worth saying out loud at boot.
+ */
+export function isolationDisabledDeliberately(env: NodeJS.ProcessEnv = process.env): boolean {
+  return ISOLATION_SETTINGS.some((k) => env[k] === "off");
+}
+
 /**
  * Fail fast at server startup when a mandatory security setting is absent IN PRODUCTION.
  * A no-op in development/build so placeholder-only builds still succeed (nothing connects
@@ -81,4 +133,15 @@ export function assertProductionConfig(): void {
   if ((process.env.APP_ENV ?? "development") !== "production") return;
   const missing = missingProductionConfig();
   if (missing.length) throw new Error(`Missing mandatory production config: ${missing.join(", ")}`);
+
+  // Isolation is checked separately and refuses on ABSENCE, not just on an unsafe value.
+  // See `isolationConfigProblems` for why a default is more dangerous here than elsewhere.
+  const isolation = isolationConfigProblems();
+  if (isolation.length) {
+    throw new Error(
+      "Refusing to start: database isolation is not configured explicitly.\n  - " +
+        isolation.join("\n  - ") +
+        "\nSee docs/release-1/DEPLOYMENT-READINESS.md (RLS cutover).",
+    );
+  }
 }

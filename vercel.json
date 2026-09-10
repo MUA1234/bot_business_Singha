@@ -1,16 +1,4 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/heartbeat",
-      "schedule": "0 7 * * *"
-    },
-    {
-      "path": "/api/cron/inbound-sweeper",
-      "schedule": "*/10 * * * *"
-    },
-    {
-      "path": "/api/cron/dispatch-drain",
-      "schedule": "*/5 * * * *"
-    }
-  ]
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": []
 }
