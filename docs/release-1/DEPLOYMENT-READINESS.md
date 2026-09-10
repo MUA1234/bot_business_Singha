@@ -116,7 +116,31 @@ it cannot be reproduced or audited from git. The connected GitHub repository des
 `sha256:897348ef806c244b1e8dd2e36c7a7a90c48f5c8c609f9494196169fa2c3e0a05`. This is PR-F-014,
 confirmed rather than inferred.
 
-### D-4: the Meta webhook destination is unverified
+### D-4: the management cycle's own audit writes are not verified
+
+Throughout the kernel campaign every cycle logs:
+
+```
+{"level":"error","msg":"audit write threw","fields":{"event":"audit.write_threw",
+ "action":"management_cycle.completed","error":"Missing NEXT_PUBLIC_SUPABASE_URL"}}
+```
+
+`writeAudit` goes through the Supabase REST client, and the kernel campaign has a database but
+no PostgREST endpoint, so the write throws. It is caught and logged — correctly, since an audit
+failure must not abort a cycle — but the consequence is that **no test asserts the cycle writes
+an audit row**.
+
+**Scope, stated precisely so this is not read as worse than it is:** audit *is* verified
+elsewhere. Five core integration suites assert `audit_events` rows directly in SQL
+(`ai-case-atomic`, `authority-adversarial`, `campaign-cross-layer`, `case-task-dedup-wiring`,
+`duplicate-review-and-approval-visibility`), and those pass. What is unverified is specifically
+the `management_cycle.*` audit actions.
+
+Closing it means either giving the kernel campaign a PostgREST endpoint, or letting `writeAudit`
+take an injected client the way the rest of the kernel does. The second is smaller and matches
+the existing dependency-injection pattern. Not started.
+
+### D-5: the Meta webhook destination is unverified
 
 Every Vercel path returned HTTP 402 `DEPLOYMENT_DISABLED` on 2026-09-01, including
 `/api/webhooks/whatsapp`. Whether Meta still points there needs the Meta console. If it does,

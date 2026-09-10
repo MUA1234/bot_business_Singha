@@ -9,9 +9,54 @@ Updated after every checkpoint and before any unavoidable response.
 | | |
 |---|---|
 | Repository | `MUA1234/bot_business_Singha` |
-| Branch | `claude/product-recovery-r1` |
-| Phase | **R0 integration preparation** (returned to R0 by owner instruction, 2026-09-10) |
-| Staging / production | **zero**. Nothing deployed, nothing merged, no hosted contact |
+| Branch | **`claude/product-recovery-deploy-candidate`** (built forward from `origin/main`) |
+| Preserved | `claude/product-recovery-r1` @ `b3e43b3` — **unchanged, never rebased** |
+| Phase | **Release 1 integration candidate** (authorised 2026-09-10) |
+| Staging / production | **zero**. Nothing deployed, nothing merged, no hosted database read or written |
+
+## Current checkpoint — Release 1 integration candidate (2026-09-10)
+
+The candidate exists, is pushed, and is **NOT `READY FOR STAGING`**. Full detail in
+`docs/release-1/DEPLOYMENT-READINESS.md`; the short version:
+
+**Done and measured.** The recovery line is integrated onto `origin/main` through a reviewable
+merge (9 conflicts, each resolved on meaning). The 0069 collision is reconciled — the whole
+dependent sequence shifted +1 to 0070–0110, validated against the dependency graph before it
+ran, and `npm run migration-collision-check` now passes. All 13 deterministic kernel failures
+are fixed, two of them by fixing real kernel defects rather than the tests. CI is split into
+core and kernel campaigns on separate databases, both order-randomised. `main`'s production
+fixes are retained. Railway is the sole scheduler and four previously-undriven jobs now run.
+Isolation config fails closed.
+
+| Gate | Result |
+|---|---|
+| typecheck · build · lint · secret-scan · audits | ✅ all clean |
+| Unit | ✅ 2506 passed / 4 skipped / 0 failed (234 files) |
+| Core integration | ✅ 76 files, 677 tests, 0 failed (randomised order, draft-free DB) |
+| Migration collision vs `origin/main` | ✅ no collision (was 2 errors) |
+| Fresh-DB and `main`-seeded migration rehearsals | ✅ both clean |
+
+**Three blockers, none of them code that can be written from here:**
+
+1. **No staging environment exists.** `singha-central` has one environment, `production`.
+   Creating a paid or production-connected one silently is forbidden.
+   → `docs/release-1/STAGING-REQUIREMENTS.md`
+2. **Hosted migration state is still UNKNOWN.** The read-only probe is written and ready;
+   `railway run` was refused by this session's permission sandbox.
+   → `r0-integration/09-HOSTED-EVIDENCE-OBTAINED.md` §D
+3. **`r1-draft-schema` is broken under both of its setups** — its own runner gives it a bare
+   database the draft chain outgrew, and on a released-schema database its rollback drops a
+   constraint released objects depend on. Contained (excluded from both campaigns), not fixed.
+
+**Two findings that need an owner decision, not engineering:**
+
+* Production has been making **hourly model calls since 2026-09-01** (`OPENAI_API_KEY` set,
+  `IN_PROCESS_CRON=on`). Not authorised. Turning the scheduler off would also stop the outbox
+  drain, so this is a decision, not a switch.
+* The deployed revision carries **no commit hash** — `railway up` from the CLI. Its only
+  durable identifier is an image digest. PR-F-014 confirmed, not inferred.
+
+## Previous checkpoint — R0 integration preparation
 
 ## Current checkpoint — R0 integration preparation (2026-09-10)
 
