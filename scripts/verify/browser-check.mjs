@@ -145,7 +145,12 @@ try {
 
   // 4. The scheduled routes refuse an unauthenticated caller rather than running. A drain that
   //    anyone could trigger is a denial-of-service surface and a way to burn the attempt budget.
-  for (const path of ["/api/cron/dispatch-drain", "/api/cron/inbound-sweeper"]) {
+  // `management-cycle` is here for the same reason as the other two: it is driven by the
+  // scheduler with a shared secret, so an unauthenticated caller reaching it would be a way to
+  // drive the management loop from outside. Its handler compares the secret in constant time,
+  // and this is the check that the route is actually wired that way in a running server rather
+  // than only in the source.
+  for (const path of ["/api/cron/dispatch-drain", "/api/cron/inbound-sweeper", "/api/cron/management-cycle"]) {
     const res = await robustFetch(`${BASE}${path}`);
     check(`${path} refuses an unauthenticated caller`, res.status === 401, `status ${res.status}`);
     const wrong = await robustFetch(`${BASE}${path}`, { headers: { authorization: "Bearer bc-wrong" } });
