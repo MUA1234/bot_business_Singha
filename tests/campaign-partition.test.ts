@@ -48,6 +48,15 @@ describe("campaign partition", () => {
     }
   });
 
+  it("a self-managed suite has a campaign of its own, so excluding it does not silence it", () => {
+    // Excluding a suite from both campaigns is only legitimate while something else runs it.
+    // Without this, "self-managed" becomes a way of retiring a failing suite quietly.
+    const cfg = readFileSync("vitest.draft-schema.config.ts", "utf8");
+    expect(cfg).toMatch(/SELF_MANAGED_SUITES/);
+    const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> };
+    expect(pkg.scripts["test:draft-schema"]).toMatch(/vitest\.draft-schema\.config\.ts/);
+  });
+
   it("the pattern claims every kernel naming variant, including the lettered ones", () => {
     // The first attempt matched only `r1-` and `r2-`, which silently left ~20 `r2b/r2c/r2d/r2e/
     // r2s` suites in the CORE campaign, against a database with no draft schema.
@@ -88,6 +97,10 @@ describe("CI runs both campaigns", () => {
 
   it("runs the kernel campaign too — a split that only runs one half is worse than no split", () => {
     expect(ci).toMatch(/npm run test:kernel/);
+  });
+
+  it("runs the draft-schema campaign too — all three, or the split hides a suite", () => {
+    expect(ci).toMatch(/npm run test:draft-schema/);
   });
 
   it("prepares the draft chain before the kernel campaign, and not before the core one", () => {

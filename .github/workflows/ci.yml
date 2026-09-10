@@ -115,3 +115,15 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/singha_kernel
           R1_DRAFT_CONFIRM: disposable-local-only
         run: npm run test:kernel
+
+      # ── DRAFT-SCHEMA campaign ────────────────────────────────────────────────────────
+      # The third campaign. It applies the whole draft chain and then ROLLS IT BACK, which is
+      # incompatible with any shared database — on the core one it would introduce draft
+      # objects the enumeration gates refuse to classify, and on the kernel one its teardown
+      # would remove the schema its neighbours depend on. It builds and drops its OWN database
+      # inside this server, so it needs only a connection to it.
+      - name: R1 draft-schema and rollback tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          R1_DRAFT_CONFIRM: disposable-local-only
+        run: npm run test:draft-schema

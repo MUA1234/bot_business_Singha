@@ -16,13 +16,13 @@
 
 ## Verdict
 
-**Not `READY FOR STAGING`.** Three blockers, in order of who can clear them:
+**Not `READY FOR STAGING`.** Of the three blockers originally recorded, **two are now cleared**; the one that remains is an environment that does not exist and cannot be created without an owner decision.
 
 | # | Blocker | Who clears it |
 |---|---|---|
 | **B-1** | **No staging environment exists.** `singha-central` has one environment: `production`. The brief forbids silently creating a paid or production-connected one | **Owner** — see [STAGING-REQUIREMENTS.md](STAGING-REQUIREMENTS.md) |
 | ~~B-2~~ | ~~Hosted migration state is UNKNOWN~~ — **CLEARED 2026-09-10.** The SELECT-only probe ran. **CASE A proven**: ledger high-water `0069` is main's migration, recovery markers absent, ledger and physical objects agree. The candidate's +1 reconciliation is correct as it stands; pending for production is exactly `0070`–`0110` (41 migrations, none colliding) | — [HOSTED-MIGRATION-EVIDENCE.md](HOSTED-MIGRATION-EVIDENCE.md) |
-| **B-3** | **`r1-draft-schema` is broken two ways** (below). Excluded from both campaigns so it cannot decide other suites' results, but not fixed | Engineering — bounded, not started |
+| ~~B-3~~ | ~~`r1-draft-schema` is broken two ways~~ — **CLEARED.** Both defects fixed at the root; it runs green as its own third campaign, **31 tests**, repeatably, with clean teardown (§D-1) | — |
 
 Everything the brief listed that *can* be done from here has been done and measured. The
 migration reconciliation is applied and rehearsed, the deterministic kernel failures are fixed,
@@ -49,6 +49,7 @@ scheduler, and RLS now fails closed.
 | Dependency audit | `npm run audit-check` | ✅ 2 advisories, both covered by approved exceptions |
 | **Core integration** | `npm run test:integration` | ✅ **76 files, 677 tests, 0 failed** — randomised order, draft-free DB |
 | **Kernel integration** | `npm run test:kernel` | ✅ **34 files, 644 tests, 0 failed** — randomised order, drafts applied once |
+| **Draft-schema campaign** | `npm run test:draft-schema` | ✅ **31 tests, 0 failed** — builds and drops its own database; run twice, clean both times |
 | Browser / accessibility | `npm run browser-check` | ⚠️ **not run** — no application server in this environment |
 
 All database work ran on **disposable local PostgreSQL 16.10** in uniquely labelled containers
@@ -102,15 +103,20 @@ moved, and moved exactly one step per cycle.
 
 ## Open defects — recorded, not resolved
 
-### D-1 (B-3): `r1-draft-schema` cannot run under either of its two setups
+### ~~D-1 (B-3): `r1-draft-schema` cannot run under either of its two setups~~ — **FIXED**
 
-| | |
-|---|---|
-| Its dedicated runner (`scripts/r1/run-draft-schema-tests.mjs`) gives it a **bare** database | The draft chain outgrew that: `R1_DRAFT_023_authority_and_scope` needs `public.permissions`, so `--up` fails at 023 |
-| On a database carrying the released migrations | Its rollback fails: `R1_DRAFT_008_accountable_owner.down.sql` drops `memberships_id_company_uq`, which released objects depend on — the down undoes more than its up created |
+Both defects are repaired at the root, and the suite now runs green as its own third campaign:
+**31 tests passed**, twice in succession, with its scratch database dropped each time.
 
-It is excluded from both campaigns as self-managed, so one broken suite cannot decide the
-result of thirty others. **That is containment, not a fix.** Both defects are real and bounded.
+| Defect | Root cause | Fix |
+|---|---|---|
+| Its runner gave it a **bare** database | The draft chain outgrew that — `R1_DRAFT_023_authority_and_scope` needs `public.permissions`, so `--up` failed at 023 | The suite builds its **own** database: shim → 110 released migrations → the seed rows the released FKs require → the draft chain. The runner now supplies only a bare *server* |
+| Its rollback failed on a released-schema database | `R1_DRAFT_008_accountable_owner.down.sql` dropped `memberships_id_company_uq` **unconditionally**. Released migration `0024` builds that name dynamically (`parent \|\| '_id_company_uq'`) and hangs **eight** composite FKs off it. The up adds it only `if not exists`; the down removed it regardless — undoing more than the up created | The down drops it only when **nothing depends on it**. By then the reverse rollback has removed units 017 and 016, whose tables were the only draft-side dependants — so anything still depending on it belongs to the released schema, which is exactly the case where the up did not create it |
+
+Two test assumptions were stale for the same reason and are now correct rather than lenient:
+`accountable_owner_id` must be a **real membership of the same company** (unit 008's composite
+FK), and that membership must hold `operations.task.work` or `.manage` (`r1_draft_membership_can_own`).
+A random UUID passed only while the suite ran on a database with no `memberships` table at all.
 
 ### D-2: unauthorised model spend is live in production
 

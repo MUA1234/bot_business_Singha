@@ -16,13 +16,66 @@ import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readdirSync } from "node:fs";
 import pg from "pg";
+import { URL as NodeURL } from "node:url";
 
-const URL = process.env.DATABASE_URL ?? "";
-const enabled = !!URL && /127\.0\.0\.1|localhost|\[::1\]/.test(URL);
+const SHARED_URL = process.env.DATABASE_URL ?? "";
+const enabled = !!SHARED_URL && /127\.0\.0\.1|localhost|\[::1\]/.test(SHARED_URL);
+
+/**
+ * THIS SUITE GETS ITS OWN DATABASE, and that is a correctness requirement, not tidiness.
+ *
+ * It applies the whole draft chain and then ROLLS IT BACK, on purpose — proving the rollback
+ * leaves nothing behind is one of the things it exists to prove. Run against the shared
+ * integration database, that teardown removed the schema every other kernel suite depends on,
+ * and left residue when it did not complete: after two whole-directory runs the shared
+ * `r1_draft_migrations` ledger held 8 rows and then 15, of 28. Which suites failed became a
+ * function of file ordering, and the enumeration gates (`secure-definer-grants`,
+ * `search-path-safety`) failed against draft objects they correctly refuse to classify.
+ *
+ * So it builds a scratch database, migrates it, uses it, and drops it. Nothing it does is
+ * visible to any other suite.
+ */
+const SCRATCH_DB = `r1_draft_schema_${randomUUID().replace(/-/g, "").slice(0, 12)}`;
+
+/**
+ * Same server, different database.
+ *
+ * `URL` is shadowed below by this suite's own connection-string constant, so the WHATWG parser is
+ * imported under a distinct name rather than relying on the global.
+ */
+function urlFor(database: string): string {
+  const u = new NodeURL(SHARED_URL);
+  u.pathname = `/${database}`;
+  return u.toString();
+}
+/** The maintenance database, for CREATE/DROP DATABASE. */
+const ADMIN_URL = enabled ? urlFor("postgres") : "";
+const URL = enabled ? urlFor(SCRATCH_DB) : "";
+
+async function withAdmin<T>(fn: (c: pg.Client) => Promise<T>): Promise<T> {
+  const c = new pg.Client({ connectionString: ADMIN_URL, ssl: false });
+  await c.connect();
+  try {
+    return await fn(c);
+  } finally {
+    await c.end().catch(() => {});
+  }
+}
 
 const CO_A = randomUUID();
 const CO_B = randomUUID();
 const ACTOR = randomUUID();
+
+/**
+ * A real membership per company, because `management_items.accountable_owner_id` carries a
+ * COMPOSITE foreign key to `memberships (id, company_id)` — an owner must be a membership of the
+ * same company, which is the cross-company protection unit 008 exists to add.
+ *
+ * The old comment here said "standalone has no memberships table, so any uuid satisfies the
+ * shape". That stopped being true when this suite moved onto a database carrying the released
+ * schema, which it must, because the draft chain needs `public.permissions` from unit 023 onward.
+ */
+const OWNER_OF = new Map<string, string>();
 
 let db: pg.Client;
 let db2: pg.Client;
@@ -30,10 +83,11 @@ let db2: pg.Client;
 /** Insert an item directly (bypassing the kernel) so transitions can be tested in isolation. */
 async function newItem(company = CO_A, state = "observed", kind = "receivable_overdue") {
   const id = randomUUID();
-  // Working states require an accountable owner (unit 008). Standalone has no memberships
-  // table, so any uuid satisfies the shape; the AUTHORISATION of that owner is proven in
-  // tests/integration/r1-security-baseline.test.ts against the real identity schema.
-  const owner = randomUUID();
+  // Working states require an accountable owner (unit 008), and that owner must be a REAL
+  // membership of the same company — the composite FK refuses anything else, which is the
+  // cross-company protection the unit exists to add. The AUTHORISATION of that owner (what the
+  // holder may do) is proven separately in tests/integration/r1-security-baseline.test.ts.
+  const owner = OWNER_OF.get(company) ?? randomUUID();
   const needsOwner = ["assigned", "monitoring", "escalated", "verifying", "verified"].includes(state);
   const needsRouting = state === "needs_routing";
   await db.query(
@@ -62,15 +116,51 @@ const transition = (c: pg.Client, item: string, from: string, to: string, reason
 
 describe.skipIf(!enabled)("R1 draft schema — live disposable PostgreSQL", () => {
   beforeAll(async () => {
+    // Build the scratch database from nothing: shim, the released migrations the draft units
+    // reference, then the draft chain itself.
+    await withAdmin(async (c) => {
+      await c.query(`drop database if exists "${SCRATCH_DB}"`);
+      await c.query(`create database "${SCRATCH_DB}"`);
+    });
+    const env = { ...process.env, DATABASE_URL: URL, PGSSL: "disable", R1_DRAFT_CONFIRM: "disposable-local-only" };
+    execFileSync("node", ["scripts/apply-sql.mjs", "tests/integration/helpers/supabase-shim.sql"], { env, stdio: "pipe" });
+    execFileSync("node", ["scripts/migrate.mjs"], { env, stdio: "pipe" });
+
     db = new pg.Client({ connectionString: URL, ssl: false });
     db2 = new pg.Client({ connectionString: URL, ssl: false });
     await db.connect();
     await db2.connect();
-    execFileSync("node", ["scripts/r1/draft-migrate.mjs", "--up"], {
-      env: { ...process.env, R1_DRAFT_CONFIRM: "disposable-local-only" },
-      stdio: "pipe",
-    });
-  }, 60_000);
+    // Companies and one membership each must exist BEFORE the draft chain: unit 008 adds the
+    // composite owner FK, and unit 016 revalidates owners against it.
+    for (const co of [CO_A, CO_B]) {
+      await db.query(
+        `insert into companies (id, name, base_currency) values ($1,$2,'LKR') on conflict (id) do nothing`,
+        [co, `r1-draft ${co.slice(0, 8)}`],
+      );
+      const userId = randomUUID();
+      await db.query(
+        `insert into users (id, full_name, is_active) values ($1,$2,true) on conflict (id) do nothing`,
+        [userId, `r1-draft owner ${co.slice(0, 8)}`],
+      );
+      const { rows } = await db.query(
+        `insert into memberships (company_id, user_id, status) values ($1,$2,'active')
+           on conflict (company_id, user_id) do update set status = excluded.status returning id`,
+        [co, userId],
+      );
+      const membershipId = String(rows[0].id);
+      // Unit 008 requires the owner to be an ACTIVE, AUTHORISED membership: r1_draft_membership_can_own
+      // demands `operations.task.work` or `operations.task.manage`. Being a member is not enough,
+      // which is the point of the rule - a person nobody authorised cannot be made accountable.
+      await db.query(
+        `insert into membership_roles (membership_id, company_id, role_key)
+           values ($1,$2,'project_manager') on conflict do nothing`,
+        [membershipId, co],
+      );
+      OWNER_OF.set(co, membershipId);
+    }
+
+    execFileSync("node", ["scripts/r1/draft-migrate.mjs", "--up"], { env, stdio: "pipe" });
+  }, 300_000);
 
   afterAll(async () => {
     await db?.end().catch(() => {});
@@ -121,14 +211,17 @@ describe.skipIf(!enabled)("R1 draft schema — live disposable PostgreSQL", () =
       ["assigned", "monitoring"], ["monitoring", "verifying"], ["verifying", "verified"],
     ] as const;
     for (const [from, to] of path) {
-      // Assignment requires an accountable owner to have been CHOSEN first (unit 008) —
-      // the loop cannot hand work to nobody. Standalone has no memberships table, so the
-      // SHAPE is what is under test here; the AUTHORISATION of that owner is proven in
-      // tests/integration/r1-security-baseline.test.ts against the real identity schema.
+      // Assignment requires an accountable owner to have been CHOSEN first (unit 008) — the
+      // loop cannot hand work to nobody. The owner must be a REAL membership of the same
+      // company: unit 008's composite FK to `memberships (id, company_id)` refuses anything
+      // else, which is the cross-company protection it exists to add. A random uuid used to
+      // pass only because this suite ran on a database with no `memberships` table at all.
+      // The AUTHORISATION of that owner — what the holder may then do — is proven separately in
+      // tests/integration/r1-security-baseline.test.ts.
       if (to === "assigned") {
         await db.query(
           "update management_items set accountable_owner_id=$2 where id=$1",
-          [id, randomUUID()],
+          [id, OWNER_OF.get(CO_A)!],
         );
       }
       const r = await transition(db, id, from, to);
@@ -404,8 +497,11 @@ describe.skipIf(!enabled)("R1 draft schema — live disposable PostgreSQL", () =
 /** Rollback runs LAST, in its own describe, so it cannot destroy the schema mid-suite. */
 describe.skipIf(!enabled)("R1 draft schema — rollback leaves nothing behind", () => {
   it("removes every R1 table and function", async () => {
+    // DATABASE_URL must be the SCRATCH database, not the inherited shared one. Without this
+    // override the rollback ran against whatever the campaign was using — which is exactly how
+    // this suite used to strip the draft schema out from under its neighbours.
     execFileSync("node", ["scripts/r1/draft-migrate.mjs", "--down"], {
-      env: { ...process.env, R1_DRAFT_CONFIRM: "disposable-local-only" },
+      env: { ...process.env, DATABASE_URL: URL, PGSSL: "disable", R1_DRAFT_CONFIRM: "disposable-local-only" },
       stdio: "pipe",
     });
     const c = new pg.Client({ connectionString: URL, ssl: false });
@@ -429,5 +525,21 @@ describe.skipIf(!enabled)("R1 draft schema — rollback leaves nothing behind", 
     } finally {
       await c.end();
     }
+  }, 60_000);
+
+  /**
+   * Drop the scratch database. Runs after the rollback check, and tolerates failure: a leaked
+   * database on a disposable container is untidy, whereas failing the suite here would report a
+   * cleanup problem as a product problem.
+   */
+  afterAll(async () => {
+    if (!enabled) return;
+    await withAdmin(async (c) => {
+      await c.query(
+        `select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()`,
+        [SCRATCH_DB],
+      );
+      await c.query(`drop database if exists "${SCRATCH_DB}"`);
+    }).catch(() => {});
   }, 60_000);
 });

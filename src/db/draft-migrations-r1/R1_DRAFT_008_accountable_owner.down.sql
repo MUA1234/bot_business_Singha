@@ -13,16 +13,52 @@ alter table if exists public.management_items
 alter table if exists public.management_items
   drop constraint if exists management_items_owner_company_fk;
 
+-- `memberships_id_company_uq` is dropped ONLY IF THIS UNIT CREATED IT.
+--
+-- The up migration adds it conditionally — `if not exists (…) then alter table … add constraint`
+-- — because the RELEASED schema may already have it. Released migration 0024 builds exactly this
+-- name dynamically (`parent || '_id_company_uq'`) and then hangs EIGHT composite foreign keys off
+-- it: membership_roles, authority_rules, membership_assignments, employee_profiles,
+-- capacity_snapshots, task_assignments and both delegation columns.
+--
+-- The down used to drop it unconditionally, so on any database carrying the released migrations
+-- it tried to remove a RELEASED constraint that released objects depend on, and PostgreSQL
+-- refused: "cannot drop constraint memberships_id_company_uq on table memberships because other
+-- objects depend on it". The rollback then failed and left the draft chain half-removed. A down
+-- migration that undoes more than its up created is not a rollback; it is a second migration
+-- wearing the wrong name.
+--
+-- The test is dependency-based rather than a stored flag, and that is deliberate: by the time
+-- this runs, the reverse rollback has already dropped units 017 and 016, whose tables carried the
+-- only draft-side dependants. So anything STILL depending on this constraint belongs to the
+-- released schema — which is precisely the case in which the up did not create it.
+--
 -- NESTED, not a single AND: SQL does not guarantee short-circuit evaluation, and
 -- 'public.memberships'::regclass THROWS when the relation is absent. Combining both checks
 -- in one condition broke rollback on a standalone draft database.
 do $$
+declare
+  v_dependants int;
 begin
   if to_regclass('public.memberships') is not null then
     if exists (select 1 from pg_constraint
                 where conrelid = to_regclass('public.memberships')
                   and conname = 'memberships_id_company_uq') then
-      alter table public.memberships drop constraint memberships_id_company_uq;
+
+      -- Foreign keys on OTHER tables that reference memberships (id, company_id).
+      select count(*) into v_dependants
+        from pg_constraint con
+       where con.confrelid = to_regclass('public.memberships')
+         and con.contype = 'f'
+         and array_length(con.confkey, 1) > 1;
+
+      if v_dependants = 0 then
+        alter table public.memberships drop constraint memberships_id_company_uq;
+      else
+        raise notice
+          'R1_DRAFT_008 down: leaving memberships_id_company_uq in place — % composite foreign key(s) still depend on it, so this unit did not create it',
+          v_dependants;
+      end if;
     end if;
   end if;
 end

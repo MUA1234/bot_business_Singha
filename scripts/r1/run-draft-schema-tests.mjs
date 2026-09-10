@@ -3,6 +3,15 @@
  * Runs the R1 draft-schema integration tests against a DISPOSABLE local PostgreSQL 16
  * container, then destroys it.
  *
+ * The suite builds its OWN database inside that container - shim, the released migrations, the
+ * seed rows the released foreign keys require, then the draft chain - and drops it afterwards.
+ * This runner therefore supplies a bare server and nothing else.
+ *
+ * It used to hand the suite a bare DATABASE and let it apply the drafts straight onto it. That
+ * stopped working when the chain grew past unit 022: R1_DRAFT_023_authority_and_scope needs
+ * `public.permissions`, so `--up` failed at 023 and the suite could not run under its own
+ * runner at all.
+ *
  * Nothing hosted is contacted. The container is created for this run, bound to loopback
  * only, and removed afterwards whether the tests pass or fail.
  *
@@ -60,8 +69,9 @@ try {
   run("node", [
     "node_modules/vitest/vitest.mjs",
     "run",
-    "-c", "vitest.integration.config.ts",
-    "tests/integration/r1-draft-schema.test.ts",
+    // Its own config: the suite is SELF-MANAGED and is excluded from both campaign configs, so
+    // naming one of those here would match zero files and report a silent pass.
+    "-c", "vitest.draft-schema.config.ts",
   ], {
     env: { ...process.env, DATABASE_URL: URL, R1_DRAFT_CONFIRM: "disposable-local-only" },
   });
