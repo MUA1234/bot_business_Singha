@@ -42,6 +42,14 @@ jobs:
       - name: Dependency audit gate (approved-exception validation)
         run: npm run audit-check
 
+      # The kernel suites again, but with EVERY outbound network primitive replaced by one that
+      # throws. Asserting "this code contacts nothing" about code you wrote is easy; asserting it
+      # about everything it imports is not, and passing under this config is the proof. It also
+      # runs the guard's own self-test, which is skipped under the ordinary config — a guard
+      # nobody checks is a guard that silently stops working.
+      - name: Outbound-network guard
+        run: npm run test:no-network
+
   db-tests:
     runs-on: ubuntu-latest
     # A throwaway Postgres per CI run — never a shared/production database.
