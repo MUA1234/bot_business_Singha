@@ -77,11 +77,41 @@ jobs:
             exit 1
           fi
 
+      # ── CORE campaign ────────────────────────────────────────────────────────────────
+      # Released migrations ONLY. No draft object exists on this database, which is what
+      # production will look like and what the enumeration gates are written against: they
+      # assert that every SECURITY DEFINER function in `public` is classified, so a
+      # quarantined draft function they correctly refuse to classify would fail them.
       - name: Install Supabase-compatibility shim (roles + auth.uid + grants)
         run: node scripts/apply-sql.mjs tests/integration/helpers/supabase-shim.sql
 
       - name: Apply migrations to the disposable database
         run: npm run migrate
 
-      - name: Integration / RLS / capability / concurrency tests
+      - name: Core integration / RLS / capability / concurrency tests
         run: npm run test:integration
+
+      # ── KERNEL campaign ──────────────────────────────────────────────────────────────
+      # A SEPARATE database, because the kernel suites need the quarantined R1 draft chain
+      # and the core campaign must never see it. Creating a second database rather than
+      # adding drafts to the first is the whole point of the split: until it existed, the
+      # kernel suites ran against a database that could not satisfy them, and CI's
+      # integration job could not be green.
+      - name: Create a separate database for the kernel campaign
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'create database singha_kernel'
+
+      - name: Prepare the kernel database (shim + migrations + draft chain)
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/singha_kernel
+          R1_DRAFT_CONFIRM: disposable-local-only
+        run: |
+          node scripts/apply-sql.mjs tests/integration/helpers/supabase-shim.sql
+          npm run migrate
+          node scripts/r1/draft-migrate.mjs --up
+
+      - name: R1/R2 management-kernel tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/singha_kernel
+          R1_DRAFT_CONFIRM: disposable-local-only
+        run: npm run test:kernel

@@ -1,9 +1,10 @@
 /**
  * FOUND-003 correction — the UPGRADE path over databases that already hold the duplicate rows.
  *
- * Migrations 0069–0076 are unreleased, but disposable and developer databases hold the `in_`/`evt_`
- * pairs the defect produced. This suite builds its OWN database at 0075, seeds the exact shapes the
- * defective implementation created, applies 0076, and checks what the reconciliation did:
+ * The inbound migrations are unreleased, but disposable and developer databases hold the
+ * `in_`/`evt_` pairs the defect produced. This suite builds its OWN database staged immediately
+ * BEFORE `*_inbound_boundary_correction.sql`, seeds the exact shapes the defective implementation
+ * created, applies that one migration, and checks what the reconciliation did:
  *
  *   * a provable pair leaves the capture canonical and marks the receipt `superseded` WITH a link;
  *   * a pair whose receipt is referenced downstream is NOT superseded — it is left visible;
@@ -39,7 +40,29 @@ async function applyRange(client: any, afterExclusive: number, lastInclusive: nu
   }
 }
 
-describe.skipIf(!enabled)("0076 — upgrade reconciliation of existing in_/evt_ pairs (live, own database)", () => {
+/**
+ * The migration under test, resolved BY NAME rather than by number.
+ *
+ * This suite stages the schema immediately before the reconciliation migration, seeds the shapes
+ * the old defect produced, then applies exactly that one migration. It used to say
+ * `applyRange(db, 0, 75)` and `applyRange(db, 75, 76)` — bare integers, which the Release 1
+ * renumbering (+1, whole sequence) could not see and did not rewrite, so the suite staged one
+ * migration too far and failed on `relation "inbound_reviews" does not exist`.
+ *
+ * A number in a test is a claim about a file's position. Resolving it from the filename means the
+ * claim cannot go stale: renumber again and this still stages the right boundary.
+ *
+ * The `$` anchor matters — `..._inbound_boundary_correction_2.sql` is a LATER migration and must
+ * not be mistaken for this one.
+ */
+const RECONCILIATION_MIGRATION = migrations().find((f) => /_inbound_boundary_correction\.sql$/.test(f));
+if (!RECONCILIATION_MIGRATION) {
+  throw new Error("no *_inbound_boundary_correction.sql migration found — this suite has lost its subject");
+}
+/** Its version, and therefore the boundary this suite stages up to. */
+const RECON_N = Number(RECONCILIATION_MIGRATION.slice(0, 4));
+
+describe.skipIf(!enabled)(`${RECONCILIATION_MIGRATION} — upgrade reconciliation of existing in_/evt_ pairs (live, own database)`, () => {
   beforeAll(async () => {
     const { default: pg } = await import("pg" as string);
     const adminUrl = URL.replace(/\/[^/]*$/, "/postgres");
@@ -50,7 +73,7 @@ describe.skipIf(!enabled)("0076 — upgrade reconciliation of existing in_/evt_ 
     db = new pg.Client({ connectionString: URL.replace(/\/[^/]*$/, `/${DBNAME}`), ssl: false });
     await db.connect();
     await db.query(readFileSync("tests/integration/helpers/supabase-shim.sql", "utf8"));
-    await applyRange(db, 0, 75);
+    await applyRange(db, 0, RECON_N - 1);
     await db.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
     co = (await db.query(`insert into companies (name, base_currency) values ('recon','LKR') returning id`)).rows[0].id;
 
@@ -78,7 +101,7 @@ describe.skipIf(!enabled)("0076 — upgrade reconciliation of existing in_/evt_ 
     // (e) an unpaired capture — genuine consumer work
     (globalThis as any).__capture = await seed("evt_eee", "wamid.CAP", co, "h5");
 
-    await applyRange(db, 75, 76);
+    await applyRange(db, RECON_N - 1, RECON_N);
   }, 120_000);
 
   afterAll(async () => {
