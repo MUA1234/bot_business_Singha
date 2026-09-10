@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
-import { KERNEL_FILE_PATTERN, isKernelSuite } from "./integration/campaigns";
+import { KERNEL_FILE_PATTERN, isKernelSuite, isSelfManaged, SELF_MANAGED_SUITES } from "./integration/campaigns";
 
 /**
  * Every integration suite belongs to exactly one campaign, and CI runs both.
@@ -26,32 +26,43 @@ describe("campaign partition", () => {
     expect(suites.length).toBeGreaterThan(50);
   });
 
-  it("every suite is claimed by exactly one campaign", () => {
-    const unclaimed = suites.filter((f) => {
-      const kernel = isKernelSuite(f);
-      const core = !kernel;
-      return !(kernel !== core); // exactly one must be true
-    });
-    expect(unclaimed).toEqual([]);
+  it("every suite lands in exactly one of the three buckets", () => {
+    // core | kernel | self-managed. A suite in none would never run again, with nothing saying so.
+    for (const f of suites) {
+      const buckets = [isKernelSuite(f), isSelfManaged(f), !isKernelSuite(f) && !isSelfManaged(f)];
+      expect(buckets.filter(Boolean).length, `${f} is not in exactly one bucket`).toBe(1);
+    }
   });
 
   it("the kernel campaign is not empty and the core campaign is not empty", () => {
     const kernel = suites.filter(isKernelSuite);
-    const core = suites.filter((f) => !isKernelSuite(f));
-    expect(kernel.length, "no kernel suites matched — did the prefixes change?").toBeGreaterThan(10);
+    const core = suites.filter((f) => !isKernelSuite(f) && !isSelfManaged(f));
+    expect(kernel.length, "no kernel suites matched — did the pattern change?").toBeGreaterThan(10);
     expect(core.length, "no core suites matched").toBeGreaterThan(50);
+  });
+
+  it("a self-managed suite is excluded from BOTH campaigns and really exists", () => {
+    for (const f of SELF_MANAGED_SUITES) {
+      expect(suites, `${f} is listed as self-managed but no such suite exists`).toContain(f);
+      expect(isKernelSuite(f), `${f} must not also be claimed by the kernel campaign`).toBe(false);
+    }
   });
 
   it("the pattern claims every kernel naming variant, including the lettered ones", () => {
     // The first attempt matched only `r1-` and `r2-`, which silently left ~20 `r2b/r2c/r2d/r2e/
     // r2s` suites in the CORE campaign, against a database with no draft schema.
     for (const f of [
-      "r1-security-baseline.test.ts", "r1-draft-schema.test.ts", "r2-operations-slice.test.ts",
+      "r1-security-baseline.test.ts", "r1-runtime-e2e.test.ts", "r2-operations-slice.test.ts",
       "r2b-capability-routing.test.ts", "r2c-role-routing.test.ts", "r2d-ask-ai.test.ts",
       "r2e-execution-ledger.test.ts", "r2s-loader-contract.test.ts", "r2s-p-pagination.test.ts",
     ]) {
       expect(isKernelSuite(f), `${f} must be a kernel suite`).toBe(true);
     }
+    // `r1-draft-schema` matches the naming pattern but is SELF-MANAGED, and the exclusion has to
+    // win — otherwise it rejoins the kernel campaign and resumes rolling the schema back
+    // underneath its neighbours.
+    expect(KERNEL_FILE_PATTERN.test("r1-draft-schema.test.ts")).toBe(true);
+    expect(isKernelSuite("r1-draft-schema.test.ts")).toBe(false);
   });
 
   it("the pattern is specific enough not to swallow a core suite", () => {

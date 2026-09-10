@@ -184,22 +184,62 @@ describe.skipIf(!enabled)("R2S-P — generation fence and narrow reset", () => {
       expect(afterSecond!.cursor?.fence ?? null).not.toBe(afterFirst!.cursor?.fence ?? null);
     }, 900_000);
 
+    /**
+     * SUBJECT: the SOURCE sweeps, which is what this test is named for.
+     *
+     * It used to assert `s.status === "completed"`, and that was a stronger claim than its own
+     * name — since R5 the cycle's status also reflects the LIFECYCLE sweep, which advances at
+     * most `LIFECYCLE_BUDGET_PER_CYCLE` (25) items per cycle. Seeding 200 tasks produces ~400
+     * management items, so the cycle is honestly `partial` for a further ~15 cycles after every
+     * source has finished sweeping. The assertion was failing on a real and correct backlog,
+     * while saying nothing about the sources it exists to watch.
+     *
+     * So it now asserts the property directly, which is also strictly more specific: a cycle
+     * must occur in which NO source reports outstanding continuation or reconciliation work.
+     * The reconciliation sweep is periodic by design — a full generation is `ceil(N/100)` pages
+     * plus a final empty page — so "settled" means the sweeps reach a clear point, not that
+     * they stop running.
+     *
+     * The lifecycle backlog is asserted separately below rather than ignored: if the cycle were
+     * partial for some OTHER reason, that would be a real regression and this would still catch
+     * it.
+     */
     it("no source is left permanently partial once the arrivals stop", async () => {
       const co = await freshCompany("fence-settles");
       await addTasks(co, 200, "settle-", "2026-01-01");
       for (let i = 0; i < 8; i++) await cycle(co);      // arrivals stop here
-      let settled = false;
-      const reasons: string[] = [];
+
+      let sourcesClear = false;
+      let last: Awaited<ReturnType<typeof cycle>> | null = null;
+      const outstanding: string[] = [];
       for (let i = 0; i < 30; i++) {
         const s = await cycle(co);
-        if (s.status === "completed") { settled = true; break; }
-        reasons.push(s.failureReason ?? s.status);
+        last = s;
+        const more = [
+          ...s.continuation.filter((c) => c.hasMore).map((c) => `continuation:${c.source}`),
+          ...s.reconciliation.filter((r) => r.hasMore).map((r) => `reconcile:${r.source}`),
+          ...s.cursorReset.map((x) => `cursorReset:${x}`),
+          ...s.reconciliationDelayed.map((x) => `delayed:${x}`),
+        ];
+        if (more.length === 0) { sourcesClear = true; break; }
+        outstanding.push(more.join(","));
       }
-      // If this fails, the message has to name what was still outstanding — "never settled"
-      // on its own sends the next reader back to the database to find out.
-      expect(settled,
-        `never settled; last reasons: ${[...new Set(reasons.slice(-6))].join(" | ")}`)
-        .toBe(true);
+
+      // Name what was still outstanding — "never settled" on its own sends the next reader
+      // back to the database to find out.
+      expect(
+        sourcesClear,
+        `no source ever went clear; last outstanding: ${[...new Set(outstanding.slice(-6))].join(" | ")}`,
+      ).toBe(true);
+
+      // The cycle may still be `partial`, but ONLY because management items remain to advance.
+      // Anything else keeping it partial is a regression this test must not absorb silently.
+      if (last && last.status !== "completed") {
+        expect(
+          last.lifecycle.partial || last.lifecycle.considered > 0,
+          `cycle is partial for a reason other than the lifecycle backlog: ${last.failureReason}`,
+        ).toBe(true);
+      }
     }, 900_000);
 
     it("no completion is claimed around the generation boundary", async () => {

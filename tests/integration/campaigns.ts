@@ -42,7 +42,38 @@ export const KERNEL_SUITE_GLOBS = [
   "tests/integration/r2*.test.ts",
 ];
 
+/**
+ * Suites that belong to NEITHER campaign, because they manage their own database lifecycle and
+ * would corrupt a shared one.
+ *
+ * `r1-draft-schema` applies the whole draft chain and then ROLLS IT BACK — proving the rollback
+ * leaves nothing behind is one of the things it exists to prove. On a shared database that
+ * teardown removes the schema its neighbours depend on, and when it does not complete it leaves
+ * residue: after two whole-directory runs the shared `r1_draft_migrations` ledger held 8 rows and
+ * then 15, of 28, so which suites failed became a function of file ordering. It has its own
+ * runner, `scripts/r1/run-draft-schema-tests.mjs`, which builds a container per run.
+ *
+ * TWO OPEN DEFECTS are recorded against it rather than papered over — see
+ * `docs/release-1/DEPLOYMENT-READINESS.md`:
+ *
+ *   1. Its dedicated runner gives it a BARE database, but the draft chain outgrew that: unit
+ *      `R1_DRAFT_023_authority_and_scope` needs `public.permissions`, so `--up` fails at 023.
+ *   2. On a database that DOES carry the released migrations, its rollback fails —
+ *      `R1_DRAFT_008_accountable_owner.down.sql` drops `memberships_id_company_uq`, which
+ *      released objects depend on. The down migration undoes more than its up created.
+ *
+ * Excluding it here is not a way of making those go away. It stops one broken suite from
+ * deciding the result of thirty others, and both defects are named in the readiness document as
+ * blocking items with the evidence above.
+ */
+export const SELF_MANAGED_SUITES = ["r1-draft-schema.test.ts"] as const;
+
+/** True when a suite runs itself and must not be swept into a campaign. */
+export function isSelfManaged(filename: string): boolean {
+  return (SELF_MANAGED_SUITES as readonly string[]).includes(filename);
+}
+
 /** True when a bare filename (e.g. `r2s-p-pagination.test.ts`) is a kernel suite. */
 export function isKernelSuite(filename: string): boolean {
-  return KERNEL_FILE_PATTERN.test(filename);
+  return KERNEL_FILE_PATTERN.test(filename) && !isSelfManaged(filename);
 }

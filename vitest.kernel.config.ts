@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
-import { KERNEL_SUITE_GLOBS } from "./tests/integration/campaigns.js";
+import { KERNEL_SUITE_GLOBS, SELF_MANAGED_SUITES } from "./tests/integration/campaigns.js";
 
 /**
  * KERNEL integration campaign — the R1/R2 management-kernel suites.
@@ -22,9 +22,13 @@ export default defineConfig({
   test: {
     environment: "node",
     include: KERNEL_SUITE_GLOBS,
-    exclude: ["**/node_modules/**"],
+    exclude: [
+      "**/node_modules/**",
+      // Runs itself; see SELF_MANAGED_SUITES.
+      ...SELF_MANAGED_SUITES.map((f) => `tests/integration/${f}`),
+    ],
     testTimeout: 30000,
-    hookTimeout: 300000, // r1-draft-schema builds its own database: shim + 110 migrations + drafts
+    hookTimeout: 120000, // kernel fixtures seed multi-company data before their first assertion
     fileParallelism: false,
     // Randomised for the same reason as the core campaign: a suite that passes only because a
     // neighbour left state behind is failing, and a fixed order conceals it.

@@ -477,22 +477,31 @@ async function readOnePage(
   let cursorProblem: CursorProblem | null = null;
   let rescan: RescanOutcome | null = null;
   const allowance = budget.allow(PAGE_SIZE);
-  if (allowance === 0) {
-    // The cycle budget is spent. This source is NOT read, its cursor does NOT move, and the
-    // rotation will put it nearer the front next time.
-    return {
-      rows: [], inspected: 0, pages: 0, complete: false, next: previousCursor,
-      previousCursor,
-      generation: stored?.generation ?? 0,
-      sweepCompleteAt: stored?.sweepCompleteAt ?? null,
-      rowsInspectedTotal: stored?.rowsInspected ?? 0,
-      pagesProcessedTotal: stored?.pagesProcessed ?? 0,
-      pageFailuresTotal: stored?.pageFailures ?? 0,
-      pageFailed: false,
-      cursorWasReset: false, cursorProblem: null,
-      reconcile: null, rescan: null,
-    };
-  }
+
+  /**
+   * The INCREMENTAL page is skipped when the whole-cycle budget is spent. The reconciliation
+   * and rescan passes below are NOT, because they hold their own budgets.
+   *
+   * This used to `return` here, and that quietly undid the guarantee the separate budgets
+   * exist to make. There are 12 sources at `PAGE_SIZE` 200 = 2400 rows against a
+   * `CYCLE_ROW_BUDGET - reserve` of 1550, so the incremental budget is exhausted partway
+   * through the rotation on EVERY cycle — by construction, not under load. Every source after
+   * that point returned before reaching its reconcile, so the sweep that is supposed to
+   * advance by `RECONCILE_PAGE` rows per cycle "whatever else is happening" advanced only when
+   * the rotation happened to place the source early.
+   *
+   * Observed effect (R2S-P fence-and-reset, 200 rows, 38 cycles): every EMPTY source reached
+   * generation 38, while `operations.task_exception` — the only source with rows — sat at
+   * reconcile generation 12 with 2 pages processed and rescan generation 7 with 1, both
+   * `in_progress`. The cycle therefore never reported `completed`, so "no source is left
+   * permanently partial once the arrivals stop" was false: a source with data could stay
+   * partial for ever precisely BECAUSE it had data.
+   *
+   * Skipping the incremental page still does what the old comment promised — the source is not
+   * read forward, its cursor does not move, and the rotation puts it nearer the front next
+   * time. Only the unintended starvation of the other two passes is removed.
+   */
+  const incrementalSkipped = allowance === 0;
 
   // The cursor is passed EXACTLY as stored. Rewinding it here (the original R2S-P-F-001
   // defect) reset the progress bound on every page, so a batch larger than one page was
@@ -522,20 +531,26 @@ async function readOnePage(
     previousCursor,
     SOURCE_SPECS[source]?.cursorKind ?? "none",
   );
-  if (!verdict.ok) {
+  if (!verdict.ok && !incrementalSkipped) {
     resetFrom = null;
     cursorWasReset = true;
     cursorProblem = verdict.problem ?? null;
   }
 
-  page = await deps.loadPage!({ source, companyId, cursor: resetFrom, limit: allowance });
-  budget.spend(page.inspected);
+  if (incrementalSkipped) {
+    // Not read forward, and the cursor stays exactly where it was. `complete: false` keeps the
+    // cycle honest: an unread source has not finished its sweep, so nothing may claim coverage.
+    page = { rows: [], inspected: 0, complete: false, next: previousCursor } as Page<unknown>;
+  } else {
+    page = await deps.loadPage!({ source, companyId, cursor: resetFrom, limit: allowance });
+    budget.spend(page.inspected);
+  }
 
   let rows: unknown = page.rows;
   let inspected = page.inspected;
 
   // The priority pre-pass. Bounded, cursor-free, and only where a source has a condition date.
-  if (deps.loadPriority) {
+  if (deps.loadPriority && !incrementalSkipped) {
     const priorityAllowance = budget.allow(PRIORITY_PAGE);
     if (priorityAllowance > 0) {
       try {

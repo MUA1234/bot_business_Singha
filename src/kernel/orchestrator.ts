@@ -301,9 +301,30 @@ export async function runLifecycleSweep(
   };
 
   let used = 0;
-  for (const item of items) {
+  for (const [index, item] of items.entries()) {
     if (used >= budget) {
-      summary.partial = true;
+      /**
+       * `partial` means WORK WAS LEFT UNDONE, not merely that items remain open.
+       *
+       * It used to be set whenever the budget ran out with items remaining, and that made it
+       * permanently true for any company with more than `LIFECYCLE_BUDGET_PER_CYCLE` items —
+       * because an item parked in `awaiting_approval` is open until a PERSON decides it, and
+       * is returned by `loadOpen` every cycle for ever. The cycle's status is `partial` if the
+       * lifecycle sweep is, so the cycle could never report `completed` again, and no amount of
+       * waiting helped: the R2S-P assertion "no source is left permanently partial once the
+       * arrivals stop" was false for exactly the companies that had work.
+       *
+       * A parked item is not undone work — it is correctly parked, waiting on someone. So the
+       * remaining items are asked what WOULD happen to them: `partial` only if at least one is
+       * something this sweep could actually have advanced. `decideNext` is pure and reads
+       * nothing, so this costs a walk over the tail and no I/O.
+       */
+      summary.partial = items
+        .slice(index)
+        .some((remaining) => {
+          const kind = decideNext(remaining).kind;
+          return kind === "transition" || kind === "execute";
+        });
       break;
     }
 

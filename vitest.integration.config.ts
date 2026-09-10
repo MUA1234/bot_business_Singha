@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
-import { KERNEL_SUITE_GLOBS } from "./tests/integration/campaigns.js";
+import { KERNEL_SUITE_GLOBS, SELF_MANAGED_SUITES } from "./tests/integration/campaigns.js";
 
 /**
  * CORE integration campaign — live DB tests that need ONLY the released numbered migrations.
@@ -34,7 +34,11 @@ export default defineConfig({
     environment: "node",
     include: ["tests/integration/**/*.test.ts", "tests/integration/**/*.test.tsx"],
     // The kernel suites belong to the other campaign, which builds a database they can run on.
-    exclude: ["**/node_modules/**", ...KERNEL_SUITE_GLOBS],
+    exclude: [
+      "**/node_modules/**",
+      ...KERNEL_SUITE_GLOBS,
+      ...SELF_MANAGED_SUITES.map((f) => `tests/integration/${f}`),
+    ],
     testTimeout: 30000,
     hookTimeout: 30000,
     fileParallelism: false, // serialize files — one DB connection at a time
