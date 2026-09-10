@@ -37,7 +37,7 @@ scheduler, and RLS now fails closed.
 | Gate | Command | Result |
 |---|---|---|
 | Types | `npx tsc --noEmit` | ✅ clean |
-| Unit suite | `npm test` | ✅ **2506 passed**, 4 skipped, **0 failed** (234 files) |
+| Unit suite | `npm test` | ✅ **2521 passed**, 4 skipped, **0 failed** (236 files) |
 | Build | `npm run build` | ✅ succeeds, all routes compile |
 | Lint | `npx next lint` | ✅ no errors (2 pre-existing `<img>` warnings) |
 | Secret scan | `npm run secret-scan` | ✅ no tracked secrets |
@@ -47,10 +47,12 @@ scheduler, and RLS now fails closed.
 | Requirements audit | `node scripts/autonomy/audit-requirements.mjs` | ✅ pass |
 | IP boundary | `node scripts/autonomy/check-ip-boundary.mjs` | ✅ pass |
 | Dependency audit | `npm run audit-check` | ✅ 2 advisories, both covered by approved exceptions |
-| **Core integration** | `npm run test:integration` | ✅ **76 files, 677 tests, 0 failed** — randomised order, draft-free DB |
-| **Kernel integration** | `npm run test:kernel` | ✅ **34 files, 644 tests, 0 failed** — randomised order, drafts applied once |
+| **Core integration** | `npm run test:integration` | ✅ **77 files, 696 tests, 0 failed** — randomised order, draft-free DB |
+| **Kernel integration** | `npm run test:kernel` | ✅ **35 files, 711 tests, 0 failed** — randomised order, drafts applied once |
 | **Draft-schema campaign** | `npm run test:draft-schema` | ✅ **31 tests, 0 failed** — builds and drops its own database; run twice, clean both times |
-| Browser / accessibility | `npm run browser-check` | ⚠️ **not run** — no application server in this environment |
+| **Migration attacks** | `node scripts/hosted/migration-attacks.mjs` | ✅ **12 scenarios, 0 failed** — interruption, duplicate version, altered migration, missing dependency, restore-and-reapply |
+| **Ledger rehearsal** | `node scripts/hosted/rehearse-from-ledger.mjs` | ✅ **passed** — 41 applied over the REAL production ledger |
+| Browser / API | `npm run browser-check` | ✅ **16 checks** in real Chromium against the production build — routes served and gated, all three scheduled cron routes refuse an unauthenticated caller and a wrong secret, Ask-AI refuses a caller-supplied companyId. **Signed-in screens are NOT exercised**: no Supabase instance here, so no browser check can sign in |
 
 All database work ran on **disposable local PostgreSQL 16.10** in uniquely labelled containers
 on OS-assigned ports. No pre-existing container was touched.

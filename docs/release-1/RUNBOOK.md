@@ -73,25 +73,41 @@ Paste the full ledger into the deployment record. "It migrated" is not a record;
 
 **Owner-approved boundary. Not authorised by this document.**
 
-Preconditions, all of them:
+Preconditions:
 
-| # | Precondition |
-|---|---|
-| 1 | The hosted read-only probe has been run and the decision-tree case identified — **not assumed** (`docs/product-recovery/r0-integration/03-HOSTED-STATE-CHECKLIST.md`) |
-| 2 | `STAGING VERIFIED` reached on a real staging environment |
-| 3 | Backup taken **and restore drilled** (§A) |
-| 4 | `RLS_READS` / `RLS_WRITES` set explicitly on the service — the app now refuses to start otherwise |
-| 5 | A maintenance window, because a partial migration needs a restore |
-| 6 | Owner approval in writing, for this SHA and this migration set |
+| # | Precondition | Status |
+|---|---|---|
+| 1 | The hosted probe run and the case identified — **not assumed** | ✅ **CASE A proven 2026-09-10** ([HOSTED-MIGRATION-EVIDENCE.md](HOSTED-MIGRATION-EVIDENCE.md)) |
+| 2 | `STAGING VERIFIED` on a real staging environment | ❌ no environment exists |
+| 3 | Backup taken **and restore drilled** (§A) | ❌ needs the hosted window |
+| 4 | `RLS_READS` / `RLS_WRITES` set explicitly on the service | ❌ both unset — the app now refuses to start otherwise, so this is **mandatory before any deploy** |
+| 5 | A maintenance window, because a partial migration needs a restore | — |
+| 6 | Owner approval in writing, for this SHA and this migration set | ❌ |
 
-Production has **no `DATABASE_URL`** on the service (finding H-3), so `npm run migrate` has
-never run from it. The connection string is a runbook input, supplied for the window and not
-persisted to the service.
+Production has **no `DATABASE_URL`** on the service (finding H-3), so `npm run migrate` has never
+run from it. The connection string is a runbook input, supplied for the window and not persisted
+to the service.
 
-Expected pending set: **0069** (main's, per `MIGRATION_STATE.md` the hosted high-water is 0068)
-then **0070–0110** — 42 migrations. **Confirm against the live ledger first**; that number comes
-from a document, and the whole point of the probe is that documents about hosted state have been
-wrong before.
+### The pending set is known exactly
+
+**41 migrations: `0070` through `0110`.**
+
+Measured, not inferred: the hosted ledger holds **69 contiguous rows** with high-water
+`0069_company_routing_and_catalogue_department.sql` applied `2026-09-01T12:10:52Z`. An earlier
+estimate of "42, starting with 0069" was one too many — `MIGRATION_STATE.md` stopped one short of
+the real ledger, and 0069 is already applied.
+
+**No pending version collides with a recorded one**, so nothing would be silently skipped. This
+was rehearsed end-to-end against the real ledger: `scripts/hosted/rehearse-from-ledger.mjs`
+reported `applied: 69  pending: 41`, applied all 41, and finished at high-water `0110` with both
+lineages' objects present.
+
+**Still confirm against the live ledger in the window.** The probe was read on 2026-09-10; if
+anything has been applied since, the set has changed:
+
+```bash
+npm run migrate:status     # must report exactly 41 pending, 0070…0110
+```
 
 ### If it fails partway
 

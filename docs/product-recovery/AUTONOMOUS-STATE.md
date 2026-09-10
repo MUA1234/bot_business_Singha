@@ -14,7 +14,42 @@ Updated after every checkpoint and before any unavoidable response.
 | Phase | **Release 1 integration candidate** (authorised 2026-09-10) |
 | Staging / production | **zero**. Nothing deployed, nothing merged, no hosted database read or written |
 
-## Current checkpoint — Release 1 integration candidate (2026-09-10)
+## Current checkpoint — Release 1, overnight completion (2026-09-11)
+
+**CASE A is PROVEN.** The SELECT-only hosted probe ran with the owner's explicit authorisation:
+ledger 69 contiguous rows, high-water `0069` = `main`'s migration applied `2026-09-01T12:10:52Z`,
+recovery markers absent, 0 of 27 branch-range tables present, the R1 draft quarantine held.
+Ledger and physical objects agree. **The candidate's +1 reconciliation is correct as it stands**
+and the pending set for production is exactly **41 migrations, `0070`–`0110`** — one fewer than
+the earlier estimate, because 0069 is already applied. Rehearsed against the real ledger:
+`applied: 69  pending: 41`, all 41 applied, final high-water 0110.
+
+Two records corrected as a result. `MIGRATION_STATE.md` stopped one short of the real ledger,
+and its warning that *"if 0069 really is unapplied, inbound company resolution is broken in
+production right now"* is **withdrawn** — the column exists, code and schema agree.
+
+**Both remaining engineering blockers cleared:**
+
+* `r1-draft-schema` — the down migration undid more than its up created (`R1_DRAFT_008` dropped
+  `memberships_id_company_uq`, which released migration 0024 creates and hangs eight composite
+  FKs off). It now drops it only when nothing depends on it. Its runner gave it a bare database
+  the draft chain had outgrown; the suite now builds its own. **31 tests, green, twice, with
+  clean teardown**, as a third campaign.
+* Model spend can now be stopped **without** stopping message recovery: `MODEL_JOBS=off` and
+  `CRON_DISABLED_JOBS`, both failing safe toward *running*, because spend appears on a bill and
+  a message that was never retried appears to nobody. **Not applied to production** — that is a
+  production configuration change.
+
+**New evidence added:** 19 composition assertions proving the loop is wired through the deployed
+graph; 12 adversarial migration attacks; a 67-assertion cross-company matrix verified through a
+**privileged** connection (proven non-vacuous — disabling RLS on one table fails 5 of them).
+
+**The single remaining blocker is B-1: no staging environment exists**, and creating one on
+Railway is a new charge with no free tier (D-021), plus a second Supabase project whose isolation
+cannot be verified without creating it. Both are stop conditions under the instruction given.
+Release 1 therefore **cannot reach `STAGING VERIFIED`**.
+
+## Previous checkpoint — Release 1 integration candidate (2026-09-10)
 
 The candidate exists, is pushed, and is **NOT `READY FOR STAGING`**. Full detail in
 `docs/release-1/DEPLOYMENT-READINESS.md`; the short version:
