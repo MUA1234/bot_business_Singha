@@ -24,9 +24,21 @@
 import { log } from "@/lib/log";
 
 /** A scheduled job: which cron endpoint to call, and how often. */
+/**
+ * What a job COSTS to run, which is what decides whether it can be switched off on its own.
+ *
+ *   `core`  — bounded database work. Turning it off loses recovery: `outbox` is the only path
+ *             that redelivers a failed customer message, and `dispatch-drain` /
+ *             `inbound-sweeper` are the only paths that retry a failed inbound one.
+ *   `model` — makes paid model calls. Spend is a function of cadence.
+ */
+export type JobKind = "core" | "model";
+
 export interface ScheduledJob {
   readonly job: string;
   readonly everyMs: number;
+  /** Defaults to `core`; only the model-calling jobs declare otherwise. */
+  readonly kind?: JobKind;
 }
 
 export const MINUTE = 60_000;
@@ -44,7 +56,7 @@ export const HOUR = 60 * MINUTE;
 export const DEFAULT_JOBS: readonly ScheduledJob[] = [
   { job: "outbox", everyMs: 1 * MINUTE },
   { job: "follow-ups", everyMs: 15 * MINUTE },
-  { job: "ai-monitor", everyMs: 1 * HOUR },
+  { job: "ai-monitor", everyMs: 1 * HOUR, kind: "model" },
   { job: "daily-digest", everyMs: 24 * HOUR },
 
   // ── Release 1: Railway is the SOLE scheduler host (owner decisions 1 and 2) ──────────
@@ -99,6 +111,54 @@ export function schedulerEnabled(env: NodeJS.ProcessEnv = process.env): boolean 
 }
 
 /**
+ * Which jobs are suppressed, and why they can be suppressed SEPARATELY.
+ *
+ * Until this existed there was one switch, `IN_PROCESS_CRON`, and it was all-or-nothing. That
+ * made a real operational problem unanswerable: production was found on 2026-09-10 running
+ * `ai-monitor` hourly against a live `OPENAI_API_KEY`, incurring model spend nobody had
+ * authorised — and the only way to stop it was to turn the scheduler off, which would ALSO have
+ * stopped `outbox` (the single recovery path for a failed customer message) and the two inbound
+ * sweeps. Stopping unauthorised spend by silently dropping customer messages is not a fix.
+ *
+ * Two controls, both fail-SAFE in the sense that matters here — an unset or misspelled value
+ * leaves the job running, because the failure mode of accidentally disabling recovery is worse
+ * than the failure mode of accidentally continuing to spend. Spend is visible on a bill;
+ * a message that was never retried is visible to nobody.
+ *
+ *   `MODEL_JOBS=off`           — suppresses every job declared `kind: "model"`.
+ *   `CRON_DISABLED_JOBS=a,b`   — suppresses jobs by name, for surgical control.
+ *
+ * Neither can suppress a job that does not exist, and `suppressedJobs` reports what it did so
+ * the boot log says which jobs are NOT running rather than leaving that to be inferred.
+ */
+export function jobSuppressed(job: ScheduledJob, env: NodeJS.ProcessEnv = process.env): string | null {
+  if (env.MODEL_JOBS === "off" && job.kind === "model") {
+    return "MODEL_JOBS=off";
+  }
+  const named = (env.CRON_DISABLED_JOBS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (named.includes(job.job)) return "CRON_DISABLED_JOBS";
+  return null;
+}
+
+/** The jobs that will actually be scheduled, and the ones that will not, with reasons. */
+export function partitionJobs(
+  jobs: readonly ScheduledJob[] = DEFAULT_JOBS,
+  env: NodeJS.ProcessEnv = process.env,
+): { runnable: ScheduledJob[]; suppressed: { job: string; reason: string }[] } {
+  const runnable: ScheduledJob[] = [];
+  const suppressed: { job: string; reason: string }[] = [];
+  for (const j of jobs) {
+    const reason = jobSuppressed(j, env);
+    if (reason) suppressed.push({ job: j.job, reason });
+    else runnable.push(j);
+  }
+  return { runnable, suppressed };
+}
+
+/**
  * Preconditions for actually starting. Separated from the side-effecting starter so the
  * decision is unit-testable: a missing CRON_SECRET must DISABLE the scheduler rather than
  * start it into a loop of 500s.
@@ -144,7 +204,20 @@ export function startScheduler(
   started = true;
   const secret = env.CRON_SECRET as string;
 
-  for (const { job, everyMs } of jobs) {
+  // Which jobs are suppressed is said OUT LOUD at boot, at error level. A job that silently
+  // stops running looks exactly like a job that runs and finds nothing to do, and the whole
+  // reason these controls exist is that someone needs to stop model spend WITHOUT stopping
+  // message recovery — so which half is off has to be legible in the deployment log.
+  const { runnable, suppressed } = partitionJobs(jobs, env);
+  for (const s of suppressed) {
+    log("error", "scheduled job SUPPRESSED by configuration", {
+      event: "cron.job_suppressed",
+      job: s.job,
+      reason: s.reason,
+    });
+  }
+
+  for (const { job, everyMs } of runnable) {
     let running = false;
     const tick = async () => {
       if (running) {
@@ -175,7 +248,10 @@ export function startScheduler(
 
   log("info", "in-process scheduler started", {
     event: "cron.scheduler_started",
-    jobs: jobs.map((j) => `${j.job}@${Math.round(j.everyMs / 1000)}s`),
+    jobs: runnable.map((j) => `${j.job}@${Math.round(j.everyMs / 1000)}s`),
+    suppressed: suppressed.map((s) => `${s.job}(${s.reason})`),
   });
-  return jobs.map((j) => j.job);
+  // Only the jobs actually scheduled. Returning the full list would tell the boot hook that a
+  // suppressed job is running.
+  return runnable.map((j) => j.job);
 }

@@ -118,13 +118,30 @@ Two test assumptions were stale for the same reason and are now correct rather t
 FK), and that membership must hold `operations.task.work` or `.manage` (`r1_draft_membership_can_own`).
 A random UUID passed only while the suite ran on a database with no `memberships` table at all.
 
-### D-2: unauthorised model spend is live in production
+### D-2: unauthorised model spend is live in production — **the control now exists**
 
 `OPENAI_API_KEY` is set and `IN_PROCESS_CRON=on`, so `ai-monitor` has been making model calls
-hourly since 2026-09-01. No paid model calls were authorised during R0–R3. **Owner decision
-required** — accept the spend, or unset the key. Turning the scheduler off is not a neutral
-option: it would also stop the outbox drain, the only recovery path for a failed customer
-message.
+hourly since 2026-09-01. No paid model calls were authorised.
+
+**What changed.** There used to be one switch, and turning it off would also have stopped
+`outbox` — the single recovery path for a failed customer message — and both inbound sweeps.
+Stopping unauthorised spend by silently dropping customer messages is not a fix, so the honest
+answer was "this needs an owner decision". That was a poor answer to what is really a missing
+control, and the control now exists:
+
+| Variable | Effect |
+|---|---|
+| `MODEL_JOBS=off` | suppresses every job declared `kind: "model"` — currently exactly `ai-monitor` |
+| `CRON_DISABLED_JOBS=a,b` | suppresses jobs by name, for surgical control |
+
+Both fail **safe in one direction only**: an unset or misspelled value leaves the job RUNNING,
+because accidentally disabling recovery is worse than accidentally continuing to spend. Spend
+appears on a bill; a message that was never retried appears to nobody. Suppression is logged at
+error level on boot, naming the job and which control did it.
+
+**Still an owner decision, and NOT applied to production overnight.** Setting `MODEL_JOBS=off`
+on the production service is a production configuration change. The candidate simply makes it
+possible to stop the spend without stopping message recovery.
 
 ### D-3: the deployed production revision is unavailable
 
