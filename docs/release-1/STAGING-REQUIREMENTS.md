@@ -5,27 +5,59 @@
 exactly one service, `singha-web`, in workspace `lakshanv's Projects`. There is no staging,
 preview or development environment.
 
-## The determination, made deliberately rather than by omission
+## The determination — reassessed 2026-09-11 against the live dashboards
 
-The owner authorised creating **one** isolated non-production staging environment *"only if it
-requires no plan upgrade or new charge"*, and directed: *"If the platform presents a charge,
-plan upgrade or uncertain database isolation, do not accept it."*
+The earlier version of this document rested on D-021's statement that *"Railway has no free
+tier"*. That was explicitly not to be relied on, so both accounts were re-inspected. **The
+conclusion is unchanged and the evidence is now current rather than historical.**
 
-**It would present both. So none was created.** Three independent reasons, each sufficient:
+The owner set two conditions, and staging may be created **only when both are true**.
 
-1. **Railway has no free tier.** Recorded in D-021 when the platform was adopted: *"Railway has
-   no free tier, only a paid Hobby plan"*, and billing is per-usage on the account. A second
-   environment running the service is additional compute — a new charge, not a free allocation.
-2. **The database cannot be reused, and a new one cannot be verified free.** Staging must not
-   touch `gazjughejdzebathpscb`, so it needs a second Supabase project. Whether the owner's
-   Supabase account can add one within its free allowance is not something this process can
-   determine without creating it — and creating it to find out is exactly the thing the
-   instruction forbids.
-3. **"Uncertain database isolation" is itself a stop condition**, and isolation is precisely
-   what is uncertain until the project exists and is inspected.
+### Condition 2 — Railway: **FAILS.** There is no included allowance to run it in.
 
-Guessing here has an asymmetric downside: an unexpected charge, or worse a "staging" environment
-quietly pointed at the production database. Neither is worth the convenience of not asking.
+`railway usage`, read 2026-09-11:
+
+| Field | Value |
+|---|---|
+| Workspace | `lakshanv's Projects` |
+| Billing period | Aug 29 – Sep 29, 2026 |
+| Current usage / current bill | **$3.85** |
+| Estimated bill | **$6.99** |
+| Soft limit | **not set** |
+| Hard limit | **not set** |
+| Over limit | no |
+
+This is a **usage-billed workspace with no free allowance being drawn down** — the bill accrues
+from dollar zero and there is no included quota a second service could fit inside. Current usage
+*is* the current bill, exactly.
+
+So a staging environment running `singha-web` is not "within already included usage"; it is
+additional compute added directly to a live bill, and with no soft or hard limit set there is
+nothing capping what it adds. That is a displayed additional charge, which the instruction says
+not to accept.
+
+### Condition 1 — Supabase: **cannot be verified**, which is itself a stop
+
+Condition 1 requires Supabase to **explicitly show** the second project as free with no upgrade.
+Nothing available here can see that:
+
+| Route | Status |
+|---|---|
+| Supabase CLI | not installed, and `npx supabase` would install a package |
+| `SUPABASE_ACCESS_TOKEN` / `SUPABASE_PAT` | not set |
+| Supabase MCP connector | **requires authentication** — the OAuth flow cannot run in a non-interactive session |
+
+The production service's `SUPABASE_SERVICE_ROLE_KEY` is a *project* key, not an account
+management token; it can read that one database and cannot enumerate projects or report a plan.
+
+So whether a second Free project is available is **unknown**, and "uncertain isolation" is a stop
+condition in its own right.
+
+### Consequence
+
+**No staging environment was created.** Both conditions fail — one on measured evidence, one on
+absent access — and guessing has an asymmetric downside: an unexpected charge on a bill with no
+limit set, or a "staging" environment quietly pointed at the production database.
 
 **Consequence: Release 1 cannot reach `STAGING VERIFIED`.** Everything that does not require a
 deployment axis has been done and measured — see [DEPLOYMENT-READINESS.md](DEPLOYMENT-READINESS.md).
@@ -35,7 +67,15 @@ deployment axis has been done and measured — see [DEPLOYMENT-READINESS.md](DEP
 | Resource | Why | Cost |
 |---|---|---|
 | One Railway environment `staging` in `singha-central`, running `singha-web` | The deployment axis | Usage-billed; no free tier |
-| One Supabase project, separate from `gazjughejdzebathpscb` | Isolation. Reusing production's database would make every isolation test meaningless | Free tier may cover it — the owner's account can say |
+| One Supabase project, separate from `gazjughejdzebathpscb` | Isolation. Reusing production's database would make every isolation test meaningless | Whether the Free tier covers a **second** project with no upgrade — visible on the Supabase dashboard, which this process cannot reach (no CLI, no management token, connector unauthenticated) |
+
+Two things worth deciding at the same time, because the usage reading exposed them:
+
+* **No soft or hard usage limit is set** on the Railway workspace. Adding a second always-on
+  service to a bill with no cap is a larger decision than adding one to a capped bill.
+* The estimate is **$6.99** for the current period against **$3.85** spent so far. A staging
+  service roughly doubles the running surface, so the honest expectation is a materially higher
+  estimate, not a rounding difference.
 
 Neither can be created by this process under the instruction it was given.
 
