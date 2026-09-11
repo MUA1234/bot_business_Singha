@@ -49,3 +49,7 @@ artifacts/
 *.up.sql.bak
 *.ts.bak
 *.tsx.bak
+
+# Hard-scenario harness: locally generated JWTs and connection strings. Local-only values,
+# regenerated on every `scripts/hard-scenario/up.mjs`, but never committed.
+.hard-scenario/

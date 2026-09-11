@@ -206,10 +206,29 @@ describe.skipIf(!stackConfigured)("C — CRM and sales", () => {
   });
 
   it("C4 — no quotation was marked sent during this offline campaign", async () => {
+    // Filtered on `sent_at`, NOT `created_at`.
+    //
+    // The claim is "nothing was SENT while no provider was reachable", and `sent_at` is when a
+    // row was sent. `created_at` is when it was written, which is a different event — and the
+    // difference is not academic: `dev-fixture-seed.mjs` seeds a delivered outbox row so the
+    // screens have one to show, with a back-dated `sent_at` and a `created_at` of whenever the
+    // seed ran. Seed tenant A less than thirty minutes before this suite and the fixture falls
+    // inside the window, and the campaign reports that the application sent a message it never
+    // touched. That is a false positive on a safety assertion, which is worse than a false
+    // negative: it trains a reader to explain failures away.
+    //
+    // A row this campaign actually sent would carry a `sent_at` from the last thirty minutes.
     const svc = serviceClient();
+    const since = new Date(Date.now() - 30 * 60_000).toISOString();
     const { data } = await svc
-      .from("message_outbox").select("id").eq("status", "sent")
-      .gte("created_at", new Date(Date.now() - 30 * 60_000).toISOString());
+      .from("message_outbox").select("id,recipient,sent_at,provider_message_id")
+      .eq("status", "sent").gte("sent_at", since);
     expect(data ?? [], "a message was marked sent with no provider reachable").toHaveLength(0);
+
+    // And the corroborating fact, independent of any timestamp: nothing carries a provider
+    // message id. A real send returns one; no reachable provider means none can exist.
+    const { data: withProviderId } = await svc
+      .from("message_outbox").select("id").not("provider_message_id", "is", null);
+    expect(withProviderId ?? [], "an outbox row carries a provider message id").toHaveLength(0);
   });
 });
