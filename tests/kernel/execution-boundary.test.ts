@@ -39,25 +39,22 @@ import {
 } from "@/kernel/execution/boundary";
 import { allPolicies } from "@/kernel/execution/policy";
 import { asCompanyId } from "@/kernel/ask-ai/identity";
+import { codeOnlySql, codeOnlyTs } from "../helpers/source-text";
 
 const env = (o: Record<string, string | undefined> = {}) => o as NodeJS.ProcessEnv;
 const CO = asCompanyId("11111111-1111-4111-8111-111111111111");
 
 /**
- * Source with the COMMENTS REMOVED.
+ * Source with the COMMENTS REMOVED — `tests/helpers/source-text.ts` records why that is not a
+ * convenience.
  *
  * Three assertions in this suite first ran against the raw text and failed on their own
  * explanations: a docstring saying "never a `NEXT_PUBLIC_` variable" matched a test asserting
- * that no `NEXT_PUBLIC_` variable is named. That is not a near miss, it is the wrong subject —
- * these tests are about what the code does, and prose is not code. Everything below that reads
- * source reads it stripped.
+ * that no such variable is named. That is not a near miss, it is the wrong subject — these tests
+ * are about what the code does, and prose is not code.
  */
-const stripTs = (s: string) =>
-  s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
-const stripSql = (s: string) => s.replace(/^\s*--.*$/gm, "");
-
-const BOUNDARY_SRC = stripTs(readFileSync("src/kernel/execution/boundary.ts", "utf8"));
-const TRANSPORT_SQL = stripSql(
+const BOUNDARY_SRC = codeOnlyTs(readFileSync("src/kernel/execution/boundary.ts", "utf8"));
+const TRANSPORT_SQL = codeOnlySql(
   readFileSync("src/db/draft-migrations-r1/R1_DRAFT_029_execution_transport.up.sql", "utf8"),
 );
 

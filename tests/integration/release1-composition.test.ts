@@ -9,6 +9,7 @@ import {
 } from "@/kernel/execution/boundary";
 import { allPolicies, handlerFor } from "@/kernel/execution/policy";
 import { EXECUTION_RPCS } from "@/kernel/execution/postgrest-transport";
+import { codeOnlyTs } from "../helpers/source-text";
 
 /**
  * Release 1 composition — is the loop wired through the DEPLOYED graph, or only through tests?
@@ -153,8 +154,17 @@ describe("the autonomy ceiling is exactly one action, and it is welded shut besi
     expect(browserReachableExecutionFlags()).toEqual([]);
 
     // Never a NEXT_PUBLIC_ variable: Next.js inlines those into the client bundle.
-    const src = readFileSync("src/kernel/execution/boundary.ts", "utf8");
+    //
+    // COMMENTS STRIPPED. The raw file matched on its own docstring — the sentence explaining that
+    // the danger is "the future commit that adds `NEXT_PUBLIC_EXECUTION_ENABLED`". A test that
+    // fails on the explanation of the rule is not testing the rule.
+    const src = readFileSync("src/kernel/execution/boundary.ts", "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
     expect(src).not.toMatch(/NEXT_PUBLIC_[A-Z_]*EXECUT/);
+    // The ONE place the prefix legitimately appears in code is the detector that reports such a
+    // variable if one is ever introduced, and it builds the name from a pattern, not a literal.
+    expect(src).toMatch(/\/\^NEXT_PUBLIC_\.\*EXECUT\/i\.test/);
   });
 
   it("exactly ONE action is executable; every other policy is draft_only", () => {

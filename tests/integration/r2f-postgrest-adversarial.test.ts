@@ -30,6 +30,7 @@ import { makeCycleDeps } from "@/kernel/cycle-deps";
 import { pgSupabase } from "./helpers/pg-supabase";
 import { LOCAL_EXECUTION_TOKEN } from "@/kernel/execution/boundary";
 import { REFUSAL_REASONS } from "@/kernel/execution/contract";
+import { codeOnlySql } from "../helpers/source-text";
 
 const URL = process.env.DATABASE_URL ?? "";
 const enabled = !!URL && /127\.0\.0\.1|localhost|\[::1\]/.test(URL);
