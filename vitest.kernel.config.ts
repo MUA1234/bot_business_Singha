@@ -11,7 +11,7 @@ import { KERNEL_SUITE_GLOBS, SELF_MANAGED_SUITES } from "./tests/integration/cam
  * gates assert every SECURITY DEFINER function in `public` is classified, and the draft functions
  * are deliberately absent from that allowlist.
  *
- * Run: `npm run test:kernel` against a database prepared with shim + migrate + draft-migrate --up,
+ * Run: `npm run test:kernel` against a database prepared with shim + migrate (one chain since the
  * or `node scripts/r1/run-r1-security-tests.mjs`, which provisions that database itself.
  */
 export default defineConfig({

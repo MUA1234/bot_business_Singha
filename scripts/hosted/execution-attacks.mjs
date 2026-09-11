@@ -58,8 +58,9 @@ try {
     execFileSync(cmd, args, { stdio: "inherit", env: { ...process.env, DATABASE_URL: url, ...env } });
 
   sh("node", ["scripts/apply-sql.mjs", "tests/integration/helpers/supabase-shim.sql"]);
+  // One runner, one chain. The draft step this used to need went away when 001–030 were
+  // promoted to 0111–0140.
   sh("node", ["scripts/migrate.mjs"]);
-  sh("node", ["scripts/r1/draft-migrate.mjs", "--up"], { R1_DRAFT_CONFIRM: "disposable-local-only" });
 
   db = new pg.Client({ connectionString: url, ssl: false });
   await db.connect();

@@ -103,12 +103,15 @@ describe("CI runs both campaigns", () => {
     expect(ci).toMatch(/npm run test:draft-schema/);
   });
 
-  it("prepares the draft chain before the kernel campaign, and not before the core one", () => {
-    // The core campaign must see a database with NO draft object: its enumeration gates assert
-    // every SECURITY DEFINER function is classified.
-    const kernelStep = ci.slice(ci.indexOf("test:kernel") - 800, ci.indexOf("test:kernel"));
-    expect(kernelStep, "the kernel job must apply the draft chain").toMatch(/draft-migrate/);
+  it("no job invokes the retired draft runner", () => {
+    // The draft chain was promoted to 0111-0140 and the draft runner script was deleted.
+    // A CI step still calling it would fail loudly, but a step still EXPORTING
+    // R1_DRAFT_CONFIRM would not - it would just be a variable nothing reads, which is how a
+    // retired mechanism stays in a workflow file for a year.
+    expect(ci, "CI still calls the retired draft runner").not.toMatch(/draft-migrate/);
+    expect(ci, "CI still sets R1_DRAFT_CONFIRM").not.toMatch(/R1_DRAFT_CONFIRM/);
   });
+
 });
 
 describe("the canonical security campaign runs exactly the kernel suites", () => {

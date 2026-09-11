@@ -73,7 +73,7 @@ try {
     // naming one of those here would match zero files and report a silent pass.
     "-c", "vitest.draft-schema.config.ts",
   ], {
-    env: { ...process.env, DATABASE_URL: URL, R1_DRAFT_CONFIRM: "disposable-local-only" },
+    env: { ...process.env, DATABASE_URL: URL },
   });
 } catch {
   code = 1;

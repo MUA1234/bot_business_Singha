@@ -45,8 +45,8 @@ try {
   await boot.query(readFileSync("tests/integration/helpers/supabase-shim.sql", "utf8"));
   await boot.end();
   execFileSync("node", ["scripts/migrate.mjs"], { env: { ...process.env, DATABASE_URL: URL }, stdio: "pipe" });
-  execFileSync("node", ["scripts/r1/draft-migrate.mjs", "--up"], {
-    env: { ...process.env, DATABASE_URL: URL, R1_DRAFT_CONFIRM: "disposable-local-only" }, stdio: "pipe",
+  execFileSync("node", ["scripts/migrate.mjs"], {
+    env: { ...process.env, DATABASE_URL: URL }, stdio: "pipe",
   });
 
   const db = new pg.Client({ connectionString: URL, ssl: false });

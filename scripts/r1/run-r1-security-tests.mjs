@@ -9,10 +9,12 @@
  *
  *   1. disposable postgres:16, published to LOOPBACK ONLY;
  *   2. the Supabase compatibility shim (auth roles, auth.uid(), grants);
- *   3. all production migrations via the ordinary runner;
- *   4. the quarantined R1 draft units via the draft runner;
- *   5. the live integration campaign;
- *   6. teardown, pass or fail.
+ *   3. ALL migrations — 0001 through the kernel's own range — via the ordinary runner;
+ *   4. the live integration campaign;
+ *   5. teardown, pass or fail.
+ *
+ * There is no step for a draft chain any more: 001–030 were promoted to 0111–0140 on 2026-09-11
+ * and the special runner was retired with them.
  *
  * Nothing hosted is contacted at any point.
  *
@@ -191,7 +193,7 @@ function runCampaign(files) {
       // path problem rather than "the canonical security campaign has not run since the split".
       "node_modules/vitest/vitest.mjs", "run", "-c", "vitest.kernel.config.ts", ...files,
     ], {
-      env: { ...process.env, DATABASE_URL: URL, R1_DRAFT_CONFIRM: "disposable-local-only" },
+      env: { ...process.env, DATABASE_URL: URL },
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -241,8 +243,8 @@ try {
   run("node", ["scripts/migrate.mjs"], { env: { ...process.env, DATABASE_URL: URL }, stdio: "pipe" });
 
   console.log("▶ applying quarantined R1 draft units …");
-  run("node", ["scripts/r1/draft-migrate.mjs", "--up"], {
-    env: { ...process.env, DATABASE_URL: URL, R1_DRAFT_CONFIRM: "disposable-local-only" },
+  run("node", ["scripts/migrate.mjs"], {
+    env: { ...process.env, DATABASE_URL: URL },
   });
 
   console.log("▶ auditing that every loader column actually exists …");

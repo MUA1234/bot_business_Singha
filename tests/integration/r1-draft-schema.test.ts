@@ -1,12 +1,22 @@
 /**
- * R1 draft schema — live PostgreSQL behavioural tests (checkpoint 2).
+ * The Release 1 kernel schema — live PostgreSQL behavioural tests (checkpoint 2).
  *
  * Proves at the DATABASE boundary what `tests/kernel/lifecycle.test.ts` proves in pure code,
  * because an invariant enforced only in application code is a convention, not a control.
  *
- * Covers: the six-unit apply, the lifecycle map, illegal-transition refusal, GENUINE
- * two-connection concurrency, the zero-evidence prohibition, cross-company rejection,
- * append-only history, deadline provenance, and a full rollback leaving no R1 object behind.
+ * ── This suite used to test a quarantined draft chain ────────────────────────────────────────
+ *
+ * It applied `src/db/draft-migrations-r1/` through a special runner, checked the units landed in
+ * their own `r1_draft_migrations` ledger and NOT in `schema_migrations`, and rolled them back.
+ * The chain was promoted to `0111`–`0140` on 2026-09-11, so every one of those premises is now
+ * false: the ordinary runner applies them, there is one ledger, and the rollback SQL lives in
+ * `src/db/rollback/`.
+ *
+ * The BEHAVIOURAL tests below are unchanged, because what they prove did not change — the
+ * lifecycle map, illegal-transition refusal, two-connection concurrency, the zero-evidence
+ * prohibition, cross-company rejection, append-only history and deadline provenance are
+ * properties of the schema, not of how it got applied. What changed is the setup, the ledger
+ * assertion and the rollback.
  *
  * Skipped unless DATABASE_URL points at a disposable local database.
  * Run: see scripts/r1/run-draft-schema-tests.mjs
@@ -14,7 +24,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import pg from "pg";
 import { URL as NodeURL } from "node:url";
 
@@ -159,7 +169,9 @@ describe.skipIf(!enabled)("R1 draft schema — live disposable PostgreSQL", () =
       OWNER_OF.set(co, membershipId);
     }
 
-    execFileSync("node", ["scripts/r1/draft-migrate.mjs", "--up"], { env, stdio: "pipe" });
+    // The ORDINARY runner. No draft runner, no R1_DRAFT_CONFIRM, no second ledger — that this
+    // works at all is half of what the promotion had to establish.
+    execFileSync("node", ["scripts/migrate.mjs"], { env, stdio: "pipe" });
   }, 300_000);
 
   afterAll(async () => {
@@ -177,28 +189,23 @@ describe.skipIf(!enabled)("R1 draft schema — live disposable PostgreSQL", () =
     expect(rows).toHaveLength(6);
   });
 
-  it("records the draft units in its OWN ledger and never in schema_migrations", async () => {
-    // Derived from the directory, not hard-coded: adding a draft unit must not fail a test
-    // that is about the LEDGER rather than about how many units happen to exist.
-    const unitCount = readdirSync("src/db/draft-migrations-r1").filter((f) => f.endsWith(".up.sql")).length;
-    const { rows } = await db.query(`select count(*)::int as n from r1_draft_migrations`);
-    expect(rows[0].n).toBe(unitCount);
+  it("records every migration in the ONE ledger, and there is no second one", async () => {
+    // The inverse of what this test used to assert. The units are no longer quarantined, so the
+    // correct outcome is that they are in `schema_migrations` with everything else — and that the
+    // separate ledger does not exist at all, since a leftover one would mean a leftover runner.
+    const onDisk = readdirSync("src/db/migrations").filter((f) => /^\d{4}_.*\.sql$/.test(f)).length;
+    const { rows } = await db.query(`select count(*)::int as n from schema_migrations`);
+    expect(rows[0].n, "the ledger does not match the migrations on disk").toBe(onDisk);
 
-    // The strongest possible form of the assertion: applying every draft unit did not even
-    // CREATE the production ledger, so it cannot have written to it. (If a future run does
-    // create it — e.g. the drafts are applied on top of a real schema — fall through and
-    // assert no draft row leaked into it.)
-    const { rows: present } = await db.query(
-      `select to_regclass('public.schema_migrations') is not null as exists`,
-    );
-    if (!present[0].exists) {
-      expect(present[0].exists).toBe(false); // proven: production ledger untouched
-      return;
-    }
-    const { rows: leaked } = await db.query(
-      `select count(*)::int as n from schema_migrations where filename like 'R1_DRAFT%'`,
-    );
-    expect(leaked[0].n).toBe(0);
+    const { rows: draftLedger } = await db.query(
+      `select to_regclass('public.r1_draft_migrations') is not null as exists`);
+    expect(draftLedger[0].exists, "the quarantine ledger still exists").toBe(false);
+
+    // Contiguous, and reaching the kernel's own range.
+    const { rows: range } = await db.query(
+      `select min(version) lo, max(version) hi from schema_migrations`);
+    expect(range[0].lo).toBe("0001");
+    expect(Number(range[0].hi)).toBeGreaterThanOrEqual(140);
   });
 
   // ── lifecycle at the database boundary ───────────────────────────────────────────────
@@ -495,37 +502,65 @@ describe.skipIf(!enabled)("R1 draft schema — live disposable PostgreSQL", () =
 });
 
 /** Rollback runs LAST, in its own describe, so it cannot destroy the schema mid-suite. */
-describe.skipIf(!enabled)("R1 draft schema — rollback leaves nothing behind", () => {
-  it("removes every R1 table and function", async () => {
-    // DATABASE_URL must be the SCRATCH database, not the inherited shared one. Without this
-    // override the rollback ran against whatever the campaign was using — which is exactly how
-    // this suite used to strip the draft schema out from under its neighbours.
-    execFileSync("node", ["scripts/r1/draft-migrate.mjs", "--down"], {
-      env: { ...process.env, DATABASE_URL: URL, PGSSL: "disable", R1_DRAFT_CONFIRM: "disposable-local-only" },
-      stdio: "pipe",
-    });
+describe.skipIf(!enabled)("the kernel rollback scripts leave the released schema standing", () => {
+  it("applied in REVERSE order, they remove the kernel and nothing else", async () => {
+    // `src/db/rollback/` replaced the draft chain's `.down.sql` files. The forward runner never
+    // reads it, so applying one is a deliberate manual act — which is what this does, in reverse
+    // dependency order, exactly as an operator rolling back would have to.
+    //
+    // The assertion has TWO halves, and the second is the one that matters. "The kernel is gone"
+    // was all the old test checked, against a database that had never held anything else. Here
+    // the rollback runs on a database carrying the full released chain, so it can also be asked
+    // the question that makes it a rollback rather than a wipe: is everything else still there?
     const c = new pg.Client({ connectionString: URL, ssl: false });
     await c.connect();
     try {
+      const releasedBefore = Number((await c.query(
+        `select count(*)::int n from information_schema.tables
+          where table_schema='public' and table_name in
+          ('companies','users','memberships','tasks','projects','customers','quotations',
+           'journal_entries','message_outbox','audit_events')`)).rows[0].n);
+      expect(releasedBefore, "the released tables were not there to begin with").toBe(10);
+
+      const files = readdirSync("src/db/rollback")
+        .filter((f) => /^\d{4}_.*\.down\.sql$/.test(f))
+        .sort()
+        .reverse();
+      expect(files.length, "no rollback scripts found").toBeGreaterThanOrEqual(30);
+
+      for (const f of files) {
+        const sql = readFileSync(`src/db/rollback/${f}`, "utf8");
+        try {
+          await c.query(sql);
+        } catch (e) {
+          throw new Error(`rollback ${f} failed: ${(e as Error).message}`);
+        }
+      }
+
+      // Half one: the kernel is gone.
       const { rows: tables } = await c.query(
         `select table_name from information_schema.tables where table_schema='public'
           and table_name in ('management_items','management_item_transitions','management_item_evidence',
-                             'management_item_decisions','observation_sources','management_item_feedback')`,
-      );
-      expect(tables).toEqual([]);
+                             'management_item_decisions','observation_sources','management_item_feedback',
+                             'management_cycle_leases')`);
+      expect(tables.map((r) => r.table_name), "kernel tables survived the rollback").toEqual([]);
 
       const { rows: fns } = await c.query(
         `select proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-          where n.nspname='public' and proname like 'r1_draft_%'`,
-      );
-      expect(fns).toEqual([]);
+          where n.nspname='public' and (proname like 'r1_exec_%' or proname like 'r1_draft_%')`);
+      expect(fns.map((r) => r.proname), "kernel functions survived the rollback").toEqual([]);
 
-      const { rows: ledger } = await c.query(`select count(*)::int as n from r1_draft_migrations`);
-      expect(ledger[0].n).toBe(0);
+      // Half two: everything the released chain built is untouched.
+      const releasedAfter = Number((await c.query(
+        `select count(*)::int n from information_schema.tables
+          where table_schema='public' and table_name in
+          ('companies','users','memberships','tasks','projects','customers','quotations',
+           'journal_entries','message_outbox','audit_events')`)).rows[0].n);
+      expect(releasedAfter, "the rollback removed released tables too").toBe(releasedBefore);
     } finally {
       await c.end();
     }
-  }, 60_000);
+  }, 120_000);
 
   /**
    * Drop the scratch database. Runs after the rollback check, and tolerates failure: a leaked
