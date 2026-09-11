@@ -110,3 +110,34 @@ describe("CI runs both campaigns", () => {
     expect(kernelStep, "the kernel job must apply the draft chain").toMatch(/draft-migrate/);
   });
 });
+
+describe("the canonical security campaign runs exactly the kernel suites", () => {
+  const RUNNER = "scripts/r1/run-r1-security-tests.mjs";
+  const runner = readFileSync(RUNNER, "utf8");
+
+  it("holds NO hand-written list of suite filenames", () => {
+    // It held 33, and they had drifted: `r2-cross-company-attack-matrix` and both
+    // `r2f-postgrest-*` suites were kernel suites the canonical campaign did not run. A list
+    // beside a pattern is the exact defect `campaigns.ts` was written to prevent, and having it
+    // in a second file did not make it a different defect.
+    const quotedSuites = [...runner.matchAll(/"tests\/integration\/[^"]+\.test\.tsx?"/g)];
+    expect(quotedSuites.map((m) => m[0]), "the runner names suites by hand again").toEqual([]);
+  });
+
+  it("derives them with the SAME pattern the campaign configs use", () => {
+    // Duplicated rather than imported — the runner is plain Node and `campaigns.ts` is
+    // TypeScript — so the duplication is asserted here instead of being trusted.
+    const m = runner.match(/const KERNEL_FILE_PATTERN = (\/[^\n]+\/);/);
+    expect(m, "the runner does not declare a kernel pattern").not.toBeNull();
+    expect(m![1]).toBe(KERNEL_FILE_PATTERN.toString());
+    expect(runner).toMatch(/const SELF_MANAGED = \["r1-draft-schema\.test\.ts"\]/);
+    expect([...SELF_MANAGED_SUITES]).toEqual(["r1-draft-schema.test.ts"]);
+  });
+
+  it("and would refuse to run a suspiciously small selection", () => {
+    // A pattern that stopped matching would otherwise run a handful of suites and exit 0, which
+    // is how a campaign reports success for work it did not do.
+    expect(runner).toMatch(/ALL\.length < 30/);
+    expect(suites.filter(isKernelSuite).length).toBeGreaterThanOrEqual(30);
+  });
+});

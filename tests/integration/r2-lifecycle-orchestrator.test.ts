@@ -15,11 +15,21 @@
  *
  * TWO substitutions, both stated rather than glossed. The HTTP transport is `pgSupabase`, this
  * repository's established way of running production modules against a real database. The
- * execution SQL transport is injected because NO SERVER PATH HAS ONE — the execution service reads
- * its ledger and loaders through direct SQL and the request path speaks PostgREST. Nothing in
- * production had ever called it; the orchestrator is its first caller, which is how the absence
- * surfaced. Registered as R2F-F-019, and the factory's default reports it explicitly rather than
- * quietly doing nothing.
+ * execution SQL transport is injected — and that injection is now a CHOICE rather than a
+ * necessity, which is the one thing about this header that has changed.
+ *
+ * It used to be a necessity, and that was R2F-F-019: the execution service read its ledger and its
+ * loaders through direct SQL, the request path speaks PostgREST, and no server path had a
+ * transport at all. This suite injected one so the lifecycle could be proven end to end, and said
+ * so, because a proof that quietly supplies the missing dependency proves nothing about the
+ * deployed system.
+ *
+ * That gap is closed. `makeCycleDeps` with no SQL transport now reaches the executor over named
+ * RPCs, and `r2f-postgrest-execution.test.ts` drives this same loop through that composition with
+ * nothing injected. What this suite keeps injecting is the SQL transport specifically, because
+ * these tests are about the LIFECYCLE and the SQL path is the one they were written against;
+ * changing them to the other transport would re-prove the transport and stop re-proving the
+ * lifecycle.
  *
  * ── The authority separation, asserted rather than described ─────────────────────────────────
  *
@@ -205,16 +215,17 @@ beforeAll(async () => {
   raw = new pg.Client({ connectionString: URL, ssl: false });
   await raw.connect();
   await q(`select set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
-  // The real factory, with the real defaults — plus the execution SQL transport, which is
-  // INJECTED because no server path has one (R2F-F-019). That is the honest shape of this proof:
-  // everything except execution runs exactly as the request path runs it, and execution runs
-  // through the same service with a transport production does not yet possess.
+  // The real factory, with the real defaults — plus the execution SQL transport. Injecting it is
+  // a choice, not a necessity: the factory reaches the executor over PostgREST without it (see the
+  // header). These tests are about the LIFECYCLE, and the SQL path is the one they were written
+  // against, so they keep driving it.
   const execSql: SqlExec = async (text, params) => {
     const r = await raw.query(text, params as unknown[]);
     return { rows: r.rows as Record<string, unknown>[] };
   };
-  // THE DEPLOYED SHAPE. Execution is switched off at the global boundary — a compile-time
-  // constant, not configuration — so this graph reaches `approved` and records the refusal.
+  // THE DEPLOYED SHAPE. Execution is switched off at the global boundary — `EXECUTION_ENABLED` is
+  // unset in this process and the default is off — so this graph reaches `approved` and records
+  // the refusal.
   deps = makeCycleDeps(pgSupabase(raw), () => new Date(), undefined, execSql);
   // The same graph, plus the deterministic-local-test token. The only thing that differs is the
   // one value `boundary.ts` says a caller must type into a test file.

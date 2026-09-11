@@ -89,32 +89,36 @@ export function makeCycleDeps(
   now: () => Date = () => new Date(),
   verificationStore: VerificationStore = createSupabaseVerificationStore(db),
   /**
-   * The execution service's SQL transport (R2F-F-019).
+   * The execution service's SQL transport — OPTIONAL, and undefined in every server path.
    *
-   * `undefined` in every server path today, and that is the honest default rather than an
-   * oversight: the execution service reaches its ledger, its item loader, its plan loader and its
-   * approval loader through direct SQL, and the request path speaks PostgREST, which cannot run
-   * arbitrary SQL. Nothing in production had ever called `executeManagementAction` — the
-   * orchestrator is its first caller, which is how the absence surfaced.
+   * It was undefined here too, and the consequence was R2F-F-019: the execution service reached
+   * its ledger and its four loaders through direct SQL, the request path speaks PostgREST, which
+   * cannot run SQL text, so the orchestrator recorded an "execution transport unavailable" hold
+   * and marked every cycle partial. The loop's one authorised effect was unreachable from the
+   * deployed graph.
    *
-   * When it is absent the orchestrator records an explicit "execution transport unavailable" hold
-   * against the item and marks the cycle partial. It never reports the item as advanced, and it
-   * never reports the cycle as calm.
-   *
-   * The remaining work is the same shape as the verification store: a PostgREST transport for the
-   * ledger and the four loaders. It is registered, not hidden behind a default that pretends.
+   * That is closed. When this is undefined the service now builds its loaders, its ledger and its
+   * ONE atomic execute from named RPCs over the same PostgREST client this factory already holds
+   * — `R1_DRAFT_029`, service-only, with no SQL text anywhere. Supplying `executionSql` selects
+   * the direct-SQL transport instead, which is what a worker holding a real PostgreSQL connection
+   * does. It changes the transport and nothing else: both go through the same executor, the same
+   * boundaries, the same authority resolution and the same freshness checks.
    */
   executionSql?: SqlExec,
   /**
    * The deterministic-local-test token, and nothing else.
    *
-   * `EXECUTION_GLOBALLY_ENABLED` is `false as const` — not an environment variable, not a feature
-   * flag, not a database row — so no deployment can switch execution on. A caller that has this
-   * token is a caller that typed it into a test file; no server path has anywhere to get one.
+   * A caller that has this token is a caller that typed it into a test file: it is not read from
+   * the environment, so no `.env`, no CI variable and no deployment can supply one.
    *
-   * Absent, the orchestrator reaches `approved`, asks the executor, and records the refusal
-   * `global_boundary_disabled` against the item. That is the deployed system's real behaviour and
-   * the tests assert it as such.
+   * It is no longer the ONLY way past the global boundary — `EXECUTION_ENABLED=on` is the other,
+   * and staging is why that exists. But the token remains the only way a local test produces a
+   * real effect without setting a deployment variable, and on the atomic transport both halves
+   * still have to agree with the server-side boundary row before anything is created.
+   *
+   * Absent, and with the variable unset, the orchestrator reaches `approved`, asks the executor,
+   * and records the refusal `global_boundary_disabled` against the item. That is the deployed
+   * system's real behaviour and the tests assert it as such.
    */
   localExecutionToken?: string,
 ): CycleDeps {
@@ -344,15 +348,12 @@ export function makeCycleDeps(
               Record<string, unknown> | undefined;
             if (!parameters) return { executed: false, detail: "no plan is recorded" };
 
-            if (!executionSql) {
-              // R2F-F-019. Explicit, with a reason, and reported against this item — never a
-              // silent no-op that would leave an approved item looking as though nothing was due.
-              return {
-                executed: false,
-                detail: "execution transport unavailable: no SQL transport is configured",
-              };
-            }
-
+            // There is no transport check here any more, because there is always a transport:
+            // `executionSql` when a worker supplied one, and the PostgREST RPCs over `db`
+            // otherwise. The branch that used to return "execution transport unavailable" WAS
+            // R2F-F-019, and removing it is the point — an approved item is now executed or
+            // refused with a reason, never held because the deployed graph could not reach the
+            // database.
             const outcome = await executeManagementAction(
               {
                 sql: executionSql,

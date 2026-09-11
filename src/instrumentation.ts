@@ -28,6 +28,40 @@ export async function register(): Promise<void> {
     });
   }
 
+  // ── Can this process produce business effects? ─────────────────────────────────────────
+  //
+  // The global execution boundary used to be `false as const`, so the answer was the same in
+  // every deployment and there was nothing to report. It is now a server variable — that is what
+  // let staging observe the loop's one authorised effect — and the price of a variable is that an
+  // operator can no longer read the source to find out which way it is set.
+  //
+  // So the process says so at boot. ON is reported at ERROR level, not because it is a fault but
+  // because a system that can act without a person saying so each time is a fact nobody should
+  // have to go looking for. OFF is reported too, at info: silence would be indistinguishable from
+  // a diagnostic that failed to run.
+  //
+  // Names and booleans only. No value from the environment is printed.
+  {
+    const { executionBoundaryDiagnostics } = await import("@/kernel/execution/boundary");
+    const { log } = await import("@/lib/log");
+    const boundary = executionBoundaryDiagnostics();
+    log(
+      boundary.enabled ? "error" : "info",
+      boundary.enabled
+        ? "EXECUTION IS ENABLED — this process may produce business effects without a person acting"
+        : "execution is disabled at the global boundary",
+      { event: "execution.boundary", ...boundary },
+    );
+    if (boundary.browserReachableFlags.length > 0) {
+      // A `NEXT_PUBLIC_*` variable that mentions execution is inlined into the client bundle.
+      // Nothing reads one, and this is here so that introducing one is loud rather than subtle.
+      log("error", "a browser-reachable execution variable exists and must not", {
+        event: "execution.boundary_browser_reachable",
+        variables: boundary.browserReachableFlags,
+      });
+    }
+  }
+
   const { startScheduler } = await import("@/lib/scheduler");
   startScheduler();
 }

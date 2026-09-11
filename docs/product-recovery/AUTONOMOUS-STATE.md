@@ -181,7 +181,7 @@ A language model appears nowhere in it.
 | **R2F-F-017** | condition evidence compared against candidate-eligibility evidence | **closed** |
 | **R2F-F-018** | an automatically-authorised item could not reach `approved` | **closed** (draft 028) |
 | **R2F-F-021** | the executor read approver capabilities from the legacy table only | **closed** |
-| **R2F-F-019** | no server path provides the execution SQL transport; the executor needs direct SQL and the request path speaks PostgREST | **open**; the factory reports it explicitly and marks the cycle partial |
+| **R2F-F-019** | no server path provides the execution SQL transport; the executor needs direct SQL and the request path speaks PostgREST | **closed** (draft 029) — named service-only RPCs, no SQL text anywhere; proven through `makeCycleDeps` with no transport injected, at parity with the SQL path |
 | **R2F-F-020** | the authority engine fails closed on a null actor membership, so no cycle-created item resolves to `automatic` | **open, deliberately unrepaired** — lowering it would weaken an authority control |
 | **R2F-F-015** | `POLARITY.reopened = -1` regardless of source | open, pinned by a permanent gate |
 | **R2F-F-016** | the queue reads through the service-role client unless `RLS_READS=on` | open |
@@ -230,8 +230,13 @@ A language model appears nowhere in it.
 | typecheck · lint | clean · clean |
 
 Two substitutions are stated in the orchestrator suite rather than glossed: the HTTP transport
-(`pgSupabase`, the repository's established substitution), and the execution SQL transport, which is
-injected because **no server path has one** (R2F-F-019).
+(`pgSupabase`, the repository's established substitution), and the execution SQL transport.
+
+The second used to be a necessity — R2F-F-019, no server path had a transport at all. It is now a
+choice: `makeCycleDeps` with no SQL transport reaches the executor over named RPCs, and
+`r2f-postgrest-execution.test.ts` drives the same loop through that composition with nothing
+injected. The orchestrator suite keeps injecting SQL because its subject is the lifecycle, not the
+transport.
 
 Execution stays off at the global boundary. The deployed-shaped graph reaches `approved` and records
 `global_boundary_disabled`; only a graph handed the deterministic local token creates the effect.
@@ -295,10 +300,11 @@ docker ps -q | wc -l          # run the canonical campaign when this is low
 node scripts/r1/run-r1-security-tests.mjs
 ```
 
-**The next dependency on the existing roadmap is R2F-F-019**: a PostgREST transport for the
-execution ledger and its four loaders, so the deployed request path can carry out the one action it
-is registered to carry out. It is the same shape as the verification store's Supabase adapter and
-needs no new owner decision.
+~~**The next dependency on the existing roadmap is R2F-F-019**~~ — **done.** Draft unit 029 gives
+the deployed request path seven named service-only RPCs: four loaders, a refusal recorder, and one
+atomic execute that claims the idempotency key, produces the effect and writes the terminal ledger
+row in a single transaction. No RPC accepts SQL text, and none accepts a company, authority,
+approver, membership, entitlement or parameter as something to be trusted.
 
 **R2F-F-020 needs an owner decision**, not code: whether an unattended cycle may resolve `automatic`
 authority when there is no actor membership by construction. Today it cannot, and the manual
@@ -329,9 +335,10 @@ deliberately quarantined. CI's integration job therefore cannot be green as conf
 `r1-draft-schema.test.ts` mutates the shared database (28 draft units applied; 8 and then 15
 left behind across two runs), so whole-directory results are order-dependent.
 
-Carried over from R5, unchanged: **one product decision** (R2F-F-020) and **one piece of
-registered engineering** (R2F-F-019); host contention remains an environment blocker for
-the mutation campaign. Staging and production remain **zero**.
+Carried over from R5: **one product decision** (R2F-F-020). The piece of registered engineering
+(R2F-F-019) is **closed** — see draft unit 029 and the two `r2f-postgrest-*` suites. Host
+contention remains an environment blocker for the mutation campaign. Staging and production
+remain **zero**.
 
 ## Exact next action
 

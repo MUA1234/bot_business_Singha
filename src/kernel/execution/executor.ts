@@ -180,6 +180,44 @@ export interface ExecutorDeps {
   approverCapabilities(req: ExecutionRequest): Promise<ReadonlySet<string>>;
   readonly ledger: LedgerPort;
   readonly handlers: Readonly<Partial<Record<ExecutionHandlerKey, ExecutionHandler>>>;
+  /**
+   * Claim, produce the effect, and write the terminal ledger result — in ONE transaction.
+   *
+   * The default path below does those as three round trips: `ledger.claim`, then the handler,
+   * then `ledger.resolveExecuted`. Nothing spans them, so a crash between the second and third
+   * leaves a task that exists with no ledger row saying so — and the next retry, finding no
+   * terminal row, creates a SECOND task for the same customer. That is the worst failure this
+   * module can produce, and it is unreachable from a client that speaks PostgREST anyway, which
+   * is why `executionSql` was undefined in every server path (R2F-F-019).
+   *
+   * When a deployment supplies this, the executor uses it INSTEAD of that sequence. Every check
+   * above still runs here first — classification, both boundaries, authority, capability,
+   * freshness, parameter validation — and the transport re-checks all of them again inside the
+   * transaction, because a check performed by the caller is a courtesy and a check performed in
+   * the transaction is a control.
+   */
+  atomicExecute?(req: {
+    companyId: CompanyId;
+    itemId: string;
+    actionId: CatalogueActionId;
+    idempotencyKey: string;
+    handler: ExecutionHandlerKey;
+    validatedParameters: Readonly<Record<string, unknown>>;
+    conditionEvidenceDigest: string;
+    eligibilityDigest: string | null;
+    parameterDigest: string;
+    policyVersion: string;
+  }): Promise<
+    | { kind: "executed"; ledgerId: string; effectRef: string; created: boolean }
+    | { kind: "refused"; reason: RefusalReason; detail: string }
+    /**
+     * Some OTHER terminal outcome already exists under this execution identity — an earlier
+     * refusal or failure. Distinct from `refused`, which describes THIS attempt and stays
+     * retryable once the condition clears. This one is a prior verdict, and it is reported as
+     * `failed` exactly as the sequential path reports the same situation.
+     */
+    | { kind: "terminal"; ledgerId: string; status: string }
+  >;
   /** Fail-closed. Must throw if the event could not be recorded. */
   audit(entry: {
     companyId: CompanyId;
@@ -395,6 +433,89 @@ export async function executeApprovedAction(
     evidenceGeneration: item.evidenceGeneration,
     parameterHash: params.hash,
   });
+
+  // ── The atomic path, when the deployment has one ──────────────────────────────────────
+  //
+  // Placed here rather than earlier so that EVERY check above has already run: this replaces
+  // the claim/effect/ledger sequence, not the decisions that authorise it.
+  if (deps.atomicExecute) {
+    let outcome: Awaited<ReturnType<NonNullable<ExecutorDeps["atomicExecute"]>>>;
+    try {
+      outcome = await deps.atomicExecute({
+        companyId: req.companyId,
+        itemId: req.itemId,
+        actionId: req.actionId,
+        idempotencyKey,
+        handler: handlerKey,
+        validatedParameters: params.value,
+        conditionEvidenceDigest: item.evidenceGeneration,
+        // The recommendation's OWN identity, not a digest of somebody's eligibility. Two record
+        // sets about two different subjects (R2F-F-017), so they travel separately.
+        eligibilityDigest: plan?.version ?? null,
+        parameterDigest: plan?.parameterDigest ?? "no-parameters",
+        policyVersion: plan?.policyVersion ?? "",
+      });
+    } catch (e) {
+      // A transport we cannot reach is a transport that cannot prevent a duplicate. The claim
+      // and the effect are one statement, so a throw here means NEITHER happened.
+      return refuse("ledger_unavailable", (e as Error).message);
+    }
+
+    if (outcome.kind === "refused") {
+      // The transport refused after its own re-check. It wrote nothing and consumed no
+      // idempotency key, so this stays retryable once the condition clears.
+      return refuse(outcome.reason, outcome.detail);
+    }
+    if (outcome.kind === "terminal") {
+      // Word for word the sequential path's answer to the same situation, because it IS the
+      // same situation: returning the existing verdict rather than starting a second attempt is
+      // what stops a retry loop from producing a second effect.
+      return {
+        status: "failed",
+        ledgerId: outcome.ledgerId,
+        error: `a previous attempt under this execution identity is terminal (${outcome.status})`,
+      };
+    }
+    // ── Past this point the effect EXISTS and the ledger says so, in ONE committed transaction.
+    //
+    // The audit event is written with the same fail-closed handling as the sequential path below,
+    // and for the same reason: an executed effect that produced no audit record must be reported
+    // as a failure to record it, never as nothing having happened. Omitting it here would have made
+    // the two transports observably different in the one place a reader most needs them to agree.
+    try {
+      await deps.audit({
+        companyId: req.companyId,
+        actorId: approval ? approval.approvedBy : null,
+        action: "management.execution.executed",
+        entityId: outcome.effectRef,
+        payload: {
+          actionId: req.actionId,
+          itemId: req.itemId,
+          handler: handlerKey,
+          resolvedAuthority: authority.level,
+          automatic: mayRunWithoutApproval,
+          // No `resumed`: there is no claim to resume. The transaction either produced the effect
+          // or found the idempotency key already spent.
+          resumed: false,
+          newEffect: outcome.created,
+        },
+      });
+    } catch (e) {
+      return {
+        status: "failed",
+        ledgerId: outcome.ledgerId,
+        error:
+          `effect ${outcome.effectRef} was created and recorded, but the audit event failed: ` +
+          (e as Error).message,
+      };
+    }
+
+    // Split rather than a ternary on `status`: the two outcomes are different shapes, and the
+    // executed one carries the handler that produced the effect.
+    return outcome.created
+      ? { status: "executed" as const, ledgerId: outcome.ledgerId, handler: handlerKey, effectRef: outcome.effectRef }
+      : { status: "duplicate" as const, ledgerId: outcome.ledgerId, effectRef: outcome.effectRef };
+  }
 
   let claim: ClaimResult;
   try {

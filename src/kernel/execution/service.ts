@@ -30,7 +30,7 @@ import type { CatalogueActionId } from "../catalogue";
 import { asCompanyId, asUserId, type CompanyId, type UserId } from "../ask-ai/identity";
 import type { ExecutionOutcome, ExecutionRequest } from "./contract";
 import { refuse } from "./contract";
-import { EXECUTION_GLOBALLY_ENABLED, LOCAL_EXECUTION_TOKEN } from "./boundary";
+import { executionGloballyEnabled, LOCAL_EXECUTION_TOKEN } from "./boundary";
 import {
   executeApprovedAction,
   type ApprovalSnapshot,
@@ -39,19 +39,31 @@ import {
   type RecommendationPlan,
 } from "./executor";
 import { createSqlLedger, type SqlExec } from "./ledger";
+import { createPostgrestExecutionPorts, createPostgrestLedger } from "./postgrest-transport";
 import { idempotentRpcTransport, type RpcCapableClient } from "./transports";
 import { createInternalTask } from "@/modules/work/create-internal-task";
 
 /**
  * What the service needs from its environment.
  *
- * `sql` must be a SERVER-side connection. It is used for the ledger and for the loaders, which read
- * across a company's management state and therefore cannot run under an arbitrary end-user session.
- * Every query it issues is explicitly company-scoped by parameter, and each loader re-checks the
- * company on the row it read rather than trusting the filter it just wrote.
+ * ── Two transports, one set of rules ────────────────────────────────────────────────────────
+ *
+ * `sql` is a SERVER-side connection, used for the ledger and the loaders. It is OPTIONAL, and its
+ * absence is the normal case rather than a degraded one: the request path speaks PostgREST, which
+ * cannot run SQL text, so a worker holding a real PostgreSQL connection supplies `sql` and every
+ * other caller does not. When it is absent the loaders and the ledger are built from named RPCs
+ * over `rpc` instead (R2F-F-019).
+ *
+ * The two are not two policies. Every check the SQL loaders perform, the RPCs perform again inside
+ * the transaction that uses the answer — and `r2f-postgrest-execution.test.ts` drives both through
+ * the same scenarios and asserts the same outcomes, field by field. What differs is only how a
+ * statement reaches the database.
+ *
+ * Whichever is used, every query is explicitly company-scoped by parameter, and each loader
+ * re-checks the company on the row it read rather than trusting the filter it just wrote.
  */
 export interface ExecutionEnvironment {
-  readonly sql: SqlExec;
+  readonly sql?: SqlExec;
   readonly rpc: RpcCapableClient;
   /** Fail-closed audit. Must throw when the event cannot be recorded. */
   audit(entry: {
@@ -145,9 +157,41 @@ async function loadPlan(
   };
 }
 
+/**
+ * The PostgREST dependencies: four named-RPC loaders, an RPC ledger, and ONE atomic execute.
+ *
+ * `handlers` still names the real handler key because the executor checks that the policy's
+ * handler is registered before it does anything else, and that check is worth keeping on both
+ * transports. The registered function is unreachable: `atomicExecute` is present, so the
+ * executor takes the atomic branch and never invokes a handler. It throws rather than quietly
+ * doing the sequential thing, because reaching it would mean the atomic path had been removed
+ * while its transport stayed — and a non-atomic ledger/effect ordering reintroduced silently is
+ * exactly the failure this transport exists to make unreachable.
+ */
+function buildPostgrestDeps(env: ExecutionEnvironment): ExecutorDeps {
+  const ports = createPostgrestExecutionPorts(env.rpc);
+
+  return {
+    localToken: env.localToken,
+    ...ports,
+    ledger: createPostgrestLedger(env.rpc),
+    handlers: {
+      "ops.task.create_internal.v1": async () => {
+        throw new Error(
+          "the sequential handler is unreachable on the PostgREST transport: the claim, the " +
+            "effect and the terminal ledger result are one transaction in " +
+            "r1_exec_create_internal_task",
+        );
+      },
+    },
+    audit: env.audit,
+  };
+}
+
 /** Build the real dependencies. Every loader is company-scoped and re-checks what it read. */
 export function buildExecutorDeps(env: ExecutionEnvironment): ExecutorDeps {
   const { sql } = env;
+  if (!sql) return buildPostgrestDeps(env);
 
   return {
     localToken: env.localToken,
@@ -296,7 +340,7 @@ export async function executeManagementAction(
   env: ExecutionEnvironment,
   input: ExecutionServiceInput,
 ): Promise<ExecutionOutcome> {
-  const globallyOn: boolean = EXECUTION_GLOBALLY_ENABLED;
+  const globallyOn: boolean = executionGloballyEnabled();
   if (!globallyOn && env.localToken !== LOCAL_EXECUTION_TOKEN) {
     return refuse("global_boundary_disabled", "execution is disabled at the global boundary");
   }

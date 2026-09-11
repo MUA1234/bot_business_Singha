@@ -1,18 +1,32 @@
 /**
  * R2E — the two execution boundaries. BOTH are required, and neither is configuration.
  *
- * ── Why the global switch is a compile-time constant ─────────────────────────────────────────
+ * ── Why the global switch stopped being a compile-time constant ──────────────────────────────
  *
- * R2E-F-004 recorded the contrast. The management kernel's own switch is
- * `MANAGEMENT_KERNEL === "on"` — an environment variable, which is deployment configuration, and
- * deployment configuration is exactly the boundary the owner's standing constraints treat as
- * requiring separate approval each time. An env var also means the difference between a system
- * that cannot act and one that can is a value nobody reviews in a diff.
+ * It was `false as const`, and the reasoning was good: R2E-F-004 recorded that an environment
+ * variable makes the difference between a system that cannot act and one that can into a value
+ * nobody reviews in a diff.
  *
- * `EXECUTION_GLOBALLY_ENABLED` is therefore `false as const`, following `worker-boundary.ts`. No
- * deployment can turn it on. Turning it on is a code change, in a reviewed diff, in a commit with
- * an author. Staging and production consequently execute nothing, and that is a property of the
- * source rather than a property of their configuration.
+ * It changed for exactly one reason. Staging cannot verify the loop's single authorised effect
+ * without producing it once, against synthetic data, and a constant cannot be true in staging and
+ * false in production. Keeping the constant would have meant shipping a Release 1 whose one
+ * automated effect had never been observed working anywhere.
+ *
+ * What was preserved from the constant, deliberately:
+ *
+ *   * the default is FALSE — missing, empty, or any value that is not exactly `"on"`;
+ *   * it is a plain server variable, never `NEXT_PUBLIC_*`, so no browser bundle carries it, and
+ *     a test fails if such a variant is ever introduced;
+ *   * it grants ONE thing — permission to pass the global gate. It cannot widen the action
+ *     allowlist, which is a single-member union plus a policy table that never read it;
+ *   * it is independent of the model-job control, so stopping spend and stopping execution are
+ *     two switches rather than one;
+ *   * and the SERVER side has its own row (`r1_exec_global_boundary`, default false) which the
+ *     execute RPC reads inside its own transaction. Both must permit execution.
+ *
+ * Production stays disabled. That is now a property of production's configuration rather than of
+ * the source, which is a real reduction in strength, and it is why the diagnostics below exist:
+ * a system that can act reports so at startup rather than waiting to be asked.
  *
  * ── Why per-company enablement is separate, and why general kernel enablement is not enough ──
  *
@@ -28,12 +42,65 @@ import type { CompanyId } from "../ask-ai/identity";
 import type { RefusalReason } from "./contract";
 
 /**
- * Hard-coded. Deliberately NOT an environment variable, NOT a feature flag, NOT a database row.
+ * The name of the ONE variable that can enable execution, and the ONE value that does.
  *
- * `as const` so its type is `false`, which makes any code guarded by it visibly unreachable to the
- * compiler rather than merely inactive at runtime.
+ * ── Why this name, and not a `NEXT_PUBLIC_` one ─────────────────────────────────────────────
+ *
+ * Next.js inlines `NEXT_PUBLIC_*` into the client bundle, so such a variable is readable — and in
+ * a compromised build, settable — where the browser can reach it. `EXECUTION_ENABLED` is a plain
+ * server variable, never inlined, and `browserReachableExecutionFlags()` below fails a test if a
+ * `NEXT_PUBLIC_` variant is ever introduced.
  */
-export const EXECUTION_GLOBALLY_ENABLED = false as const;
+export const EXECUTION_ENABLED_VAR = "EXECUTION_ENABLED" as const;
+/** The only accepted value. Anything else — including `true`, `1`, `ON`, `yes` — is OFF. */
+export const EXECUTION_ENABLED_VALUE = "on" as const;
+
+/**
+ * Is execution enabled at the global boundary?
+ *
+ * Fail-closed in every direction that matters:
+ *   * missing  → false;
+ *   * empty    → false;
+ *   * anything that is not exactly `"on"` → false, so a typo cannot enable it;
+ *   * a `NEXT_PUBLIC_` variant → **ignored entirely**, never consulted.
+ *
+ * It grants exactly one thing: permission for the executor to proceed past the global gate. It
+ * cannot widen the action allowlist — that is `ExecutionHandlerKey`, a single-member union, and
+ * the policy table, neither of which reads this — and it cannot enable a model job, which is the
+ * separate `MODEL_JOBS` control on the scheduler.
+ */
+export function executionGloballyEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env[EXECUTION_ENABLED_VAR] === EXECUTION_ENABLED_VALUE;
+}
+
+/**
+ * Any variable that could enable execution AND be reachable from a browser bundle. Must be empty.
+ *
+ * Asserted by a test rather than assumed: the danger is not today's code, it is the future commit
+ * that adds `NEXT_PUBLIC_EXECUTION_ENABLED` "for the admin screen".
+ */
+export function browserReachableExecutionFlags(env: NodeJS.ProcessEnv = process.env): string[] {
+  return Object.keys(env).filter((k) => /^NEXT_PUBLIC_.*EXECUT/i.test(k));
+}
+
+/**
+ * What to log at startup. Names and booleans only — never a value, never a secret.
+ *
+ * Execution being ON is reported at error level by the caller, because a system that can produce
+ * business effects without a person saying so each time is a fact an operator must not have to go
+ * looking for.
+ */
+export function executionBoundaryDiagnostics(env: NodeJS.ProcessEnv = process.env): {
+  variable: string;
+  enabled: boolean;
+  browserReachableFlags: string[];
+} {
+  return {
+    variable: EXECUTION_ENABLED_VAR,
+    enabled: executionGloballyEnabled(env),
+    browserReachableFlags: browserReachableExecutionFlags(env),
+  };
+}
 
 /**
  * Deterministic local tests are the ONLY context in which a real effect may be produced, and they
@@ -72,7 +139,7 @@ export type BoundaryDecision =
  * whether that company exists.
  */
 export async function checkExecutionBoundaries(input: BoundaryInput): Promise<BoundaryDecision> {
-  const globallyOn: boolean = EXECUTION_GLOBALLY_ENABLED;
+  const globallyOn: boolean = executionGloballyEnabled();
   const localTest = input.localToken === LOCAL_EXECUTION_TOKEN;
 
   if (!globallyOn && !localTest) {

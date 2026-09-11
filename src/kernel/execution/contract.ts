@@ -67,42 +67,57 @@ export interface ActionExecutionPolicy {
  * Ordered by the stage that raises it, because the ledger records the FIRST refusal and the order
  * is itself a safety property: the boundaries are checked before anything is loaded, so a disabled
  * system reveals nothing about the item it was asked about.
+ *
+ * ── Why this is an array and the union is derived from it ────────────────────────────────────
+ *
+ * It was a type alone. That was enough while the only thing that produced a refusal was
+ * TypeScript, and stopped being enough the moment a SECURITY DEFINER function started returning
+ * reason strings too: a type that does not exist at runtime cannot check what a database sent, so
+ * the PostgREST transport cast the string and called it checked. One array, two consumers — the
+ * union below and the transport's membership test — is the smallest arrangement in which the
+ * database and the executor cannot disagree about what a refusal is called.
+ *
+ * `R1_DRAFT_029`'s own allowlist is generated from this array and asserted against it by
+ * `r2f-postgrest-adversarial.test.ts` (A27), so the third copy cannot drift either.
  */
-export type RefusalReason =
+export const REFUSAL_REASONS = [
   // ── Boundaries, checked first and independently ──
-  | "global_boundary_disabled"
-  | "company_not_enabled"
+  "global_boundary_disabled",
+  "company_not_enabled",
   // ── The action itself ──
-  | "action_not_registered"
-  | "action_not_internal_only"
-  | "no_execution_policy"
-  | "classification_prohibited"
-  | "classification_draft_only"
-  | "no_handler"
+  "action_not_registered",
+  "action_not_internal_only",
+  "no_execution_policy",
+  "classification_prohibited",
+  "classification_draft_only",
+  "no_handler",
   // ── Authority and approval, revalidated at execution time ──
-  | "authority_insufficient"
-  | "authority_failed_closed"
-  | "approval_missing"
-  | "approval_superseded"
-  | "approver_lacks_capability"
+  "authority_insufficient",
+  "authority_failed_closed",
+  "approval_missing",
+  "approval_superseded",
+  "approver_lacks_capability",
   // ── The world, revalidated at execution time ──
-  | "evidence_missing"
-  | "evidence_stale"
-  | "item_state_invalid"
-  | "stale_state"
-  | "parameters_invalid"
+  "evidence_missing",
+  "evidence_stale",
+  "item_state_invalid",
+  "stale_state",
+  "parameters_invalid",
   /**
    * The validated parameters differ from the PLAN the advice was recorded with.
    *
    * Distinct from `evidence_stale` on purpose: "the world moved" and "you are asking for
    * something else" call for different responses from whoever sees the refusal.
    */
-  | "parameters_stale"
+  "parameters_stale",
   /** The execution policy itself changed since the advice was recorded. */
-  | "policy_version_changed"
+  "policy_version_changed",
   // ── Durability ──
-  | "idempotency_key_missing"
-  | "ledger_unavailable";
+  "idempotency_key_missing",
+  "ledger_unavailable",
+] as const;
+
+export type RefusalReason = (typeof REFUSAL_REASONS)[number];
 
 /**
  * A request to execute one approved action.

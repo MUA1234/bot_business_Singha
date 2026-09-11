@@ -2,8 +2,13 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { makeCycleDeps } from "@/kernel/cycle-deps";
 import { DEFAULT_JOBS } from "@/lib/scheduler";
-import { EXECUTION_GLOBALLY_ENABLED } from "@/kernel/execution/boundary";
+import {
+  EXECUTION_ENABLED_VAR,
+  browserReachableExecutionFlags,
+  executionGloballyEnabled,
+} from "@/kernel/execution/boundary";
 import { allPolicies, handlerFor } from "@/kernel/execution/policy";
+import { EXECUTION_RPCS } from "@/kernel/execution/postgrest-transport";
 
 /**
  * Release 1 composition — is the loop wired through the DEPLOYED graph, or only through tests?
@@ -63,12 +68,33 @@ describe("the deployed cycle factory supplies every mandatory dependency", () =>
     expect(deps.localToken).toBeUndefined();
   });
 
-  it("does NOT supply an execution SQL transport, and that absence is the registered gap", () => {
-    // R2F-F-019, asserted rather than assumed. When absent the orchestrator records an explicit
-    // "execution transport unavailable" hold and marks the cycle partial — it never reports the
-    // item as advanced. This test exists so the day someone wires a transport, they are told that
-    // the honest-absence contract documented in `makeCycleDeps` has changed.
+  it("supplies NO SQL transport — and reaches the executor over PostgREST regardless", () => {
+    // This test used to assert that the absence WAS the gap: R2F-F-019, the executor reachable
+    // only through raw SQL that the request path cannot speak, so the orchestrator recorded an
+    // "execution transport unavailable" hold and marked every cycle partial.
+    //
+    // The absence is still real and still correct — no server path holds a PostgreSQL connection.
+    // What changed is that it is no longer a gap: the service builds its loaders, its ledger and
+    // its one atomic execute from named RPCs over the same PostgREST client this factory already
+    // has. `r2f-postgrest-execution.test.ts` drives the whole loop through this very factory,
+    // with the fourth argument omitted exactly as it is here, and watches the effect appear.
     expect(deps.executionSql).toBeUndefined();
+
+    // The transport is registered, not implied. Every RPC it may call is named here, so adding a
+    // sixth one is a visible change in a diff rather than a new database surface nobody reviewed.
+    expect([...EXECUTION_RPCS]).toEqual([
+      "r1_exec_company_enabled",
+      "r1_exec_load_item",
+      "r1_exec_load_approval",
+      "r1_exec_approver_capabilities",
+      "r1_exec_create_internal_task",
+      "r1_exec_record_refusal",
+    ]);
+    // And none of them is a generic SQL executor, which was the fix NOT taken.
+    for (const rpc of EXECUTION_RPCS) {
+      expect(rpc).toMatch(/^r1_exec_[a-z_]+$/);
+      expect(rpc).not.toMatch(/sql|query|exec_raw|statement/);
+    }
   });
 });
 
@@ -106,13 +132,29 @@ describe("the scheduler reaches the management cycle", () => {
 });
 
 describe("the autonomy ceiling is exactly one action, and it is welded shut besides", () => {
-  it("execution is globally disabled by a COMPILE-TIME constant, not configuration", () => {
-    // The distinction is the whole point: an env var is a value nobody reviews in a diff.
-    expect(EXECUTION_GLOBALLY_ENABLED).toBe(false);
+  it("execution is globally disabled unless one server variable says exactly \"on\"", () => {
+    // This was asserted as a COMPILE-TIME constant, and the assertion was right for what the
+    // code then was. The constant became a variable so that staging could observe the loop's
+    // one authorised effect at least once — a constant cannot be true in staging and false in
+    // production. What that assertion was really protecting is kept and asserted here instead:
+    // the default is off, only one exact value turns it on, and no browser-reachable variable
+    // participates at all.
+    const env = (v?: string) =>
+      (v === undefined ? {} : { [EXECUTION_ENABLED_VAR]: v }) as NodeJS.ProcessEnv;
+    expect(executionGloballyEnabled(env())).toBe(false);
+    expect(executionGloballyEnabled(env(""))).toBe(false);
+    expect(executionGloballyEnabled(env("true"))).toBe(false);
+    expect(executionGloballyEnabled(env("1"))).toBe(false);
+    expect(executionGloballyEnabled(env("ON"))).toBe(false);
+    expect(executionGloballyEnabled(env("on"))).toBe(true);
+
+    // And it is off in THIS process, which is the deployed default.
+    expect(executionGloballyEnabled()).toBe(false);
+    expect(browserReachableExecutionFlags()).toEqual([]);
+
+    // Never a NEXT_PUBLIC_ variable: Next.js inlines those into the client bundle.
     const src = readFileSync("src/kernel/execution/boundary.ts", "utf8");
-    expect(src).toContain("EXECUTION_GLOBALLY_ENABLED = false as const");
-    // No deployment may turn it on.
-    expect(src).not.toMatch(/EXECUTION_GLOBALLY_ENABLED\s*=\s*process\.env/);
+    expect(src).not.toMatch(/NEXT_PUBLIC_[A-Z_]*EXECUT/);
   });
 
   it("exactly ONE action is executable; every other policy is draft_only", () => {

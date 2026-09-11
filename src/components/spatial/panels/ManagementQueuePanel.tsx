@@ -19,7 +19,7 @@ import {
 } from "./ManagementQueuePanelContent";
 import { classificationFor } from "@/kernel/execution/policy";
 import { evidenceDigest } from "./evidence-digest";
-import { EXECUTION_GLOBALLY_ENABLED } from "@/kernel/execution/boundary";
+import { executionGloballyEnabled } from "@/kernel/execution/boundary";
 import { getProfile } from "@/lib/auth";
 import { supabaseRpcClient } from "@/lib/supabase/read";
 import type { CompletionState } from "@/app/app/_actions/completion-messages";
@@ -116,7 +116,10 @@ export async function ManagementQueuePanel({ companyId, focusId = null }: Props)
       executionUnavailable = true;
     }
 
-    const bothBoundariesOpen = EXECUTION_GLOBALLY_ENABLED && companyExecutionEnabled;
+    // Read on the SERVER — this is a server panel, and the variable is a plain server
+    // variable that is never inlined into a client bundle. The panel only ever DISPLAYS the
+    // answer; nothing here can change it.
+    const bothBoundariesOpen = executionGloballyEnabled() && companyExecutionEnabled;
 
     // ── May THIS viewer decide? ──────────────────────────────────────────────────────────
     //

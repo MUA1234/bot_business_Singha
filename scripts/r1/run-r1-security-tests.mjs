@@ -35,7 +35,7 @@
  *   * a final summary and a real exit code are always emitted.
  */
 import { execFileSync, execSync, spawn } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
 import pg from "pg";
 
 // ── Identity of this run ─────────────────────────────────────────────────────────────────────
@@ -245,41 +245,33 @@ try {
    * invariant, actually requires. Running a subset by hand against a different database
    * would answer a different question.
    */
-  const ALL = [
-    "tests/integration/r1-security-baseline.test.ts",
-    "tests/integration/r1-adapter-ingest.test.ts",
-    "tests/integration/r1-vertical-slice-campaign.test.ts",
-    "tests/integration/r1-runtime-e2e.test.ts",
-    "tests/integration/r1-atomic-create.test.ts",
-    "tests/integration/r2b-capability-routing.test.ts",
-    "tests/integration/r2b-feedback-runtime.test.ts",
-    "tests/integration/r2b-learning-e2e.test.ts",
-    "tests/integration/r2c-role-routing.test.ts",
-    "tests/integration/r2s-loader-contract.test.ts",
-    "tests/integration/r2s-p-pagination.test.ts",
-    "tests/integration/r2s-p-cursor-handoff.test.ts",
-    "tests/integration/r2s-p-reconcile-fairness.test.ts",
-    "tests/integration/r2s-p-fence-and-reset.test.ts",
-    "tests/integration/r2s-p-tail-liveness.test.ts",
-    "tests/integration/r2s-p-batch-lookup.test.ts",
-    "tests/integration/r2s-p-incremental-highwater.test.ts",
-    "tests/integration/r2d-ask-ai.test.ts",
-    "tests/integration/r2d-adversarial.test.ts",
-    "tests/integration/r2d-non-execution.test.ts",
-    "tests/integration/r2d-saved-answer-access.test.ts",
-    "tests/integration/r2d-retention-purge.test.ts",
-    "tests/integration/r2e-execution-ledger.test.ts",
-    "tests/integration/r2-decision-boundary.test.ts",
-    "tests/integration/r2-authority-and-scope.test.ts",
-    "tests/integration/r2-outcome-verification.test.ts",
-    "tests/integration/r2-verification-schedule.test.ts",
-    "tests/integration/r2-completion-claim.test.ts",
-    "tests/integration/r2-cycle-composition.test.ts",
-    "tests/integration/r2-operations-slice.test.ts",
-    "tests/integration/r2-evidence-contracts.test.ts",
-    "tests/integration/r2-lifecycle-orchestrator.test.ts",
-    "tests/integration/r2-assignment-boundary.test.ts",
-  ];
+  /**
+   * ── The suite list is DERIVED, not written down ─────────────────────────────────────────
+   *
+   * It was a hand-maintained array of 33 filenames. `tests/integration/campaigns.ts` exists
+   * precisely because "two independent lists would drift, and the way that drift shows up is a
+   * suite silently running in neither campaign" — and this was the second list. It had already
+   * drifted: `r2-cross-company-attack-matrix` and both `r2f-postgrest-*` suites are kernel suites
+   * by the pattern and were absent from here, so the canonical campaign did not run them and
+   * nothing said so.
+   *
+   * The pattern is duplicated below rather than imported because `campaigns.ts` is TypeScript
+   * and this is a plain Node script. `tests/campaign-partition.test.ts` asserts the two agree
+   * file-for-file, so the duplication cannot drift the way the list did.
+   */
+  const KERNEL_FILE_PATTERN = /^r[12][a-z0-9]*-/;
+  const SELF_MANAGED = ["r1-draft-schema.test.ts"];
+  const ALL = readdirSync("tests/integration")
+    .filter((f) => /\.test\.tsx?$/.test(f))
+    .filter((f) => KERNEL_FILE_PATTERN.test(f) && !SELF_MANAGED.includes(f))
+    .sort()
+    .map((f) => `tests/integration/${f}`);
+
+  if (ALL.length < 30) {
+    // A pattern that stopped matching would run a handful of suites and report success.
+    throw new Error(`only ${ALL.length} kernel suites matched — the pattern or the directory moved`);
+  }
+  console.log(`▶ ${ALL.length} kernel suites, derived from the campaign pattern`);
 
   const only = (process.env.R1_SEC_ONLY ?? "").split(",").map((x) => x.trim()).filter(Boolean);
   const files = only.length ? only : ALL;
