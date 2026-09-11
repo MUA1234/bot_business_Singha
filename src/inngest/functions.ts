@@ -25,6 +25,7 @@ import { sha256 } from "@/lib/ids";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { drainOutbox } from "@/events/outbox-drain";
 import { newCorrelationId, log } from "@/lib/log";
+import { inngestJobSuppressed } from "@/lib/scheduler";
 
 /** Build the live deps once per invocation (lazy — no client is created at import). */
 function liveDeps(): ConsumerDeps {
@@ -152,6 +153,21 @@ function cronBaseUrl(): string {
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return "http://localhost:3000";
 }
+/**
+ * A scheduled Inngest function refuses unless Inngest is the designated scheduler AND the job is
+ * not otherwise suppressed. Same decision, same variables, as the in-process scheduler — see
+ * `inngestJobSuppressed`.
+ *
+ * Returning rather than throwing: a suppressed job is not a failure, and an Inngest retry storm
+ * against a deliberately-disabled job would be worse than the duplication this prevents.
+ */
+function scheduledGuard(job: string): { skip: true; reason: string } | null {
+  const reason = inngestJobSuppressed(job);
+  if (!reason) return null;
+  log("info", "inngest scheduled job skipped", { event: "inngest.job_suppressed", job, reason });
+  return { skip: true, reason };
+}
+
 /** Invoke an existing CRON_SECRET-protected internal job endpoint. */
 async function runCron(path: string): Promise<{ ok: boolean; status: number }> {
   const secret = process.env.CRON_SECRET;
@@ -167,35 +183,36 @@ async function runCron(path: string): Promise<{ ok: boolean; status: number }> {
 export const outboxSweep = inngest.createFunction(
   { id: "outbox-sweep" },
   { cron: "*/2 * * * *" },
-  async () => drainOutbox(supabaseAdmin()),
+  async () => scheduledGuard("outbox") ?? drainOutbox(supabaseAdmin()),
 );
 
 /** Task follow-up evaluation every 15 minutes. */
 export const taskFollowUpsSchedule = inngest.createFunction(
   { id: "task-follow-ups" },
   { cron: "*/15 * * * *" },
-  async () => runCron("/api/cron/follow-ups"),
+  async () => scheduledGuard("follow-ups") ?? runCron("/api/cron/follow-ups"),
 );
 
 /** conversation analysis sweep every 10 minutes (its own cost/batch limits apply downstream). */
 export const aiMonitorSchedule = inngest.createFunction(
   { id: "ai-manager-monitor" },
   { cron: "*/10 * * * *" },
-  async () => runCron("/api/cron/ai-monitor"),
+  // The one job that spends money on a model. `MODEL_JOBS=off` now stops it here too.
+  async () => scheduledGuard("ai-monitor") ?? runCron("/api/cron/ai-monitor"),
 );
 
 /** Management digest daily. */
 export const managementDigestSchedule = inngest.createFunction(
   { id: "management-digest" },
   { cron: "0 7 * * *" },
-  async () => runCron("/api/cron/daily-digest"),
+  async () => scheduledGuard("daily-digest") ?? runCron("/api/cron/daily-digest"),
 );
 
 /** Health + ledger-integrity check (WP E) every 30 minutes; logs criticals for alerting. */
 export const healthCheckSchedule = inngest.createFunction(
   { id: "health-check" },
   { cron: "*/30 * * * *" },
-  async () => runCron("/api/health"),
+  async () => scheduledGuard("health") ?? runCron("/api/health"),
 );
 
 export const functions = [

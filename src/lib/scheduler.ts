@@ -143,6 +143,51 @@ export function jobSuppressed(job: ScheduledJob, env: NodeJS.ProcessEnv = proces
   return null;
 }
 
+/**
+ * Is the INNGEST scheduler allowed to run scheduled work?
+ *
+ * ── Why this exists ─────────────────────────────────────────────────────────────────────────
+ *
+ * `src/inngest/functions.ts` declares five cron-triggered functions — outbox every 2 minutes,
+ * follow-ups every 15, the AI monitor every 10, the digest daily, a health check every 30. The
+ * in-process scheduler declares its own `outbox`, `follow-ups`, `ai-monitor` and `daily-digest`.
+ * Four of them are the same job under two owners.
+ *
+ * With both live, each of those jobs runs twice on different cadences. Most of the duplication is
+ * wasteful rather than dangerous — the outbox drain leases rows, so a second drain finds nothing.
+ * `ai-monitor` is different: it is the one job that SPENDS MONEY on a model, the in-process
+ * scheduler suppresses it with `MODEL_JOBS=off`, and the Inngest copy had no such control and a
+ * SIX TIMES shorter period. Setting `MODEL_JOBS=off` would have looked like stopping model spend
+ * while it continued every ten minutes.
+ *
+ * D-021 records the decision: Railway's in-process scheduler is the canonical one. So Inngest
+ * schedules nothing unless somebody says so explicitly, and the honest default is off.
+ *
+ * This does NOT disable Inngest's event-driven functions. Inbound message handling is triggered by
+ * an event, not a cron, and is unaffected.
+ */
+export const INNGEST_SCHEDULER_VAR = "INNGEST_SCHEDULER" as const;
+
+export function inngestSchedulingEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env[INNGEST_SCHEDULER_VAR] === "on";
+}
+
+/**
+ * Why an Inngest-scheduled job must not run, or null if it may.
+ *
+ * Two independent reasons, in order. Ownership first: if Inngest is not the scheduler, nothing it
+ * schedules runs, whatever the job is. Then the SAME suppression the in-process scheduler applies,
+ * so `MODEL_JOBS=off` means the same thing on both paths rather than only on one.
+ */
+export function inngestJobSuppressed(
+  job: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  if (!inngestSchedulingEnabled(env)) return `${INNGEST_SCHEDULER_VAR} is not "on"`;
+  const known = DEFAULT_JOBS.find((j) => j.job === job);
+  return known ? jobSuppressed(known, env) : null;
+}
+
 /** The jobs that will actually be scheduled, and the ones that will not, with reasons. */
 export function partitionJobs(
   jobs: readonly ScheduledJob[] = DEFAULT_JOBS,
