@@ -1,0 +1,156 @@
+{
+  "promotedOn": "2026-09-11",
+  "base": 110,
+  "units": [
+    {
+      "unit": "001",
+      "version": "0111",
+      "name": "management_items"
+    },
+    {
+      "unit": "002",
+      "version": "0112",
+      "name": "transitions"
+    },
+    {
+      "unit": "003",
+      "version": "0113",
+      "name": "evidence"
+    },
+    {
+      "unit": "004",
+      "version": "0114",
+      "name": "decisions"
+    },
+    {
+      "unit": "005",
+      "version": "0115",
+      "name": "observation_sources"
+    },
+    {
+      "unit": "006",
+      "version": "0116",
+      "name": "feedback"
+    },
+    {
+      "unit": "007",
+      "version": "0117",
+      "name": "rls_matrix"
+    },
+    {
+      "unit": "008",
+      "version": "0118",
+      "name": "accountable_owner"
+    },
+    {
+      "unit": "009",
+      "version": "0119",
+      "name": "review_flow"
+    },
+    {
+      "unit": "010",
+      "version": "0120",
+      "name": "transition_boundary"
+    },
+    {
+      "unit": "011",
+      "version": "0121",
+      "name": "runtime"
+    },
+    {
+      "unit": "012",
+      "version": "0122",
+      "name": "atomic_create"
+    },
+    {
+      "unit": "013",
+      "version": "0123",
+      "name": "twelve_domains"
+    },
+    {
+      "unit": "014",
+      "version": "0124",
+      "name": "recommendation_snapshot"
+    },
+    {
+      "unit": "015",
+      "version": "0125",
+      "name": "feedback_runtime"
+    },
+    {
+      "unit": "016",
+      "version": "0126",
+      "name": "verified_skills"
+    },
+    {
+      "unit": "017",
+      "version": "0127",
+      "name": "advisors_engagements"
+    },
+    {
+      "unit": "018",
+      "version": "0128",
+      "name": "source_cursors"
+    },
+    {
+      "unit": "019",
+      "version": "0129",
+      "name": "cursor_fence"
+    },
+    {
+      "unit": "020",
+      "version": "0130",
+      "name": "ask_ai"
+    },
+    {
+      "unit": "021",
+      "version": "0131",
+      "name": "execution_ledger"
+    },
+    {
+      "unit": "022",
+      "version": "0132",
+      "name": "decision_rpc"
+    },
+    {
+      "unit": "023",
+      "version": "0133",
+      "name": "authority_and_scope"
+    },
+    {
+      "unit": "024",
+      "version": "0134",
+      "name": "identity_scope"
+    },
+    {
+      "unit": "025",
+      "version": "0135",
+      "name": "verification_schedule"
+    },
+    {
+      "unit": "026",
+      "version": "0136",
+      "name": "completion_claim"
+    },
+    {
+      "unit": "027",
+      "version": "0137",
+      "name": "evidence_contracts"
+    },
+    {
+      "unit": "028",
+      "version": "0138",
+      "name": "lifecycle_and_assignment"
+    },
+    {
+      "unit": "029",
+      "version": "0139",
+      "name": "execution_transport"
+    },
+    {
+      "unit": "030",
+      "version": "0140",
+      "name": "cycle_lease"
+    }
+  ]
+}
