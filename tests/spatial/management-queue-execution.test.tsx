@@ -181,8 +181,15 @@ describe("R2E — the panel reads execution state honestly", () => {
   });
 
   it("requires BOTH boundaries before reporting an action as merely un-attempted", () => {
+    // The global half used to be the constant `EXECUTION_GLOBALLY_ENABLED`; it is now the
+    // function `executionGloballyEnabled()`, read on the server. What this test is about is
+    // unchanged: BOTH halves, joined by `&&`, so a company enabled for execution in a system
+    // that is not still reads as un-attemptable.
     expect(PANEL_SOURCE).toContain(
-      "EXECUTION_GLOBALLY_ENABLED && companyExecutionEnabled",
+      "executionGloballyEnabled() && companyExecutionEnabled",
     );
+    // And the panel must read it on the server. A `NEXT_PUBLIC_` variant would be inlined into
+    // the client bundle, where the browser could read it and a compromised build could set it.
+    expect(PANEL_SOURCE).not.toMatch(/NEXT_PUBLIC_[A-Z_]*EXECUT/);
   });
 });

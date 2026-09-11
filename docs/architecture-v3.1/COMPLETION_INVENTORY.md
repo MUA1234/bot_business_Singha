@@ -184,7 +184,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/components/spatial/panels/TasksPanel.tsx:65 | `error-discarding destructure` |
 | src/components/spatial/panels/VehiclesPanel.tsx:15 | `error-discarding destructure` |
 | src/db/consumer-store.ts:124 | `error-discarding destructure` |
-| src/kernel/cycle-deps.ts:852 | `error-discarding destructure` |
+| src/kernel/cycle-deps.ts:853 | `error-discarding destructure` |
 | src/kernel/cycle.ts:439 | `0` |
 | src/kernel/people/delegation-scope.ts:64 | `null` |
 | src/lib/access.ts:54 | `error-discarding destructure` |
