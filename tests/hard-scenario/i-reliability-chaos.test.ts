@@ -250,13 +250,27 @@ describe.skipIf(!stackConfigured)("I — reliability and chaos (real webhook bou
   it("I7 — no outbound provider request escaped during the whole package", async () => {
     // The net guard is the authority. If the application had tried to reach Meta, the
     // attempt would have been refused and recorded, and a real send would be impossible.
+    //
+    // Filtered on `sent_at`, NOT `created_at` — the same correction C4 needed, and the reason it
+    // needed it twice is that the first fix did not go looking for siblings.
+    // `dev-fixture-seed.mjs` seeds a delivered outbox row so the screens have one to show, with a
+    // back-dated `sent_at` and a `created_at` of whenever the seed ran. Seed tenant A within the
+    // window and this reports that the application sent a message it never touched — a false
+    // positive on a safety assertion, which is worse than a false negative because it teaches a
+    // reader to explain failures away.
     const svc = serviceClient();
+    const since = new Date(Date.now() - 10 * 60_000).toISOString();
     const { data } = await svc
       .from("message_outbox")
-      .select("id,status")
-      .in("status", ["sent"])
-      .gte("created_at", new Date(Date.now() - 10 * 60_000).toISOString());
-    // Anything "sent" during this run would mean a delivery path believed it reached Meta.
+      .select("id,status,sent_at,provider_message_id")
+      .eq("status", "sent")
+      .gte("sent_at", since);
     expect(data ?? [], "a message was marked sent during an offline campaign").toHaveLength(0);
+
+    // The corroborating fact, which needs no timestamp: a real send returns a provider message
+    // id, and no reachable provider can have returned one.
+    const { data: withProviderId } = await svc
+      .from("message_outbox").select("id").not("provider_message_id", "is", null);
+    expect(withProviderId ?? [], "an outbox row carries a provider message id").toHaveLength(0);
   });
 });
