@@ -65,6 +65,33 @@ const rowsOf = async (run: Promise<{ data: unknown; error: unknown }>): Promise<
 export const LOADER_ROW_CAP = 500;
 
 /**
+ * Who holds a cycle lease — one token per CYCLE, not per process and not per connection.
+ *
+ * Per connection was the defect: `pg_try_advisory_lock` is session-scoped and PostgREST pools.
+ *
+ * Per PROCESS was the first attempt at the fix, and it was wrong in the other direction. Two
+ * cycles running concurrently in one process would then share an owner, and the lease's
+ * same-owner re-entry clause would let BOTH acquire — which is exactly the mutual exclusion the
+ * lock exists to provide. Two suites caught it immediately ("the second cycle is refused the
+ * lock"), which is what those suites are for.
+ *
+ * So: a fresh token per acquisition, remembered per company only when the acquisition SUCCEEDED,
+ * and required to match on release. The loser of a race never records a token, so it can never
+ * release the winner's lease.
+ */
+const LEASE_PROCESS = `cycle:${randomUUID()}`;
+
+/**
+ * How long a lease is good for.
+ *
+ * Long enough that a slow cycle does not lose its lease mid-run, short enough that a process
+ * killed mid-cycle does not hold its company hostage. Fifteen minutes against a cycle that takes
+ * seconds is deliberate slack in the safe direction: the cost of a stale lease is one skipped
+ * cycle, and the cost of an expired-too-early lease is two cycles running at once.
+ */
+export const CYCLE_LEASE_TTL_SECONDS = 900;
+
+/**
  * How many identity keys one lookup query may carry.
  *
  * Deterministic, so the query count for a page is `ceil(unique keys / this)` and can be
@@ -122,6 +149,9 @@ export function makeCycleDeps(
    */
   localExecutionToken?: string,
 ): CycleDeps {
+  /** The lease token this graph holds per company, set only when an acquisition succeeded. */
+  const leaseTokens = new Map<string, string>();
+
   // Sources whose read hit the cap. Reset at the start of each loadFor sweep by the cycle asking
   // for them only once, at the end — see CycleDeps.truncatedSources.
   const truncated = new Set<string>();
@@ -410,14 +440,45 @@ export function makeCycleDeps(
       return data?.enabled === true;
     },
 
+    /**
+     * Acquire the cycle LEASE. Owned by this process, not by a database connection.
+     *
+     * It was `pg_try_advisory_lock`, which is session-scoped — and the deployed path reaches the
+     * database through PostgREST, which pools connections. The lock was taken on one pooled
+     * backend and the release arrived on another, where `pg_advisory_unlock` released nothing and
+     * returned false. The first cycle for a company took a lock it could never give back, and
+     * every cycle after it reported `skipped_locked` — truthfully as far as the code knew, and
+     * falsely as a description of the world.
+     *
+     * No existing test could show it: `pgSupabase` uses one dedicated client, so lock and unlock
+     * always landed on the same session. It took a real PostgREST in front of a real pool
+     * (`tests/hard-scenario/j-deployed-loop.test.ts`) to make it visible.
+     *
+     * The lease is owned by `LEASE_OWNER` and expires, so a cycle that dies without releasing
+     * blocks its company for the TTL rather than for ever — which the advisory lock did not do
+     * either.
+     */
     async tryLock(companyId) {
-      const { data, error } = await db.rpc("r1_draft_try_cycle_lock", { p_company: companyId });
+      const token = `${LEASE_PROCESS}:${randomUUID()}`;
+      const { data, error } = await db.rpc("r1_draft_acquire_cycle_lease", {
+        p_company: companyId,
+        p_owner: token,
+        p_ttl_seconds: CYCLE_LEASE_TTL_SECONDS,
+      });
       if (error) throw new Error(error.message);
-      return data === true;
+      if (data !== true) return false;
+      // Recorded ONLY on success. A caller that lost the race holds no token and therefore has
+      // nothing it could release.
+      leaseTokens.set(companyId, token);
+      return true;
     },
 
     async releaseLock(companyId) {
-      await db.rpc("r1_draft_release_cycle_lock", { p_company: companyId });
+      const token = leaseTokens.get(companyId);
+      if (!token) return;
+      leaseTokens.delete(companyId);
+      // The token is compared server-side, so a stale caller cannot free somebody else's cycle.
+      await db.rpc("r1_draft_release_cycle_lease", { p_company: companyId, p_owner: token });
     },
 
     async authorityFor(companyId): Promise<AuthorityContext> {

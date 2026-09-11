@@ -446,9 +446,17 @@ describe.skipIf(!enabled)("B — disabled means ZERO database writes", () => {
   });
 });
 
-describe.skipIf(!enabled)("C — advisory-lock security", () => {
-  const SIG = "public.r1_draft_try_cycle_lock(uuid)";
-  const REL = "public.r1_draft_release_cycle_lock(uuid)";
+/**
+ * The cycle lock is a LEASE now, not an advisory lock (draft 030).
+ *
+ * `pg_try_advisory_lock` is session-scoped and the deployed path pools connections, so the lock
+ * was taken on one pooled backend and released on another — releasing nothing. Every security
+ * property this block asserted still has to hold; only the function names changed.
+ */
+describe.skipIf(!enabled)("C — cycle-lease security", () => {
+  const SIG = "public.r1_draft_acquire_cycle_lease(uuid,text,integer)";
+  const REL = "public.r1_draft_release_cycle_lease(uuid,text)";
+  const OWNER = "test-owner";
 
   it("PUBLIC, anon and authenticated cannot EXECUTE the lock helpers", async () => {
     for (const sig of [SIG, REL]) {
@@ -468,11 +476,15 @@ describe.skipIf(!enabled)("C — advisory-lock security", () => {
     // One transaction per attempt: the first refusal aborts its transaction, so a second
     // statement inside it would report "current transaction is aborted" rather than the
     // permission error under test.
-    for (const [fn, co] of [["r1_draft_try_cycle_lock", CO_A], ["r1_draft_release_cycle_lock", CO_B]] as const) {
+    const attempts: Array<[string, unknown[]]> = [
+      ["select r1_draft_acquire_cycle_lease($1,$2,900)", [CO_A, OWNER]],
+      ["select r1_draft_release_cycle_lease($1,$2)", [CO_B, OWNER]],
+    ];
+    for (const [sql, params] of attempts) {
       await db.query("begin");
       try {
         await db.query("set local role authenticated");
-        await expect(db.query(`select ${fn}($1)`, [co])).rejects.toThrow(/permission denied/i);
+        await expect(db.query(sql, params)).rejects.toThrow(/permission denied/i);
       } finally {
         await db.query("rollback");
       }
@@ -483,7 +495,8 @@ describe.skipIf(!enabled)("C — advisory-lock security", () => {
     await db.query("begin");
     try {
       await db.query("set local role anon");
-      await expect(db.query(`select r1_draft_try_cycle_lock($1)`, [CO_A])).rejects.toThrow(/permission denied/i);
+      await expect(db.query(`select r1_draft_acquire_cycle_lease($1,$2,900)`, [CO_A, OWNER]))
+        .rejects.toThrow(/permission denied/i);
     } finally {
       await db.query("rollback");
     }
@@ -498,7 +511,8 @@ describe.skipIf(!enabled)("C — advisory-lock security", () => {
     await db2.query("begin");
     try {
       await db2.query("set local role authenticated");
-      await expect(db2.query(`select r1_draft_try_cycle_lock($1)`, [CO_A])).rejects.toThrow();
+      await expect(db2.query(`select r1_draft_acquire_cycle_lease($1,$2,900)`, [CO_A, OWNER]))
+        .rejects.toThrow();
     } finally {
       await db2.query("rollback");
     }

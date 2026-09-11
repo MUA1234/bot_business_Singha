@@ -311,7 +311,7 @@ describe.skipIf(!enabled)("R1-F-002 — the transition boundary, adversarially",
     const { rows } = await raw.query(
       `select p.proconfig from pg_proc p join pg_namespace n on n.oid=p.pronamespace
         where n.nspname='public' and p.proname in
-              ('r1_draft_transition_item','r1_draft_guard_state_change','r1_draft_try_cycle_lock')`);
+              ('r1_draft_transition_item','r1_draft_guard_state_change','r1_draft_acquire_cycle_lease')`);
     expect(rows.length).toBeGreaterThanOrEqual(3);
     for (const r of rows) {
       const cfg = (r.proconfig ?? []).join(",");
@@ -324,7 +324,7 @@ describe.skipIf(!enabled)("R1-F-002 — the transition boundary, adversarially",
     await raw.query("begin");
     try {
       await raw.query("set local role anon");
-      await expect(raw.query(`select r1_draft_try_cycle_lock($1)`, [CO_A])).rejects.toThrow();
+      await expect(raw.query(`select r1_draft_acquire_cycle_lease($1,'e2e-owner',900)`, [CO_A])).rejects.toThrow();
     } finally {
       await raw.query("rollback");
     }
