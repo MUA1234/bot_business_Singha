@@ -58,14 +58,26 @@ export async function GET(req: Request): Promise<Response> {
     tasks = 0;
   for (const c of due) {
     try {
-      const res = await analyzeConversationThread(db, { companyId: c.company_id, conversationId: c.id, actorId: c.company_id, actorType: "ai" });
+      // TWO independent fixes, one from each line, and both are needed.
+      //
+      // From main: actorId is NULL, not the company id. This sweep has no human actor, and
+      // migration 0049's convention for a non-human actor is actor_type='ai'/'system' with
+      // actor_id NULL. Passing `c.company_id` wrote a COMPANY uuid into
+      // `management_cases.created_by`, `tasks.created_by` and `audit_events.actor_id` — neither
+      // column has an FK, so it was accepted silently and the trail claimed a company had
+      // authored the work.
+      const res = await analyzeConversationThread(db, { companyId: c.company_id, conversationId: c.id, actorId: null, actorType: "ai" });
 
-      // Mark analysed so a persistently-empty thread isn't retried forever — but NOT when the
-      // durable write itself failed. analyzeConversationThread documents persistence failure as a
-      // hard failure ("never 'analysed' without a durable record"); stamping it here anyway broke
-      // that contract, because the `due` filter would then skip the thread until a NEW customer
-      // message arrived, silently and permanently losing the analysis. A transient RPC error must
-      // leave the thread due so the next run retries it.
+      // From the candidate: do NOT stamp `ai_analyzed_at` when the durable write failed.
+      // `analyzeConversationThread` documents persistence failure as a hard failure ("never
+      // 'analysed' without a durable record"); stamping it anyway broke that contract, because
+      // the `due` filter would then skip the thread until a NEW customer message arrived —
+      // silently and permanently losing the analysis. A transient RPC error must leave the thread
+      // due so the next run retries it.
+      //
+      // Main's version stamped unconditionally. That is not a disagreement about actor identity;
+      // it is the older behaviour main did not touch, so taking main's whole hunk would have
+      // reintroduced the loss.
       const lostDurably = !res.ok && res.reason === "persist_failed";
       if (lostDurably) {
         log("error", "ai-monitor: analysis not durable — leaving thread due for retry", {
@@ -78,7 +90,7 @@ export async function GET(req: Request): Promise<Response> {
       if (res.ok) {
         analyzed++;
         tasks += res.createdTasks ?? 0;
-        await writeAudit({ companyId: c.company_id, actorId: c.company_id, actorType: "ai", action: "monitor.analyzed", entityType: "wa_conversation", entityId: c.id, payload: { createdTasks: res.createdTasks } });
+        await writeAudit({ companyId: c.company_id, actorId: null, actorType: "ai", action: "monitor.analyzed", entityType: "wa_conversation", entityId: c.id, payload: { createdTasks: res.createdTasks } });
       }
     } catch (e) {
       log("error", "ai-monitor analysis failed", { event: "monitor.failed", conversationId: c.id, error: (e as Error).message });

@@ -7,10 +7,15 @@
  * were constants that happened to be right for the pilot company.
  */
 import { describe, it, expect } from "vitest";
-import { resolveRouteDepartment } from "@/lib/quotations";
+import { resolveRouteDepartment, unroutableDepartment } from "@/lib/quotations";
 import { extractTextMessages } from "@/lib/whatsapp-inbound";
+import { canResolvePriceConfirmations, DEPARTMENTS, PRICE_CONFIRM_DEPARTMENTS } from "@/lib/departments";
 
+/** Whatever set the caller supplies is the set routing may use. */
 const ACTIVE = ["admin", "sales", "finance", "procurement", "fleet", "operations"] as const;
+
+/** What `priceQuotation` actually passes: active catalogue keys ∩ departments that can resolve. */
+const RESOLVABLE = ACTIVE.filter((k) => canResolvePriceConfirmations(k));
 
 describe("price-confirmation department routing", () => {
   it("uses the matched catalogue product's department first", () => {
@@ -39,6 +44,45 @@ describe("price-confirmation department routing", () => {
 
   it("skips an invalid product department and still honours a valid company default", () => {
     expect(resolveRouteDepartment("nonsense", "finance", undefined, ACTIVE)).toBe("finance");
+  });
+});
+
+/**
+ * Second live defect, found 2026-09-11. Routing validated candidates against the ACTIVE
+ * CATALOGUE (nine departments), but only `sales` and `finance` render a price queue and are
+ * authorised to resolve one. Both live catalogue products name `procurement`, so the next
+ * human-priced item would have created a confirmation nobody could act on: read-only on
+ * `/app/me`, a notification pointing at a page that does not exist, and a customer left behind
+ * the "(Quotation is being generated. Please wait)" footer indefinitely.
+ */
+describe("routing can only address a department that can RESOLVE a confirmation", () => {
+  it("routes the live procurement products to a department that can actually price them", () => {
+    expect(RESOLVABLE).not.toContain("procurement");
+    // Company default on production is `sales`, so the item is priceable instead of stranded.
+    expect(resolveRouteDepartment("procurement", "sales", undefined, RESOLVABLE)).toBe("sales");
+  });
+
+  it("never returns a department that cannot resolve, for ANY catalogue department", () => {
+    for (const d of DEPARTMENTS) {
+      const routed = resolveRouteDepartment(d.key, null, undefined, RESOLVABLE);
+      expect(canResolvePriceConfirmations(routed)).toBe(true);
+    }
+  });
+
+  it("reports the skipped configuration instead of swallowing it", () => {
+    expect(unroutableDepartment("procurement", RESOLVABLE)).toBe("procurement");
+    expect(unroutableDepartment("sales", RESOLVABLE)).toBeNull();
+    expect(unroutableDepartment(null, RESOLVABLE)).toBeNull();
+  });
+
+  it("the historical default is itself resolvable (otherwise the fallback strands too)", () => {
+    expect(PRICE_CONFIRM_DEPARTMENTS).toContain("sales");
+  });
+
+  it("every department allowed to receive a confirmation exists in the catalogue", () => {
+    for (const key of PRICE_CONFIRM_DEPARTMENTS) {
+      expect(DEPARTMENTS.map((d) => d.key)).toContain(key);
+    }
   });
 });
 

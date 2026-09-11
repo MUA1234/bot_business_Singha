@@ -33,6 +33,20 @@ interface ConvState {
 }
 
 /**
+ * The candidate's signature is kept, and it is the STRICTER of the two.
+ *
+ * Main made `companyId` optional and added `phoneNumberId` so this function could resolve the
+ * company itself — necessary there, because main's async worker called this directly. The
+ * candidate routes every inbound message through `dispatchReceipt`, which resolves the receiving
+ * company BEFORE dispatch and fails closed when it cannot (`company_unresolved`). So the
+ * resolution main added still happens; it happens one layer up, where the refusal can be recorded
+ * against the receipt.
+ *
+ * Keeping an optional `companyId` here would reopen FOUND-003 — a message handled with no company
+ * resolved, which used to fall back to a hardcoded pilot company.
+ */
+
+/**
  * WhatsApp order-intake conversation engine. The caller supplies the Supabase client so this
  * module stays client-agnostic: the production service path passes the service-role client;
  * tests and future callers may inject an RLS-bound client without editing this file.
@@ -50,7 +64,15 @@ export async function handleCustomerMessage(
     companyId: string;
   },
   db: SupabaseClient,
-): Promise<{ status: string }> {
+  /**
+   * `companyId` is main's addition and it is KEPT even though the candidate's caller does not read
+   * it today. Main returned the resolved company so the webhook could close the source event's
+   * lifecycle with it; the candidate closes that lifecycle inside `dispatchReceipt` instead, which
+   * already knows the company. Deleting the field would have meant editing main's assignments
+   * throughout this file to make a type error go away — changing working code to satisfy a
+   * signature, rather than the other way round.
+   */
+): Promise<{ status: string; companyId?: string }> {
   const companyId = input.companyId;
   const from = input.from.replace(/^\+/, "");
 
@@ -65,7 +87,7 @@ export async function handleCustomerMessage(
     .eq("wa_message_id", input.waMessageId)
     .eq("direction", "inbound")
     .maybeSingle();
-  if (prior?.handled_at) return { status: "duplicate" };
+  if (prior?.handled_at) return { status: "duplicate", companyId };
 
   // Load or create the conversation.
   const { data: convo } = await db
@@ -104,7 +126,7 @@ export async function handleCustomerMessage(
     if (insErr || !ins) {
       // A concurrent delivery won the unique index — re-read; if already handled, stop.
       const { data: race } = await db.from("wa_messages").select("id, handled_at").eq("company_id", companyId).eq("wa_message_id", input.waMessageId).eq("direction", "inbound").maybeSingle();
-      if (race?.handled_at) return { status: "duplicate" };
+      if (race?.handled_at) return { status: "duplicate", companyId };
       if (!race?.id) throw new Error(`inbound insert failed: ${insErr?.message}`);
       inboundId = race.id;
     } else {
@@ -306,5 +328,5 @@ export async function handleCustomerMessage(
   await db.from("wa_messages").update({ handled_at: new Date().toISOString() }).eq("id", inboundId);
   try { await drainOutbox(db); } catch { /* sweep will recover */ }
 
-  return { status };
+  return { status, companyId };
 }

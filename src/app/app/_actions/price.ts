@@ -4,10 +4,13 @@ import { revalidatePath } from "next/cache";
 import { requireProfile } from "@/lib/auth";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { resolvePriceConfirmation } from "@/lib/quotations";
+import { canResolvePriceConfirmations } from "@/lib/departments";
 
 async function requirePricer() {
   const p = await requireProfile();
-  if (!p.isAdmin && !["sales", "finance"].includes(p.department)) throw new Error("Not allowed");
+  // Single source of truth, shared with the routing resolver — an inline literal here is how
+  // routing and authorisation drifted apart in the first place.
+  if (!p.isAdmin && !canResolvePriceConfirmations(p.department)) throw new Error("Not allowed");
   return p;
 }
 

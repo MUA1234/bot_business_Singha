@@ -5,8 +5,10 @@ import { requireAdmin } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { supabaseWriteClient } from "@/lib/supabase/read";
 import { writeAudit } from "@/lib/audit";
+import { log } from "@/lib/log";
 import { usernameToEmail, USERNAME_RE } from "@/lib/constants";
-import { DEPARTMENT_KEYS } from "@/lib/departments";
+import { ADMIN_DEPARTMENT, DEPARTMENT_KEYS } from "@/lib/departments";
+import { provisionEmployeeIdentity, setEmployeeIdentityActive } from "@/lib/identity-provisioning";
 
 export interface EmployeeFormState {
   error?: string;
@@ -49,6 +51,11 @@ export async function createEmployee(
   if (!USERNAME_RE.test(username))
     return { error: "Username must be 3–32 chars: lowercase letters, digits, . _ -" };
   if (!DEPARTMENT_KEYS.includes(department)) return { error: "Choose a valid department." };
+  // The admin dashboard gates on admin RIGHTS, not on the department. Someone placed in the
+  // admin department without the rights has no page they may open, so refuse the combination
+  // at creation rather than creating an employee who cannot use the app.
+  if (department === ADMIN_DEPARTMENT && !isAdmin)
+    return { error: "The Admin / Owner department is the control panel — tick “Administrator”, or choose the department this person actually works in." };
   if (password.length < 8) return { error: "Password must be at least 8 characters." };
 
   const dbAdmin = supabaseAdmin();
@@ -81,13 +88,35 @@ export async function createEmployee(
     return { error: `Could not save the profile: ${profileErr.message}` };
   }
 
+  // MEMBERSHIP IDENTITY (identity plan step 5). A profile alone is invisible to
+  // has_membership()/has_capability() and to lib/access.ts, so an employee created without it
+  // is silently denied once RLS becomes the enforcement path. Fail CLOSED: roll the whole
+  // creation back rather than leave a half-provisioned employee behind.
+  // `dbAdmin`, deliberately: provisioning writes `users`, `memberships` and
+  // `membership_roles` for SOMEBODY ELSE, which no RLS-governed client should be able to do.
+  const identity = await provisionEmployeeIdentity(dbAdmin, {
+    userId: created.user.id,
+    companyId: admin.companyId,
+    fullName: fullName || null,
+    isAdmin,
+    isActive: true,
+  });
+  if (!identity.ok) {
+    // Rollback split the way this module splits everywhere else: the profile row is
+    // company-scoped so it goes through the RLS-governed write client, and only the auth-user
+    // deletion needs admin. Main wrote both against a single `supabaseAdmin()` handle.
+    await dbWrite.from("profiles").delete().eq("id", created.user.id).eq("company_id", admin.companyId);
+    await dbAdmin.auth.admin.deleteUser(created.user.id);
+    return { error: `Could not grant company access: ${identity.error}` };
+  }
+
   await writeAudit({
     companyId: admin.companyId,
     actorId: admin.userId,
     action: "employee.created",
     entityType: "profile",
     entityId: created.user.id,
-    payload: { username, department, is_admin: isAdmin },
+    payload: { username, department, is_admin: isAdmin, membership_roles: identity.roles },
   });
   revalidatePath("/app/admin/employees");
   return { ok: `Created ${username} (${department}).` };
@@ -103,11 +132,26 @@ export async function setEmployeeActive(formData: FormData): Promise<void> {
   const target = await targetInAdminCompany(userId, admin.companyId);
   if (!target) return;
 
+  // A company-scoped read of the caller's own tenant: the RLS-respecting client, not the
+  // admin one. Main used `supabaseAdmin()` here; that works but reads past the policy this
+  // module exists to be governed by.
   await supabaseWriteClient()
     .from("profiles")
     .update({ is_active: active })
     .eq("id", userId)
     .eq("company_id", admin.companyId);
+  // A suspension has to reach BOTH identity models, or has_membership() still grants access.
+  // `supabaseAdmin()`: mirroring a suspension writes ANOTHER user's membership row, which no
+  // RLS-governed client should be able to do.
+  const mirrored = await setEmployeeIdentityActive(supabaseAdmin(), { userId, companyId: admin.companyId, isActive: active });
+  if (!mirrored.ok) {
+    log("error", "membership status mirror failed", {
+      event: "employee.membership_mirror_failed",
+      userId,
+      companyId: admin.companyId,
+      error: mirrored.error ?? null,
+    });
+  }
   await writeAudit({
     companyId: admin.companyId,
     actorId: admin.userId,

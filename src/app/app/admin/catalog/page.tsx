@@ -1,4 +1,5 @@
 import { requireProfile } from "@/lib/auth";
+import { landingPathFor } from "@/lib/departments";
 import { redirect } from "next/navigation";
 import { supabaseReadClient } from "@/lib/supabase/read";
 import { fmtMoney } from "@/lib/money";
@@ -23,7 +24,9 @@ interface CatalogRow {
 
 export default async function CatalogPage() {
   const p = await requireProfile();
-  if (!p.isAdmin && p.department !== "finance") redirect(`/app/${p.department}`);
+  // `landingPathFor`, not `/app/<department>`: the latter sends a non-admin in the admin
+  // department to `/app/admin`, which bounces them straight back out again.
+  if (!p.isAdmin && p.department !== "finance") redirect(landingPathFor(p));
 
   const { data } = await supabaseReadClient()
     .from("product_catalog")
