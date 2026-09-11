@@ -109,10 +109,18 @@ console.log("\n▶ 3. interrupted migration");
     migrate(url);
   } catch { threw = true; } finally { writeFileSync(path, original); }
 
+  // The expected high-water is DERIVED from the target, not written down. It used to be the
+  // literal "0069", which was right only while the broken file was 0070 — the +1 shift made
+  // main's own 0070 the migration that legitimately runs first, so a correct run now stops one
+  // version later and the assertion failed for a reason that had nothing to do with the
+  // behaviour under test. A renumbering must not be able to quietly invalidate an attack.
+  const brokenVersion = Number(target.slice(0, 4));
+  const lastGood = String(brokenVersion - 1).padStart(4, "0");
   const { rows } = await q(url, "select count(*)::int n, max(version) hw from schema_migrations");
   check("a failing migration is REFUSED loudly, not skipped", threw);
-  check("the ledger does not record the migration that failed",
-    rows[0].hw === "0069" && rows[0].n === 69, `high-water ${rows[0].hw}, ${rows[0].n} rows`);
+  check("the ledger stops at the last migration that SUCCEEDED, and does not record the one that failed",
+    rows[0].hw === lastGood && rows[0].n === brokenVersion - 1,
+    `high-water ${rows[0].hw} (expected ${lastGood}), ${rows[0].n} rows (expected ${brokenVersion - 1})`);
   const objs = await q(url, "select to_regclass('public.channel_accounts') is not null ok");
   check("no LATER migration ran after the failure", objs.rows[0].ok === false);
 }
@@ -164,8 +172,17 @@ console.log("\n▶ 7. missing dependency");
   const url = await freshDb("atk_missing_dep");
   shim(url);
   migrate(url, { MIGRATE_UPTO: "0069" });
-  // Record 0070 as applied WITHOUT running it — precisely what a version collision does.
-  await q(url, "insert into schema_migrations (version, filename) values ('0070','0071_durable_inbound_processing.sql')");
+  // Record the durable-inbound migration as applied WITHOUT running it — precisely what a
+  // version collision does, and the defect class PR-F-001 recorded: `migrate.mjs` keys the ledger
+  // on the four-digit prefix and skips a recorded version SILENTLY.
+  //
+  // The version is derived from the filename. It was hardcoded to '0070' paired with the 0071
+  // filename, which was consistent before the +1 shift and self-contradictory after it: the row
+  // then skipped MAIN's 0070, the durable-inbound migration ran normally, and both assertions
+  // failed while the mechanism under test was never exercised. A false negative in an attack
+  // campaign is worse than a failure, because it reads as a passing gate.
+  const skipped = "0071_durable_inbound_processing.sql";
+  await q(url, "insert into schema_migrations (version, filename) values ($1,$2)", [skipped.slice(0, 4), skipped]);
   let threw = false;
   try { migrate(url); } catch { threw = true; }
   const { rows } = await q(url,

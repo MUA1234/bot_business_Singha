@@ -17,7 +17,30 @@ const URL = process.env.DATABASE_URL ?? "";
 const enabled = !!URL;
 
 // Tables that intentionally have NO user read policy (worker/service-role only).
-const NO_READ_POLICY_OK = new Set<string>(["dead_letter_events", "ai_model_attempts"]);
+//
+// An entry here is a claim that a session is not meant to read the table AT ALL, so each one
+// names the migration that decided it. A table that simply has not got a policy yet does not
+// belong here — that is the failure this test exists to report.
+const NO_READ_POLICY_OK = new Set<string>([
+  "dead_letter_events",
+  "ai_model_attempts",
+  // 0141 — the management cycle's lease. It replaced `pg_try_advisory_lock`, which cannot work
+  // through PostgREST's connection pool because a session-scoped lock does not outlive the
+  // request that took it. It is scheduler bookkeeping: only `service_role` is granted anything,
+  // and there is no policy because there is no session that should see it.
+  "management_cycle_leases",
+  // 0135 — deliberately unreadable by a session. 0118 gave it an `observation_sources_sel` read
+  // policy; 0135 dropped that policy AND revoked SELECT from `authenticated`, so the only way in
+  // is the `r1_draft_source_health(uuid)` projection, which exposes no reason text, no timestamps
+  // and no cadence. The raw table would leak what a company watches and how often.
+  "observation_sources",
+  // 0144 — closed after this very test found it. 0132 created it with RLS off and the shim's
+  // default privileges handed `authenticated` full DML, so any signed-in user could read every
+  // company's execution idempotency keys and plant one. It is written only by the service-only
+  // `r1_draft_create_internal_task` and read by no screen: RLS is now on and FORCED with no
+  // policy at all, and only `service_role` retains DML.
+  "management_task_idempotency",
+]);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let client: any;

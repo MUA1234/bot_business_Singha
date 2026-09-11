@@ -110,6 +110,46 @@ const SERVICE_ONLY = new Set([
   "actor_has_capability(uuid,uuid,text)",
   // (task_routing_events_append_only is a plain trigger function, not SECURITY DEFINER — it only
   //  raises. This allowlist governs SECURITY DEFINER signatures, so it is deliberately absent.)
+
+  // ── The promoted management kernel (0112–0141) ────────────────────────────────────────────
+  //
+  // These signatures are new to THIS allowlist, not new to the codebase. They lived in
+  // `src/db/draft-migrations-r1/`, quarantined outside the numbered sequence under owner decision
+  // R1-D-1, and this gate runs on the CORE campaign database, which carries no draft object — so
+  // it had never seen them. Promotion put them in the released lineage and the gate did its job:
+  // twenty-five unclassified signatures on the first run.
+  //
+  // Classifying them surfaced real gaps, fixed in migration 0144 rather than written down here:
+  // the Ask-AI purge was callable by any signed-in user, and every kernel trigger function was
+  // executable by `anon`. See `0144_kernel_execute_boundary.sql`.
+
+  // The cycle lease. Session-scoped advisory locks cannot survive PostgREST's connection pool, so
+  // the lease is a row; acquiring and releasing it is the scheduler's business and nobody else's.
+  "r1_draft_acquire_cycle_lease(uuid,text,integer)",
+  "r1_draft_release_cycle_lease(uuid,text)",
+  // Retention. No caller gate and no company scope by design — it sweeps EVERY company's expired
+  // Ask-AI threads, which is exactly why it must be reachable only by the scheduled sweep. Before
+  // 0144 it was reachable by `authenticated`, verified by calling it as one.
+  "r1_draft_ask_ai_purge_expired()",
+  // The cycle's own writers. The kernel FILES an item; a person never calls these. Each of the
+  // three item-creation versions is listed separately: they are different signatures, and a new
+  // overload must be classified on its own merits rather than inheriting a predecessor's.
+  "r1_draft_create_management_item(uuid,uuid,text,text,text,text,text,text,text,text,numeric,text,text,text,boolean,timestamp with time zone,text,jsonb)",
+  "r1_draft_create_management_item_v2(uuid,uuid,text,text,text,text,text,text,text,text,numeric,text,text,text,boolean,timestamp with time zone,text,jsonb,jsonb,text,text)",
+  "r1_draft_create_management_item_v3(uuid,uuid,text,text,text,text,text,text,text,text,numeric,text,text,text,boolean,timestamp with time zone,text,jsonb,jsonb,text,text,jsonb,text,text)",
+  "r1_draft_create_internal_task(uuid,text,text,text,boolean,uuid)",
+  "r1_draft_record_feedback(uuid,uuid,uuid,text,uuid,jsonb,jsonb,text,text,uuid)",
+  // The execution transport. EVERY one of these is service-only, and that is the boundary itself,
+  // not a convenience: `EXECUTION_ENABLED` plus the server-side `r1_exec_global_boundary` row
+  // decide whether the canonical action may run, and a browser that could call any of these would
+  // be deciding it instead. `r1_exec_create_internal_task` is the ONLY action handler that exists.
+  "r1_exec_approver_capabilities(uuid,uuid)",
+  "r1_exec_company_enabled(uuid)",
+  "r1_exec_create_internal_task(uuid,uuid,text,text,text,text,text,text)",
+  "r1_exec_evidence_digest(uuid,uuid)",
+  "r1_exec_load_approval(uuid,uuid,text)",
+  "r1_exec_load_item(uuid,uuid)",
+  "r1_exec_record_refusal(uuid,uuid,text,text,text,text)",
 ]);
 /**
  * INTERNAL: reachable by NO API role, not even the service context.
@@ -137,6 +177,14 @@ const OWNER_ONLY = new Set([
   // to remove the last one. SECURITY DEFINER because it reads memberships across the RLS boundary;
   // reachable by no role at all, and called only from inside admin_set_membership_role.
   "_role_holder_count(uuid,text)",
+  // 0144 — the promoted kernel's two SECURITY DEFINER trigger functions: the execution-attempt
+  // guard, and the append-only guard on verification attempts. Fired by their tables, never
+  // called. Both were executable by `anon` AND `authenticated` until 0144, because the kernel
+  // chain was quarantined outside the numbered sequence and never met this gate. Revoking EXECUTE
+  // does not disarm a trigger — PostgreSQL checks that privilege when the trigger is CREATED, not
+  // when it fires, which is the same fact the three released trigger functions above rely on.
+  "r1_draft_execution_attempt_guard()",
+  "r1_draft_verification_attempts_append_only()",
 ]);
 
 // Must exist AND be locked on any DB reaching this migration (the legacy 7-arg is intentionally excluded).
@@ -185,6 +233,33 @@ const AUTHENTICATED_OK = new Set([
   // ai.model_budget.manage sets the daily per-task ceiling; the function re-checks the
   // acting person's capability inside the transaction and audits the change.
   "set_ai_model_budget_policy(uuid,text,numeric,boolean,integer)",
+
+  // ── The promoted management kernel (0112–0141) ────────────────────────────────────────────
+  //
+  // Each of these has an explicit `grant execute ... to authenticated` in the migration that
+  // created it, so each is a decision someone wrote down — which is the test for belonging here.
+  // The kernel functions that reached `authenticated` merely because nobody revoked PostgreSQL's
+  // default grant are NOT in this list; 0144 took that reach away instead.
+
+  // The two HUMAN acts in the lifecycle, and the split is deliberate: both are granted to
+  // `authenticated` and NOT to `service_role`, so "a worker cannot assign work to a person, and a
+  // worker cannot claim that work is done" is a property of the grant rather than of a check.
+  // Same shape as `route_task_as_human` above.
+  "r1_draft_assign_management_item(uuid,uuid,text,text,text,text,text)",
+  "r1_draft_claim_task_completion(uuid,uuid,text,text,text,text,text)",
+  // The decision RPC and the evidence digest it stamps. A management decision is a person's, and
+  // the function re-derives the actor from auth.uid() rather than taking one as an argument.
+  "r1_draft_record_management_decision(uuid,text,text,text,text,text,text,text)",
+  "r1_draft_evidence_digest(uuid,uuid)",
+  // RLS predicate helpers. A policy expression is evaluated in the CALLER's role, so revoking
+  // these from `authenticated` would not harden anything — it would break every read the policies
+  // govern. 0144 asserts the opposite direction for exactly this reason: it fails closed if one of
+  // them LOSES the grant.
+  "r1_draft_may_see_item(uuid)",
+  "r1_draft_may_see_management_item(uuid,text,uuid)",
+  "r1_draft_is_active_advisor(uuid,text)",
+  // Read-only health of a company's own sources, for the person looking at it.
+  "r1_draft_source_health(uuid)",
 ]);
 
 async function callAs(role: "authenticated" | "service", sql: string): Promise<{ ok: boolean; code?: string }> {

@@ -444,6 +444,33 @@ describe.skipIf(!enabled)("FOUND-006 — privilege decides, request text does no
       "settle_supplier_bill(uuid,uuid,numeric,text,text,uuid,date,text)",
       "within_authority(uuid,text,numeric,text)",
       "within_authority_for_event(uuid,uuid)",
+
+      // ── The promoted management kernel (migrations 0112-0141) ──────────────────────────────
+      //
+      // Seven kernel functions are api-reachable definers that reach claim text through the call
+      // graph. They appear here now because promotion moved the chain into the released lineage;
+      // the CORE campaign's database carries no draft object, so this closure had never included
+      // them.
+      //
+      // The class this gate exists to catch is a function that turns claim text into AUTHORITY —
+      // `_resolve_actor` reading `role=service_role` and skipping the capability check. None of
+      // these does: not one mentions `service_role` anywhere in its body (checked against
+      // `pg_proc.prosrc` on a live database, not by reading the migrations). Each reaches claims
+      // only for `auth.uid()` — WHO is asking — and the four that carry authority then ask
+      // `has_capability` what that person may do.
+      //
+      // Listing a function here is not a statement that it is safe. It is a statement that this
+      // set may not GROW without someone deciding it should.
+      "r1_draft_assign_management_item(uuid,uuid,text,text,text,text,text)",
+      "r1_draft_claim_task_completion(uuid,uuid,text,text,text,text,text)",
+      "r1_draft_record_management_decision(uuid,text,text,text,text,text,text,text)",
+      // RLS predicates, evaluated inside policies in the CALLER's role. `may_see_item` reaches
+      // claim text only transitively, through the helper it delegates to.
+      "r1_draft_may_see_item(uuid)",
+      "r1_draft_may_see_management_item(uuid,text,uuid)",
+      // Read-only projections scoped to the caller's own company.
+      "r1_draft_is_active_advisor(uuid,text)",
+      "r1_draft_source_health(uuid)",
     ].sort());
   });
 

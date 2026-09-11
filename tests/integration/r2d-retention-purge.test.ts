@@ -191,33 +191,53 @@ describe.skipIf(!enabled)("R2D — the purge removes content, not just visibilit
   }, 180_000);
 
   /**
-   * An ordinary user's write REACHES NOTHING.
+   * An ordinary user's write CHANGES NOTHING.
    *
-   * These tests assert the effect, not an exception, and the distinction is deliberate.
+   * These tests assert the EFFECT — the stored rows afterwards — and deliberately do not pin
+   * the mechanism, because the mechanism got stronger underneath them.
    *
-   * There is no RLS policy for UPDATE or DELETE on these tables, so a caller's statement
-   * matches zero rows and returns success having changed nothing. The obvious "improvement"
-   * — adding permissive UPDATE/DELETE policies so the write-guard trigger fires and raises a
-   * clear error — would make the TRIGGER the only thing standing between an authenticated
-   * caller and another company's rows. That trades a real tenant boundary for a better error
-   * message, so it is not taken.
+   * It used to be RLS alone. There is no policy for UPDATE or DELETE on these tables, so a
+   * caller's statement matched zero rows and returned success having changed nothing. The
+   * obvious "improvement" — adding permissive UPDATE/DELETE policies so the write-guard
+   * trigger fires and raises a clear error — would make the TRIGGER the only thing between an
+   * authenticated caller and another company's rows, trading a real tenant boundary for a
+   * better error message. It was not taken, and still is not.
    *
-   * The security property is therefore stated as what it is: the write affects nothing and
-   * the data survives unchanged. Asserting a rejection would have been asserting a nicer
-   * error, not a stronger guarantee.
+   * What migration 0144 changed is the layer BELOW that. These tables have no write policy, so
+   * `authenticated` did not need the DML grant either; it held one only because Supabase's
+   * default privileges hand it out. 0144 withdrew it. The statement is now refused at the
+   * privilege layer — `permission denied for table ask_ai_threads` — before RLS is consulted
+   * at all. That is the same boundary with a second mechanism in front of it, which matters on
+   * the day RLS is disabled on one of these tables by a migration or a restore.
+   *
+   * So the assertion is: the write does not succeed, by either route, and the data is
+   * byte-identical afterwards. Asserting `rowCount === 0` specifically would have been
+   * asserting which layer said no — and would now fail BECAUSE the boundary got stronger.
    */
+  /** Run a statement as an ordinary user and report whether it was refused, or how many rows it hit. */
+  async function attemptAsUser(sql: string, params: unknown[]): Promise<{ refused: boolean; rowCount: number }> {
+    try {
+      const res = await asUser(STAFF, async () => q(sql, params));
+      return { refused: false, rowCount: res.rowCount ?? 0 };
+    } catch (e) {
+      // 42501 insufficient_privilege — the grant is gone. Any other error is a real failure.
+      const code = (e as { code?: string }).code;
+      if (code !== "42501") throw e;
+      return { refused: true, rowCount: 0 };
+    }
+  }
+
   describe("an ordinary user cannot touch any of it", () => {
-    it("cannot DELETE a thread or a turn — the write reaches no rows", async () => {
+    it("cannot DELETE a thread or a turn — refused, or reaching no rows", async () => {
       const { threadId } = await seedThread(CO_A, membershipA, null);
 
-      const del = await asUser(STAFF, async () =>
-        q(`delete from ask_ai_threads where id=$1`, [threadId]));
-      const delTurns = await asUser(STAFF, async () =>
-        q(`delete from ask_ai_turns where thread_id=$1`, [threadId]));
+      const del = await attemptAsUser(`delete from ask_ai_threads where id=$1`, [threadId]);
+      const delTurns = await attemptAsUser(`delete from ask_ai_turns where thread_id=$1`, [threadId]);
 
       expect(del.rowCount, "an ordinary user deleted a thread").toBe(0);
       expect(delTurns.rowCount, "an ordinary user deleted turns").toBe(0);
-      // Verified against storage, not visibility.
+      // Verified against storage, not visibility. This is the assertion that matters: whichever
+      // layer refused, the rows are still there.
       expect(await physicalCount("ask_ai_threads", "id=$1", [threadId])).toBe(1);
       expect(await physicalCount("ask_ai_turns", "thread_id=$1", [threadId])).toBe(2);
     }, 180_000);
@@ -232,7 +252,7 @@ describe.skipIf(!enabled)("R2D — the purge removes content, not just visibilit
         `update ask_ai_threads set expires_at = now() + interval '80 days' where id=$1`,
         `update ask_ai_threads set retention_status = 'active' where id=$1`,
       ]) {
-        const res = await asUser(STAFF, async () => q(attempt, [threadId]));
+        const res = await attemptAsUser(attempt, [threadId]);
         expect(res.rowCount, attempt).toBe(0);
       }
 
@@ -244,12 +264,34 @@ describe.skipIf(!enabled)("R2D — the purge removes content, not just visibilit
     }, 180_000);
 
     it("the write-guard trigger DOES raise when a row actually reaches it", async () => {
-      // The guard is not decorative: where RLS lets a row through — as it does for INSERT,
-      // which has no policy either but is reached differently — the trigger refuses loudly
-      // rather than silently discarding the write.
-      await expect(asUser(STAFF, async () =>
-        q(`insert into ask_ai_threads (company_id, membership_id) values ($1,$2)`,
-          [CO_A, membershipA]))).rejects.toThrow();
+      // The guard is not decorative, and this test has to work harder to prove it than it used
+      // to. Before migration 0144, an ordinary user still held the INSERT grant, so the
+      // statement reached the trigger and the trigger refused it. 0144 took the grant away, so
+      // the insert is now refused one layer earlier — and a test that just asserts "it threw"
+      // would pass on the privilege error while saying nothing at all about the trigger.
+      //
+      // So the grant is handed back INSIDE a transaction that rolls back, putting the database
+      // in exactly the state it was in before 0144. If the trigger had been lost or weakened,
+      // the insert would now succeed. That is the defence-in-depth claim stated as an
+      // experiment: the boundary holds on the trigger alone, and 0144 is a second lock on the
+      // same door rather than a replacement for the first.
+      await q("begin");
+      try {
+        await q(`grant insert on ask_ai_threads to authenticated`);
+        await q(`select set_config('request.jwt.claims', $1, true)`,
+          [JSON.stringify({ role: "authenticated", sub: STAFF })]);
+        await q("set local role authenticated");
+        await expect(
+          q(`insert into ask_ai_threads (company_id, membership_id) values ($1,$2)`, [CO_A, membershipA]),
+        ).rejects.toThrow(/written by the server/i);
+      } finally {
+        await q("rollback");
+      }
+
+      // And with the grant as 0144 leaves it, the same insert is refused before the trigger.
+      const blocked = await attemptAsUser(
+        `insert into ask_ai_threads (company_id, membership_id) values ($1,$2)`, [CO_A, membershipA]);
+      expect(blocked.refused, "0144 should refuse the insert at the privilege layer").toBe(true);
     }, 180_000);
 
     it("cannot exceed the 90-day ceiling even as the server", async () => {

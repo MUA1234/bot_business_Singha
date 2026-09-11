@@ -86,6 +86,12 @@ describe.skipIf(!enabled)("0067 enqueue vs item-mutation race (live, two connect
     }
     try { await setup.query(`delete from membership_roles where company_id=$1`, [co]); } catch { /* noop */ }
     try { await setup.query(`delete from memberships where company_id=$1`, [co]); } catch { /* noop */ }
+    // The capability user's PROFILE was missing from this teardown, and a swallowed error hid it:
+    // `profiles` references `companies`, so the company delete below failed on the foreign key,
+    // the catch discarded it, and BOTH rows survived. One orphan profile per run, accumulating —
+    // which is why `identity-consistency` ("every profile has a membership in its own company")
+    // passed on a fresh database and failed on the second campaign run against the same one.
+    for (const cid of [co, coB]) { try { await setup.query(`delete from profiles where company_id=$1`, [cid]); } catch { /* noop */ } }
     for (const cid of [co, coB]) { try { await setup.query(`delete from companies where id=$1`, [cid]); } catch { /* noop */ } }
     for (const sql of [`revoke authenticated from ${customRole}`,
                        `revoke all on public.quotation_items from ${customRole}`,
