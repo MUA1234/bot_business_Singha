@@ -2,9 +2,12 @@
 /**
  * The eight integration rehearsals, on disposable databases.
  *
- * The chain is now `0001`–`0143`: main's `0070` kept its number and the candidate's own sequence
- * moved up by one. Every earlier rehearsal measured a different chain, so none of them is evidence
- * about this one.
+ * The chain is now `0001`–`0144`: main's `0070` kept its number, the candidate's own sequence
+ * moved up by one, and `0144` closes the execute/table boundaries that promotion exposed. Every
+ * earlier rehearsal measured a different chain, so none of them is evidence about this one.
+ *
+ * Nothing below hardcodes the chain length — each scenario reports the ledger it actually reaches
+ * — which is why extending the chain to 0144 needed no edit here beyond this sentence.
  *
  * The interesting scenario is 4. Production reportedly has the ledger at `0069`, main's `0070`
  * data repair ALREADY APPLIED over REST, and no `0070` ledger row. That is not a hypothetical

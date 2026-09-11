@@ -82,6 +82,32 @@ async function main() {
     } catch (e) { bad(`${name} unreachable`, String(e.message).slice(0, 120)); }
   }
 
+  /*
+   * The app is CONFIGURED, not merely serving.
+   *
+   * `/login` returning 200 says the process is up. It says nothing about whether the runtime has
+   * the variables the campaign's boundary tests exercise, and this check passed 28/28 while the
+   * application was missing two of them. Eleven webhook tests then failed on `500` instead of
+   * `401`, and the H5 cron assertion failed on `500` instead of `401` — none of it a defect in
+   * the product, all of it a harness that had said it was ready.
+   *
+   * These probe the two boundaries from OUTSIDE, with no secret, which is the same thing the
+   * suites do. A route that answers 500 here is a route whose server-side configuration is
+   * absent, so every refusal it produces is a misconfiguration rather than a refusal — and a
+   * campaign cannot tell the difference from the status code alone.
+   */
+  try {
+    const r = await fetch(`${APP}/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=hst-wrong&hub.challenge=x`);
+    if (r.status === 500) bad("webhook boundary is NOT configured", "WHATSAPP_APP_SECRET / WHATSAPP_VERIFY_TOKEN absent from the app runtime — package I would fail on 500s that are not refusals");
+    else ok(`webhook boundary configured (a wrong verify token → ${r.status}, not 500)`);
+  } catch (e) { bad("webhook boundary unreachable", String(e.message).slice(0, 120)); }
+
+  try {
+    const r = await fetch(`${APP}/api/cron/dispatch-drain`);
+    if (r.status === 500) bad("cron boundary is NOT configured", "CRON_SECRET absent from the app runtime — the route fail-closes with 500, so H5 cannot distinguish that from an unauthorised caller");
+    else ok(`cron boundary configured (no secret → ${r.status}, not 500)`);
+  } catch (e) { bad("cron boundary unreachable", String(e.message).slice(0, 120)); }
+
   const client = new pg.Client({ connectionString: DB_URL, ssl: false });
   await client.connect();
   const q = async (sql, params = []) => (await client.query(sql, params)).rows;
