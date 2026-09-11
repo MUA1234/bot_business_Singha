@@ -26,7 +26,7 @@ takeMutationLock("claim-mutations.mjs");
 const ANSI = new RegExp(String.fromCharCode(27) + "\\[[0-9;]*m", "g");
 const NL = String.fromCharCode(10);
 
-const SQL = "src/db/draft-migrations-r1/R1_DRAFT_026_completion_claim.up.sql";
+const SQL = "src/db/migrations/0136_completion_claim.sql";
 
 copyFileSync(SQL, `${SQL}.bak`);
 const restore = () => copyFileSync(`${SQL}.bak`, SQL);

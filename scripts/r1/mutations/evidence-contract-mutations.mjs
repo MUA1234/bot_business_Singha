@@ -26,7 +26,7 @@ const NL = String.fromCharCode(10);
 
 const EXECUTOR = "src/kernel/execution/executor.ts";
 const SERVICE = "src/kernel/execution/service.ts";
-const SQL = "src/db/draft-migrations-r1/R1_DRAFT_027_evidence_contracts.up.sql";
+const SQL = "src/db/migrations/0137_evidence_contracts.sql";
 const FILES = [EXECUTOR, SERVICE, SQL];
 
 for (const f of FILES) copyFileSync(f, `${f}.bak`);

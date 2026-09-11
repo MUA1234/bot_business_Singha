@@ -14,7 +14,7 @@
  *   DATABASE_URL=postgres://…@127.0.0.1:PORT/postgres node scripts/hosted/migration-attacks.mjs
  */
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, unlinkSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync, unlinkSync, existsSync } from "node:fs";
 import pg from "pg";
 
 const ADMIN = process.env.DATABASE_URL;
@@ -25,6 +25,18 @@ if (!/127\.0\.0\.1|localhost|\[::1\]/.test(ADMIN)) {
 }
 
 const MIG_DIR = "src/db/migrations";
+
+/**
+ * The chain's length and high-water are DERIVED, not written down.
+ *
+ * Four checks here read 110 and "0110" as literals. The chain became 142 the day the R1 units were
+ * promoted, and all four failed while reporting the correct answer — 142 rows, high-water 0142 — as
+ * though it were a defect. An attack campaign whose expectations go stale every time a migration is
+ * added teaches its reader to skim the failures, which is the one thing it must not do.
+ */
+const ALL_MIGRATIONS = readdirSync(MIG_DIR).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort();
+const EXPECTED_N = ALL_MIGRATIONS.length;
+const EXPECTED_HW = ALL_MIGRATIONS[ALL_MIGRATIONS.length - 1].slice(0, 4);
 const urlFor = (db) => { const u = new URL(ADMIN); u.pathname = `/${db}`; return u.toString(); };
 
 const admin = new pg.Client({ connectionString: ADMIN, ssl: false });
@@ -59,7 +71,7 @@ console.log("\n▶ 1. fresh database");
   shim(url);
   migrate(url);
   const { rows } = await q(url, "select count(*)::int n, max(version) hw from schema_migrations");
-  check("all migrations apply to an empty database", rows[0].n === 110 && rows[0].hw === "0110",
+  check("all migrations apply to an empty database", rows[0].n === EXPECTED_N && rows[0].hw === EXPECTED_HW,
     `${rows[0].n} rows, high-water ${rows[0].hw}`);
 }
 
@@ -73,7 +85,7 @@ console.log("\n▶ 2. seeded to the released high-water, then the pending range"
   migrate(url);
   const after = await q(url, "select count(*)::int n, max(version) hw from schema_migrations");
   check("the pending range applies over a partially-migrated line",
-    before.rows[0].n === 69 && after.rows[0].n === 110 && after.rows[0].hw === "0110",
+    before.rows[0].n === 69 && after.rows[0].n === EXPECTED_N && after.rows[0].hw === EXPECTED_HW,
     `${before.rows[0].n} → ${after.rows[0].n}`);
 }
 
@@ -111,7 +123,7 @@ console.log("\n▶ 4. retry after the failure is repaired");
   const url = urlFor("atk_interrupt");
   migrate(url);
   const { rows } = await q(url, "select count(*)::int n, max(version) hw from schema_migrations");
-  check("a repaired run completes from where it stopped", rows[0].n === 110 && rows[0].hw === "0110",
+  check("a repaired run completes from where it stopped", rows[0].n === EXPECTED_N && rows[0].hw === EXPECTED_HW,
     `${rows[0].n} rows, high-water ${rows[0].hw}`);
 }
 
@@ -120,8 +132,8 @@ console.log("\n▶ 4. retry after the failure is repaired");
 // lint must refuse it BEFORE anything reaches a database.
 console.log("\n▶ 5. duplicate version");
 {
-  const dup = `${MIG_DIR}/0110_duplicate_attack.sql`;
-  writeFileSync(dup, "-- attack: a second file claiming 0110\nselect 1;\n");
+  const dup = `${MIG_DIR}/${EXPECTED_HW}_duplicate_attack.sql`;
+  writeFileSync(dup, `-- attack: a second file claiming ${EXPECTED_HW}\nselect 1;\n`);
   let refused = false;
   try { execFileSync("node", ["scripts/migration-lint.mjs"], { stdio: "pipe" }); }
   catch { refused = true; } finally { if (existsSync(dup)) unlinkSync(dup); }
@@ -189,7 +201,7 @@ console.log("\n▶ 8. restore, then a clean reapply");
   migrate(dst);
   const final = await q(dst, "select count(*)::int n, max(version) hw from schema_migrations");
   check("a restored database migrates forward cleanly",
-    final.rows[0].n === 110 && final.rows[0].hw === "0110",
+    final.rows[0].n === EXPECTED_N && final.rows[0].hw === EXPECTED_HW,
     `${final.rows[0].n} rows, high-water ${final.rows[0].hw}`);
 }
 

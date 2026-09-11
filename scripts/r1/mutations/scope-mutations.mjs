@@ -19,8 +19,8 @@ takeMutationLock("scope-mutations.mjs");
 /** A full ANSI colour escape: ESC, '[', parameters, 'm'. Built without a literal control byte. */
 const ANSI = new RegExp(String.fromCharCode(27) + "\[[0-9;]*m", "g");
 
-const SCOPE = "src/db/draft-migrations-r1/R1_DRAFT_023_authority_and_scope.up.sql";
-const RPC = "src/db/draft-migrations-r1/R1_DRAFT_022_decision_rpc.up.sql";
+const SCOPE = "src/db/migrations/0133_authority_and_scope.sql";
+const RPC = "src/db/migrations/0132_decision_rpc.sql";
 const BACKUPS = { [SCOPE]: `${SCOPE}.bak`, [RPC]: `${RPC}.bak` };
 
 for (const [f, b] of Object.entries(BACKUPS)) copyFileSync(f, b);

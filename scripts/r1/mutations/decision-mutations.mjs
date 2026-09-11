@@ -19,8 +19,8 @@ takeMutationLock("decision-mutations.mjs");
 /** A full ANSI colour escape: ESC, '[', parameters, 'm'. Built without a literal control byte. */
 const ANSI = new RegExp(String.fromCharCode(27) + "\[[0-9;]*m", "g");
 
-const SQL = "src/db/draft-migrations-r1/R1_DRAFT_022_decision_rpc.up.sql";
-const DEC = "src/db/draft-migrations-r1/R1_DRAFT_004_decisions.up.sql";
+const SQL = "src/db/migrations/0132_decision_rpc.sql";
+const DEC = "src/db/migrations/0114_decisions.sql";
 const BACKUPS = { [SQL]: `${SQL}.bak`, [DEC]: `${DEC}.bak` };
 
 for (const [f, b] of Object.entries(BACKUPS)) copyFileSync(f, b);
