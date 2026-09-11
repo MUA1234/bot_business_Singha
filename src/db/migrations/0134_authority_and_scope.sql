@@ -78,7 +78,7 @@ create or replace function public.r1_draft_specialist_capability(p_department te
 returns text
 language sql
 immutable
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $$
   select case p_department
     when 'legal'       then 'legal.matter.manage'
@@ -113,7 +113,7 @@ create or replace function public.r1_draft_department_capability(p_department te
 returns text
 language sql
 immutable
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $$
   select case p_department
     when 'operations'  then 'operations.task.manage'
@@ -148,7 +148,7 @@ returns boolean
 language plpgsql
 stable
 security definer
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $fn$
 declare
   v_actor uuid := auth.uid();
@@ -203,7 +203,7 @@ returns boolean
 language sql
 stable
 security definer
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $$
   select coalesce(
     (select public.r1_draft_may_see_management_item(i.company_id, i.department,

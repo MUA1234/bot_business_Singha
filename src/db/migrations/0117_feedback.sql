@@ -52,7 +52,7 @@ create index if not exists management_item_feedback_type_idx
 
 -- Append-only. Feedback that can be edited is not evidence of what happened.
 create or replace function r1_draft_feedback_append_only() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 begin
   raise exception 'management_item_feedback is append-only (attempted %)', tg_op
     using errcode = 'insufficient_privilege';

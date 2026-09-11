@@ -122,13 +122,13 @@ begin
 
     -- A column that has gone away is not a silent pass: say so and stop.
     if to_regclass('public.' || quote_ident(tbl)) is null then
-      raise exception '0141: table public.% does not exist', tbl;
+      raise exception '0142: table public.% does not exist', tbl;
     end if;
     if not exists (
       select 1 from information_schema.columns
        where table_schema = 'public' and table_name = tbl and column_name = col
     ) then
-      raise exception '0141: column %.% does not exist', tbl, col;
+      raise exception '0142: column %.% does not exist', tbl, col;
     end if;
 
     cname := left(format('%s_%s_len_chk', tbl, col), 63);
@@ -226,6 +226,6 @@ begin
           and c.conname = left(col.table_name || '_' || col.column_name || '_len_chk', 63));
 
   if v_left is not null then
-    raise exception '0141 ABORT: unbounded authenticated-writable text remains: %', v_left;
+    raise exception '0142 ABORT: unbounded authenticated-writable text remains: %', v_left;
   end if;
 end $$;

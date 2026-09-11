@@ -32,7 +32,7 @@ alter table if exists public.management_item_decisions
 
 -- Restore the unit-004 decision guard (no reason requirement beyond reject/delegate/edit).
 create or replace function r1_draft_decision_guard() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_item_company uuid;
 begin

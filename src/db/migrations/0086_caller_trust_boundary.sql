@@ -186,7 +186,7 @@ begin
           or has_function_privilege('authenticated', p.oid, 'EXECUTE'))
      and p.prosrc ~ 'or\s+public\.caller_jwt_role\(\)\s*=\s*''service_role''';
   if v_bad is not null then
-    raise exception '0084: SECURITY DEFINER functions reachable by an api role still convert a JWT claim into service authority: %', v_bad;
+    raise exception '0086: SECURITY DEFINER functions reachable by an api role still convert a JWT claim into service authority: %', v_bad;
   end if;
 end $$;
 

@@ -75,7 +75,7 @@ create or replace function r1_draft_transition_item(
   p_item uuid, p_from text, p_to text, p_actor uuid, p_actor_type text,
   p_reason text default null, p_evidence jsonb default '[]'::jsonb
 ) returns jsonb
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_item record;
   v_legal boolean;

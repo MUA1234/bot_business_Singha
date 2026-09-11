@@ -54,7 +54,7 @@ begin
    where s.sig <> all (v_allowed);
   if v_bad is not null then
     raise exception
-      '0085: api-reachable SECURITY DEFINER function(s) consult caller_jwt_role outside the restrictive allowlist: %', v_bad;
+      '0087: api-reachable SECURITY DEFINER function(s) consult caller_jwt_role outside the restrictive allowlist: %', v_bad;
   end if;
 end $$;
 

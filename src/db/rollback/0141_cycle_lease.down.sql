@@ -18,7 +18,7 @@ drop table if exists public.management_cycle_leases;
 create or replace function r1_draft_try_cycle_lock(p_company uuid)
 returns boolean
 language sql
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $$
   select pg_try_advisory_lock(hashtext('r1_management_cycle'), hashtext(p_company::text));
 $$;
@@ -26,7 +26,7 @@ $$;
 create or replace function r1_draft_release_cycle_lock(p_company uuid)
 returns boolean
 language sql
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $$
   select pg_advisory_unlock(hashtext('r1_management_cycle'), hashtext(p_company::text));
 $$;

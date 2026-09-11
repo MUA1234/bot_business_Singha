@@ -97,7 +97,7 @@ create unique index if not exists mir_fingerprint_uq
 --    system actually advised at the time.
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 create or replace function r1_draft_recommendation_append_only() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 begin
   raise exception 'management_item_recommendations is append-only (attempted %)', tg_op
     using errcode = 'insufficient_privilege';
@@ -117,7 +117,7 @@ create trigger mir_no_update
 --    next caller, and a stored protected attribute is a lasting harm rather than a transient one.
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 create or replace function r1_draft_recommendation_no_protected() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_forbidden text[] := array[
     'ethnicity','race','nationality','religion','belief','caste','political_opinion','politicalopinion',
@@ -319,7 +319,7 @@ $$;
 -- 6. Direct INSERT that bypasses the RPC is refused, exactly as for management_items.
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 create or replace function r1_draft_guard_recommendation_insert() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 begin
   if current_user in ('anon', 'authenticated', 'service_role') then
     raise exception

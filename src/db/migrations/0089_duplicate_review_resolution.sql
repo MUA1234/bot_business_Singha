@@ -87,7 +87,7 @@ declare v_resolved bigint;
 begin
   select count(*) into v_resolved from public.duplicate_reviews where state <> 'open';
   if v_resolved > 0 then
-    raise exception '0087: % duplicate_reviews row(s) are already resolved — the resolution '
+    raise exception '0089: % duplicate_reviews row(s) are already resolved — the resolution '
                     'vocabulary cannot be changed under them. Migrate them explicitly.', v_resolved;
   end if;
 end

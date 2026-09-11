@@ -97,7 +97,7 @@ alter table public.management_items
 create or replace function r1_draft_membership_can_own(p_company uuid, p_membership uuid)
 returns boolean
 language plpgsql stable
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $$
 declare
   v_ok boolean;
@@ -134,7 +134,7 @@ $$;
 create or replace function r1_draft_assert_assignable(p_item uuid)
 returns void
 language plpgsql
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $$
 declare
   v record;
@@ -167,7 +167,7 @@ $$;
 create or replace function r1_draft_revalidate_owners(p_company uuid)
 returns integer
 language plpgsql
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $$
 declare
   v_item record;
@@ -219,7 +219,7 @@ create or replace function r1_draft_transition_item(
   p_reason     text default null,
   p_evidence   jsonb default '[]'::jsonb
 ) returns jsonb
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_item    record;
   v_legal   boolean;

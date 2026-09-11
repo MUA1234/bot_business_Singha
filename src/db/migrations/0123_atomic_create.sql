@@ -211,7 +211,7 @@ $$;
 drop policy if exists management_items_ins on public.management_items;
 
 create or replace function r1_draft_guard_item_insert() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 begin
   if current_user in ('anon', 'authenticated', 'service_role') then
     raise exception

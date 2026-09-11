@@ -25,7 +25,7 @@
 -- join the allowlist at all. The 512-character payload bound is unchanged.
 
 create or replace function r1_draft_cursor_payload_guard() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_key text;
 begin

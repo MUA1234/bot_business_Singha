@@ -63,7 +63,7 @@ create index if not exists osc_lookup_idx on observation_source_cursors (company
 -- key that is not one of the four position fields refuses the write.
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 create or replace function r1_draft_cursor_payload_guard() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_key text;
 begin
@@ -143,7 +143,7 @@ end
 $$;
 
 create or replace function r1_draft_guard_cursor_write() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 begin
   if current_user in ('anon', 'authenticated') then
     raise exception 'observation source cursors are advanced by the server, not by an API caller'

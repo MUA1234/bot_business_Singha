@@ -43,7 +43,7 @@ returns boolean
 language sql
 stable
 security definer
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $$
   select exists (
     select 1
@@ -96,7 +96,7 @@ returns boolean
 language plpgsql
 stable
 security definer
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $fn$
 declare
   v_actor uuid := auth.uid();
@@ -193,7 +193,7 @@ returns table (department text, unobserved boolean)
 language sql
 stable
 security definer
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $$
   select s.department,
          bool_or(s.consecutive_failures > 0 or s.last_failure_at is not null) as unobserved

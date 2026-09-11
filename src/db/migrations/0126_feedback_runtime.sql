@@ -75,7 +75,7 @@ create unique index if not exists mif_supersedes_uq
   on management_item_feedback (supersedes_id) where supersedes_id is not null;
 
 create or replace function r1_draft_feedback_correction_guard() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_prev record;
 begin
@@ -266,7 +266,7 @@ $$;
 -- 4. The RPC is only a boundary if it is the only door.
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 create or replace function r1_draft_guard_feedback_insert() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 begin
   if current_user in ('anon', 'authenticated', 'service_role') then
     raise exception 'feedback may only be recorded through r1_draft_record_feedback()'

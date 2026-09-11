@@ -45,7 +45,7 @@ create index if not exists management_item_evidence_source_idx
 
 -- Append-only: evidence may be added, never rewritten. Deleting an item cascades.
 create or replace function r1_draft_evidence_append_only() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 begin
   raise exception 'management_item_evidence is append-only (attempted %)', tg_op
     using errcode = 'insufficient_privilege';
@@ -60,7 +60,7 @@ create trigger management_item_evidence_no_update
 -- CROSS-COMPANY REJECTION (acceptance B1). Evidence whose company differs from its item's
 -- is refused at write time, so a company boundary cannot be crossed by a coding mistake.
 create or replace function r1_draft_evidence_company_guard() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_item_company uuid;
 begin
@@ -86,7 +86,7 @@ create trigger management_item_evidence_company
 -- ZERO-EVIDENCE PROHIBITION at the database boundary (acceptance C1).
 -- An item may not enter `recommended` — or anything downstream of it — with no evidence.
 create or replace function r1_draft_require_evidence() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_count int;
 begin

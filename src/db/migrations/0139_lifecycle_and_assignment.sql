@@ -39,7 +39,7 @@ create or replace function r1_draft_transition_item(
   p_reason     text default null,
   p_evidence   jsonb default '[]'::jsonb
 ) returns jsonb
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_item  record;
   v_legal boolean;
@@ -187,7 +187,7 @@ create index if not exists mia_item_idx
 
 create or replace function r1_draft_assignments_append_only()
 returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $fn$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $fn$
 begin
   raise exception 'management_item_assignments is append-only (attempted %)', tg_op
     using errcode = 'insufficient_privilege';
@@ -223,7 +223,7 @@ create or replace function public.r1_draft_assign_management_item(
 returns jsonb
 language plpgsql
 security definer
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $fn$
 declare
   v_actor        uuid := auth.uid();

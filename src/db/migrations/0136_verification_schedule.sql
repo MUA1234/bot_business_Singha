@@ -99,7 +99,7 @@ create or replace function r1_draft_verification_attempts_append_only()
 returns trigger
 language plpgsql
 security definer
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $fn$
 begin
   -- DELETE is refused by RAISING, never by returning NULL. A BEFORE trigger returning NULL skips

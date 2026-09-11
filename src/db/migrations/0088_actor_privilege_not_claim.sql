@@ -243,7 +243,7 @@ begin
       select pg_catalog.unnest(v_allowed)
     ) x;
   if v_unexpected is not null then
-    raise exception '0086: api-reachable SECURITY DEFINER function(s) can reach JWT claim text and '
+    raise exception '0088: api-reachable SECURITY DEFINER function(s) can reach JWT claim text and '
                     'are not on the reviewed allowlist: %. Add them deliberately after reviewing '
                     'whether the claim is used for IDENTITY (allowed) or AUTHORITY (not allowed).',
       v_unexpected;
@@ -258,7 +258,7 @@ begin
       select pg_catalog.replace(sig, 'public.', '') from _0086_reach
     ) y;
   if v_missing is not null then
-    raise exception '0086: stale allowlist entr(y/ies) — no longer api-reachable claim readers: %. '
+    raise exception '0088: stale allowlist entr(y/ies) — no longer api-reachable claim readers: %. '
                     'Remove them, so the allowlist cannot pre-approve a function that returns.',
       v_missing;
   end if;

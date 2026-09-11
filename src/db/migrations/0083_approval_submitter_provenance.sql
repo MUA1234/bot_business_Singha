@@ -108,7 +108,7 @@ begin
    where (submitted_by_source = 'human'  and submitted_by is null)
       or (submitted_by_source = 'system' and submitted_by is not null);
   if v_bad > 0 then
-    raise exception '0081: % approval_requests rows contradict the submitter provenance pairing', v_bad;
+    raise exception '0083: % approval_requests rows contradict the submitter provenance pairing', v_bad;
   end if;
 end $$;
 

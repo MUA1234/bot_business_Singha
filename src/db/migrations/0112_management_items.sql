@@ -137,7 +137,7 @@ create index if not exists management_items_subject_idx
 
 -- `updated_at` maintenance.
 create or replace function r1_draft_touch_updated_at() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 begin
   new.updated_at := now();
   return new;

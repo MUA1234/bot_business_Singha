@@ -46,7 +46,7 @@ begin
      group by financial_event_id having count(*) > 1
   ) d;
   if v_dupes > 0 then
-    raise exception '0083: % financial events already have more than one PENDING approval request', v_dupes;
+    raise exception '0085: % financial events already have more than one PENDING approval request', v_dupes;
   end if;
 end $$;
 

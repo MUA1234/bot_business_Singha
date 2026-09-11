@@ -116,7 +116,7 @@ alter table skill_records add constraint skill_records_verified_shape_ck check (
 --    be bypassed by a caller nobody has written yet.
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 create or replace function r1_draft_skill_no_protected() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_forbidden text[] := array[
     'ethnicity','race','nationality','religion','belief','caste','political','politics',
@@ -169,7 +169,7 @@ create index if not exists skill_record_events_idx
   on skill_record_events (skill_record_id, created_at);
 
 create or replace function r1_draft_skill_events_append_only() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 begin
   raise exception 'skill_record_events is append-only (attempted %)', tg_op
     using errcode = 'insufficient_privilege';
@@ -184,7 +184,7 @@ create trigger skill_record_events_no_update
 -- Every change to a live record writes its own history row. Automatic, because a history that
 -- depends on the caller remembering to write it is a history with holes in it.
 create or replace function r1_draft_skill_record_history() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 begin
   if tg_op = 'INSERT' then
     insert into public.skill_record_events
@@ -233,7 +233,7 @@ create trigger skill_records_history_upd
 create or replace function r1_draft_skill_is_verified(p_record skill_records)
 returns boolean
 language sql immutable
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $$
   select p_record.provenance in ('externally_certified', 'evidence_verified')
      and p_record.status = 'active'

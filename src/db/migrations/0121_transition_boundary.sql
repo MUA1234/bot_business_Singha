@@ -37,7 +37,7 @@
 -- and reused for a second, unrelated update in the same transaction.
 
 create or replace function r1_draft_guard_state_change() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_token text;
 begin
@@ -74,7 +74,7 @@ create or replace function r1_draft_transition_item(
   p_reason     text default null,
   p_evidence   jsonb default '[]'::jsonb
 ) returns jsonb
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_item  record;
   v_legal boolean;
@@ -159,7 +159,7 @@ $$;
 -- The revalidation sweep also changes state, so it mints and burns the same token.
 create or replace function r1_draft_revalidate_owners(p_company uuid)
 returns integer
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_item  record;
   v_count integer := 0;

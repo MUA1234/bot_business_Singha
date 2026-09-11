@@ -89,7 +89,7 @@ create index if not exists management_cycle_runs_correlation_idx
 -- Append-only: a run record is what happened, and it is not revised afterwards. The runner
 -- writes ONE row when the cycle ends, so there is no in-flight row to update.
 create or replace function r1_draft_runs_append_only() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 begin
   raise exception 'management_cycle_runs is append-only (attempted %)', tg_op
     using errcode = 'insufficient_privilege';
@@ -110,7 +110,7 @@ create trigger management_cycle_runs_no_update
 create or replace function r1_draft_try_cycle_lock(p_company uuid)
 returns boolean
 language sql
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $$
   select pg_try_advisory_lock(hashtext('r1_management_cycle'), hashtext(p_company::text));
 $$;
@@ -118,7 +118,7 @@ $$;
 create or replace function r1_draft_release_cycle_lock(p_company uuid)
 returns boolean
 language sql
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $$
   select pg_advisory_unlock(hashtext('r1_management_cycle'), hashtext(p_company::text));
 $$;

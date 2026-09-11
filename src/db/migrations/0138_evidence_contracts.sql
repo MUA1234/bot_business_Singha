@@ -70,7 +70,7 @@ create or replace function public.r1_draft_eligibility_digest(p_refs jsonb)
 returns text
 language sql
 immutable
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $$
   select coalesce(md5(string_agg(pair, '|' order by pair)), 'empty')
     from (
@@ -96,7 +96,7 @@ create or replace function public.r1_draft_condition_digest_of(p_evidence jsonb)
 returns text
 language sql
 immutable
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $$
   select coalesce(md5(string_agg(pair, '|' order by pair)), 'empty')
     from (

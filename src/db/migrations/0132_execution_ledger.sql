@@ -113,7 +113,7 @@ create or replace function r1_draft_execution_attempt_guard()
 returns trigger
 language plpgsql
 security definer
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $fn$
 begin
   if tg_op = 'DELETE' then
@@ -252,7 +252,7 @@ create or replace function r1_draft_create_internal_task(
 returns table (task_id uuid, created boolean)
 language plpgsql
 security definer
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, extensions, public, pg_temp
 as $fn$
 declare
   v_new_id  uuid := gen_random_uuid();

@@ -41,7 +41,7 @@ begin
      group by source_event_id having count(*) > 1
   ) d;
   if v_dupes > 0 then
-    raise exception '0082: % source events already have more than one financial event — resolve them before applying', v_dupes;
+    raise exception '0084: % source events already have more than one financial event — resolve them before applying', v_dupes;
   end if;
 end $$;
 

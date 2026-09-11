@@ -35,13 +35,13 @@
 -- legal and privacy gate recorded in the R2D report.
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 create or replace function r1_draft_ask_ai_retention_days() returns integer
-language sql stable set search_path = pg_catalog, public, pg_temp as $$
+language sql stable set search_path = pg_catalog, extensions, public, pg_temp as $$
   select greatest(1, least(90,
     coalesce(nullif(current_setting('app.ask_ai_retention_days', true), '')::int, 30)));
 $$;
 
 create or replace function r1_draft_ask_ai_expiry() returns timestamptz
-language sql stable set search_path = pg_catalog, public, pg_temp as $$
+language sql stable set search_path = pg_catalog, extensions, public, pg_temp as $$
   select now() + make_interval(days => r1_draft_ask_ai_retention_days());
 $$;
 
@@ -288,7 +288,7 @@ $$;
 -- citation or a suggested action and replaying it as though the system had produced it.
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 create or replace function r1_draft_guard_ask_ai_write() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 begin
   if current_user in ('anon', 'authenticated') then
     raise exception 'Ask-AI history is written by the server, not by an API caller'
@@ -322,7 +322,7 @@ $$;
 -- Deterministic local expiry. Marks, then clears content — no indefinite retention path.
 -- ─────────────────────────────────────────────────────────────────────────────────────────
 create or replace function r1_draft_ask_ai_purge_expired() returns integer
-language plpgsql security definer set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql security definer set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare v_turns integer;
 begin
   -- 1. Anything past its expiry is marked, whatever state it was in. Restricting this to

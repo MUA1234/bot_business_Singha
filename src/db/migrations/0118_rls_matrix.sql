@@ -147,7 +147,7 @@ $$;
 -- EVERY child of a management item is company-consistent by construction and not by
 -- convention.
 create or replace function r1_draft_child_company_guard() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_item_company uuid;
 begin

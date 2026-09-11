@@ -53,7 +53,7 @@ alter table public.management_item_decisions
 -- A reason is mandatory for every decision whose reason IS the learning signal (IMP-001).
 -- Approval alone may stand without one; a refusal, a change or a deferral may not.
 create or replace function r1_draft_decision_guard() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_item_company uuid;
 begin
@@ -88,7 +88,7 @@ $$;
 -- also approve it. Maker and checker must differ — the same rule the finance controls apply
 -- to bank-detail changes, applied here so application code is not the only thing enforcing it.
 create or replace function r1_draft_no_self_approval() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 begin
   if new.decision = 'approve'
      and exists (select 1 from public.management_item_decisions d

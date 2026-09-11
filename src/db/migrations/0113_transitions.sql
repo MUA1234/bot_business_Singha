@@ -36,7 +36,7 @@ create index if not exists management_item_transitions_company_idx
 
 -- APPEND-ONLY. History that can be rewritten is not an audit trail.
 create or replace function r1_draft_transitions_append_only() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 begin
   raise exception 'management_item_transitions is append-only (attempted %)', tg_op
     using errcode = 'insufficient_privilege';
@@ -69,7 +69,7 @@ create or replace function r1_draft_transition_item(
   p_reason     text default null,
   p_evidence   jsonb default '[]'::jsonb
 ) returns jsonb
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_item    record;
   v_legal   boolean;

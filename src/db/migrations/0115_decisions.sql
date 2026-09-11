@@ -54,7 +54,7 @@ create index if not exists management_item_decisions_item_idx
 
 -- Append-only.
 create or replace function r1_draft_decisions_append_only() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 begin
   raise exception 'management_item_decisions is append-only (attempted %)', tg_op
     using errcode = 'insufficient_privilege';
@@ -69,7 +69,7 @@ create trigger management_item_decisions_no_update
 -- A rejection must carry a reason; the reason is the learning signal (IMP-001).
 -- A delegation must name a delegate.
 create or replace function r1_draft_decision_guard() returns trigger
-language plpgsql set search_path = pg_catalog, public, pg_temp as $$
+language plpgsql set search_path = pg_catalog, extensions, public, pg_temp as $$
 declare
   v_item_company uuid;
 begin

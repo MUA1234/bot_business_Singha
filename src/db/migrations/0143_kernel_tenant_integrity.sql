@@ -49,7 +49,7 @@ begin
   ]
   loop
     if to_regclass('public.' || quote_ident(t)) is null then
-      raise exception '0142: expected table public.% to exist', t;
+      raise exception '0143: expected table public.% to exist', t;
     end if;
     cname := left(format('%s_company_id_uq', t), 63);
     if not exists (
@@ -105,7 +105,7 @@ begin
       select 1 from information_schema.columns
        where table_schema='public' and table_name=child and column_name=col
     ) then
-      raise exception '0142: column %.% does not exist', child, col;
+      raise exception '0143: column %.% does not exist', child, col;
     end if;
 
     -- Already done? Then this is a rerun.
@@ -174,14 +174,14 @@ begin
     into v_gaps from _t_gaps where child ~ '^(management_|observation_|ask_ai_)';
 
   if v_promoted > 0 then
-    raise exception '0142 ABORT: tenant-integrity gaps remain on promoted tables: %', v_gaps;
+    raise exception '0143 ABORT: tenant-integrity gaps remain on promoted tables: %', v_gaps;
   end if;
 
   -- The pre-existing released-chain gaps (F-009) are expected and unchanged. If this number has
   -- GROWN, something added a gap while this migration claimed to be closing them.
   if v_total > 102 then
-    raise exception '0142 ABORT: the pre-existing F-009 gap count grew to % (expected at most 102)', v_total;
+    raise exception '0143 ABORT: the pre-existing F-009 gap count grew to % (expected at most 102)', v_total;
   end if;
 
-  raise notice '0142: zero tenant-integrity gaps on promoted tables; % pre-existing F-009 gaps unchanged', v_total;
+  raise notice '0143: zero tenant-integrity gaps on promoted tables; % pre-existing F-009 gaps unchanged', v_total;
 end $$;
