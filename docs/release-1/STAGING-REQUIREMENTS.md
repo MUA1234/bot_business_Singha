@@ -21,8 +21,8 @@ The owner set two conditions, and staging may be created **only when both are tr
 |---|---|
 | Workspace | `lakshanv's Projects` |
 | Billing period | Aug 29 – Sep 29, 2026 |
-| Current usage / current bill | **$3.85** |
-| Estimated bill | **$6.99** |
+| Current usage / current bill | **$3.88** |
+| Estimated bill | **$7.06** |
 | Soft limit | **not set** |
 | Hard limit | **not set** |
 | Over limit | no |
@@ -30,6 +30,11 @@ The owner set two conditions, and staging may be created **only when both are tr
 This is a **usage-billed workspace with no free allowance being drawn down** — the bill accrues
 from dollar zero and there is no included quota a second service could fit inside. Current usage
 *is* the current bill, exactly.
+
+Read twice on 2026-09-11, several hours apart: $3.85 → $3.88 current, $6.99 → $7.06 estimated.
+The second reading is not a refinement of the first, it is the meter moving. A workspace whose
+bill rises while nothing is being deployed is a workspace with no allowance left to absorb a
+second service, which is the determination this section makes.
 
 So a staging environment running `singha-web` is not "within already included usage"; it is
 additional compute added directly to a live bill, and with no soft or hard limit set there is

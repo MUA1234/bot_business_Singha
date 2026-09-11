@@ -186,22 +186,26 @@ const tasksIn = (co: string) => physical(
 const attemptsFor = (itemId: string) => physical(
   `select count(*)::int as n from management_execution_attempts where item_id=$1`, [itemId]);
 
-/** Run one statement as a role with the given JWT claims, and return the error message, if any. */
-async function asRole(role: string, claims: object | null, sql: string, params: unknown[] = [])
-  : Promise<{ ok: boolean; error?: string }> {
+/** Run one statement as a role with the given JWT claims. Returns the rows, or the error. */
+async function asRoleRows(role: string, claims: object | null, sql: string, params: unknown[] = [])
+  : Promise<{ ok: boolean; rows?: Record<string, unknown>[]; error?: string }> {
   await q("begin");
   try {
     await q(`set local role ${role}`);
     await q(`select set_config('request.jwt.claims', $1, true)`,
       [claims === null ? "" : JSON.stringify(claims)]);
-    await q(sql, params);
+    const r = await q(sql, params);
     await q("commit");
-    return { ok: true };
+    return { ok: true, rows: r.rows as Record<string, unknown>[] };
   } catch (e) {
     await q("rollback");
     return { ok: false, error: (e as Error).message };
   }
 }
+
+/** The same, when only "did it work" matters. */
+const asRole = (role: string, claims: object | null, sql: string, params: unknown[] = []) =>
+  asRoleRows(role, claims, sql, params);
 
 beforeAll(async () => {
   if (!enabled) return;
@@ -300,20 +304,34 @@ describe.skipIf(!enabled)("A1–A5 — the surface itself", () => {
     expect(await attemptsFor(f.itemId)).toBe(0);
   }, 120_000);
 
-  it("A5 — the global boundary row is unreachable by anon and authenticated", async () => {
-    for (const role of ["anon", "authenticated"]) {
-      const read = await asRole(role, { role }, `select * from public.r1_exec_global_boundary`);
-      const write = await asRole(role, { role },
-        `update public.r1_exec_global_boundary set enabled = true where id = true`);
-      // RLS is enabled with NO policy, so a read returns nothing rather than erroring, and a
-      // write changes nothing. Either way the row is not theirs.
-      if (read.ok) {
-        const { rows } = await q(`select enabled from r1_exec_global_boundary where id = true`);
-        expect(rows).toHaveLength(1);
+  it("A5 — the global boundary row cannot be read or written by anon or authenticated", async () => {
+    // The row is `true` for this suite (set in beforeAll), so an attacker WRITING `true` would
+    // be invisible. Shut it first, so the only way the assertion below passes is that nothing
+    // the attacker did took effect.
+    await setServerBoundary(false);
+    try {
+      for (const role of ["anon", "authenticated"]) {
+        // RLS is enabled with NO policy: a read returns zero rows rather than erroring, which is
+        // the answer "there is nothing here for you" rather than "you are not allowed", and the
+        // grants mean a write is refused outright. Both are asserted, not assumed.
+        const read = await asRoleRows(role, { role },
+          `select count(*)::int as n from public.r1_exec_global_boundary`);
+        if (read.ok) {
+          // `count(*)` always returns one row; what matters is that the count is zero.
+          expect(Number(read.rows?.[0]?.n), `${role} can see the boundary row`).toBe(0);
+        } else {
+          expect(read.error).toMatch(/permission denied/i);
+        }
+
+        await asRole(role, { role },
+          `update public.r1_exec_global_boundary set enabled = true where id = true`);
+
+        const { rows: after } = await q(
+          `select enabled from r1_exec_global_boundary where id = true`);
+        expect(after[0].enabled, `${role} opened the global execution boundary`).toBe(false);
       }
-      expect(write.ok === false || true).toBe(true);
-      const { rows: after } = await q(`select enabled from r1_exec_global_boundary where id = true`);
-      expect(after[0].enabled, `${role} changed the global boundary`).toBe(true);
+    } finally {
+      await setServerBoundary(true);
     }
   });
 });

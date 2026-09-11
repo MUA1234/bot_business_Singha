@@ -141,3 +141,24 @@ describe("the canonical security campaign runs exactly the kernel suites", () =>
     expect(suites.filter(isKernelSuite).length).toBeGreaterThanOrEqual(30);
   });
 });
+
+describe("the canonical campaign runs its suites through a config that will accept them", () => {
+  const runner = readFileSync("scripts/r1/run-r1-security-tests.mjs", "utf8");
+
+  it("uses the KERNEL config, not the core one", () => {
+    // It used the core config, whose `exclude` names `r1*`/`r2*` — every file the runner selects.
+    // The run ended "No test files found, exiting with code 1" and destroyed its container, so
+    // the canonical security campaign had not executed a single test since the campaigns were
+    // split. The message is loud but reads like a path problem, which is why this exists.
+    expect(runner).toMatch(/vitest\.kernel\.config\.ts/);
+    expect(runner).not.toMatch(/"vitest\.integration\.config\.ts"/);
+  });
+
+  it("and the kernel config does not exclude what the runner selects", () => {
+    const kernelCfg = readFileSync("vitest.kernel.config.ts", "utf8");
+    // It excludes only the self-managed suite, which the runner also excludes.
+    expect(kernelCfg).toMatch(/SELF_MANAGED_SUITES/);
+    const coreCfg = readFileSync("vitest.integration.config.ts", "utf8");
+    expect(coreCfg, "the core config must keep excluding the kernel suites").toMatch(/r1\*|KERNEL/);
+  });
+});

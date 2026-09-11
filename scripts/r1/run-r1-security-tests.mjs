@@ -178,7 +178,18 @@ console.log("✔ database ready");
 function runCampaign(files) {
   return new Promise((resolve) => {
     const child = spawn("node", [
-      "node_modules/vitest/vitest.mjs", "run", "-c", "vitest.integration.config.ts", ...files,
+      // `vitest.kernel.config.ts`, NOT the core one.
+      //
+      // This read `vitest.integration.config.ts` — the CORE campaign's config, whose `exclude`
+      // names `tests/integration/r1*.test.ts` and `r2*.test.ts` precisely because those suites
+      // belong to the kernel campaign. Every file this runner selects is one of those, so the
+      // run ended "No test files found, exiting with code 1" and tore the container down.
+      //
+      // It broke in `59e8459 Split the integration campaigns so both can be green at once`,
+      // which added the exclusions and did not update this script. The failure is loud — a
+      // non-zero exit and an explicit message — but it says "no test files", which reads like a
+      // path problem rather than "the canonical security campaign has not run since the split".
+      "node_modules/vitest/vitest.mjs", "run", "-c", "vitest.kernel.config.ts", ...files,
     ], {
       env: { ...process.env, DATABASE_URL: URL, R1_DRAFT_CONFIRM: "disposable-local-only" },
       stdio: ["ignore", "pipe", "pipe"],
