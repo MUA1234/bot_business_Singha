@@ -258,3 +258,74 @@ production value **today** is `off`, set explicitly, until staging proves `on`.
 A disposable container is not a deployment. It proves the code and the schema agree; it proves
 nothing about a hosted environment, its configuration, or its data. Nothing in this release is
 `staging_verified`, and nothing is `production_verified`.
+
+---
+
+# Release 1 after the draft-chain promotion — 2026-09-11
+
+The chain is no longer 110 migrations plus a quarantined side-chain. It is **0001–0142**, applied
+by the ordinary runner, with no draft runner and no second ledger.
+
+## Lineage
+
+| | |
+|---|---|
+| fresh database | `0001`–`0142` in one `npm run migrate` |
+| production pending, from the proven Case-A ledger | `0070`–`0142` = **73** |
+| rollback SQL | `src/db/rollback/NNNN_*.down.sql`, never read by the forward runner |
+
+The owner's expectation was 140 migrations and 71 pending. It is **142 and 73**, because the same
+instruction that approved promotion also approved the schema policy, and that policy needed two
+migrations of its own: `0141` (bounded client-writable text) and `0142` (tenant-integrity foreign
+keys). The rehearsal asserts the number rather than assuming it.
+
+## Gate results
+
+Every gate below ran at `8a302a7` or `85b8bf2`. Those two commits differ **only** in
+`tests/hard-scenario/i-reliability-chaos.test.ts`, and the live-stack figures were measured with
+that fix in place.
+
+| Gate | Result |
+|---|---|
+| Types · build · lint | clean · PASS · **0 errors** (3 pre-existing `<img>` warnings) |
+| Secret scan · completion inventory · IP boundary · requirements · dependency audit | all pass |
+| Migration lint | ✅ **142 migrations, 0001–0142**, no gaps or duplicates |
+| **Migration collision** | ❌ **FAILS** — see [MAIN-MOVED-0070-COLLISION.md](MAIN-MOVED-0070-COLLISION.md) |
+| Unit | **2526 passed**, 4 skipped, 0 failed |
+| No-network guard | **28 files, 774 tests**, 0 failed |
+| Core integration | **77 files, 696 tests**, 0 failed |
+| Kernel integration (canonical runner, database built from nothing) | **38 files, 779 tests**, 0 failed |
+| Numbered-schema + rollback campaign | **31 tests**, 0 failed |
+| Tenant integrity + bounded text (new) | **33 tests**, 0 failed |
+| Migration attacks | **12/12** |
+| Execution attacks | whole-schema digest **identical**, 176 tables |
+| **Promoted-chain rehearsal, ten scenarios** | **26/26** |
+| Hard-scenario live stack (real GoTrue + PostgREST + built app) | self-check **28/28**; **10 files, 120 tests**, 0 failed |
+| Browser at 390/768/1440/2560 | PASSED, real GoTrue sign-in, 24 keyboard tab stops |
+
+### The four skipped tests
+
+Unchanged and still exactly four. Two — `tests/kernel/no-outbound-network.test.ts`
+(`refuses fetch`, `refuses raw http and https requests`) — **do run**, under
+`vitest.no-network.config.ts`, 774 tests at this SHA. Two —
+`tests/campaign/live-eval.test.ts` (`records the exact model id and prompt version with every
+scored run`, `scores representative scenarios for repeatability of the authority decision`) —
+require a paid `ANTHROPIC_API_KEY`. **They are external paid-model evaluation and conceal no local
+integration or security behaviour**: the same file runs two tests unconditionally asserting that
+the evaluation reports `blocked` rather than a fabricated score, and that the route is wired to no
+production path.
+
+## What the schema policy changed
+
+| | Before | After |
+|---|---|---|
+| Unbounded `authenticated`-writable text | **41** (25 on `management_items`) | **0** |
+| Tenant-integrity FK gaps on kernel tables | **18** | **0** |
+| Pre-existing F-009 gaps on the released chain | 102 | 102, untouched and asserted not to have grown |
+
+## Verdict
+
+**Deployment is blocked, and by one thing that was not there this morning.** `origin/main` moved to
+`fd41d30` during this session and now carries its own `0070`. The collision check fails, correctly,
+and the fix is a whole-sequence renumber after integrating main — a scope decision, not a
+numbering one. Everything else in this table is green.
