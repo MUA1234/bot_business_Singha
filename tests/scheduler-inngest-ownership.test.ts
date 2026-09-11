@@ -38,25 +38,29 @@ import {
  *      `MODEL_JOBS=off` refuses the model job WITHOUT refusing the outbox and recovery jobs.
  */
 
+/** Same shape the other scheduler tests use: a partial env, typed as one. */
+const env = (over: Record<string, string | undefined>): NodeJS.ProcessEnv => over as NodeJS.ProcessEnv;
+
 const SRC = "src/inngest/functions.ts";
 const source = readFileSync(SRC, "utf8");
 
 /** Each `{ cron: ... }` declaration, with the function id above it and the body below it. */
 function inngestCronFunctions(): { id: string; cron: string; body: string }[] {
   const lines = source.split(/\r?\n/);
+  const at = (k: number): string => lines[k] ?? "";
   const out: { id: string; cron: string; body: string }[] = [];
   for (let i = 0; i < lines.length; i++) {
-    const cron = /\{\s*cron:\s*"([^"]+)"\s*\}/.exec(lines[i]);
+    const cron = /\{\s*cron:\s*"([^"]+)"\s*\}/.exec(at(i));
     if (!cron) continue;
     // The id is declared on a line just above; the body runs until the closing `);`.
     let id = "";
     for (let k = i - 1; k >= 0 && k > i - 6 && !id; k--) {
-      const m = /\{\s*id:\s*"([^"]+)"/.exec(lines[k]);
-      if (m) id = m[1];
+      const m = /\{\s*id:\s*"([^"]+)"/.exec(at(k));
+      if (m) id = m[1] ?? "";
     }
     const body: string[] = [];
-    for (let k = i + 1; k < lines.length && !/^\);/.test(lines[k]); k++) body.push(lines[k]);
-    out.push({ id, cron: cron[1], body: body.join("\n") });
+    for (let k = i + 1; k < lines.length && !/^\);/.test(at(k)); k++) body.push(at(k));
+    out.push({ id, cron: cron[1] ?? "", body: body.join("\n") });
   }
   return out;
 }
@@ -96,13 +100,14 @@ describe("Inngest is a scheduler host and is counted as one", () => {
 });
 
 describe("exactly one owner per job, decided at runtime and not only in the source", () => {
-  const railwayOn = { IN_PROCESS_CRON: "on" } as NodeJS.ProcessEnv;
+  const railwayOn = env({ IN_PROCESS_CRON: "on" });
 
   it("Inngest schedules nothing under the shipped default", () => {
-    expect(inngestSchedulingEnabled({} as NodeJS.ProcessEnv)).toBe(false);
+    expect(inngestSchedulingEnabled(env({}))).toBe(false);
     for (const fn of cronFns) {
-      const job = /scheduledGuard\(\s*"([^"]+)"\s*\)/.exec(fn.body)![1];
-      expect(inngestJobSuppressed(job, {} as NodeJS.ProcessEnv)).toBeTruthy();
+      const job = /scheduledGuard\(\s*"([^"]+)"\s*\)/.exec(fn.body)?.[1] ?? "";
+      expect(job, `${fn.id} guards without naming a job`).not.toBe("");
+      expect(inngestJobSuppressed(job, env({}))).toBeTruthy();
     }
   });
 
@@ -118,14 +123,14 @@ describe("exactly one owner per job, decided at runtime and not only in the sour
   });
 
   it("turning Inngest on is an explicit, deliberate act", () => {
-    expect(inngestSchedulingEnabled({ [INNGEST_SCHEDULER_VAR]: "true" } as NodeJS.ProcessEnv)).toBe(false);
-    expect(inngestSchedulingEnabled({ [INNGEST_SCHEDULER_VAR]: "ON" } as NodeJS.ProcessEnv)).toBe(false);
-    expect(inngestSchedulingEnabled({ [INNGEST_SCHEDULER_VAR]: "on" } as NodeJS.ProcessEnv)).toBe(true);
+    expect(inngestSchedulingEnabled(env({ [INNGEST_SCHEDULER_VAR]: "true" }))).toBe(false);
+    expect(inngestSchedulingEnabled(env({ [INNGEST_SCHEDULER_VAR]: "ON" }))).toBe(false);
+    expect(inngestSchedulingEnabled(env({ [INNGEST_SCHEDULER_VAR]: "on" }))).toBe(true);
   });
 });
 
 describe("MODEL_JOBS=off stops model spend on BOTH hosts, and stops nothing else", () => {
-  const bothOn = { IN_PROCESS_CRON: "on", [INNGEST_SCHEDULER_VAR]: "on", MODEL_JOBS: "off" } as NodeJS.ProcessEnv;
+  const bothOn = env({ IN_PROCESS_CRON: "on", [INNGEST_SCHEDULER_VAR]: "on", MODEL_JOBS: "off" });
 
   it("the model job is refused on the Inngest path too", () => {
     // The defect this whole file exists for: before the guard, this returned null and the
