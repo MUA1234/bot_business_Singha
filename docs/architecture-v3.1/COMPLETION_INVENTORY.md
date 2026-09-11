@@ -3,37 +3,38 @@
 > Regenerate with `node scripts/completion-inventory.mjs`. Deterministic: changes only when code changes.
 > Suspect lists are HEURISTIC work lists (each entry needs triage), not verdicts.
 
-## 1. supabaseAdmin() usage — 27 file(s)
+## 1. supabaseAdmin() usage — 28 file(s)
 
-| file | refs |
-|---|---|
-| src/app/api/cron/ai-monitor/route.ts | 2 |
-| src/app/api/cron/daily-digest/route.ts | 2 |
-| src/app/api/cron/directive-escalation/route.ts | 2 |
-| src/app/api/cron/dispatch-drain/route.ts | 2 |
-| src/app/api/cron/follow-ups/route.ts | 2 |
-| src/app/api/cron/inbound-sweeper/route.ts | 2 |
-| src/app/api/cron/management-cycle/route.ts | 2 |
-| src/app/api/cron/outbox/route.ts | 2 |
-| src/app/api/health/route.ts | 2 |
-| src/app/api/management/cycle/route.ts | 2 |
-| src/app/api/management/feedback/route.ts | 2 |
-| src/app/api/v1/mobile/push-subscription/route.ts | 2 |
-| src/app/api/webhooks/whatsapp/route.ts | 2 |
-| src/app/app/admin/employees/actions.ts | 4 |
-| src/app/app/admin/health/page.tsx | 2 |
-| src/app/app/admin/inbound-review/actions.ts | 2 |
-| src/app/app/command/analyze/actions.ts | 3 |
-| src/app/app/messages/[id]/actions.ts | 2 |
-| src/components/spatial/panels/SystemHealthPanel.tsx | 3 |
-| src/inngest/functions.ts | 4 |
-| src/kernel/cycle-deps.ts | 2 |
-| src/lib/audit.ts | 2 |
-| src/lib/comms/preferences.ts | 5 |
-| src/lib/documents.ts | 2 |
-| src/lib/inbound/production-deps.ts | 4 |
-| src/lib/outbox-enqueue.ts | 2 |
-| src/lib/quotations.ts | 8 |
+| file | refs | calls |
+|---|---|---|
+| src/app/api/cron/ai-monitor/route.ts | 2 | 2 |
+| src/app/api/cron/daily-digest/route.ts | 2 | 2 |
+| src/app/api/cron/directive-escalation/route.ts | 2 | 2 |
+| src/app/api/cron/dispatch-drain/route.ts | 2 | 2 |
+| src/app/api/cron/follow-ups/route.ts | 2 | 2 |
+| src/app/api/cron/inbound-sweeper/route.ts | 2 | 2 |
+| src/app/api/cron/management-cycle/route.ts | 2 | 2 |
+| src/app/api/cron/outbox/route.ts | 2 | 2 |
+| src/app/api/health/route.ts | 2 | 2 |
+| src/app/api/management/cycle/route.ts | 2 | 2 |
+| src/app/api/management/feedback/route.ts | 2 | 2 |
+| src/app/api/v1/mobile/push-subscription/route.ts | 2 | 2 |
+| src/app/api/webhooks/whatsapp/route.ts | 2 | 2 |
+| src/app/app/admin/employees/actions.ts | 8 | 5 |
+| src/app/app/admin/health/page.tsx | 2 | 2 |
+| src/app/app/admin/inbound-review/actions.ts | 2 | 2 |
+| src/app/app/command/analyze/actions.ts | 3 | 3 |
+| src/app/app/messages/[id]/actions.ts | 2 | 2 |
+| src/components/spatial/panels/SystemHealthPanel.tsx | 3 | 3 |
+| src/inngest/functions.ts | 4 | 4 |
+| src/kernel/cycle-deps.ts | 2 | 2 |
+| src/lib/audit.ts | 2 | 2 |
+| src/lib/auth.ts | 1 | 0 |
+| src/lib/comms/preferences.ts | 5 | 5 |
+| src/lib/documents.ts | 2 | 2 |
+| src/lib/inbound/production-deps.ts | 4 | 4 |
+| src/lib/outbox-enqueue.ts | 2 | 2 |
+| src/lib/quotations.ts | 8 | 8 |
 
 Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 
@@ -81,8 +82,8 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 
 | env | consumers |
 |---|---|
-| RLS_READS | src/instrumentation.ts<br>src/lib/auth.ts<br>src/lib/supabase/read.ts |
-| RLS_WRITES | src/app/app/finance/customer-invoices/actions.ts<br>src/app/app/finance/supplier-bills/actions.ts<br>src/instrumentation.ts<br>src/lib/auth.ts<br>src/lib/supabase/read.ts |
+| RLS_READS | src/instrumentation.ts<br>src/lib/auth.ts<br>src/lib/identity-provisioning.ts<br>src/lib/supabase/read.ts |
+| RLS_WRITES | src/app/app/finance/customer-invoices/actions.ts<br>src/app/app/finance/supplier-bills/actions.ts<br>src/instrumentation.ts<br>src/lib/auth.ts<br>src/lib/identity-provisioning.ts<br>src/lib/supabase/read.ts |
 | WHATSAPP_ASYNC | src/app/api/webhooks/whatsapp/route.ts<br>src/inngest/functions.ts<br>src/lib/inbound/production-deps.ts |
 
 ## 5. TODO/FIXME markers — 3
@@ -111,8 +112,8 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/app/api/exports/[kind]/route.ts:64 | `error-discarding destructure` |
 | src/app/api/exports/[kind]/route.ts:76 | `error-discarding destructure` |
 | src/app/api/exports/[kind]/route.ts:86 | `error-discarding destructure` |
-| src/app/app/admin/catalog/page.tsx:28 | `error-discarding destructure` |
-| src/app/app/admin/employees/actions.ts:27 | `error-discarding destructure` |
+| src/app/app/admin/catalog/page.tsx:31 | `error-discarding destructure` |
+| src/app/app/admin/employees/actions.ts:29 | `error-discarding destructure` |
 | src/app/app/admin/employees/page.tsx:29 | `error-discarding destructure` |
 | src/app/app/admin/health/page.tsx:25 | `[]` |
 | src/app/app/admin/outbox/page.tsx:34 | `[]` |
@@ -199,7 +200,7 @@ Allowlist: scripts/allowlists/supabase-admin-system.json (enforced via --check)
 | src/lib/os-shell-data.ts:33 | `null` |
 | src/lib/os-shell-data.ts:48 | `error-discarding destructure` |
 | src/lib/os-shell-data.ts:54 | `null` |
-| src/lib/quotations.ts:280 | `error-discarding destructure` |
+| src/lib/quotations.ts:281 | `error-discarding destructure` |
 | src/lib/task-access.ts:27 | `error-discarding destructure` |
 | src/lib/task-access.ts:38 | `error-discarding destructure` |
 | src/lib/task-access.ts:48 | `error-discarding destructure` |
