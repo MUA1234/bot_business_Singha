@@ -10,17 +10,22 @@
 | Candidate branch | `claude/product-recovery-deploy-candidate` |
 | Base | `origin/main` @ `acd9fbec35d3075c8faba1c6bbb9b4aaca1ab164` |
 | Recovery line integrated | `claude/product-recovery-r1` @ `b3e43b3e4b468482bcbe2be50e8bb881c0436f55` — **preserved unchanged, never rebased** |
+| Gate SHA | `e7b6c523e761198e534ace53856a796a314940cc` — every gate below re-run at this one commit |
 | Hosted contact | Railway metadata, and one **SELECT-only** database probe (owner-authorised). No hosted write, DDL, RPC or business-data read. |
 
 ---
 
 ## Verdict
 
-**Not `READY FOR STAGING`.** Of the three blockers originally recorded, **two are now cleared**; the one that remains is an environment that does not exist and cannot be created without an owner decision.
+**Not `READY FOR STAGING`.** Of the three blockers originally recorded, **two are cleared**; the one that remains is an environment that does not exist and cannot be created without an owner decision.
+
+`R2F-F-019` — the execution transport, which the roadmap carried as deferred engineering — is
+**closed**, and with it the last thing about Release 1 that could be fixed from here. What is left
+is a resource decision, not a piece of work.
 
 | # | Blocker | Who clears it |
 |---|---|---|
-| **B-1** | **No staging environment exists.** `singha-central` has one environment: `production`. The brief forbids silently creating a paid or production-connected one | **Owner** — see [STAGING-REQUIREMENTS.md](STAGING-REQUIREMENTS.md) |
+| **B-1** | **No staging environment exists.** `singha-central` has one environment: `production`, and the workspace is usage-billed from dollar zero with no soft or hard limit set — re-read 2026-09-11, twice, hours apart, and rising while nothing was deployed. The brief forbids accepting a displayed additional charge, and Supabase's second-project plan cannot be seen from here at all (no CLI, no management token, connector unauthenticated) | **Owner** — see [STAGING-REQUIREMENTS.md](STAGING-REQUIREMENTS.md) |
 | ~~B-2~~ | ~~Hosted migration state is UNKNOWN~~ — **CLEARED 2026-09-10.** The SELECT-only probe ran. **CASE A proven**: ledger high-water `0069` is main's migration, recovery markers absent, ledger and physical objects agree. The candidate's +1 reconciliation is correct as it stands; pending for production is exactly `0070`–`0110` (41 migrations, none colliding) | — [HOSTED-MIGRATION-EVIDENCE.md](HOSTED-MIGRATION-EVIDENCE.md) |
 | ~~B-3~~ | ~~`r1-draft-schema` is broken two ways~~ — **CLEARED.** Both defects fixed at the root; it runs green as its own third campaign, **31 tests**, repeatably, with clean teardown (§D-1) | — |
 
@@ -32,27 +37,46 @@ scheduler, and RLS now fails closed.
 
 ---
 
-## Gate results — all at `HEAD` of the candidate
+## Gate results — every one at `e7b6c523e761198e534ace53856a796a314940cc`
+
+One SHA, re-run from scratch, not a table assembled from whatever was measured when. The commit
+that records this table is documentation only and changes nothing any gate below touched.
 
 | Gate | Command | Result |
 |---|---|---|
 | Types | `npx tsc --noEmit` | ✅ clean |
-| Unit suite | `npm test` | ✅ **2521 passed**, 4 skipped, **0 failed** (236 files) |
+| Unit suite | `npm test` | ✅ **2554 passed**, 4 skipped, **0 failed** (236 files) |
+| **Outbound-network guard** | `npm run test:no-network` | ✅ **28 files, 774 tests, 0 failed** — `fetch`, `http.request` and `https.request` replaced by throwing stubs |
 | Build | `npm run build` | ✅ succeeds, all routes compile |
-| Lint | `npx next lint` | ✅ no errors (2 pre-existing `<img>` warnings) |
+| Lint | `npx next lint` | ✅ **0 errors**, 3 pre-existing `<img>` warnings (`q/[token]/page.tsx`, `Brand.tsx` ×2) |
 | Secret scan | `npm run secret-scan` | ✅ no tracked secrets |
 | Migration lint | `npm run migration-lint` | ✅ 110 migrations, 0001–0110, no gaps |
-| **Migration collision** | `npm run migration-collision-check` | ✅ **no collision against `origin/main`** (was 2 errors) |
+| **Migration collision** | `npm run migration-collision-check` | ✅ **no collision against `origin/main` @ `acd9fbec`** (base high-water 0069, head 0110) |
 | Completion inventory | `node scripts/completion-inventory.mjs --check` | ✅ `supabaseAdmin` confined to the allowlist |
 | Requirements audit | `node scripts/autonomy/audit-requirements.mjs` | ✅ pass |
 | IP boundary | `node scripts/autonomy/check-ip-boundary.mjs` | ✅ pass |
 | Dependency audit | `npm run audit-check` | ✅ 2 advisories, both covered by approved exceptions |
-| **Core integration** | `npm run test:integration` | ✅ **77 files, 696 tests, 0 failed** — randomised order, draft-free DB |
-| **Kernel integration** | `npm run test:kernel` | ✅ **35 files, 711 tests, 0 failed** — randomised order, drafts applied once |
-| **Draft-schema campaign** | `npm run test:draft-schema` | ✅ **31 tests, 0 failed** — builds and drops its own database; run twice, clean both times |
-| **Migration attacks** | `node scripts/hosted/migration-attacks.mjs` | ✅ **12 scenarios, 0 failed** — interruption, duplicate version, altered migration, missing dependency, restore-and-reapply |
-| **Ledger rehearsal** | `node scripts/hosted/rehearse-from-ledger.mjs` | ✅ **passed** — 41 applied over the REAL production ledger |
-| Browser / API | `npm run browser-check` | ✅ **16 checks** in real Chromium against the production build — routes served and gated, all three scheduled cron routes refuse an unauthenticated caller and a wrong secret, Ask-AI refuses a caller-supplied companyId. **Signed-in screens are NOT exercised**: no Supabase instance here, so no browser check can sign in |
+| **Core integration** | `npm run test:integration` | ✅ **77 files, 696 tests, 0 failed** — randomised order, draft-free DB built from nothing |
+| **Kernel integration** | `node scripts/r1/run-r1-security-tests.mjs` | ✅ **37 files, 746 tests, 0 failed** in 1009 s — the canonical runner, which builds its own database from shim → 110 migrations → 29 draft units and destroys it |
+| **Draft-schema campaign** | `node scripts/r1/run-draft-schema-tests.mjs` | ✅ **31 tests, 0 failed** — builds and drops its own database |
+| **Migration attacks** | `ATK_CONTAINER=… node scripts/hosted/migration-attacks.mjs` | ✅ **12 scenarios, 0 failed** — interruption, duplicate version, altered migration, missing dependency, restore-and-reapply |
+| **Ledger rehearsal** | `node scripts/hosted/rehearse-from-ledger.mjs` | ✅ **passed** — 41 applied over the REAL production ledger; final 110 rows, high-water 0110, no draft object leaked in |
+| **Execution attacks** | `node scripts/hosted/execution-attacks.mjs` | ✅ **12 hostile attempts, whole-schema content digest IDENTICAL** before and after — `beb7124f2d036c58b225d3437c2794d9` over 176 tables, read privileged; boundary still shut |
+| Browser / API | `npm run browser-check` | ✅ **16 checks** in real Chromium against the production build — routes served and gated, all three scheduled cron routes refuse an unauthenticated caller and a wrong secret, Ask-AI refuses a caller-supplied companyId **and** a caller-supplied membershipId. **Signed-in screens are NOT exercised**: no Supabase instance here, so no browser check can sign in |
+
+### Two things this run found that the previous table could not have
+
+**The canonical kernel campaign had not run a test since the campaigns were split.**
+`scripts/r1/run-r1-security-tests.mjs` selected suites named `r1*`/`r2*` and ran them through
+`vitest.integration.config.ts` — the core config, whose `exclude` names exactly those files. Every
+invocation ended "No test files found, exiting with code 1". The earlier "35 files, 711 tests" was
+measured by running `vitest -c vitest.kernel.config.ts` directly, which does work; the *runner*
+did not. Both are fixed and pinned by `tests/campaign-partition.test.ts`.
+
+**A run against a re-used database is not the same measurement.** An intermediate kernel run on a
+container that had accumulated state across a day's work reported 39 failures — **38 of them
+30-second timeouts**, one a row-count. On a database built from nothing the same SHA is 746/746.
+No timeout was raised to obtain that; the database was made clean instead.
 
 All database work ran on **disposable local PostgreSQL 16.10** in uniquely labelled containers
 on OS-assigned ports. No pre-existing container was touched.

@@ -87,3 +87,38 @@ guard, not a skipped proof, and every campaign in this release supplies that URL
 | Lifecycle | none |
 | Execution / autonomy boundary | none |
 | Outbound-network guard | **none, as of this change** |
+
+---
+
+## Re-verified at `e7b6c523e761198e534ace53856a796a314940cc`
+
+```
+npm test  →  2554 passed | 4 skipped (2558)   235 files passed | 1 skipped (236)
+```
+
+Still exactly four, still the same four. Enumerated by grep rather than by memory:
+
+| # | File | Test | Why |
+|---|---|---|---|
+| 1 | `tests/kernel/no-outbound-network.test.ts` | refuses `fetch` | the guard is installed only by `vitest.no-network.config.ts` |
+| 2 | `tests/kernel/no-outbound-network.test.ts` | refuses raw `http`/`https` | same |
+| 3 | `tests/campaign/live-eval.test.ts` | records the exact model id and prompt version | needs a paid `ANTHROPIC_API_KEY` |
+| 4 | `tests/campaign/live-eval.test.ts` | scores a representative subset | same |
+
+1 and 2 **do run**, under their own config, at this SHA: `npm run test:no-network` → **28 files,
+774 tests, 0 failed**. The "1 skipped file" in the `npm test` line is that same file, which is why
+the file count and the test count disagree about it.
+
+### The suites `npm test` never sees, and why that is not a fourth answer
+
+`tests/hard-scenario/**` is EXCLUDED from the unit config — it has its own,
+`vitest.hard-scenario.config.ts` — and its eight suites are additionally gated on
+`stackConfigured`. They are therefore neither "passed" nor "skipped" in the number above; they are
+not in it at all.
+
+That is deliberate and it is stated here rather than left to be discovered: they drive a **running
+server against a real Supabase instance**, which is the same capability B-1 says does not exist.
+They are the suites a staging environment would unlock, listed in
+[DEPLOYMENT-READINESS.md](DEPLOYMENT-READINESS.md), and no security, migration, lifecycle or
+execution proof depends on one — each is a second, live-stack pass over ground the three database
+campaigns already cover on disposable PostgreSQL.
