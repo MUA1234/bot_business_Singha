@@ -1,4 +1,4 @@
--- 0142_kernel_tenant_integrity.sql
+-- 0143_kernel_tenant_integrity.sql
 -- F-009, for the promoted chain — make cross-company references impossible at the DATABASE.
 --
 -- WHY. A single-column foreign key says "this id exists". It does not say "this id belongs to the

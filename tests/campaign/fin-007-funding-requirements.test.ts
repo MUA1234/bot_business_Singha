@@ -13,7 +13,7 @@ const PAGE = "src/app/app/finance/funding/page.tsx";
 const ACTIONS = "src/app/app/finance/funding/actions.ts";
 const HOME = "src/app/app/finance/page.tsx";
 const MODULE = "src/modules/finance/funding.ts";
-const MIGRATION = "src/db/migrations/0106_funding_requirements_and_investments.sql";
+const MIGRATION = "src/db/migrations/0107_funding_requirements_and_investments.sql";
 
 describe("FIN-007 — funding requirements and investments surface", () => {
   const page = readFileSync(PAGE, "utf8");

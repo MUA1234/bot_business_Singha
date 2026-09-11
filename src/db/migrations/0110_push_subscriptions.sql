@@ -1,4 +1,4 @@
--- 0109_push_subscriptions.sql
+-- 0110_push_subscriptions.sql
 -- MOB-003 — Versioned mobile APIs and push-notification readiness.
 -- A user-scoped store for Web Push subscriptions. The table is intentionally small:
 -- it records exactly what a service worker needs to target a user later. Actual sending

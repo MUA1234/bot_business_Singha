@@ -1,4 +1,4 @@
--- 0088_duplicate_review_resolution.sql
+-- 0089_duplicate_review_resolution.sql
 -- OF-016 — the authorized resolution workflow for a suspected-duplicate financial event.
 --
 -- WHAT WAS MISSING

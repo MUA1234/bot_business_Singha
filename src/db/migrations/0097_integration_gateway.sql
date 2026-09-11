@@ -1,4 +1,4 @@
--- 0096_integration_gateway.sql
+-- 0097_integration_gateway.sql
 -- INT-001 — Integration Gateway and connector registry.
 -- Company-scoped registry of applications, connectors, event contracts and command contracts
 -- with signature-required and replay-protection flags. Forward-only and idempotent.

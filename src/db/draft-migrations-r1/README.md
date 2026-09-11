@@ -1,14 +1,14 @@
 # The R1 draft chain — PROMOTED, 2026-09-11
 
 **This directory no longer contains migrations.** Its thirty units were promoted into the numbered
-Release 1 lineage as `0111`–`0140` and the SQL was removed from here, so there is exactly one
+Release 1 lineage and the SQL was removed from here, so there is exactly one
 runnable copy of each.
 
 ```
-R1_DRAFT_001_management_items   →  src/db/migrations/0111_management_items.sql
-R1_DRAFT_002_transitions        →  src/db/migrations/0112_transitions.sql
+R1_DRAFT_001_management_items   →  src/db/migrations/0112_management_items.sql
+R1_DRAFT_002_transitions        →  src/db/migrations/0113_transitions.sql
 …
-R1_DRAFT_030_cycle_lease        →  src/db/migrations/0140_cycle_lease.sql
+R1_DRAFT_030_cycle_lease        →  src/db/migrations/0141_cycle_lease.sql
 ```
 
 The complete mapping is `docs/release-1/migration-promotion-map.json`, and the reasoning is
@@ -45,7 +45,7 @@ unknown** and while the `0069` collision (PR-F-001) was open. Both conditions ar
   `origin/main` at `acd9fbec`.
 
 The owner approved promotion on 2026-09-11, together with the schema policy that produced
-`0141` (every client-writable text field bounded in the database) and `0142` (every tenant-owned
+`0142` (every client-writable text field bounded in the database) and `0143` (every tenant-owned
 relationship enforcing tenant integrity).
 
 ## Applying a rollback

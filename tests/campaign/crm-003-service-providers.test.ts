@@ -13,7 +13,7 @@ const PAGE = "src/app/app/procurement/service-providers/page.tsx";
 const DETAIL = "src/app/app/procurement/service-providers/[id]/page.tsx";
 const ACTIONS = "src/app/app/procurement/service-providers/actions.ts";
 const HOME = "src/app/app/procurement/page.tsx";
-const MIGRATION = "src/db/migrations/0102_service_provider_registry.sql";
+const MIGRATION = "src/db/migrations/0103_service_provider_registry.sql";
 const HELPER = "src/modules/crm/service-provider.ts";
 
 describe("CRM-003 — service provider registry", () => {

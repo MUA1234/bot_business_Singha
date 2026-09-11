@@ -1,4 +1,4 @@
--- 0098_ai_guide_messages.sql
+-- 0099_ai_guide_messages.sql
 -- AIM-007 — AI Guide next actions.
 -- Persistent, per-task guidance with next actions and coaching.
 -- Forward-only and idempotent.

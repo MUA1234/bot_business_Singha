@@ -1,4 +1,4 @@
--- 0141_bounded_kernel_text.sql
+-- 0142_bounded_kernel_text.sql
 -- F-004, part two — bound the management kernel's user-writable text.
 --
 -- WHY THIS EXISTS AT ALL. Migration 0110 bounded the 280 externally-writable text columns that

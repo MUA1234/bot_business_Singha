@@ -8,7 +8,7 @@ import {
 } from "@/lib/mobile/api";
 import { PushSubscriptionSchema, normalizeSubscription } from "@/lib/mobile/push";
 
-const MIGRATION = "src/db/migrations/0109_push_subscriptions.sql";
+const MIGRATION = "src/db/migrations/0110_push_subscriptions.sql";
 
 describe("mobile API helpers (MOB-003)", () => {
   it("exposes a stable v1 version constant", () => {

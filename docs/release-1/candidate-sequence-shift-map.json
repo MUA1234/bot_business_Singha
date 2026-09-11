@@ -1,0 +1,446 @@
+{
+  "shiftedOn": "2026-09-11",
+  "baseRef": "origin/main",
+  "baseHighWater": "0070",
+  "offset": 1,
+  "mapping": [
+    {
+      "from": "0070_durable_inbound_processing.sql",
+      "to": "0071_durable_inbound_processing.sql",
+      "fromVersion": "0070",
+      "toVersion": "0071"
+    },
+    {
+      "from": "0071_channel_identity_resolution.sql",
+      "to": "0072_channel_identity_resolution.sql",
+      "fromVersion": "0071",
+      "toVersion": "0072"
+    },
+    {
+      "from": "0072_task_identity_dedup.sql",
+      "to": "0073_task_identity_dedup.sql",
+      "fromVersion": "0072",
+      "toVersion": "0073"
+    },
+    {
+      "from": "0073_task_routing_state.sql",
+      "to": "0074_task_routing_state.sql",
+      "fromVersion": "0073",
+      "toVersion": "0074"
+    },
+    {
+      "from": "0074_case_tasks_through_dedup.sql",
+      "to": "0075_case_tasks_through_dedup.sql",
+      "fromVersion": "0074",
+      "toVersion": "0075"
+    },
+    {
+      "from": "0075_channel_account_company_resolution.sql",
+      "to": "0076_channel_account_company_resolution.sql",
+      "fromVersion": "0075",
+      "toVersion": "0076"
+    },
+    {
+      "from": "0076_inbound_review_queue.sql",
+      "to": "0077_inbound_review_queue.sql",
+      "fromVersion": "0076",
+      "toVersion": "0077"
+    },
+    {
+      "from": "0077_inbound_boundary_correction.sql",
+      "to": "0078_inbound_boundary_correction.sql",
+      "fromVersion": "0077",
+      "toVersion": "0078"
+    },
+    {
+      "from": "0078_inbound_boundary_correction_2.sql",
+      "to": "0079_inbound_boundary_correction_2.sql",
+      "fromVersion": "0078",
+      "toVersion": "0079"
+    },
+    {
+      "from": "0079_routing_provenance_split.sql",
+      "to": "0080_routing_provenance_split.sql",
+      "fromVersion": "0079",
+      "toVersion": "0080"
+    },
+    {
+      "from": "0080_dispatch_release.sql",
+      "to": "0081_dispatch_release.sql",
+      "fromVersion": "0080",
+      "toVersion": "0081"
+    },
+    {
+      "from": "0081_owner_configuration_surface.sql",
+      "to": "0082_owner_configuration_surface.sql",
+      "fromVersion": "0081",
+      "toVersion": "0082"
+    },
+    {
+      "from": "0082_approval_submitter_provenance.sql",
+      "to": "0083_approval_submitter_provenance.sql",
+      "fromVersion": "0082",
+      "toVersion": "0083"
+    },
+    {
+      "from": "0083_review_loop_corrections.sql",
+      "to": "0084_review_loop_corrections.sql",
+      "fromVersion": "0083",
+      "toVersion": "0084"
+    },
+    {
+      "from": "0084_loop2_corrections.sql",
+      "to": "0085_loop2_corrections.sql",
+      "fromVersion": "0084",
+      "toVersion": "0085"
+    },
+    {
+      "from": "0085_caller_trust_boundary.sql",
+      "to": "0086_caller_trust_boundary.sql",
+      "fromVersion": "0085",
+      "toVersion": "0086"
+    },
+    {
+      "from": "0086_trust_boundary_corrections.sql",
+      "to": "0087_trust_boundary_corrections.sql",
+      "fromVersion": "0086",
+      "toVersion": "0087"
+    },
+    {
+      "from": "0087_actor_privilege_not_claim.sql",
+      "to": "0088_actor_privilege_not_claim.sql",
+      "fromVersion": "0087",
+      "toVersion": "0088"
+    },
+    {
+      "from": "0088_duplicate_review_resolution.sql",
+      "to": "0089_duplicate_review_resolution.sql",
+      "fromVersion": "0088",
+      "toVersion": "0089"
+    },
+    {
+      "from": "0089_duplicate_review_boundary_corrections.sql",
+      "to": "0090_duplicate_review_boundary_corrections.sql",
+      "fromVersion": "0089",
+      "toVersion": "0090"
+    },
+    {
+      "from": "0090_duplicate_review_sibling_and_budget.sql",
+      "to": "0091_duplicate_review_sibling_and_budget.sql",
+      "fromVersion": "0090",
+      "toVersion": "0091"
+    },
+    {
+      "from": "0091_inbound_review_grant_authority.sql",
+      "to": "0092_inbound_review_grant_authority.sql",
+      "fromVersion": "0091",
+      "toVersion": "0092"
+    },
+    {
+      "from": "0092_model_gateway_telemetry.sql",
+      "to": "0093_model_gateway_telemetry.sql",
+      "fromVersion": "0092",
+      "toVersion": "0093"
+    },
+    {
+      "from": "0093_model_gateway_budget_policy_rls.sql",
+      "to": "0094_model_gateway_budget_policy_rls.sql",
+      "fromVersion": "0093",
+      "toVersion": "0094"
+    },
+    {
+      "from": "0094_risk_register.sql",
+      "to": "0095_risk_register.sql",
+      "fromVersion": "0094",
+      "toVersion": "0095"
+    },
+    {
+      "from": "0095_insurance_register.sql",
+      "to": "0096_insurance_register.sql",
+      "fromVersion": "0095",
+      "toVersion": "0096"
+    },
+    {
+      "from": "0096_integration_gateway.sql",
+      "to": "0097_integration_gateway.sql",
+      "fromVersion": "0096",
+      "toVersion": "0097"
+    },
+    {
+      "from": "0097_management_directives.sql",
+      "to": "0098_management_directives.sql",
+      "fromVersion": "0097",
+      "toVersion": "0098"
+    },
+    {
+      "from": "0098_ai_guide_messages.sql",
+      "to": "0099_ai_guide_messages.sql",
+      "fromVersion": "0098",
+      "toVersion": "0099"
+    },
+    {
+      "from": "0099_conflicting_directive_resolution.sql",
+      "to": "0100_conflicting_directive_resolution.sql",
+      "fromVersion": "0099",
+      "toVersion": "0100"
+    },
+    {
+      "from": "0100_directive_escalation.sql",
+      "to": "0101_directive_escalation.sql",
+      "fromVersion": "0100",
+      "toVersion": "0101"
+    },
+    {
+      "from": "0101_commitment_expected_payments.sql",
+      "to": "0102_commitment_expected_payments.sql",
+      "fromVersion": "0101",
+      "toVersion": "0102"
+    },
+    {
+      "from": "0102_service_provider_registry.sql",
+      "to": "0103_service_provider_registry.sql",
+      "fromVersion": "0102",
+      "toVersion": "0103"
+    },
+    {
+      "from": "0103_counterparty_compliance.sql",
+      "to": "0104_counterparty_compliance.sql",
+      "fromVersion": "0103",
+      "toVersion": "0104"
+    },
+    {
+      "from": "0104_task_escalation_chain.sql",
+      "to": "0105_task_escalation_chain.sql",
+      "fromVersion": "0104",
+      "toVersion": "0105"
+    },
+    {
+      "from": "0105_communication_preferences.sql",
+      "to": "0106_communication_preferences.sql",
+      "fromVersion": "0105",
+      "toVersion": "0106"
+    },
+    {
+      "from": "0106_funding_requirements_and_investments.sql",
+      "to": "0107_funding_requirements_and_investments.sql",
+      "fromVersion": "0106",
+      "toVersion": "0107"
+    },
+    {
+      "from": "0107_incidents_and_statutory_obligations.sql",
+      "to": "0108_incidents_and_statutory_obligations.sql",
+      "fromVersion": "0107",
+      "toVersion": "0108"
+    },
+    {
+      "from": "0108_project_risks_decisions_scenarios.sql",
+      "to": "0109_project_risks_decisions_scenarios.sql",
+      "fromVersion": "0108",
+      "toVersion": "0109"
+    },
+    {
+      "from": "0109_push_subscriptions.sql",
+      "to": "0110_push_subscriptions.sql",
+      "fromVersion": "0109",
+      "toVersion": "0110"
+    },
+    {
+      "from": "0110_bounded_user_text.sql",
+      "to": "0111_bounded_user_text.sql",
+      "fromVersion": "0110",
+      "toVersion": "0111"
+    },
+    {
+      "from": "0111_management_items.sql",
+      "to": "0112_management_items.sql",
+      "fromVersion": "0111",
+      "toVersion": "0112"
+    },
+    {
+      "from": "0112_transitions.sql",
+      "to": "0113_transitions.sql",
+      "fromVersion": "0112",
+      "toVersion": "0113"
+    },
+    {
+      "from": "0113_evidence.sql",
+      "to": "0114_evidence.sql",
+      "fromVersion": "0113",
+      "toVersion": "0114"
+    },
+    {
+      "from": "0114_decisions.sql",
+      "to": "0115_decisions.sql",
+      "fromVersion": "0114",
+      "toVersion": "0115"
+    },
+    {
+      "from": "0115_observation_sources.sql",
+      "to": "0116_observation_sources.sql",
+      "fromVersion": "0115",
+      "toVersion": "0116"
+    },
+    {
+      "from": "0116_feedback.sql",
+      "to": "0117_feedback.sql",
+      "fromVersion": "0116",
+      "toVersion": "0117"
+    },
+    {
+      "from": "0117_rls_matrix.sql",
+      "to": "0118_rls_matrix.sql",
+      "fromVersion": "0117",
+      "toVersion": "0118"
+    },
+    {
+      "from": "0118_accountable_owner.sql",
+      "to": "0119_accountable_owner.sql",
+      "fromVersion": "0118",
+      "toVersion": "0119"
+    },
+    {
+      "from": "0119_review_flow.sql",
+      "to": "0120_review_flow.sql",
+      "fromVersion": "0119",
+      "toVersion": "0120"
+    },
+    {
+      "from": "0120_transition_boundary.sql",
+      "to": "0121_transition_boundary.sql",
+      "fromVersion": "0120",
+      "toVersion": "0121"
+    },
+    {
+      "from": "0121_runtime.sql",
+      "to": "0122_runtime.sql",
+      "fromVersion": "0121",
+      "toVersion": "0122"
+    },
+    {
+      "from": "0122_atomic_create.sql",
+      "to": "0123_atomic_create.sql",
+      "fromVersion": "0122",
+      "toVersion": "0123"
+    },
+    {
+      "from": "0123_twelve_domains.sql",
+      "to": "0124_twelve_domains.sql",
+      "fromVersion": "0123",
+      "toVersion": "0124"
+    },
+    {
+      "from": "0124_recommendation_snapshot.sql",
+      "to": "0125_recommendation_snapshot.sql",
+      "fromVersion": "0124",
+      "toVersion": "0125"
+    },
+    {
+      "from": "0125_feedback_runtime.sql",
+      "to": "0126_feedback_runtime.sql",
+      "fromVersion": "0125",
+      "toVersion": "0126"
+    },
+    {
+      "from": "0126_verified_skills.sql",
+      "to": "0127_verified_skills.sql",
+      "fromVersion": "0126",
+      "toVersion": "0127"
+    },
+    {
+      "from": "0127_advisors_engagements.sql",
+      "to": "0128_advisors_engagements.sql",
+      "fromVersion": "0127",
+      "toVersion": "0128"
+    },
+    {
+      "from": "0128_source_cursors.sql",
+      "to": "0129_source_cursors.sql",
+      "fromVersion": "0128",
+      "toVersion": "0129"
+    },
+    {
+      "from": "0129_cursor_fence.sql",
+      "to": "0130_cursor_fence.sql",
+      "fromVersion": "0129",
+      "toVersion": "0130"
+    },
+    {
+      "from": "0130_ask_ai.sql",
+      "to": "0131_ask_ai.sql",
+      "fromVersion": "0130",
+      "toVersion": "0131"
+    },
+    {
+      "from": "0131_execution_ledger.sql",
+      "to": "0132_execution_ledger.sql",
+      "fromVersion": "0131",
+      "toVersion": "0132"
+    },
+    {
+      "from": "0132_decision_rpc.sql",
+      "to": "0133_decision_rpc.sql",
+      "fromVersion": "0132",
+      "toVersion": "0133"
+    },
+    {
+      "from": "0133_authority_and_scope.sql",
+      "to": "0134_authority_and_scope.sql",
+      "fromVersion": "0133",
+      "toVersion": "0134"
+    },
+    {
+      "from": "0134_identity_scope.sql",
+      "to": "0135_identity_scope.sql",
+      "fromVersion": "0134",
+      "toVersion": "0135"
+    },
+    {
+      "from": "0135_verification_schedule.sql",
+      "to": "0136_verification_schedule.sql",
+      "fromVersion": "0135",
+      "toVersion": "0136"
+    },
+    {
+      "from": "0136_completion_claim.sql",
+      "to": "0137_completion_claim.sql",
+      "fromVersion": "0136",
+      "toVersion": "0137"
+    },
+    {
+      "from": "0137_evidence_contracts.sql",
+      "to": "0138_evidence_contracts.sql",
+      "fromVersion": "0137",
+      "toVersion": "0138"
+    },
+    {
+      "from": "0138_lifecycle_and_assignment.sql",
+      "to": "0139_lifecycle_and_assignment.sql",
+      "fromVersion": "0138",
+      "toVersion": "0139"
+    },
+    {
+      "from": "0139_execution_transport.sql",
+      "to": "0140_execution_transport.sql",
+      "fromVersion": "0139",
+      "toVersion": "0140"
+    },
+    {
+      "from": "0140_cycle_lease.sql",
+      "to": "0141_cycle_lease.sql",
+      "fromVersion": "0140",
+      "toVersion": "0141"
+    },
+    {
+      "from": "0141_bounded_kernel_text.sql",
+      "to": "0142_bounded_kernel_text.sql",
+      "fromVersion": "0141",
+      "toVersion": "0142"
+    },
+    {
+      "from": "0142_kernel_tenant_integrity.sql",
+      "to": "0143_kernel_tenant_integrity.sql",
+      "fromVersion": "0142",
+      "toVersion": "0143"
+    }
+  ]
+}

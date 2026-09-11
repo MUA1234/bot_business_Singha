@@ -7,7 +7,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 
-const MIGRATION = "src/db/migrations/0105_communication_preferences.sql";
+const MIGRATION = "src/db/migrations/0106_communication_preferences.sql";
 const PURE = "src/modules/comms/preferences.ts";
 const SERVICE = "src/lib/comms/preferences.ts";
 const ACTIONS = "src/app/app/messages/actions.ts";

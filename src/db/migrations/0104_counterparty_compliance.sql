@@ -1,4 +1,4 @@
--- 0103_counterparty_compliance.sql
+-- 0104_counterparty_compliance.sql
 -- CRM-005 — Compliance and insurance status per counterparty.
 -- Extends suppliers with compliance/insurance fields, ensures service_providers
 -- carry the same fields, and adds a shared capability for counterparty-compliance

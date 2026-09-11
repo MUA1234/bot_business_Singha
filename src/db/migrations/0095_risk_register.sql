@@ -1,4 +1,4 @@
--- 0094_risk_register.sql
+-- 0095_risk_register.sql
 -- RSK-001 — Risk register with owner, mitigation, evidence and review dates.
 -- Company-scoped, RLS-protected, audited. Forward-only and idempotent.
 

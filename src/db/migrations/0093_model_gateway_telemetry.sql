@@ -1,4 +1,4 @@
--- 0092_model_gateway_telemetry.sql
+-- 0093_model_gateway_telemetry.sql
 -- MOD-003: durable, company-scoped evidence for every provider attempt. Model attempts are
 -- read-only analysis records; they cannot create or authorize a business side effect.
 

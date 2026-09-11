@@ -1,4 +1,4 @@
--- 0106_funding_requirements_and_investments.sql
+-- 0107_funding_requirements_and_investments.sql
 -- FIN-007 — Funding requirements and investments.
 -- Company-scoped funding gap register and investment asset register. Forward-only and idempotent.
 

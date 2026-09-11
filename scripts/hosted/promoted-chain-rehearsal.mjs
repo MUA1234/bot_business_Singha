@@ -254,7 +254,7 @@ try {
   {
     const url = await freshDb("reh_altered");
     migrate(url);
-    const target = `${MIG_DIR}/0111_management_items.sql`;
+    const target = `${MIG_DIR}/0112_management_items.sql`;
     const original = readFileSync(target, "utf8");
     const backup = `${target}.rehearsal-backup`;
     writeFileSync(backup, original);

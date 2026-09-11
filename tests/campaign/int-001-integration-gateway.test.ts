@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 const PAGE = "src/app/app/admin/integrations/page.tsx";
 const ACTIONS = "src/app/app/admin/integrations/actions.ts";
 const HOME = "src/app/app/admin/page.tsx";
-const MIGRATION = "src/db/migrations/0096_integration_gateway.sql";
+const MIGRATION = "src/db/migrations/0097_integration_gateway.sql";
 
 describe("INT-001 — Integration Gateway surface", () => {
   const page = readFileSync(PAGE, "utf8");

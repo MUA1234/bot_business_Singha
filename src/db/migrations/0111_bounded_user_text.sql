@@ -1,4 +1,4 @@
--- 0110_bounded_user_text.sql
+-- 0111_bounded_user_text.sql
 -- F-004 — bound user-controlled text at the database boundary.
 --
 -- WHY. A campaign scenario posted a customer record with a 2,000,000-character name

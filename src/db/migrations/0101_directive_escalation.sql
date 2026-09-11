@@ -1,4 +1,4 @@
--- 0100_directive_escalation.sql
+-- 0101_directive_escalation.sql
 -- GOV-002 — Directive acknowledgement and escalation.
 -- Extends management_directives with an optional escalation chain and tracks the
 -- current escalation level. A cron route evaluates unacknowledged/overdue directives

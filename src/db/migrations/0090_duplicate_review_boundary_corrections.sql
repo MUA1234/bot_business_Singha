@@ -1,4 +1,4 @@
--- 0089_duplicate_review_boundary_corrections.sql
+-- 0090_duplicate_review_boundary_corrections.sql
 -- OF-016 correction loop 1 of 2. Independent review findings H-02, H-03, H-06, H-08.
 --
 -- Migration 0087 got the RESOLUTION boundary right — a decision can only be made by an

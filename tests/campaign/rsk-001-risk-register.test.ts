@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 const PAGE = "src/app/app/legal/risks/page.tsx";
 const ACTIONS = "src/app/app/legal/risks/actions.ts";
 const HOME = "src/app/app/legal/page.tsx";
-const MIGRATION = "src/db/migrations/0094_risk_register.sql";
+const MIGRATION = "src/db/migrations/0095_risk_register.sql";
 
 describe("RSK-001 — Risk register surface", () => {
   const page = readFileSync(PAGE, "utf8");

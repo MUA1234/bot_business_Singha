@@ -1,107 +1,80 @@
-# `origin/main` moved, and version `0070` now collides
+# The `0070` collision — RESOLVED
 
-**Discovered 2026-09-11 by `npm run migration-collision-check`, which FAILS at the candidate's
-current head.** This is a blocking finding and it is not resolved. Nothing here has been applied
-anywhere.
+`origin/main` moved to `fd41d30` and took version `0070` for
+`0070_identity_backfill_and_event_lifecycle.sql`. The candidate also had a `0070`. That is
+resolved: main keeps `0070`, and the candidate's own sequence moved up by one.
 
-## What changed
+> **A note on this file.** It previously described the collision as open, and the automated
+> reference rewrite then edited the numbers inside it — so it briefly claimed the collision was
+> between main's `0070` and a candidate file called `0071`, which is the resolved state, not the
+> collision. A document about a past state whose numbers get mechanically updated stops describing
+> anything. It is rewritten here rather than patched, and `scripts/shift-candidate-sequence.mjs`
+> now carries an explicit skip list for the records that must not move.
 
-`origin/main` moved from `acd9fbec` — the base every previous report cited — to `fd41d30`:
-
-| SHA | Subject |
-|---|---|
-| `a4e433e` | fix: membership identity, event lifecycle, admin-department lockout, price routing (0070) |
-| `abc8c05` | ops: REST-path applier for the 0070 data repair (no IPv6 route to the hosted DB) |
-| `fd41d30` | docs: record the 2026-09-11 production application of the 0070 repair |
-
-28 files, ~1,264 insertions: identity provisioning, departments, quotations, landing path, routing,
-and a new migration.
-
-## The collision
-
-Two different files now claim version `0070`:
+## What collided
 
 | Branch | File | Nature |
 |---|---|---|
 | `origin/main` | `0070_identity_backfill_and_event_lifecycle.sql` | **Data repair only** — no schema change, no new object, idempotent, forward-only |
-| candidate | `0070_durable_inbound_processing.sql` | **Creates 16 objects**, and `0077`, `0078`, `0084`, `0088`, `0089`, `0090` reference them |
-
-The checker's own words:
-
-```
-[SAME_VERSION_DIFFERENT_CONTENT] version 0070
-[RUNNER_SILENT_SKIP]  version 0070
-  if base version 0070 is already recorded in schema_migrations, migrate.mjs would SKIP head's
-  0070_durable_inbound_processing.sql without error; 16 object(s) would never be created and
-  6 later head migration(s) reference them
-```
+| candidate (before the shift) | `0070_durable_inbound_processing.sql` | **Creates 16 objects**; six later migrations reference them |
 
 `migrate.mjs` keys `schema_migrations` on the four-digit prefix and skips a recorded version
-**silently**. So whichever `0070` is recorded first, the other never runs and nothing says so.
-This is the same defect class as PR-F-001, which is why the checker exists.
+**silently**, so whichever `0070` was recorded first, the other would never run and nothing would
+say so. Same defect class as PR-F-001, which is why the checker exists.
 
-## What production actually looks like now
+## The resolution
 
-`fd41d30` records something that changes the production picture materially, and it is worth
-quoting because it is easy to misread:
+`scripts/shift-candidate-sequence.mjs`, driven by the working tree and by what `origin/main`
+actually contains — not by a hardcoded list and not by the recovery branch, which is what the
+older `migration-renumber.mjs` reads and why it planned a shift of forty files that no longer
+exist under those names.
+
+* **73 files**, `0070`–`0142` → `0071`–`0143`, as one ordered unit, renamed high-to-low so two
+  files never briefly share a number.
+* `src/db/rollback/` moved in lockstep, so each rollback still names its own migration.
+* The dependency analyser ran **before and after**: **0 ordering violations both times**. A shift
+  that moved a migration above something it needs would have failed the run.
+* Filename-shaped references were rewritten repo-wide (58 files). **Bare prose numbers were not**:
+  "migration 0070" now means main's file on one line and the candidate's on another, and guessing
+  is how a record becomes wrong.
+
+Verified afterwards:
+
+```
+migration-lint       143 migrations, sequential 0001–0143, no gaps or duplicates
+migration-collision  no collision against origin/main @ fd41d30a
+                     (base high-water 0070, head high-water 0143)
+```
+
+The full old→new map is `docs/release-1/candidate-sequence-shift-map.json`.
+
+## Lineage
+
+| | |
+|---|---|
+| fresh database | `0001`–`0143` |
+| production pending, from the proven Case-A ledger (69 rows, high-water `0069`) | `0070`–`0143` = **74** |
+
+`0070` in that pending range is **main's** migration — which brings us to the part that is not
+just arithmetic.
+
+## Main's `0070` was already applied to production, without the runner
+
+`fd41d30` records it, and it is easy to misread:
 
 > The repair in `0070_identity_backfill_and_event_lifecycle.sql` was applied to production, but
 > **not by the migration runner**, and the `schema_migrations` ledger therefore still shows **0069
 > as the last applied version**.
 
-The reason given is that `db.gazjughejdzebathpscb.supabase.co` publishes only an AAAA record and
-the operator machine had no IPv6 route, so `psql`, `pg_dump` and `npm run migrate` could not reach
-it; the row changes were made over the service-role REST API instead.
+The reason given: `db.gazjughejdzebathpscb.supabase.co` publishes only an AAAA record and the
+operator machine had no IPv6 route, so `psql`, `pg_dump` and `npm run migrate` could not reach it.
+The row changes were made over the service-role REST API instead.
 
-So:
+So the hosted **ledger** is unchanged at 69 rows — the Case A evidence still holds — while the
+hosted **data** has already been repaired. The disposition of that is analysed separately, with
+read-only predicates and a rehearsal of the exact production shape, in
+[MAIN-0070-RECONCILIATION.md](MAIN-0070-RECONCILIATION.md).
 
-* the hosted **ledger** is unchanged at 69 rows, high-water `0069` — the Case A evidence this
-  candidate rests on is still accurate;
-* the hosted **data** has been repaired, and main's `0070` is idempotent, so running it later
-  changes nothing and only then writes its ledger row;
-* production has **one pending migration by main's reckoning** (`0070`) and **73 by the
-  candidate's** (`0070`–`0142`), and those two `0070`s are different files.
-
-It also means production currently has no `pg_dump`-based backup path from that operator machine,
-which bears directly on the backup precondition in
+It also means there was **no working `pg_dump` path to production from that machine**, which bears
+directly on the backup precondition in
 [STAGING-AND-PRODUCTION-PLAN.md](STAGING-AND-PRODUCTION-PLAN.md) §4.
-
-## Why this was not fixed in this pass
-
-Three reasons, and the third is the one that matters.
-
-1. **The fix is a whole-sequence renumber, not a rename.** The repository's own decision tree says
-   so, and the owner refused a single-file rename of `0069` for exactly this reason in an earlier
-   pass: renaming one file can reverse dependency order. Resolving this means shifting the
-   candidate's `0070`–`0142` to `0071`–`0143` — 73 files — and leaving `0070` to main's repair.
-2. **It requires integrating a moved `main` first.** 28 files of product change (identity
-   provisioning, departments, quotations, routing) would come with it. That changes what the
-   candidate *is*, and it is not a migration-numbering decision.
-3. **Doing both unverified would be worse than reporting them.** Every number in this session's
-   campaign was measured against the candidate's chain as it stands. A renumber plus a merge
-   invalidates all of it, and a re-run is hours. Landing that unverified at the end of a session,
-   unauthorised, is precisely the kind of change this project keeps having to undo.
-
-**The collision check is left FAILING on purpose.** It is the gate that says the candidate cannot
-be deployed, and it is telling the truth.
-
-## The resolution, ready to execute on approval
-
-1. Merge `origin/main` (`fd41d30`) into the candidate. Expect conflicts only where both branches
-   touched identity/department/routing code; the migration directories do not conflict textually
-   because the filenames differ.
-2. Renumber the candidate's own chain `0070` → `0071` … `0142` → `0143`, as ONE ordered shift, with
-   `scripts/migration-renumber.mjs` and its `checkRenumberPlan` guard — never file by file. The
-   tool already excludes `docs/product-recovery/` so historical evidence is not rewritten.
-3. Leave `0070` to main's `0070_identity_backfill_and_event_lifecycle.sql`.
-4. Re-run `npm run migration-collision-check` against `fd41d30` and require zero errors.
-5. Re-run the ten-scenario rehearsal (`scripts/hosted/promoted-chain-rehearsal.mjs`) — the hosted
-   Case-A scenario in particular, because the pending count becomes **74** (`0070`–`0143`).
-6. Re-run the full campaign at the resulting SHA.
-
-Expected lineage afterwards:
-
-| | |
-|---|---|
-| fresh | `0001`–`0143` |
-| production pending from the proven Case-A ledger | `0070`–`0143` = **74** |

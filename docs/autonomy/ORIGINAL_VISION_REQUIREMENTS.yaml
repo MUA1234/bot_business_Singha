@@ -49,7 +49,7 @@ requirements:
     status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/api/cron/inbound-sweeper/route.ts
-    database_evidence: src/db/migrations/0070_durable_inbound_processing.sql
+    database_evidence: src/db/migrations/0071_durable_inbound_processing.sql
     service_evidence: src/events/inbound-sweeper.ts
     ui_evidence: none
     test_evidence: tests/integration/durable-inbound-processing.test.ts; tests/campaign/inbound-sweeper.test.ts
@@ -99,7 +99,7 @@ requirements:
     status: blocked_owner
     feature_flag: none
     runtime_entrypoint: src/app/api/webhooks/whatsapp/route.ts and src/inngest/functions.ts (both dispatch through src/lib/inbound/dispatch.ts via the shared src/lib/inbound/production-deps.ts)
-    database_evidence: src/db/migrations/0071_channel_identity_resolution.sql (channel_identities + resolve_channel_identity); 0075_channel_account_company_resolution.sql (channel_accounts + resolve_channel_company); 0076_inbound_review_queue.sql (inbound_reviews, record/resolve RPCs, actor_has_capability); 0077_inbound_boundary_correction.sql (canonical event identity, the explicit dispatch lifecycle with leases, reconciliation of duplicate receipts, and the confirmed 0074/0075 defects); 0078_inbound_boundary_correction_2.sql (a capture can never be company-less, a decided non-capture settles, and work no processor can handle is released rather than dead-lettered); 0080_dispatch_release.sql (a receipt claimed at a deadline is handed back uncharged); 0081_owner_configuration_surface.sql (audited channel-account mapping, capability assignment and a setup-status read); 0082_approval_submitter_provenance.sql (OF-013 — a system-submitted approval request is possible at all, with explicit and immutable submitter provenance)
+    database_evidence: src/db/migrations/0072_channel_identity_resolution.sql (channel_identities + resolve_channel_identity); 0076_channel_account_company_resolution.sql (channel_accounts + resolve_channel_company); 0077_inbound_review_queue.sql (inbound_reviews, record/resolve RPCs, actor_has_capability); 0078_inbound_boundary_correction.sql (canonical event identity, the explicit dispatch lifecycle with leases, reconciliation of duplicate receipts, and the confirmed 0074/0075 defects); 0079_inbound_boundary_correction_2.sql (a capture can never be company-less, a decided non-capture settles, and work no processor can handle is released rather than dead-lettered); 0081_dispatch_release.sql (a receipt claimed at a deadline is handed back uncharged); 0082_owner_configuration_surface.sql (audited channel-account mapping, capability assignment and a setup-status read); 0083_approval_submitter_provenance.sql (OF-013 — a system-submitted approval request is possible at all, with explicit and immutable submitter provenance)
     service_evidence: src/lib/inbound/dispatch-receipt.ts — ONE orchestration used by both the synchronous route and the durable worker (claim the lease, resolve the company, dispatch, record); src/lib/inbound/receipt.ts; src/lib/inbound/dispatch.ts (the only production caller of ingestSourceEvent); src/lib/inbound/company-resolution.ts; src/lib/identity/inbound-routing.ts; src/lib/finance/intent-gate.ts with per-company currencies; src/lib/provider/failure.ts (transient vs permanent vs credential-not-configured)
     ui_evidence: src/app/app/admin/inbound-review/page.tsx — a capability-gated queue in the navigation; /api/health reports openInboundReviews and unattributedInbound
     test_evidence: tests/integration/extreme-end-to-end.test.ts (R1 §7 — the NINE required end-to-end paths, each driving the real adapter, receipt, dispatch orchestration, cron route handlers, finance capture processor, processSourceEvent, consumer store, policy, approval, audit, review queue and health over a pg-backed Supabase client; discrimination measured — 9 of 9 fail at 0001–0075, 4 of 9 at 0001–0077, 3 of 9 at 0001–0080); tests/integration/rendered-matches-persisted.test.tsx (3 — the review row and the analyze routing counts rendered from rows the pipeline actually wrote); tests/integration/system-submitted-approval.test.ts (5 — OF-013, 4 of 5 fail at 0080); tests/integration/inbound-event-identity.test.ts (17 scenarios across two connections — first delivery, replay before/during/after processing, concurrent deliveries, webhook-vs-worker race, both crash windows, sweeper exclusion, health); tests/integration/inbound-upgrade-reconciliation.test.ts (9 scenarios on a purpose-built database at 0075 upgraded to 0076); tests/integration/inbound-end-to-end.test.ts (8); tests/integration/dispatch-drain.test.ts; tests/integration/owner-configuration.test.ts; tests/integration/channel-account-company.test.ts (10); tests/integration/inbound-review-queue.test.ts (14); tests/integration/routing-and-mapping-corrections.test.ts (12); tests/integration/channel-identity.test.ts (10); tests/campaign/dispatch-receipt.test.ts (8 order-of-operations scenarios); tests/campaign/webhook-callgraph.test.ts; tests/campaign/inbound-adapter.test.ts (9); tests/campaign/finance-capture-processor.test.ts; tests/campaign/dispatch-drain.test.ts; tests/campaign/finance-intake.test.ts (18); tests/campaign/inbound-routing.test.ts (9); tests/campaign/company-resolution.test.ts (9); tests/campaign/provider-failure.test.ts (13); tests/campaign/inbound-review-surface.test.ts (10); tests/campaign/ui-rendered-truthfulness.test.ts (10); scripts/verify/browser-check.mjs. The boundary-correction scenarios were run against the PRE-correction schema and fail there — 25 of 29 — so they discriminate rather than decorate.
@@ -225,7 +225,7 @@ requirements:
     status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/management/ai-manager/analyze-conversation.ts and src/app/app/command/analyze/actions.ts — both production analysis paths now create tasks through create_task_deduplicated (migration 0074); tasks_set_identity_hash trigger fires on every task write
-    database_evidence: src/db/migrations/0072_task_identity_dedup.sql (identity columns, task_identity_hash, partial unique index, task_duplicate_suggestions); src/db/migrations/0074_case_tasks_through_dedup.sql (create_management_case_atomic creates every task through the dedup boundary and records deduplicated_tasks)
+    database_evidence: src/db/migrations/0073_task_identity_dedup.sql (identity columns, task_identity_hash, partial unique index, task_duplicate_suggestions); src/db/migrations/0075_case_tasks_through_dedup.sql (create_management_case_atomic creates every task through the dedup boundary and records deduplicated_tasks)
     service_evidence: create_task_deduplicated create-or-return; src/management/ai-manager/task-identity.ts decides which business facts are offered; similarity suggestions are advisory only and never merge
     ui_evidence: src/app/app/command/analyze/AnalyzeForm.tsx reports deduplicated work rather than showing an unexplained zero
     test_evidence: tests/integration/task-dedup.test.ts (18 deterministic integration scenarios on a disposable local PostgreSQL); tests/integration/case-task-dedup-wiring.test.ts (13 scenarios covering the production wiring, non-merging of distinct work, and unchanged atomicity); tests/campaign/task-identity.test.ts (9 unit scenarios)
@@ -250,7 +250,7 @@ requirements:
     status: implementation_in_progress
     feature_flag: none
     runtime_entrypoint: src/management/routing/route-captured-tasks.ts with makeSupabaseRoutingDeps, called by BOTH production analysis paths — src/app/app/command/analyze/actions.ts and src/management/ai-manager/analyze-conversation.ts
-    database_evidence: src/db/migrations/0073_task_routing_state.sql (task_routing with seven states, reason_code, one-active-row partial unique index; append-only task_routing_events; task_assignee_ineligible_reason — note its route_task RPC is DROPPED by 0078 and is no longer part of this requirement's evidence); src/db/migrations/0077_inbound_boundary_correction.sql (the capability re-check corrected to actor_has_capability, an approval FK, TRUNCATE closed, and a human decision protected from automated supersession); src/db/migrations/0078_inbound_boundary_correction_2.sql (a human decision must name an active member); src/db/migrations/0079_routing_provenance_split.sql (route_task_as_human / _as_ai / _as_system, the shared internal reachable by no role, and the provenance trigger — provenance is derived from WHICH function is called, never asserted by a caller); src/db/migrations/0083_review_loop_corrections.sql (only the routing boundary may supersede or delete a decision, and task_routing cannot be truncated)
+    database_evidence: src/db/migrations/0074_task_routing_state.sql (task_routing with seven states, reason_code, one-active-row partial unique index; append-only task_routing_events; task_assignee_ineligible_reason — note its route_task RPC is DROPPED by 0078 and is no longer part of this requirement's evidence); src/db/migrations/0078_inbound_boundary_correction.sql (the capability re-check corrected to actor_has_capability, an approval FK, TRUNCATE closed, and a human decision protected from automated supersession); src/db/migrations/0079_inbound_boundary_correction_2.sql (a human decision must name an active member); src/db/migrations/0080_routing_provenance_split.sql (route_task_as_human / _as_ai / _as_system, the shared internal reachable by no role, and the provenance trigger — provenance is derived from WHICH function is called, never asserted by a caller); src/db/migrations/0084_review_loop_corrections.sql (only the routing boundary may supersede or delete a decision, and task_routing cannot be truncated)
     service_evidence: captureRoutingState maps the deterministic authority outcome to needs_routing or manual_review; ONE shared ports implementation so the two analysis paths cannot diverge; a routing failure is counted and reported, never silently dropped; an idempotent case replay routes nothing
     ui_evidence: src/app/app/command/analyze/AnalyzeForm.tsx renders the durable per-state counts and says plainly that nothing was executed and no one was notified
     test_evidence: tests/integration/task-routing.test.ts; tests/integration/routing-and-mapping-corrections.test.ts (12 scenarios pinning the confirmed defects, proven to FAIL against the pre-correction schema); tests/campaign/capture-routing.test.ts; tests/campaign/analyze-ui-truthfulness.test.ts; tests/campaign/ui-rendered-truthfulness.test.ts (rendered output, not source text)
@@ -630,7 +630,7 @@ requirements:
     status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/api/cron/directive-escalation/route.ts
-    database_evidence: src/db/migrations/0100_directive_escalation.sql
+    database_evidence: src/db/migrations/0101_directive_escalation.sql
     service_evidence: src/modules/governance/directive-escalation.ts
     ui_evidence: src/app/app/admin/directives/page.tsx
     test_evidence: tests/campaign/gov-002-directive-escalation.test.ts
@@ -947,7 +947,7 @@ requirements:
     status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/app/operations/projects/[id]/page.tsx
-    database_evidence: src/db/migrations/0108_project_risks_decisions_scenarios.sql
+    database_evidence: src/db/migrations/0109_project_risks_decisions_scenarios.sql
     service_evidence: src/modules/project/risks.ts; src/modules/project/decisions.ts; src/modules/project/scenarios.ts; src/app/app/operations/projects/actions.ts
     ui_evidence: Project detail page shows risk register, decision log and scenario comparison with gated create/status/choose forms.
     test_evidence: tests/project-risks-decisions-scenarios.test.ts; tests/campaign/prj-004-project-risks-decisions-scenarios.test.ts
@@ -1069,7 +1069,7 @@ requirements:
     status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/app/command/page.tsx
-    database_evidence: src/db/migrations/0101_commitment_expected_payments.sql adds expected_payment_date to purchase_orders; commitments.expected_settlement_date reused
+    database_evidence: src/db/migrations/0102_commitment_expected_payments.sql adds expected_payment_date to purchase_orders; commitments.expected_settlement_date reused
     service_evidence: src/modules/finance/commitment-outflows.ts
     ui_evidence: Command Centre "Expected commitments" stat + cash forecast; PO list/detail expected_payment_date field
     test_evidence: tests/campaign/fin-004-commitments-forecast.test.ts; tests/forecast.test.ts commitment-trough case
@@ -1141,7 +1141,7 @@ requirements:
     status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/app/finance/funding/page.tsx
-    database_evidence: src/db/migrations/0106_funding_requirements_and_investments.sql
+    database_evidence: src/db/migrations/0107_funding_requirements_and_investments.sql
     service_evidence: src/modules/finance/funding.ts (computeFundingGap, computeInvestmentEconomics)
     ui_evidence: /app/finance/funding lists funding requirements and investments, derives a funding gap from the 90-day cash forecast, and provides create/status/dispose forms
     test_evidence: tests/funding-requirements.test.ts; tests/campaign/fin-007-funding-requirements.test.ts
@@ -1239,7 +1239,7 @@ requirements:
     status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/app/procurement/service-providers/page.tsx and src/app/app/procurement/service-providers/[id]/page.tsx
-    database_evidence: src/db/migrations/0102_service_provider_registry.sql adds company-scoped service_providers table with capabilities/service_areas/capacity_notes/price_notes/compliance_status/insurance_status/insurance_expiry; capability-gated RLS and updated_at trigger.
+    database_evidence: src/db/migrations/0103_service_provider_registry.sql adds company-scoped service_providers table with capabilities/service_areas/capacity_notes/price_notes/compliance_status/insurance_status/insurance_expiry; capability-gated RLS and updated_at trigger.
     service_evidence: src/modules/crm/service-provider.ts (providerHealth); src/app/app/procurement/service-providers/actions.ts (createServiceProvider/updateServiceProviderStatus)
     ui_evidence: Procurement home links to service providers; list page with create form and compliance/insurance badges; detail page with status update form.
     test_evidence: tests/campaign/crm-003-service-providers.test.ts; tests/service-provider.test.ts
@@ -1287,7 +1287,7 @@ requirements:
     status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/app/procurement/purchase-orders/actions.ts (createPurchaseOrder gates blocked suppliers)
-    database_evidence: src/db/migrations/0103_counterparty_compliance.sql extends suppliers and service_providers with compliance_status/insurance_status/insurance_expiry, indexes, and capability-gated update policies.
+    database_evidence: src/db/migrations/0104_counterparty_compliance.sql extends suppliers and service_providers with compliance_status/insurance_status/insurance_expiry, indexes, and capability-gated update policies.
     service_evidence: src/modules/crm/counterparty-compliance.ts (counterpartyHealth, canOrderFromCounterparty)
     ui_evidence: Suppliers page shows compliance/insurance badges and health; purchase-order create form includes supplier dropdown and is rejected for blocked suppliers.
     test_evidence: tests/campaign/crm-005-counterparty-compliance.test.ts; tests/counterparty-compliance.test.ts
@@ -1385,7 +1385,7 @@ requirements:
     status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/api/cron/follow-ups/route.ts
-    database_evidence: src/db/migrations/0104_task_escalation_chain.sql (escalation_chain, escalation_level, escalated_to, escalated_at, escalation_reason, last_reminder_at on tasks); refreshed tasks RLS so escalated_to can see/update the task
+    database_evidence: src/db/migrations/0105_task_escalation_chain.sql (escalation_chain, escalation_level, escalated_to, escalated_at, escalation_reason, last_reminder_at on tasks); refreshed tasks RLS so escalated_to can see/update the task
     service_evidence: src/modules/work/follow-up.ts selectEscalationTarget; src/app/api/cron/follow-ups/route.ts walks the chain, advances level, falls back to admins when exhausted; src/app/app/operations/tasks/actions.ts setTaskEscalationChain
     ui_evidence: none
     test_evidence: tests/campaign/sch-004-escalation-chain.test.ts; tests/follow-up.test.ts
@@ -1603,7 +1603,7 @@ requirements:
     status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/lib/comms/preferences.ts; src/app/app/messages/actions.ts; src/lib/outbox-enqueue.ts; src/lib/inbound/dispatch-receipt.ts
-    database_evidence: src/db/migrations/0105_communication_preferences.sql
+    database_evidence: src/db/migrations/0106_communication_preferences.sql
     service_evidence: src/modules/comms/preferences.ts; src/lib/comms/preferences.ts
     ui_evidence: /app/messages server actions (setIdentityOptOut, handoverToHuman, clearHumanHandover)
     test_evidence: tests/comms-preferences.test.ts; tests/campaign/com-007-communication-preferences.test.ts; tests/campaign/dispatch-receipt.test.ts; tests/outbox-enqueue.test.ts
@@ -1923,7 +1923,7 @@ requirements:
     status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/app/legal/incidents/page.tsx; src/app/app/legal/obligations/page.tsx
-    database_evidence: src/db/migrations/0107_incidents_and_statutory_obligations.sql (incidents table; obligations extended with evidence and obligation_type)
+    database_evidence: src/db/migrations/0108_incidents_and_statutory_obligations.sql (incidents table; obligations extended with evidence and obligation_type)
     service_evidence: src/modules/legal/incidents.ts
     ui_evidence: /app/legal/incidents and /app/legal/obligations pages with create/status forms; linked from /app/legal
     test_evidence: tests/incidents.test.ts; tests/campaign/rsk-005-incidents-and-obligations.test.ts
@@ -2021,7 +2021,7 @@ requirements:
     status: locally_verified
     feature_flag: none
     runtime_entrypoint: src/app/api/v1/mobile/health/route.ts; src/app/api/v1/mobile/config/route.ts; src/app/api/v1/mobile/vapid-public-key/route.ts; src/app/api/v1/mobile/notifications/route.ts; src/app/api/v1/mobile/push/subscribe/route.ts; src/app/api/v1/mobile/push-subscription/route.ts
-    database_evidence: src/db/migrations/0109_push_subscriptions.sql
+    database_evidence: src/db/migrations/0110_push_subscriptions.sql
     service_evidence: src/lib/mobile/api.ts; src/lib/mobile/push.ts; public/sw.js
     ui_evidence: none
     test_evidence: tests/mobile-api.test.ts (7); tests/campaign/mob-003-mobile-api.test.ts (10)

@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 
 const PAGE = "src/app/app/operations/tasks/[id]/page.tsx";
 const ACTIONS = "src/app/app/operations/tasks/actions.ts";
-const MIGRATION = "src/db/migrations/0098_ai_guide_messages.sql";
+const MIGRATION = "src/db/migrations/0099_ai_guide_messages.sql";
 
 describe("AIM-007 — AI Guide next actions surface", () => {
   const page = readFileSync(PAGE, "utf8");

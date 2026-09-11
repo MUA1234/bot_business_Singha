@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 
 const PAGE = "src/app/app/admin/directives/page.tsx";
 const ACTIONS = "src/app/app/admin/directives/actions.ts";
-const MIGRATION = "src/db/migrations/0099_conflicting_directive_resolution.sql";
+const MIGRATION = "src/db/migrations/0100_conflicting_directive_resolution.sql";
 
 describe("GOV-003 — Conflicting-instruction detection and resolution", () => {
   const page = readFileSync(PAGE, "utf8");

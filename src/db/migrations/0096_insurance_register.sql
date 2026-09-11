@@ -1,4 +1,4 @@
--- 0095_insurance_register.sql
+-- 0096_insurance_register.sql
 -- RSK-004 — Insurance register with cover, expiry and renewal tracking.
 -- Company-scoped, RLS-protected, audited. Forward-only and idempotent.
 

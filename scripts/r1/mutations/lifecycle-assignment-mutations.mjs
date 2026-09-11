@@ -28,7 +28,7 @@ const NL = String.fromCharCode(10);
 
 const ORCH = "src/kernel/orchestrator.ts";
 const DEPS = "src/kernel/cycle-deps.ts";
-const SQL = "src/db/migrations/0138_lifecycle_and_assignment.sql";
+const SQL = "src/db/migrations/0139_lifecycle_and_assignment.sql";
 const FILES = [ORCH, DEPS, SQL];
 
 for (const f of FILES) copyFileSync(f, `${f}.bak`);

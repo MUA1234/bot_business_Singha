@@ -203,7 +203,7 @@ be in-tree.
 | Head commit date | 2026-08-18 01:26:47 +1000 |
 | Working tree | clean (`git status --porcelain` empty) |
 | Migrations in the working tree | `src/db/migrations/0001…0068`, sequential, **68** files; highest = `0068_ai_atomic_case_persistence.sql` |
-| PR #27 head object in this clone | **present** as remote-tracking ref `origin/feature/of-016-duplicate-review-resolution` = `1b679e20990e6b58d048e036645e3f5647b4f3d2`, carrying **89** migrations (…`0088_duplicate_review_resolution.sql`, `0089_duplicate_review_boundary_corrections.sql`, `0090_duplicate_review_sibling_and_budget.sql`) — read via `git ls-tree`, without checkout |
+| PR #27 head object in this clone | **present** as remote-tracking ref `origin/feature/of-016-duplicate-review-resolution` = `1b679e20990e6b58d048e036645e3f5647b4f3d2`, carrying **89** migrations (…`0089_duplicate_review_resolution.sql`, `0090_duplicate_review_boundary_corrections.sql`, `0091_duplicate_review_sibling_and_budget.sql`) — read via `git ls-tree`, without checkout |
 | PR #27 base in this clone | **present** as `origin/feature/found-006-caller-trust-boundary` = `be2f13ee9ede90b58a69a86069bbd10f9d9c5106` |
 
 Both remote SHAs match the values the handoff document states for PR #27's head and base. A second

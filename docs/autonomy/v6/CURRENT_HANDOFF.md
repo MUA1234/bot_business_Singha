@@ -26,7 +26,7 @@ Only this repository contains the current Singha AI Business Manager programme. 
 | Runtime changes on continuation branch | none |
 | Files changed by bootstrap | `AGENTS.md`, `CLAUDE.md`, `docs/autonomy/v5/BOOTSTRAP_RECORD.md`, `docs/autonomy/v5/PACK_NOT_RECEIVED.md` |
 | Continuation PR | none found |
-| Latest migration | `0090_duplicate_review_sibling_and_budget.sql` |
+| Latest migration | `0091_duplicate_review_sibling_and_budget.sql` |
 | Migration range | `0001–0089`, reported sequential |
 
 The branch was created correctly from PR #27. Its only problem is that the previous V5 attachment never reached the bootstrap worker, so the five promised control documents were not committed.

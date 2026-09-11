@@ -1,4 +1,4 @@
--- 0097_management_directives.sql
+-- 0098_management_directives.sql
 -- GOV-001 — Management directives with response obligations.
 -- Company-scoped registry of directives issued to named humans with a required response window.
 -- Forward-only and idempotent.

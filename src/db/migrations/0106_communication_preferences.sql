@@ -1,4 +1,4 @@
--- 0105_communication_preferences.sql
+-- 0106_communication_preferences.sql
 -- COM-007 — Human handover, opt-out and communication preferences.
 -- Company-scoped preferences per channel identity. Opt-out blocks automated outbound
 -- sends to that identity; handover parks inbound messages from that identity for a

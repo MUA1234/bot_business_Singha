@@ -1,4 +1,4 @@
--- ROLLBACK REHEARSAL for 0110_bounded_user_text.sql.
+-- ROLLBACK REHEARSAL for 0111_bounded_user_text.sql.
 --
 -- The runner has no down-migrations, so reversing 0109 means dropping the constraints it
 -- added and removing its ledger row. It touches NO data: 0109 only ever added CHECK

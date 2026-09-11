@@ -13,7 +13,7 @@ const VAPID = "src/app/api/v1/mobile/vapid-public-key/route.ts";
 const NOTIFICATIONS = "src/app/api/v1/mobile/notifications/route.ts";
 const PUSH = "src/app/api/v1/mobile/push/subscribe/route.ts";
 const PUSH_ALT = "src/app/api/v1/mobile/push-subscription/route.ts";
-const MIGRATION = "src/db/migrations/0109_push_subscriptions.sql";
+const MIGRATION = "src/db/migrations/0110_push_subscriptions.sql";
 
 describe("MOB-003 — mobile API surface", () => {
   it("has a versioned health endpoint", () => {

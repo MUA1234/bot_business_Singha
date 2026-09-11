@@ -1,4 +1,4 @@
--- 0102_service_provider_registry.sql
+-- 0103_service_provider_registry.sql
 -- CRM-003 — Consultant and service-provider registry.
 -- Company-scoped, RLS-protected, capability-gated writes, audited. Forward-only and idempotent.
 

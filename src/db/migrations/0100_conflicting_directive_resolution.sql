@@ -1,4 +1,4 @@
--- 0099_conflicting_directive_resolution.sql
+-- 0100_conflicting_directive_resolution.sql
 -- GOV-003 — Conflicting-instruction detection and resolution.
 -- Extends management_directives with optional target/action and adds a
 -- company-scoped conflict registry that is auto-populated by a trigger.

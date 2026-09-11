@@ -1,4 +1,4 @@
--- 0101_commitment_expected_payments.sql
+-- 0102_commitment_expected_payments.sql
 -- FIN-004 — Commitments and expected payments.
 -- Adds expected_payment_date to purchase_orders so that POs and commitments can feed
 -- the rolling cash forecast alongside invoices/bills. Forward-only and idempotent.

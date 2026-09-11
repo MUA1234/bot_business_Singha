@@ -188,7 +188,7 @@ visible in any campaign that runs the released chain alone. They bear directly o
 
 ### 7.1 `F-004` — 41 unbounded user-writable text columns, all on draft tables
 
-Migration `0110_bounded_user_text` is the released chain's answer to unbounded user input. The
+Migration `0111_bounded_user_text` is the released chain's answer to unbounded user input. The
 draft chain reintroduces the problem on its own tables:
 
 | Table | Unbounded, `authenticated`-writable text columns |

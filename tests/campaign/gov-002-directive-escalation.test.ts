@@ -12,7 +12,7 @@ import { evaluateDirectiveEscalation } from "@/modules/governance/directive-esca
 
 const PAGE = "src/app/app/admin/directives/page.tsx";
 const ACTIONS = "src/app/app/admin/directives/actions.ts";
-const MIGRATION = "src/db/migrations/0100_directive_escalation.sql";
+const MIGRATION = "src/db/migrations/0101_directive_escalation.sql";
 const HELPER = "src/modules/governance/directive-escalation.ts";
 const CRON = "src/app/api/cron/directive-escalation/route.ts";
 

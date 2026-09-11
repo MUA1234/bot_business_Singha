@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 const PAGE = "src/app/app/admin/directives/page.tsx";
 const ACTIONS = "src/app/app/admin/directives/actions.ts";
 const HOME = "src/app/app/admin/page.tsx";
-const MIGRATION = "src/db/migrations/0097_management_directives.sql";
+const MIGRATION = "src/db/migrations/0098_management_directives.sql";
 
 describe("GOV-001 — Management directives surface", () => {
   const page = readFileSync(PAGE, "utf8");

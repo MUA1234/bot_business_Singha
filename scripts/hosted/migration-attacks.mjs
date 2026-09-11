@@ -100,7 +100,7 @@ console.log("\n▶ 3. interrupted migration");
   migrate(url, { MIGRATE_UPTO: "0069" });
 
   // Break one migration on disk, run, then restore it.
-  const target = "0070_durable_inbound_processing.sql";
+  const target = "0071_durable_inbound_processing.sql";
   const path = `${MIG_DIR}/${target}`;
   const original = readFileSync(path, "utf8");
   let threw = false;
@@ -165,7 +165,7 @@ console.log("\n▶ 7. missing dependency");
   shim(url);
   migrate(url, { MIGRATE_UPTO: "0069" });
   // Record 0070 as applied WITHOUT running it — precisely what a version collision does.
-  await q(url, "insert into schema_migrations (version, filename) values ('0070','0070_durable_inbound_processing.sql')");
+  await q(url, "insert into schema_migrations (version, filename) values ('0070','0071_durable_inbound_processing.sql')");
   let threw = false;
   try { migrate(url); } catch { threw = true; }
   const { rows } = await q(url,

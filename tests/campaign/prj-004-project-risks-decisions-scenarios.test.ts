@@ -15,7 +15,7 @@ const ACTIONS = "src/app/app/operations/projects/actions.ts";
 const RISKS_MODULE = "src/modules/project/risks.ts";
 const DECISIONS_MODULE = "src/modules/project/decisions.ts";
 const SCENARIOS_MODULE = "src/modules/project/scenarios.ts";
-const MIGRATION = "src/db/migrations/0108_project_risks_decisions_scenarios.sql";
+const MIGRATION = "src/db/migrations/0109_project_risks_decisions_scenarios.sql";
 const RLS = "security/rls-classification.json";
 
 describe("PRJ-004 — project risks, decisions and scenarios surface", () => {

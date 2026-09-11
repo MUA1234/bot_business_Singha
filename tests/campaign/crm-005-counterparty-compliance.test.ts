@@ -12,7 +12,7 @@ const SUPPLIER_PAGE = "src/app/app/procurement/suppliers/page.tsx";
 const SERVICE_PROVIDER_PAGE = "src/app/app/procurement/service-providers/page.tsx";
 const PO_ACTIONS = "src/app/app/procurement/purchase-orders/actions.ts";
 const PO_PAGE = "src/app/app/procurement/purchase-orders/page.tsx";
-const MIGRATION = "src/db/migrations/0103_counterparty_compliance.sql";
+const MIGRATION = "src/db/migrations/0104_counterparty_compliance.sql";
 const HELPER = "src/modules/crm/counterparty-compliance.ts";
 
 describe("CRM-005 — counterparty compliance and insurance status", () => {

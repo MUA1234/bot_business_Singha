@@ -1,4 +1,4 @@
--- 0104_task_escalation_chain.sql
+-- 0105_task_escalation_chain.sql
 -- SCH-004 — Escalation and missed-response recovery.
 -- Extends tasks with an ordered escalation chain and tracks the current escalation
 -- level, so an unanswered follow-up advances to a defined next person rather than

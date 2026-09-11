@@ -55,7 +55,7 @@ const CO = asCompanyId("11111111-1111-4111-8111-111111111111");
  */
 const BOUNDARY_SRC = codeOnlyTs(readFileSync("src/kernel/execution/boundary.ts", "utf8"));
 const TRANSPORT_SQL = codeOnlySql(
-  readFileSync("src/db/migrations/0139_execution_transport.sql", "utf8"),
+  readFileSync("src/db/migrations/0140_execution_transport.sql", "utf8"),
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════

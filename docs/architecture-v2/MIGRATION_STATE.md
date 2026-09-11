@@ -125,7 +125,7 @@ on a disposable PostgreSQL 16, NOT applied to any hosted environment (owner auth
   directory is the **one** migration source of truth.
   - ⚠️ **Two lines exist.** `origin/main` (deployed) carries 0001–**0069** and its 0069 is
     `0069_company_routing_and_catalogue_department.sql`. This branch line carries 0001–0109
-    and its 0069 is `0070_durable_inbound_processing.sql`. `migration-lint` checks numeric
+    and its 0069 is `0071_durable_inbound_processing.sql`. `migration-lint` checks numeric
     sequence within one checkout and therefore **cannot detect this collision** — see the
     R0 correction banner above.
 - **⚠️ Divergence risk (flag for WP6):** duplicate/aggregate runnable copies exist and
@@ -247,35 +247,35 @@ migration and then run 0070–0109 against a schema missing its objects.
 | 0078 | `routing provenance split` — a routing decision's provenance is DERIVED, never asserted (remediation R1 §2, OF-007). | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
 | 0079 | `dispatch release` — hand a leased dispatch back instead of burning it (remediation R1 §3, OF-001). | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
 | 0080 | `owner configuration surface` — owner configuration as an audited workflow, not hand-edited SQL (R1 §5, OF-004/OF-005). | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0081 | `approval submitter provenance` — 0082_approval_submitter_provenance.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0081 | `approval submitter provenance` — 0083_approval_submitter_provenance.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
 | 0082 | `review loop corrections` — the database half of R1 review loop 1. | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
 | 0083 | `loop2 corrections` — correction loop 2. The LAST correction loop this package gets. | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
 | 0084 | `caller trust boundary` — FOUND-006: a caller's database PRIVILEGE decides service authority, never its request text. | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
 | 0085 | `trust boundary corrections` — FOUND-006 correction loop 1. An independent security review returned CHANGES REQUESTED. | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0086 | `actor privilege not claim` — 0087_actor_privilege_not_claim.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0087 | `duplicate review resolution` — 0088_duplicate_review_resolution.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0088 | `duplicate review boundary corrections` — 0089_duplicate_review_boundary_corrections.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0089 | `duplicate review sibling and budget` — 0090_duplicate_review_sibling_and_budget.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0086 | `actor privilege not claim` — 0088_actor_privilege_not_claim.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0087 | `duplicate review resolution` — 0089_duplicate_review_resolution.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0088 | `duplicate review boundary corrections` — 0090_duplicate_review_boundary_corrections.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0089 | `duplicate review sibling and budget` — 0091_duplicate_review_sibling_and_budget.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
 | 0090 | `inbound review grant authority` — OF-018: inbound-review service authority is the EXECUTE grant, not request text. | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0091 | `model gateway telemetry` — 0092_model_gateway_telemetry.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0091 | `model gateway telemetry` — 0093_model_gateway_telemetry.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
 | 0092 | `model gateway budget policy rls` — MOD-003: configuration is human-governed; attempt telemetry remains worker-only. | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0093 | `risk register` — 0094_risk_register.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0094 | `insurance register` — 0095_insurance_register.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0095 | `integration gateway` — 0096_integration_gateway.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0096 | `management directives` — 0097_management_directives.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0097 | `ai guide messages` — 0098_ai_guide_messages.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0098 | `conflicting directive resolution` — 0099_conflicting_directive_resolution.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0099 | `directive escalation` — 0100_directive_escalation.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0100 | `commitment expected payments` — 0101_commitment_expected_payments.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0101 | `service provider registry` — 0102_service_provider_registry.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0102 | `counterparty compliance` — 0103_counterparty_compliance.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0103 | `task escalation chain` — 0104_task_escalation_chain.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0104 | `communication preferences` — 0105_communication_preferences.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0105 | `funding requirements and investments` — 0106_funding_requirements_and_investments.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0106 | `incidents and statutory obligations` — 0107_incidents_and_statutory_obligations.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0107 | `project risks decisions scenarios` — 0108_project_risks_decisions_scenarios.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0108 | `push subscriptions` — 0109_push_subscriptions.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
-| 0109 | `bounded user text` — 0110_bounded_user_text.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0093 | `risk register` — 0095_risk_register.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0094 | `insurance register` — 0096_insurance_register.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0095 | `integration gateway` — 0097_integration_gateway.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0096 | `management directives` — 0098_management_directives.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0097 | `ai guide messages` — 0099_ai_guide_messages.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0098 | `conflicting directive resolution` — 0100_conflicting_directive_resolution.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0099 | `directive escalation` — 0101_directive_escalation.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0100 | `commitment expected payments` — 0102_commitment_expected_payments.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0101 | `service provider registry` — 0103_service_provider_registry.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0102 | `counterparty compliance` — 0104_counterparty_compliance.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0103 | `task escalation chain` — 0105_task_escalation_chain.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0104 | `communication preferences` — 0106_communication_preferences.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0105 | `funding requirements and investments` — 0107_funding_requirements_and_investments.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0106 | `incidents and statutory obligations` — 0108_incidents_and_statutory_obligations.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0107 | `project risks decisions scenarios` — 0109_project_risks_decisions_scenarios.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0108 | `push subscriptions` — 0110_push_subscriptions.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
+| 0109 | `bounded user text` — 0111_bounded_user_text.sql | ⛔ **owner confirmation required** — never applied to any hosted DB by this process; dev-verified on disposable PostgreSQL 16 |
 
 > **Correction-phase note (0044–0047):** authored 2026-08-08, **not** applied to any hosted
 > DB. Verified on a disposable local **PostgreSQL 16** (Supabase-compat shim) from a clean

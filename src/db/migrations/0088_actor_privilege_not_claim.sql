@@ -1,4 +1,4 @@
--- 0087_actor_privilege_not_claim.sql
+-- 0088_actor_privilege_not_claim.sql
 -- FOUND-006 correction loop 2 — G-01 (P0). Independent security review 2.
 --
 -- WHAT WAS BROKEN

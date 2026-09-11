@@ -1,4 +1,4 @@
--- 0107_incidents_and_statutory_obligations.sql
+-- 0108_incidents_and_statutory_obligations.sql
 -- RSK-005 — Incident log and statutory obligations register.
 -- Adds an incidents table and extends obligations with evidence and a statutory flag.
 -- Forward-only and idempotent.

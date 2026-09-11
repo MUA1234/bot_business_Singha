@@ -8,7 +8,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { isOpenIncident, severityBadgeClass } from "@/modules/legal/incidents";
 
-const MIGRATION = "src/db/migrations/0107_incidents_and_statutory_obligations.sql";
+const MIGRATION = "src/db/migrations/0108_incidents_and_statutory_obligations.sql";
 const INCIDENTS_PAGE = "src/app/app/legal/incidents/page.tsx";
 const INCIDENTS_ACTIONS = "src/app/app/legal/incidents/actions.ts";
 const OBLIGATIONS_PAGE = "src/app/app/legal/obligations/page.tsx";

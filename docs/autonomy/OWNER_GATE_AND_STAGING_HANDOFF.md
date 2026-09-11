@@ -90,7 +90,7 @@ Use this checklist **in order**. Do not skip a step because a later step looks i
 ### 3.3 Migrations
 
 - [ ] Apply `HOSTED_MIGRATION_0042_TO_0068.sql` to staging DB **as project owner** (or apply fresh `0001→0108` if starting from empty).
-- [ ] Run `npm run migrate` and confirm `schema_migrations` shows `0109_push_subscriptions.sql`.
+- [ ] Run `npm run migrate` and confirm `schema_migrations` shows `0110_push_subscriptions.sql`.
 - [ ] Run `npm run migrate -- --status` and confirm no pending migrations.
 - [ ] Re-run `tests/integration/secure-definer-grants.test.ts` and `tests/integration/search-path-safety.test.ts` against staging to verify SECURITY DEFINER grants.
 

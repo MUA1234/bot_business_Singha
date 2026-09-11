@@ -1,4 +1,4 @@
--- 0108_project_risks_decisions_scenarios.sql
+-- 0109_project_risks_decisions_scenarios.sql
 -- PRJ-004 — Per-project risk register, decision log and scenario comparison.
 -- Company- and project-scoped, RLS-protected, audited. Forward-only and idempotent.
 
