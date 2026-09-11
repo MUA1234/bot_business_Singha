@@ -18,6 +18,7 @@ import { drainOutbox, type DrainResult } from "@/events/outbox-drain";
 import { log } from "@/lib/log";
 import { env } from "@/config/env";
 import { createNotification } from "@/lib/notify";
+import { canResolvePriceConfirmations } from "@/lib/departments";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface DraftItem {
@@ -219,20 +220,38 @@ export async function companyBaseCurrency(db: SupabaseClient, companyId: string)
  *   3. an explicit caller override (dashboards pricing on behalf of a department);
  *   4. `"sales"` — the historical default, so a company that configures nothing keeps
  *      exactly today's behaviour.
- * The department is validated against the live catalogue before use: routing to a queue no
- * dashboard renders would strand the customer silently.
+ * Each candidate is validated against `resolvableDepartments` — the live catalogue keys
+ * INTERSECTED with the departments that actually render a price queue and are authorised to
+ * resolve one (`PRICE_CONFIRM_DEPARTMENTS`). Validating against the catalogue alone was not
+ * enough: every one of the nine catalogue departments passed, but only `sales` and `finance`
+ * can act, so a product routed to `procurement` produced a confirmation nobody could resolve —
+ * read-only on `/app/me`, a notification link to a non-existent page, and a customer waiting
+ * behind the pending footer indefinitely. A skipped candidate is the caller's cue to log.
  */
 export function resolveRouteDepartment(
   catalogueDepartment: string | null | undefined,
   companyDefault: string | null | undefined,
   override: string | null | undefined,
-  activeDepartmentKeys: readonly string[],
+  resolvableDepartments: readonly string[],
 ): string {
-  const ok = (d: string | null | undefined): d is string => !!d && activeDepartmentKeys.includes(d);
+  const ok = (d: string | null | undefined): d is string => !!d && resolvableDepartments.includes(d);
   if (ok(catalogueDepartment)) return catalogueDepartment;
   if (ok(companyDefault)) return companyDefault;
   if (ok(override)) return override;
   return "sales";
+}
+
+/**
+ * A configured department that cannot resolve a price confirmation, so routing had to skip it.
+ * Returned separately (rather than swallowed) so the caller can log it: silently ignoring the
+ * owner's configuration is how the original constant-"sales" routing hid for so long.
+ */
+export function unroutableDepartment(
+  catalogueDepartment: string | null | undefined,
+  resolvableDepartments: readonly string[],
+): string | null {
+  if (!catalogueDepartment) return null;
+  return resolvableDepartments.includes(catalogueDepartment) ? null : catalogueDepartment;
 }
 
 /**
@@ -247,14 +266,19 @@ export async function priceQuotation(
 ): Promise<boolean> {
   const db = supabaseAdmin();
 
-  // Routing inputs, read once: the company default, and the department keys that actually
-  // exist. A price confirmation addressed to a non-existent department is invisible work.
+  // Routing inputs, read once: the company default, and the departments a confirmation may be
+  // addressed to. That set is the ACTIVE catalogue keys intersected with the departments that can
+  // actually resolve one — being a real department is not enough, it must have a price queue and
+  // the authority to price (PRICE_CONFIRM_DEPARTMENTS). A confirmation addressed anywhere else is
+  // invisible work: nobody can act on it and the customer waits behind the pending footer.
   const [{ data: companyRow }, { data: deptRows }] = await Promise.all([
     db.from("companies").select("default_price_confirmation_department").eq("id", companyId).maybeSingle(),
     db.from("departments_catalog").select("key").eq("is_active", true),
   ]);
   const companyDefaultDept = (companyRow?.default_price_confirmation_department as string | null) ?? null;
-  const activeDepartments = (deptRows ?? []).map((d: any) => d.key as string);
+  const resolvableDepartments = (deptRows ?? [])
+    .map((d: any) => d.key as string)
+    .filter((k) => canResolvePriceConfirmations(k));
 
   // The quotation's currency governs the whole document: the public quotation renders every item in it,
   // and the enqueue guard (migration 0067) refuses any item whose currency disagrees with it.
@@ -326,12 +350,25 @@ export async function priceQuotation(
         // Route by the ITEM, not by a constant: a matched catalogue entry names the team that
         // prices it (a fleet part → fleet, a service → sales), then the company default, then
         // the caller's override, then the historical "sales".
+        const catalogueDept = (match as { department?: string | null } | undefined)?.department ?? null;
         const department = resolveRouteDepartment(
-          (match as { department?: string | null } | undefined)?.department,
+          catalogueDept,
           companyDefaultDept,
           routeDepartment,
-          activeDepartments,
+          resolvableDepartments,
         );
+        // The owner configured a department that cannot price anything. Routing falls back, but
+        // says so — a silently ignored configuration reads as working routing.
+        const skipped = unroutableDepartment(catalogueDept, resolvableDepartments);
+        if (skipped) {
+          log("error", "catalogue department cannot resolve price confirmations — routed elsewhere", {
+            event: "quotation.route_department_unresolvable",
+            companyId,
+            quotationId,
+            configuredDepartment: skipped,
+            routedTo: department,
+          });
+        }
         const { data: inserted } = await db
           .from("price_confirmations")
           .insert({

@@ -4,7 +4,8 @@
  * duplicate delivery hits the constraint and we treat it as "already existed".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { SourceEventStore, StoredSourceEvent } from "@/events/source-event";
+import type { HandlerOutcome, SourceEventStore, StoredSourceEvent } from "@/events/source-event";
+import { log } from "@/lib/log";
 
 export function makeSupabaseSourceEventStore(db: SupabaseClient): SourceEventStore {
   return {
@@ -43,4 +44,35 @@ export function makeSupabaseSourceEventStore(db: SupabaseClient): SourceEventSto
       throw new Error(`source_events upsert failed: ${insert.error?.message ?? "unknown"}`);
     },
   };
+}
+
+/**
+ * Close out a source event's lifecycle after its handler ran, and attribute it to the company
+ * the handler resolved (the webhook cannot know the company before the handler looks up the
+ * business number, so the row is inserted with `company_id` NULL and stamped here).
+ *
+ * Best-effort by design: the customer has already been replied to by this point, so failing
+ * the request over a bookkeeping write would turn an observability gap into a lost message.
+ * A failure is logged so it cannot be silent.
+ */
+export async function completeSourceEvent(
+  db: SupabaseClient,
+  eventId: string,
+  outcome: HandlerOutcome,
+  companyId?: string | null,
+): Promise<void> {
+  const patch: Record<string, unknown> = {
+    status: outcome.status,
+    processed_at: new Date().toISOString(),
+    last_error: outcome.lastError,
+  };
+  if (companyId) patch.company_id = companyId;
+  const { error } = await db.from("source_events").update(patch).eq("id", eventId);
+  if (error) {
+    log("error", "source event completion failed", {
+      event: "source_event.complete_failed",
+      sourceEventId: eventId,
+      error: error.message,
+    });
+  }
 }

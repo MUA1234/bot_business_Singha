@@ -92,3 +92,28 @@ export async function ingestSourceEvent(
 
   return { status: "enqueued", event };
 }
+
+/**
+ * The terminal lifecycle state a handled source event should be moved to.
+ *
+ * `source_events.status` exists precisely so an operator can tell a processed event from a
+ * lost one, and `/api/health` counts `received`/`processing` as **unprocessed**. Nothing in
+ * the app ever advanced it: every row stayed `received` for ever, so the health signal grew
+ * without bound and a genuinely stuck event was indistinguishable from a delivered one.
+ *
+ * `failed` is deliberate rather than cosmetic: an event we could not attribute to a company
+ * (an unmapped WhatsApp number) is exactly what must become visible, because the inbound
+ * message is durable and replayable once the number is mapped.
+ *
+ * Pure — the handler status in, the row patch out.
+ */
+export type HandlerOutcome = { status: "processed" | "failed"; lastError: string | null };
+
+/** Handler statuses that mean "this message was dealt with". */
+const HANDLED_STATUSES = new Set(["duplicate", "collecting", "awaiting_price", "quoting", "quoted"]);
+
+export function outcomeForHandlerStatus(handlerStatus: string): HandlerOutcome {
+  if (HANDLED_STATUSES.has(handlerStatus)) return { status: "processed", lastError: null };
+  // Anything else is a failure we want counted and named, not silently marked done.
+  return { status: "failed", lastError: handlerStatus };
+}

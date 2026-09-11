@@ -1,6 +1,6 @@
 import { Brand } from "@/components/Brand";
 import { getProfile } from "@/lib/auth";
-import { homePathFor } from "@/lib/departments";
+import { landingPathFor } from "@/lib/departments";
 import { redirect } from "next/navigation";
 import { LoginForm } from "./LoginForm";
 
@@ -8,7 +8,7 @@ export const metadata = { title: "Sign in — Singha Central" };
 
 export default async function LoginPage() {
   const existing = await getProfile();
-  if (existing) redirect(homePathFor(existing.department));
+  if (existing) redirect(landingPathFor(existing));
 
   return (
     <main className="auth-wrap">

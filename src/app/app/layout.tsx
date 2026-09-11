@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { requireProfile } from "@/lib/auth";
-import { getDepartment } from "@/lib/departments";
+import { navDepartmentFor } from "@/lib/departments";
 import { AppShell } from "@/components/AppShell";
 
 /**
@@ -9,14 +9,16 @@ import { AppShell } from "@/components/AppShell";
  */
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const profile = await requireProfile();
-  const dept = getDepartment(profile.isAdmin ? "admin" : profile.department);
-  const nav = dept?.nav ?? [];
+  // Mirrors `landingPathFor`: an employee in the admin department WITHOUT admin rights
+  // must not be shown the admin nav, every link of which would bounce them away.
+  const dept = navDepartmentFor(profile);
+  const nav = dept.nav;
 
   return (
     <AppShell
       nav={nav}
       username={profile.username}
-      departmentLabel={dept?.label ?? profile.department}
+      departmentLabel={dept.label}
       isAdmin={profile.isAdmin}
     >
       {children}

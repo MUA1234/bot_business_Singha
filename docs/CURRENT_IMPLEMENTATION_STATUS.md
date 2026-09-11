@@ -4,6 +4,19 @@ _Rewritten 2026-08-07 directly from the codebase and observed test/build results
 appending to prior text. This file describes **reality**; where it disagrees with older
 narrative docs, this file and the code win._
 
+> **⚠️ STALE-TEXT CORRECTION (2026-09-11).** Everything below that says the **hosted database is
+> not migrated** is **void**. On 2026-09-01 the owner supplied hosted credentials and authorised
+> application: migrations **0048–0068** were applied to production `gazjughejdzebathpscb`, then
+> **0069**. `docs/architecture-v2/MIGRATION_STATE.md` is the authority and carries the verified
+> record. The un-migrated hosted DB is therefore **no longer** the containment for the 0048+ work;
+> the feature flags (`RLS_READS`, `RLS_WRITES`, `WHATSAPP_ASYNC`) remain **OFF** and are now the
+> only containment for the RLS/async cutovers. Current verified counts: **unit 500 (87 files);
+> integration 327 (42 files)**, on a disposable PostgreSQL 16 migrated `0001→0070`.
+>
+> **Migration 0070 (2026-09-11)** — data repair only, authored and rehearsed, **NOT applied to any
+> hosted environment**: the profiles→membership identity backfill, the `source_events` lifecycle
+> close-out, and the company-as-actor correction. See MIGRATION_STATE.md for the evidence.
+
 **Current phase (updated 2026-08-17):** the **owner-authorized COMPLETION PROGRAM** — finishing the
 application + V3.1 implementation as small stacked draft PRs on top of PR #13's reviewed head
 `48407bd` (PR #13 itself is frozen). Live program state, verification-state taxonomy

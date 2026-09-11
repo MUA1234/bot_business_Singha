@@ -18,6 +18,8 @@ import { serviceClient } from "@/db/client";
 import { makeSupabaseConsumerStore, makeSupabaseCostLedger } from "@/db/consumer-store";
 import { processSourceEvent, type ConsumerDeps } from "./processing";
 import { handleCustomerMessage } from "@/lib/order-intake";
+import { completeSourceEvent } from "@/db/source-event-store";
+import { outcomeForHandlerStatus } from "@/events/source-event";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { drainOutbox } from "@/events/outbox-drain";
 import { log } from "@/lib/log";
@@ -68,15 +70,38 @@ export const onCustomerWhatsAppMessage = inngest.createFunction(
   },
   { event: WHATSAPP_INBOUND_EVENT },
   async ({ event, step }) => {
-    const { from, text, wa_message_id, company_id } = event.data as {
+    const { from, text, wa_message_id, company_id, phone_number_id, source_event_id } = event.data as {
       from: string;
       text: string;
       wa_message_id: string;
       company_id?: string;
+      phone_number_id?: string | null;
+      source_event_id?: string | null;
     };
-    return await step.run("handle-customer-message", () =>
-      handleCustomerMessage({ from, text, waMessageId: wa_message_id, companyId: company_id }),
+    const res = await step.run("handle-customer-message", () =>
+      handleCustomerMessage({
+        from,
+        text,
+        waMessageId: wa_message_id,
+        // Company resolution is by business number since 0069; without it every async
+        // message would fail closed as `company_unresolved`.
+        phoneNumberId: phone_number_id ?? null,
+        companyId: company_id,
+      }),
     );
+    // Same lifecycle close-out as the synchronous webhook path, so `source_events` never
+    // stays `received` for ever regardless of which path handled the message.
+    if (source_event_id) {
+      await step.run("complete-source-event", () =>
+        completeSourceEvent(
+          supabaseAdmin(),
+          source_event_id,
+          outcomeForHandlerStatus(res.status),
+          res.companyId ?? null,
+        ),
+      );
+    }
+    return res;
   },
 );
 

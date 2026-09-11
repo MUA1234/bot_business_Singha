@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase/server";
 import { usernameToEmail } from "@/lib/constants";
-import { homePathFor } from "@/lib/departments";
+import { landingPathFor } from "@/lib/departments";
 
 export interface LoginState {
   error?: string;
@@ -23,7 +23,7 @@ export async function signIn(_prev: LoginState, formData: FormData): Promise<Log
 
   const { data: profile } = await supabaseAdmin()
     .from("profiles")
-    .select("department, is_active")
+    .select("department, is_admin, is_active")
     .eq("id", data.user.id)
     .maybeSingle();
 
@@ -32,7 +32,7 @@ export async function signIn(_prev: LoginState, formData: FormData): Promise<Log
     return { error: "This account is not active. Contact your administrator." };
   }
 
-  redirect(homePathFor(profile.department));
+  redirect(landingPathFor({ isAdmin: profile.is_admin === true, department: profile.department }));
 }
 
 export async function signOut(): Promise<void> {

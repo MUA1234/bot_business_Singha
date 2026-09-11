@@ -31,7 +31,10 @@ export interface AnalyzeResult {
  */
 export async function analyzeConversationThread(
   db: SupabaseClient,
-  opts: { companyId: string; conversationId: string; actorId: string; actorType?: "user" | "ai" },
+  // actorId is NULLABLE: an unattended sweep has no human actor, and migration 0049's
+  // convention for a non-human actor is a NULL actor id with actor_type 'ai'/'system'.
+  // (`create_management_case_atomic` takes `p_actor uuid` and hardcodes actor_type='ai'.)
+  opts: { companyId: string; conversationId: string; actorId: string | null; actorType?: "user" | "ai" },
 ): Promise<AnalyzeResult> {
   const { data: messages } = await db
     .from("wa_messages")

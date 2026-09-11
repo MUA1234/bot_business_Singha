@@ -191,5 +191,70 @@ export function homePathFor(departmentKey: string): string {
   return `/app/${departmentKey}`;
 }
 
-/** Departments that receive price-confirmation requests. */
+/**
+ * The department key whose dashboard is the administrator surface. Belonging to it is NOT
+ * the same as holding admin rights (`profiles.is_admin`), and every page under `/app/admin`
+ * gates on the rights, not the department.
+ */
+export const ADMIN_DEPARTMENT = "admin";
+
+/**
+ * The nav for an employee who has no department dashboard they may open — only the shared
+ * personal surfaces. Reuses SHARED_NAV so it can never drift from it.
+ */
+export const PERSONAL_DEPARTMENT: Department = {
+  key: "me",
+  label: "My Work",
+  icon: "list-todo",
+  description: "Your own tasks, notifications and customer messages.",
+  nav: SHARED_NAV.map((n) => ({ ...n })),
+};
+
+/**
+ * Where a signed-in employee should land — the ONLY correct answer to "which page is this
+ * person allowed to open first".
+ *
+ * `homePathFor(department)` alone is not safe: a non-admin whose department is `admin` was
+ * sent to `/app/admin`, whose `requireAdmin()` gate bounced them back to `/app/admin` — an
+ * infinite redirect, i.e. the employee could not use the app at all. Four live accounts were
+ * in exactly that state. This resolver is the single place that decision is made, so the
+ * login action, `/app`, and every access gate agree.
+ */
+export function landingPathFor(p: { isAdmin: boolean; department: string | null | undefined }): string {
+  if (p.isAdmin) return homePathFor(ADMIN_DEPARTMENT);
+  // No admin rights → the admin dashboard is not openable, so it can never be a landing page.
+  if (p.department === ADMIN_DEPARTMENT) return "/app/me";
+  // An unknown/removed department has no dashboard; land on the personal surface, never a 404.
+  if (!getDepartment(p.department)) return "/app/me";
+  return homePathFor(p.department as string);
+}
+
+/** The nav an employee should see — mirrors `landingPathFor`, so links are never dead. */
+export function navDepartmentFor(p: { isAdmin: boolean; department: string | null | undefined }): Department {
+  if (p.isAdmin) return getDepartment(ADMIN_DEPARTMENT) ?? PERSONAL_DEPARTMENT;
+  if (p.department === ADMIN_DEPARTMENT) return PERSONAL_DEPARTMENT;
+  return getDepartment(p.department) ?? PERSONAL_DEPARTMENT;
+}
+
+/**
+ * Departments that can RECEIVE and RESOLVE a price confirmation.
+ *
+ * This is a hard constraint, not a preference: only `/app/sales/price-requests` and
+ * `/app/finance/price-requests` render the queue with a price form, and
+ * `src/app/app/_actions/price.ts` only authorises these departments to resolve one. Migration
+ * 0069 made routing configurable across all nine catalogue departments, so a product whose
+ * `department` is (say) `procurement` produced a confirmation nobody could act on — visible
+ * read-only on `/app/me`, with a notification linking to a page that does not exist, while the
+ * customer waited behind the "(Quotation is being generated. Please wait)" footer for ever.
+ * Both live catalogue products name `procurement`, so this was the next quotation away.
+ *
+ * Routing, the pricer authorisation and the pages all read THIS list, so they cannot disagree.
+ * To let another department price its own items: build its `price-requests` page, add its key
+ * here, and the routing follows.
+ */
 export const PRICE_CONFIRM_DEPARTMENTS = ["sales", "finance"] as const;
+
+/** True when a price confirmation routed to this department can actually be resolved. */
+export function canResolvePriceConfirmations(department: string | null | undefined): boolean {
+  return !!department && (PRICE_CONFIRM_DEPARTMENTS as readonly string[]).includes(department);
+}

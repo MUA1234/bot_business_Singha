@@ -6,6 +6,7 @@
  */
 import { redirect } from "next/navigation";
 import { supabaseServer, supabaseAdmin } from "@/lib/supabase/server";
+import { landingPathFor } from "@/lib/departments";
 
 export interface SessionProfile {
   userId: string;
@@ -49,17 +50,21 @@ export async function requireProfile(): Promise<SessionProfile> {
   return p;
 }
 
-/** Require admin, else send to their own dashboard (or login). */
+/** Require admin, else send to the page they ARE allowed to open (or login).
+ *
+ *  The redirect target must be resolved by `landingPathFor`, never `/app/${department}`:
+ *  a non-admin whose department is `admin` was bounced back to `/app/admin`, which lands
+ *  here again — an infinite redirect that locked the employee out of the whole app. */
 export async function requireAdmin(): Promise<SessionProfile> {
   const p = await requireProfile();
-  if (!p.isAdmin) redirect(`/app/${p.department}`);
+  if (!p.isAdmin) redirect(landingPathFor(p));
   return p;
 }
 
-/** A member of a specific department, or admin. Else bounce to own dashboard. */
+/** A member of a specific department, or admin. Else bounce to the page they may open. */
 export async function requireDepartment(department: string): Promise<SessionProfile> {
   const p = await requireProfile();
-  if (!p.isAdmin && p.department !== department) redirect(`/app/${p.department}`);
+  if (!p.isAdmin && p.department !== department) redirect(landingPathFor(p));
   return p;
 }
 

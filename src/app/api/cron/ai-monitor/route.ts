@@ -53,13 +53,18 @@ export async function GET(req: Request): Promise<Response> {
     tasks = 0;
   for (const c of due) {
     try {
-      const res = await analyzeConversationThread(db, { companyId: c.company_id, conversationId: c.id, actorId: c.company_id, actorType: "ai" });
+      // actorId NULL, not the company id. This sweep has no human actor, and migration 0049's
+      // convention for a non-human actor is actor_type='ai'/'system' with actor_id NULL. Passing
+      // `c.company_id` wrote a COMPANY uuid into `management_cases.created_by`,
+      // `tasks.created_by` and `audit_events.actor_id` — neither column has an FK, so it was
+      // accepted silently and the trail claimed a company had authored the work.
+      const res = await analyzeConversationThread(db, { companyId: c.company_id, conversationId: c.id, actorId: null, actorType: "ai" });
       // Mark analysed regardless of outcome so a persistently-empty thread isn't retried forever.
       await db.from("wa_conversations").update({ ai_analyzed_at: new Date().toISOString() }).eq("id", c.id).eq("company_id", c.company_id);
       if (res.ok) {
         analyzed++;
         tasks += res.createdTasks ?? 0;
-        await writeAudit({ companyId: c.company_id, actorId: c.company_id, actorType: "ai", action: "monitor.analyzed", entityType: "wa_conversation", entityId: c.id, payload: { createdTasks: res.createdTasks } });
+        await writeAudit({ companyId: c.company_id, actorId: null, actorType: "ai", action: "monitor.analyzed", entityType: "wa_conversation", entityId: c.id, payload: { createdTasks: res.createdTasks } });
       }
     } catch (e) {
       log("error", "ai-monitor analysis failed", { event: "monitor.failed", conversationId: c.id, error: (e as Error).message });

@@ -61,7 +61,7 @@ export async function handleCustomerMessage(input: {
   /** Meta business number that received the message — resolves the company (0069). */
   phoneNumberId?: string | null;
   companyId?: string;
-}): Promise<{ status: string }> {
+}): Promise<{ status: string; companyId?: string }> {
   const db = supabaseAdmin();
   const from = input.from.replace(/^\+/, "");
 
@@ -90,7 +90,7 @@ export async function handleCustomerMessage(input: {
     .eq("wa_message_id", input.waMessageId)
     .eq("direction", "inbound")
     .maybeSingle();
-  if (prior?.handled_at) return { status: "duplicate" };
+  if (prior?.handled_at) return { status: "duplicate", companyId };
 
   // Load or create the conversation.
   const { data: convo } = await db
@@ -129,7 +129,7 @@ export async function handleCustomerMessage(input: {
     if (insErr || !ins) {
       // A concurrent delivery won the unique index — re-read; if already handled, stop.
       const { data: race } = await db.from("wa_messages").select("id, handled_at").eq("company_id", companyId).eq("wa_message_id", input.waMessageId).eq("direction", "inbound").maybeSingle();
-      if (race?.handled_at) return { status: "duplicate" };
+      if (race?.handled_at) return { status: "duplicate", companyId };
       if (!race?.id) throw new Error(`inbound insert failed: ${insErr?.message}`);
       inboundId = race.id;
     } else {
@@ -268,5 +268,5 @@ export async function handleCustomerMessage(input: {
   await db.from("wa_messages").update({ handled_at: new Date().toISOString() }).eq("id", inboundId);
   try { await drainOutbox(db); } catch { /* sweep will recover */ }
 
-  return { status };
+  return { status, companyId };
 }

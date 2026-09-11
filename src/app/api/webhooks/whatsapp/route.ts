@@ -19,7 +19,8 @@ import {
 } from "@/lib/whatsapp-signature";
 import { handleCustomerMessage } from "@/lib/order-intake";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { makeSupabaseSourceEventStore } from "@/db/source-event-store";
+import { completeSourceEvent, makeSupabaseSourceEventStore } from "@/db/source-event-store";
+import { outcomeForHandlerStatus } from "@/events/source-event";
 import { inboundEventKey } from "@/events/outbox";
 import { sha256 } from "@/lib/ids";
 import { newCorrelationId, log } from "@/lib/log";
@@ -60,7 +61,8 @@ export async function POST(req: Request): Promise<Response> {
     return new Response("bad json", { status: 400 });
   }
 
-  const store = makeSupabaseSourceEventStore(supabaseAdmin());
+  const db = supabaseAdmin();
+  const store = makeSupabaseSourceEventStore(db);
   const messages = extractTextMessages(payload);
   // Statuses / non-text events: nothing to persist — acknowledge so Meta stops retrying.
   if (messages.length === 0) return NextResponse.json({ ok: true, processed: [] });
@@ -69,9 +71,12 @@ export async function POST(req: Request): Promise<Response> {
   // persist fails we return a RETRYABLE 503 and do NOT acknowledge — Meta redelivers,
   // and the provider-message unique key makes a re-persist idempotent, so nothing is
   // ever lost or duplicated. A 200 is only ever returned after durable acceptance.
+  // Message id → stored source event id, so the handler's outcome can close the event's
+  // lifecycle below (it stayed `received` for ever until this was wired).
+  const eventIdByMessage = new Map<string, string>();
   for (const msg of messages) {
     try {
-      await store.upsert({
+      const { event } = await store.upsert({
         source: "whatsapp",
         provider_message_id: msg.id,
         company_id: null,
@@ -80,6 +85,7 @@ export async function POST(req: Request): Promise<Response> {
         idempotency_key: inboundEventKey("whatsapp", msg.id),
         correlation_id: newCorrelationId(),
       });
+      eventIdByMessage.set(msg.id, event.id);
     } catch (e) {
       log("error", "whatsapp source event persist failed", { event: "wa.persist_failed", error: (e as Error).message });
       return new Response("persist failed — retry", { status: 503 });
@@ -92,7 +98,20 @@ export async function POST(req: Request): Promise<Response> {
     // prevents a duplicate on redelivery. Idempotency (wa_message_id) is enforced downstream.
     for (const msg of messages) {
       try {
-        await inngest.send({ name: WHATSAPP_INBOUND_EVENT, data: { from: msg.from, text: msg.text, wa_message_id: msg.id } });
+        // `phone_number_id` MUST travel with the event: since migration 0069 the company is
+        // resolved from the business number that was messaged, so an event without it would
+        // fail closed as `company_unresolved` for every message. `source_event_id` lets the
+        // worker close the event's lifecycle exactly as the synchronous path does.
+        await inngest.send({
+          name: WHATSAPP_INBOUND_EVENT,
+          data: {
+            from: msg.from,
+            text: msg.text,
+            wa_message_id: msg.id,
+            phone_number_id: msg.phoneNumberId ?? null,
+            source_event_id: eventIdByMessage.get(msg.id) ?? null,
+          },
+        });
       } catch (e) {
         log("error", "whatsapp enqueue failed", { event: "wa.enqueue_failed", error: (e as Error).message });
         return new Response("enqueue failed — retry", { status: 503 });
@@ -106,6 +125,7 @@ export async function POST(req: Request): Promise<Response> {
   // and a Meta redelivery is a dedup no-op. Acknowledge 200 after durable persistence.
   const results: string[] = [];
   for (const msg of messages) {
+    const eventId = eventIdByMessage.get(msg.id);
     try {
       const res = await handleCustomerMessage({
         from: msg.from,
@@ -114,9 +134,15 @@ export async function POST(req: Request): Promise<Response> {
         phoneNumberId: msg.phoneNumberId,
       });
       results.push(res.status);
+      // Close the event's lifecycle: `processed` when the message was dealt with, `failed`
+      // (named) when it was not — e.g. an unmapped business number, which must be VISIBLE in
+      // /api/health rather than sitting indistinguishable from a delivered message.
+      if (eventId) await completeSourceEvent(db, eventId, outcomeForHandlerStatus(res.status), res.companyId ?? null);
     } catch (e) {
-      log("error", "handleCustomerMessage failed", { event: "wa.handle_failed", error: (e as Error).message });
+      const reason = (e as Error).message;
+      log("error", "handleCustomerMessage failed", { event: "wa.handle_failed", error: reason });
       results.push("error");
+      if (eventId) await completeSourceEvent(db, eventId, { status: "failed", lastError: reason.slice(0, 500) });
     }
   }
   return NextResponse.json({ ok: true, processed: results });
