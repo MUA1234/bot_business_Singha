@@ -23,7 +23,6 @@
 --
 -- Forward-only, idempotent DDL. No feature flag (a correctness boundary, not a capability).
 
-begin;
 
 -- ── Normalisation ─────────────────────────────────────────────────────────────────────────────
 -- The provider account id is an OPAQUE PROVIDER IDENTIFIER (WhatsApp `phone_number_id`, an inbox
@@ -147,7 +146,7 @@ begin
        where has_table_privilege(r.rolname, 'public.channel_accounts', pr.privilege)
     ) x;
   if bad is not null then
-    raise exception '0074 fail-closed: untrusted write privilege remains — %', bad;
+    raise exception '0076 fail-closed: untrusted write privilege remains — %', bad;
   end if;
 
   select string_agg(p.proname, ', ') into bad
@@ -156,8 +155,7 @@ begin
      and p.proname in ('resolve_channel_company', 'normalize_channel_account')
      and (has_function_privilege('anon', p.oid, 'EXECUTE') or has_function_privilege('authenticated', p.oid, 'EXECUTE'));
   if bad is not null then
-    raise exception '0074 fail-closed: % reachable by anon/authenticated', bad;
+    raise exception '0076 fail-closed: % reachable by anon/authenticated', bad;
   end if;
 end $$;
 
-commit;

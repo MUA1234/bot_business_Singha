@@ -32,7 +32,6 @@
 --
 -- Forward-only, idempotent DDL. No feature flag (a correctness boundary, not a capability).
 
-begin;
 
 -- Report what actually happened, durably — including on the idempotent replay path.
 alter table public.management_cases
@@ -219,19 +218,18 @@ begin
      and p.oid::regprocedure::text = 'create_management_case_atomic(uuid,text,jsonb,jsonb,uuid,text)'
      and p.prosecdef;
   if v_oid is null then
-    raise exception '0073 fail-closed: create_management_case_atomic is missing or not SECURITY DEFINER';
+    raise exception '0075 fail-closed: create_management_case_atomic is missing or not SECURITY DEFINER';
   end if;
   if not (v_cfg @> array['search_path=pg_catalog, extensions, public, pg_temp']) then
-    raise exception '0073 fail-closed: create_management_case_atomic has a non-canonical search_path (%)', v_cfg;
+    raise exception '0075 fail-closed: create_management_case_atomic has a non-canonical search_path (%)', v_cfg;
   end if;
   if exists (select 1 from pg_catalog.pg_roles where rolname = 'anon')
      and has_function_privilege('anon', v_oid, 'EXECUTE') then
-    raise exception '0073 fail-closed: anon can execute create_management_case_atomic';
+    raise exception '0075 fail-closed: anon can execute create_management_case_atomic';
   end if;
   if exists (select 1 from pg_catalog.pg_roles where rolname = 'authenticated')
      and has_function_privilege('authenticated', v_oid, 'EXECUTE') then
-    raise exception '0073 fail-closed: authenticated can execute create_management_case_atomic';
+    raise exception '0075 fail-closed: authenticated can execute create_management_case_atomic';
   end if;
 end $$;
 
-commit;

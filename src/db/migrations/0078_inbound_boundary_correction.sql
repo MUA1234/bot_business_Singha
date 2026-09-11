@@ -51,7 +51,6 @@
 --
 -- Forward-only, idempotent DDL. No feature flag (a correctness boundary, not a capability).
 
-begin;
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────────
 -- (1) Columns
@@ -768,7 +767,7 @@ begin
                        'canonical_event_identity','claim_source_events','source_event_backlog')
      and (has_function_privilege('anon', p.oid, 'EXECUTE') or has_function_privilege('authenticated', p.oid, 'EXECUTE'));
   if bad is not null then
-    raise exception '0076 fail-closed: % reachable by anon/authenticated', bad;
+    raise exception '0078 fail-closed: % reachable by anon/authenticated', bad;
   end if;
 
   -- The reconciliation must not have left a superseded row without its link, or a row pointing at
@@ -776,12 +775,12 @@ begin
   if exists (select 1 from public.source_events s
               where s.dispatch_state = 'superseded'
                 and (s.superseded_by is null or s.superseded_by = s.id)) then
-    raise exception '0076 fail-closed: a superseded receipt has no valid canonical link';
+    raise exception '0078 fail-closed: a superseded receipt has no valid canonical link';
   end if;
   if exists (select 1 from public.source_events s
              join public.source_events t on t.id = s.superseded_by
               where s.dispatch_state = 'superseded' and t.dispatch_state = 'superseded') then
-    raise exception '0076 fail-closed: a superseded receipt points at another superseded receipt';
+    raise exception '0078 fail-closed: a superseded receipt points at another superseded receipt';
   end if;
 end $$;
 
@@ -1062,7 +1061,7 @@ begin
       having count(*) > 1
     ) x;
   if v_conflicts is not null then
-    raise exception '0076 fail-closed: the same receiving account is registered more than once once normalised — %. Resolve which company owns each account (deactivate the others) and re-run.', v_conflicts;
+    raise exception '0078 fail-closed: the same receiving account is registered more than once once normalised — %. Resolve which company owns each account (deactivate the others) and re-run.', v_conflicts;
   end if;
 end $$;
 
@@ -1172,14 +1171,13 @@ begin
   select p.oid into v_inner from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.oid::regprocedure::text = 'actor_has_capability(uuid,uuid,text)';
   if v_wrapper is null or v_inner is null then
-    raise exception '0076 fail-closed: the capability wrapper or its implementation is missing';
+    raise exception '0078 fail-closed: the capability wrapper or its implementation is missing';
   end if;
   if (select proowner from pg_catalog.pg_proc where oid = v_wrapper)
      is distinct from (select proowner from pg_catalog.pg_proc where oid = v_inner) then
-    raise exception '0076 fail-closed: has_capability and actor_has_capability have different owners — the wrapper could not reach the implementation and every capability RLS policy would error';
+    raise exception '0078 fail-closed: has_capability and actor_has_capability have different owners — the wrapper could not reach the implementation and every capability RLS policy would error';
   end if;
   -- Prove the wrapper actually resolves rather than only that it exists.
   perform public.has_capability(gen_random_uuid(), 'operations.inbound.review');
 end $$;
 
-commit;

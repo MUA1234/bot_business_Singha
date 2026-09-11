@@ -20,7 +20,6 @@
 -- Recurring work is legitimately repeated: the occurrence window is part of the identity, so the
 -- same purpose in a new window is a NEW task, not a duplicate.
 
-begin;
 
 -- ── Identity columns ───────────────────────────────────────────────────────────────────────────
 alter table public.tasks
@@ -250,14 +249,13 @@ begin
       cross join (values ('INSERT'),('UPDATE'),('DELETE')) as pr(privilege)
      where has_table_privilege(r.rolname, 'public.task_duplicate_suggestions', pr.privilege)
   ) x;
-  if bad is not null then raise exception '0071 fail-closed: untrusted write privilege remains — %', bad; end if;
+  if bad is not null then raise exception '0073 fail-closed: untrusted write privilege remains — %', bad; end if;
 
   select string_agg(p.proname, ', ') into bad
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public'
      and p.proname in ('create_task_deduplicated','task_identity_hash','normalize_identity_part')
      and (has_function_privilege('anon', p.oid, 'EXECUTE') or has_function_privilege('authenticated', p.oid, 'EXECUTE'));
-  if bad is not null then raise exception '0071 fail-closed: % reachable by anon/authenticated', bad; end if;
+  if bad is not null then raise exception '0073 fail-closed: % reachable by anon/authenticated', bad; end if;
 end $$;
 
-commit;

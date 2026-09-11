@@ -32,7 +32,6 @@
 -- supported client boundary unless the design moves to per-user database identity or
 -- cryptographically verified claims. See docs/architecture-v2/FOUND_006_TRUST_MODEL.md.
 
-begin;
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────────
 -- (1) The quotation status read, split into three by privilege
@@ -190,4 +189,3 @@ begin
   end if;
 end $$;
 
-commit;

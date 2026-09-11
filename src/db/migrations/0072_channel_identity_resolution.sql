@@ -20,7 +20,6 @@
 --     existing data participates without re-entry. `verified_at` stays NULL for backfilled rows:
 --     they are asserted, not verified, and the distinction is preserved for later hardening.
 
-begin;
 
 create or replace function public.normalize_channel_identity(p_channel text, p_raw text)
 returns text
@@ -195,7 +194,7 @@ begin
        where has_table_privilege(r.rolname, 'public.channel_identities', pr.privilege)
     ) x;
   if bad is not null then
-    raise exception '0070 fail-closed: untrusted write privilege remains — %', bad;
+    raise exception '0072 fail-closed: untrusted write privilege remains — %', bad;
   end if;
 
   select string_agg(p.proname, ', ') into bad
@@ -204,8 +203,7 @@ begin
      and p.proname in ('resolve_channel_identity', 'normalize_channel_identity')
      and (has_function_privilege('anon', p.oid, 'EXECUTE') or has_function_privilege('authenticated', p.oid, 'EXECUTE'));
   if bad is not null then
-    raise exception '0070 fail-closed: % reachable by anon/authenticated', bad;
+    raise exception '0072 fail-closed: % reachable by anon/authenticated', bad;
   end if;
 end $$;
 
-commit;

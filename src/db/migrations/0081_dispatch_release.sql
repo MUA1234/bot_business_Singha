@@ -9,7 +9,6 @@
 -- cleared, and the attempt is GIVEN BACK, so the next run picks it up as if it had never been
 -- claimed. It is the dispatch-lifecycle twin of `release_source_event` (0077).
 
-begin;
 
 create or replace function public.release_inbound_dispatch(p_event uuid, p_owner text)
 returns boolean
@@ -53,8 +52,7 @@ do $$
 begin
   if has_function_privilege('anon', 'public.release_inbound_dispatch(uuid,text)', 'EXECUTE')
      or has_function_privilege('authenticated', 'public.release_inbound_dispatch(uuid,text)', 'EXECUTE') then
-    raise exception '0079 fail-closed: release_inbound_dispatch is reachable by an untrusted role';
+    raise exception '0081 fail-closed: release_inbound_dispatch is reachable by an untrusted role';
   end if;
 end $$;
 
-commit;

@@ -16,7 +16,6 @@
 --   `caller_jwt_role` only if it is one of the two whose use is RESTRICTIVE — proven by reading them,
 --   and re-proven by the tests. Any new one, in any syntax, fails this.
 
-begin;
 
 -- `regprocedure` renders SCHEMA-QUALIFIED whenever `public` is not on the ambient search_path, so
 -- an allowlist of bare signatures silently stops matching and this assertion aborts a deployment
@@ -58,4 +57,3 @@ begin
   end if;
 end $$;
 
-commit;

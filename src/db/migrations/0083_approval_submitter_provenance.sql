@@ -29,7 +29,6 @@
 -- Forward-only. Existing rows all carry a non-null `submitted_by` and are backfilled to 'human',
 -- which is what they were. No data is deleted and no approval decision changes.
 
-begin;
 
 -- ── (1) the columns ──────────────────────────────────────────────────────────────────────────
 alter table public.approval_requests
@@ -112,4 +111,3 @@ begin
   end if;
 end $$;
 
-commit;

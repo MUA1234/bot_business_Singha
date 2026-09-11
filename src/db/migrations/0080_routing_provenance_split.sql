@@ -33,7 +33,6 @@
 --
 -- Forward-only, idempotent DDL. No feature flag (a security boundary, not a capability).
 
-begin;
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────────
 -- (1) Separate columns for machine provenance, so it never borrows a human identity
@@ -452,10 +451,10 @@ declare bad text;
 begin
   -- The human path must be UNREACHABLE from the service context.
   if has_function_privilege('service_role', 'public.route_task_as_human(uuid,uuid,text,text,text,jsonb,uuid,text,uuid,uuid)', 'EXECUTE') then
-    raise exception '0078 fail-closed: service_role can execute route_task_as_human';
+    raise exception '0080 fail-closed: service_role can execute route_task_as_human';
   end if;
   if not has_function_privilege('authenticated', 'public.route_task_as_human(uuid,uuid,text,text,text,jsonb,uuid,text,uuid,uuid)', 'EXECUTE') then
-    raise exception '0078 fail-closed: authenticated cannot execute route_task_as_human — the human path would be unusable';
+    raise exception '0080 fail-closed: authenticated cannot execute route_task_as_human — the human path would be unusable';
   end if;
 
   -- The machine paths must be unreachable from an untrusted session.
@@ -466,12 +465,12 @@ begin
                        '_is_task_routing_owner', 'task_routing_provenance_guard', 'task_routing_events_writer_guard')
      and (has_function_privilege('anon', p.oid, 'EXECUTE') or has_function_privilege('authenticated', p.oid, 'EXECUTE'));
   if bad is not null then
-    raise exception '0078 fail-closed: % reachable by anon/authenticated', bad;
+    raise exception '0080 fail-closed: % reachable by anon/authenticated', bad;
   end if;
 
   -- The shared implementation must be unreachable even from the service context.
   if has_function_privilege('service_role', '_route_task_internal(uuid,uuid,text,text,text,jsonb,uuid,text,uuid,uuid,text,uuid,text,text,text)'::regprocedure, 'EXECUTE') then
-    raise exception '0078 fail-closed: service_role can call the internal routing implementation directly';
+    raise exception '0080 fail-closed: service_role can call the internal routing implementation directly';
   end if;
 
   -- The old spoofable signature must be gone.
@@ -479,8 +478,7 @@ begin
     select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'public' and p.proname = 'route_task'
   ) then
-    raise exception '0078 fail-closed: the caller-supplied-provenance route_task still exists';
+    raise exception '0080 fail-closed: the caller-supplied-provenance route_task still exists';
   end if;
 end $$;
 
-commit;

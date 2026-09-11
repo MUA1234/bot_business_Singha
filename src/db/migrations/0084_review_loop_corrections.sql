@@ -25,7 +25,6 @@
 --   `psql -f`, where a failure in the closing fail-closed check would leave the change committed.
 --   Fixed in 0081 itself; noted here so the sequence tells the whole story.
 
-begin;
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────────
 -- (1) R-02 — one drafted financial event per source event, enforced by the database
@@ -256,4 +255,3 @@ revoke all on function public.admin_set_membership_role(uuid, uuid, text, boolea
   from public, anon, authenticated;
 grant execute on function public.admin_set_membership_role(uuid, uuid, text, boolean, uuid) to service_role;
 
-commit;

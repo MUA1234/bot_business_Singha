@@ -32,7 +32,6 @@
 --   may no longer terminally suppress a payment. `duplicate_reviews` records the evidence and the
 --   human decision.
 
-begin;
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────────
 -- (1) S-01 — one approval request per financial event
@@ -260,7 +259,6 @@ comment on table public.duplicate_reviews is
   'human decides. Reproduced before this existed: two genuinely different payments to one supplier '
   'on one day scored 1.0 and the second was terminally discarded, unreadable by any screen.';
 
-commit;
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────────
 -- (5) S-01 case (b) — the durable consumer settles its own receipt
@@ -269,7 +267,6 @@ commit;
 -- scheduled sweeper claimed the same row afterwards. Before loop 1 that produced a duplicate draft;
 -- after it, a permanent stall. This lets the durable consumer settle a receipt it finished, WITHOUT
 -- holding a sweeper lease — it never had one.
-begin;
 
 create or replace function public.settle_processed_source_event(p_id uuid)
 returns text
@@ -302,7 +299,6 @@ $$;
 revoke all on function public.settle_processed_source_event(uuid) from public, anon, authenticated;
 grant execute on function public.settle_processed_source_event(uuid) to service_role;
 
-commit;
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────────
 -- (6) S-05 — the reviewer LIST and the reviewer COUNT ask the same question
@@ -312,7 +308,6 @@ commit;
 -- showed "2 people who can review" beside a list of one, and offered "Make reviewer" to somebody
 -- who already could. Loop 1 unified only the active-membership half and claimed they "cannot drift
 -- apart"; this makes that true by giving the list the count's own predicate.
-begin;
 
 create or replace function public.inbound_reviewer_user_ids(p_company uuid)
 returns table (user_id uuid)
@@ -347,4 +342,3 @@ comment on function public.inbound_reviewer_user_ids(uuid) is
   'inbound_setup_status counts by. Two different definitions on one screen is how a delegated '
   'reviewer appeared in the number and not in the list.';
 
-commit;

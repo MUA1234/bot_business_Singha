@@ -52,7 +52,6 @@
 --
 -- Forward-only. Additive DDL, one new column, no destructive data change.
 
-begin;
 
 set local search_path = pg_catalog, extensions, public, pg_temp;
 
@@ -396,10 +395,10 @@ begin
   -- person's decision and the audit trail becomes a lie.
   if has_function_privilege('service_role', 'public.resolve_duplicate_review(uuid,text,text)', 'EXECUTE')
      or has_function_privilege('anon', 'public.resolve_duplicate_review(uuid,text,text)', 'EXECUTE') then
-    raise exception '0087 fail-closed: resolve_duplicate_review must be executable by `authenticated` only';
+    raise exception '0089 fail-closed: resolve_duplicate_review must be executable by `authenticated` only';
   end if;
   if not has_function_privilege('authenticated', 'public.resolve_duplicate_review(uuid,text,text)', 'EXECUTE') then
-    raise exception '0087 fail-closed: a human cannot reach resolve_duplicate_review';
+    raise exception '0089 fail-closed: a human cannot reach resolve_duplicate_review';
   end if;
 
   -- No direct write path to the evidence table.
@@ -411,9 +410,8 @@ begin
        where has_table_privilege(rr.rolname, 'public.duplicate_reviews', pr.privilege)
     ) x;
   if bad is not null then
-    raise exception '0087 fail-closed: untrusted write privilege on duplicate_reviews — %', bad;
+    raise exception '0089 fail-closed: untrusted write privilege on duplicate_reviews — %', bad;
   end if;
 end
 $$;
 
-commit;

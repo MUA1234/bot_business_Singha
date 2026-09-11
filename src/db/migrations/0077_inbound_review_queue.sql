@@ -21,7 +21,6 @@
 --
 -- Forward-only, idempotent DDL. No feature flag (a correctness boundary, not a capability).
 
-begin;
 
 -- ── Capability ────────────────────────────────────────────────────────────────────────────────
 insert into public.permissions (key, label) values
@@ -273,7 +272,7 @@ begin
        where has_table_privilege(r.rolname, 'public.inbound_reviews', pr.privilege)
     ) x;
   if bad is not null then
-    raise exception '0075 fail-closed: untrusted write privilege remains — %', bad;
+    raise exception '0077 fail-closed: untrusted write privilege remains — %', bad;
   end if;
 
   select string_agg(p.proname, ', ') into bad
@@ -282,13 +281,12 @@ begin
      and p.proname in ('record_inbound_review', 'resolve_inbound_review', 'actor_has_capability')
      and (has_function_privilege('anon', p.oid, 'EXECUTE') or has_function_privilege('authenticated', p.oid, 'EXECUTE'));
   if bad is not null then
-    raise exception '0075 fail-closed: % reachable by anon/authenticated', bad;
+    raise exception '0077 fail-closed: % reachable by anon/authenticated', bad;
   end if;
 
   -- has_capability is an RLS predicate evaluated in the CALLER's role and must STAY reachable.
   if not has_function_privilege('authenticated', 'public.has_capability(uuid,text)', 'EXECUTE') then
-    raise exception '0075 fail-closed: has_capability is no longer executable by authenticated — RLS would deny everything';
+    raise exception '0077 fail-closed: has_capability is no longer executable by authenticated — RLS would deny everything';
   end if;
 end $$;
 
-commit;

@@ -14,7 +14,6 @@
 -- TRANSACTION BOUNDARY, so an assignee who was eligible when recommended but is not at commit time
 -- is refused. The AI may recommend; it cannot make anyone eligible.
 
-begin;
 
 create table if not exists public.task_routing (
   id                  uuid primary key default gen_random_uuid(),
@@ -287,14 +286,13 @@ begin
       cross join (values ('INSERT'),('UPDATE'),('DELETE')) as pr(privilege)
      where has_table_privilege(r.rolname, t.tbl, pr.privilege)
   ) x;
-  if bad is not null then raise exception '0072 fail-closed: untrusted write privilege remains — %', bad; end if;
+  if bad is not null then raise exception '0074 fail-closed: untrusted write privilege remains — %', bad; end if;
 
   select string_agg(p.proname, ', ') into bad
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public'
      and p.proname in ('route_task','task_assignee_ineligible_reason','task_routing_events_append_only')
      and (has_function_privilege('anon', p.oid, 'EXECUTE') or has_function_privilege('authenticated', p.oid, 'EXECUTE'));
-  if bad is not null then raise exception '0072 fail-closed: % reachable by anon/authenticated', bad; end if;
+  if bad is not null then raise exception '0074 fail-closed: % reachable by anon/authenticated', bad; end if;
 end $$;
 
-commit;

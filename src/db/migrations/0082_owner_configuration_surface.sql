@@ -13,7 +13,6 @@
 -- capability inside the transaction, and writes its audit event in the same transaction as the
 -- change.
 
-begin;
 
 -- ── Mapping: create (inactive), validate, activate, deactivate ─────────────────────────────────
 create or replace function public.admin_upsert_channel_account(
@@ -255,8 +254,7 @@ begin
                        'admin_set_membership_role','inbound_setup_status')
      and (has_function_privilege('anon', p.oid, 'EXECUTE') or has_function_privilege('authenticated', p.oid, 'EXECUTE'));
   if bad is not null then
-    raise exception '0080 fail-closed: % reachable by anon/authenticated', bad;
+    raise exception '0082 fail-closed: % reachable by anon/authenticated', bad;
   end if;
 end $$;
 
-commit;

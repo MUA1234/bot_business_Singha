@@ -42,7 +42,6 @@
 --
 -- Forward-only. Additive triggers and constraints, one function replaced, no data rewritten.
 
-begin;
 
 set local search_path = pg_catalog, extensions, public, pg_temp;
 
@@ -382,28 +381,27 @@ begin
      and t.tgname in ('duplicate_reviews_immutable', 'duplicate_reviews_insert_initial',
                       'duplicate_reviews_no_truncate');
   if n <> 3 then
-    raise exception '0088 fail-closed: expected 3 boundary triggers on duplicate_reviews, found %', n;
+    raise exception '0090 fail-closed: expected 3 boundary triggers on duplicate_reviews, found %', n;
   end if;
 
   if not exists (select 1 from pg_catalog.pg_trigger t
                    join pg_catalog.pg_class c on c.oid = t.tgrelid
                   where c.relname = 'financial_events' and not t.tgisinternal
                     and t.tgname = 'financial_events_protect_resolved_reviews') then
-    raise exception '0088 fail-closed: a resolved decision is still cascade-deletable';
+    raise exception '0090 fail-closed: a resolved decision is still cascade-deletable';
   end if;
 
   select count(*) into n from pg_catalog.pg_constraint
    where conrelid = 'public.duplicate_reviews'::regclass
      and conname in ('duplicate_reviews_candidate_company_fk', 'duplicate_reviews_matched_company_fk');
   if n <> 2 then
-    raise exception '0088 fail-closed: composite company FKs missing (found %)', n;
+    raise exception '0090 fail-closed: composite company FKs missing (found %)', n;
   end if;
 
   if has_function_privilege('service_role', 'public.resolve_duplicate_review(uuid,text,text)', 'EXECUTE')
      or has_function_privilege('anon', 'public.resolve_duplicate_review(uuid,text,text)', 'EXECUTE') then
-    raise exception '0088 fail-closed: resolve_duplicate_review must stay executable by `authenticated` only';
+    raise exception '0090 fail-closed: resolve_duplicate_review must stay executable by `authenticated` only';
   end if;
 end
 $$;
 
-commit;

@@ -32,7 +32,6 @@
 --
 -- Forward-only, idempotent DDL. No feature flag (a correctness boundary, not a capability).
 
-begin;
 
 -- ─────────────────────────────────────────────────────────────────────────────────────────────
 -- (1)(2) The dispatch marker: never lose the company, and settle a decided receipt's status
@@ -390,11 +389,11 @@ begin
   select 'public.has_capability(uuid,text)'::regprocedure::oid into v_wrapper;
   select 'public.actor_has_capability(uuid,uuid,text)'::regprocedure::oid into v_inner;
   if v_wrapper is null or v_inner is null then
-    raise exception '0077 fail-closed: the capability wrapper or its implementation is missing';
+    raise exception '0079 fail-closed: the capability wrapper or its implementation is missing';
   end if;
   if (select proowner from pg_catalog.pg_proc where oid = v_wrapper)
      is distinct from (select proowner from pg_catalog.pg_proc where oid = v_inner) then
-    raise exception '0077 fail-closed: has_capability and actor_has_capability have different owners';
+    raise exception '0079 fail-closed: has_capability and actor_has_capability have different owners';
   end if;
   perform public.has_capability(gen_random_uuid(), 'operations.inbound.review');
 end $$;
@@ -410,13 +409,12 @@ begin
                        'record_inbound_dispatch', 'route_task', 'canonical_event_identity')
      and (has_function_privilege('anon', p.oid, 'EXECUTE') or has_function_privilege('authenticated', p.oid, 'EXECUTE'));
   if bad is not null then
-    raise exception '0077 fail-closed: % reachable by anon/authenticated', bad;
+    raise exception '0079 fail-closed: % reachable by anon/authenticated', bad;
   end if;
 
   if exists (select 1 from public.source_events
               where dispatch_outcome = 'staff_finance' and dispatch_state = 'dispatched' and company_id is null) then
-    raise exception '0077 fail-closed: a staff_finance capture exists with no company scope';
+    raise exception '0079 fail-closed: a staff_finance capture exists with no company scope';
   end if;
 end $$;
 
-commit;

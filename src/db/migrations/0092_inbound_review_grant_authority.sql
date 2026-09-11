@@ -4,7 +4,6 @@
 -- genuine direct service connection fail when it had no request claims or claim text that differed
 -- from service_role. Keep the grant as the authority boundary; preserve all business controls.
 
-begin;
 
 create or replace function public.record_inbound_review(
   p_company uuid,
@@ -129,12 +128,11 @@ begin
     if not has_function_privilege('service_role', signature, 'EXECUTE')
       or has_function_privilege('anon', signature, 'EXECUTE')
       or has_function_privilege('authenticated', signature, 'EXECUTE') then
-      raise exception '0090 fail-closed: inbound-review RPC grants are unsafe for %', signature;
+      raise exception '0092 fail-closed: inbound-review RPC grants are unsafe for %', signature;
     end if;
     if position('caller_jwt_role' in pg_get_functiondef(signature::regprocedure)) > 0 then
-      raise exception '0090 fail-closed: inbound-review RPC still consults request claim text: %', signature;
+      raise exception '0092 fail-closed: inbound-review RPC still consults request claim text: %', signature;
     end if;
   end loop;
 end $$;
 
-commit;

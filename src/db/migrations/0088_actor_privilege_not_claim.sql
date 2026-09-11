@@ -63,7 +63,6 @@
 --
 -- Forward-only. One CREATE OR REPLACE, no data change, no grant change.
 
-begin;
 
 -- ── The single point of truth: a claim never selects a branch ────────────────────────────────
 create or replace function public._resolve_actor(p_by uuid, out v_actor uuid, out v_type text)
@@ -133,7 +132,7 @@ begin
     v_ok := true;
   end;
   if not v_ok then
-    raise exception '0086 fail-closed: a forged service_role claim still resolves (actor=%, type=%)',
+    raise exception '0088 fail-closed: a forged service_role claim still resolves (actor=%, type=%)',
       v_actor, v_type;
   end if;
 
@@ -143,7 +142,7 @@ begin
     '{"role":"service_role","sub":"00000000-0000-0000-0000-0000000000aa"}', true);
   select a.v_actor, a.v_type into v_actor, v_type from public._resolve_actor(null) a;
   if v_type <> 'user' or v_actor is null then
-    raise exception '0086 fail-closed: claim text still selects a non-user actor (actor=%, type=%)',
+    raise exception '0088 fail-closed: claim text still selects a non-user actor (actor=%, type=%)',
       v_actor, v_type;
   end if;
 
@@ -272,4 +271,3 @@ comment on function public._resolve_actor(uuid) is
   'bank-change maker-checker. v_type is now always ''user''. A service caller does not belong here: '
   'it gets a service_role-granted sibling entrypoint (0084''s pattern), never a claim branch.';
 
-commit;

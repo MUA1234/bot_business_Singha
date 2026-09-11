@@ -45,7 +45,6 @@
 --
 -- Forward-only. One CHECK widened, one function replaced.
 
-begin;
 
 set local search_path = pg_catalog, extensions, public, pg_temp;
 
@@ -306,9 +305,8 @@ do $$
 begin
   if has_function_privilege('service_role', 'public.resolve_duplicate_review(uuid,text,text)', 'EXECUTE')
      or has_function_privilege('anon', 'public.resolve_duplicate_review(uuid,text,text)', 'EXECUTE') then
-    raise exception '0089 fail-closed: resolve_duplicate_review must stay executable by `authenticated` only';
+    raise exception '0091 fail-closed: resolve_duplicate_review must stay executable by `authenticated` only';
   end if;
 end
 $$;
 
-commit;

@@ -24,7 +24,6 @@
 --   existing writer keeps working. Without this the retry path would have failed at runtime — an
 --   integration test caught it before it shipped.
 
-begin;
 
 -- ── Columns ────────────────────────────────────────────────────────────────────────────────────
 alter table public.source_events
@@ -313,8 +312,7 @@ begin
        or has_function_privilege('authenticated', p.oid, 'EXECUTE')
      );
   if bad is not null then
-    raise exception '0069 fail-closed: % reachable by anon/authenticated', bad;
+    raise exception '0071 fail-closed: % reachable by anon/authenticated', bad;
   end if;
 end $$;
 
-commit;
