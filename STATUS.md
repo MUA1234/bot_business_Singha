@@ -96,6 +96,66 @@ hosted environment.
 
 ---
 
+## Email ingestion, finished (2026-09-12, second session)
+
+The previous session left the inbound-email work **uncommitted and half-wired**: a route, a
+normaliser, a migration and a test file in the working tree, all passing, plus the follow-up
+notification change. Finishing it meant closing three gaps the tree did not show.
+
+### 1. Unroutable mail was dropped, not stored
+
+The route refused an unmapped recipient **before persisting**, so an email to an address no
+company claims survived only as a log line. That contradicts the invariant in the route's own
+header — persist, then process — and CLAUDE.md's "a failed process must never lose the original
+event". The WhatsApp route already does the opposite: it persists with a NULL company and marks
+the event `failed`, precisely so an unattributable message stays visible and replayable once the
+number is mapped (0070's rationale).
+
+Inbound mail now follows the same rule. It is stored, closed out `failed` with the address
+named, and **not** enqueued — the consumer needs a company to draft against, so queueing it would
+only dead-letter. The refusal is still a refusal: no company is ever guessed.
+
+### 2. The consumer never closed the source event's lifecycle — and email was about to walk into it
+
+`source_events.status` is how an operator tells a processed event from a lost one, and
+`/api/health` counts `received` as unprocessed. The 2026-09-11 fix closed that lifecycle at the
+two **WhatsApp** boundaries. It did not close it in the finance consumer
+(`financial/source_event.received`) — harmless at the time, because **nothing produced that
+event**. The email webhook is its first producer, so every ingested email would have sat at
+`received` for ever and the health signal would have grown without bound: the same defect that
+had just been fixed, resurfacing on a channel nobody was watching.
+
+The work and the bookkeeping now happen in one place (`processAndCloseSourceEvent`), so they
+cannot drift apart across an Inngest retry. Every real pipeline outcome — including a draft
+awaiting approval — counts as `processed`; a throw is named on the row **and** rethrown so
+Inngest still retries.
+
+### 3. The normaliser's output was computed and thrown away
+
+`normalizeInboundEmail` carefully extracted subject, sender and body — and nothing downstream
+read them. The consumer had no email branch, so `extractText` fell through to `JSON.stringify`
+and the model was asked to find an invoice inside a blob of MIME headers, routing keys and HTML.
+It now reads an email as `Subject: …` + body, selected by the event's stored `source` rather than
+sniffed from the payload, so a crafted WhatsApp payload cannot choose its own reader.
+
+### Also
+
+`companies.inbound_email_address` is a company-isolation boundary, so its two constraints (one
+address → one company; stored lower-case) are now proven by an integration test rather than
+assumed. The route no longer describes itself with the words "501" and "not implemented", which
+had kept it listed as a stub in the machine inventory the repo treats as a completion signal —
+`npm run inventory` now reports **0** stub routes, truthfully. Recorded as **D-023**.
+
+### Verification
+
+typecheck · lint (0 errors) · secret-scan · migration-lint · inventory · build — all clean.
+**Unit 537 (88 files). Integration 44 files / 337 tests**, four consecutive runs on one
+disposable PostgreSQL 16 migrated `0001→0071` from the committed bootstrap. Nothing was touched
+on any hosted environment: **migration 0071 is NOT applied to the hosted database**, and the
+endpoint stays inert until `EMAIL_WEBHOOK_SECRET` and an address are set.
+
+---
+
 ## Still needing the owner
 
 Not defects — each was raised and deferred. Treat them as known-open rather than re-auditing them.
@@ -107,7 +167,7 @@ Not defects — each was raised and deferred. Treat them as known-open rather th
 | 3 | **`OPENAI_PRICE_*` unset on Railway** → `ai_runs.cost_usd` records 0 by design (no guessed rates — D-020). |
 | 4 | **`LEGAL.legalEntity` is "Singha Holdings"** and the data-protection contact is a personal Gmail. Both are needed before Meta app review. |
 | 5 | **Railway → `singha-web` → Source:** the one-time GitHub OAuth so pushes auto-deploy. Right now deploys need `railway up`. |
-| 6 | **`/api/webhooks/email` is still a 501 stub.** |
+| 6 | **Inbound email is built but unconfigured.** To turn it on: set `EMAIL_WEBHOOK_SECRET` (and `EMAIL_WEBHOOK_SIGNATURE_HEADER` if your provider does not use `x-signature-256`), point an inbound-parse provider at `/api/webhooks/email`, apply **migration 0071** to the hosted DB, and set `companies.inbound_email_address`. Until all four are done the endpoint refuses everything, by design. |
 | 7 | **Credentials pasted into a chat transcript on 2026-09-01 should be rotated:** the Supabase database password, the `sb_secret_…` key, `WHATSAPP_VERIFY_TOKEN`, and the three staff passwords. |
 
 ---

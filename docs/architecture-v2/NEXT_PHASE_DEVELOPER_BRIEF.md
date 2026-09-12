@@ -87,7 +87,9 @@ The intended product is not simply a chatbot or dashboard. It is a multi-company
 
 - The live WhatsApp route performs AI/order processing and outbound replies synchronously inside the webhook request.
 - Inngest and the outbox exist but are not connected to the live WhatsApp path.
-- Email ingestion is a `501` stub.
+- Email ingestion is **implemented** (2026-09-12, D-023): signature-verified, persist-then-enqueue,
+  company resolved from `companies.inbound_email_address` (migration 0071). Inert until the owner sets
+  `EMAIL_WEBHOOK_SECRET` and an address.
 - Google Sheets is an export/view mechanism, not a monitored source integration.
 - GPS, CCTV, and automated attendance are not implemented and must remain gated until legal and privacy approval.
 

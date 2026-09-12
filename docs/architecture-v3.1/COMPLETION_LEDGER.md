@@ -28,6 +28,8 @@
   the allowlist): **38** supabaseAdmin files (after the dead-file deletion) · **75** money-as-Number
   suspect lines · **8/8** V3.1 flags without runtime consumers · 3 TODOs · 1 stub route (email
   inbound 501) · **72** error-masking suspects (catch→empty/zero + error-discarding destructures).
+  _(2026-09-12: the email stub is now implemented — D-023 — so the current inventory reports **0**
+  stub routes; the numbers above are kept as the historical baseline they were taken as.)_
 - **Code-first audit findings (2026-08-17 sweeps; each file opened, not path-guessed):**
   - Service-role classification: SYSTEM-KEEP vs AUTH-READ vs AUTH-WRITE recorded per file in
     `docs/architecture-v2/SERVICE_ROLE_INVENTORY.md` (2026-08-17 update block) — Phase-2 work list.

@@ -50,7 +50,7 @@ but not yet run** — running them is a config step (needs your Supabase project
 | Feature | Status | Where |
 |---|---|---|
 | WhatsApp webhook: challenge verify + **signature hard-reject** (D-007) + persist-then-enqueue | 🟨 | `src/app/api/webhooks/whatsapp/route.ts` — code complete; **activates after you configure Meta + env** |
-| Email ingestion webhook | 🟨 stub | `src/app/api/webhooks/email/route.ts` — provider + secret is your choice |
+| Email ingestion webhook: **signature hard-reject** + persist-then-enqueue + company routed by delivery address | 🟨 | `src/app/api/webhooks/email/route.ts` + `src/lib/email-inbound.ts` (migration 0071) — code complete; **activates after you set `EMAIL_WEBHOOK_SECRET` and a company `inbound_email_address`** |
 | Inngest durable queue + serve endpoint | 🟨 | `src/inngest/*`, `src/app/api/inngest/route.ts` — needs Inngest keys |
 | Inngest consumer (AI extract → detect-missing → dedup → draft → policy → approval/clarification → audit) | ✅ | `src/inngest/processing.ts` (pure, tested) + `src/inngest/functions.ts` (live wiring) + `src/db/consumer-store.ts` (Supabase ports) · `tests/processing.test.ts` — **activates when Supabase + OpenAI + Inngest keys are set** |
 

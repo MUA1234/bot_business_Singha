@@ -3,7 +3,7 @@
 > Regenerate with `node scripts/completion-inventory.mjs`. Deterministic: changes only when code changes.
 > Suspect lists are HEURISTIC work lists (each entry needs triage), not verdicts.
 
-## 1. supabaseAdmin() usage — 38 file(s)
+## 1. supabaseAdmin() usage — 39 file(s)
 
 | file | refs |
 |---|---|
@@ -13,6 +13,7 @@
 | src/app/api/cron/outbox/route.ts | 2 |
 | src/app/api/exports/[kind]/route.ts | 2 |
 | src/app/api/health/route.ts | 2 |
+| src/app/api/webhooks/email/route.ts | 2 |
 | src/app/api/webhooks/whatsapp/route.ts | 2 |
 | src/app/app/_actions/price.ts | 2 |
 | src/app/app/admin/audit/page.tsx | 2 |
@@ -35,7 +36,7 @@
 | src/app/app/operations/tasks/actions.ts | 15 |
 | src/app/login/actions.ts | 2 |
 | src/components/PriceRequests.tsx | 3 |
-| src/inngest/functions.ts | 3 |
+| src/inngest/functions.ts | 4 |
 | src/lib/audit.ts | 2 |
 | src/lib/auth.ts | 3 |
 | src/lib/documents.ts | 3 |
@@ -94,9 +95,8 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | src/app/legal-config.ts:10 | TODO | `// TODO: replace with your registered legal company name.` |
 | src/app/legal-config.ts:12 | TODO | `// TODO: replace with a monitored business contact address.` |
 
-## 6. Stub routes (501 / not-implemented) — 1
+## 6. Stub routes (501 / not-implemented) — 0
 
-- src/app/api/webhooks/email/route.ts
 
 ## 7. Error-masking suspects (catch → empty return) — 71 (Phase-1C triage list)
 
@@ -161,8 +161,8 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | src/app/app/procurement/rfqs/actions.ts:16 | `error-discarding destructure` |
 | src/app/app/sales/accounts/page.tsx:18 | `[]` |
 | src/app/app/sales/leads/page.tsx:24 | `error-discarding destructure` |
-| src/db/consumer-store.ts:74 | `error-discarding destructure` |
-| src/db/consumer-store.ts:94 | `error-discarding destructure` |
+| src/db/consumer-store.ts:77 | `error-discarding destructure` |
+| src/db/consumer-store.ts:97 | `error-discarding destructure` |
 | src/lib/access.ts:85 | `error-discarding destructure` |
 | src/lib/access.ts:116 | `error-discarding destructure` |
 | src/lib/documents.ts:52 | `error-discarding destructure` |

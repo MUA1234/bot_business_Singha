@@ -44,7 +44,7 @@ backup/restore; failure-recovery.
 
 ### 3.1 Standing up the integration database (added 2026-09-12)
 
-The 333 integration tests need a real PostgreSQL 16 and are skipped without
+The 337 integration tests need a real PostgreSQL 16 and are skipped without
 `DATABASE_URL`. The migrations are written for **Supabase**, so a plain cluster is missing
 the `auth` schema, `auth.uid()`, the API roles (`anon` / `authenticated` / `service_role`)
 and Supabase's default table grants. `scripts/test-db-bootstrap.sql` supplies exactly
@@ -53,8 +53,8 @@ those, and must run **before** the migrations so the migrations' own REVOKEs sti
 ```bash
 createdb singha_test
 psql -d singha_test -v ON_ERROR_STOP=1 -f scripts/test-db-bootstrap.sql
-DATABASE_URL=postgresql://…/singha_test npm run migrate           # 0001 → 0070
-DATABASE_URL=postgresql://…/singha_test npm run test:integration  # 43 files / 333 tests
+DATABASE_URL=postgresql://…/singha_test npm run migrate           # 0001 → 0071
+DATABASE_URL=postgresql://…/singha_test npm run test:integration  # 44 files / 337 tests
 ```
 
 Two traps the script exists to remove, both of which fail loudly but misleadingly:

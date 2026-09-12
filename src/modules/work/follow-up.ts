@@ -114,3 +114,35 @@ export function resolveFollowUpDelivery(
     unowned: true,
   };
 }
+
+/**
+ * The in-app notification a due follow-up raises. Pure, because its `type` + `link` are also
+ * the DAY-BUCKET DEDUPE KEY for a sweep that runs every 15 minutes — `notifications`
+ * (migration 0022) carries no idempotency key of its own, so getting this shape wrong means
+ * either 96 duplicate notifications a day or a silently dropped one.
+ */
+export interface FollowUpNotification {
+  type: string;
+  title: string;
+  body: string;
+  link: string;
+}
+
+export function followUpNotification(
+  action: FollowUpAction,
+  taskId: string,
+  taskTitle: string,
+  reason: string,
+): FollowUpNotification {
+  const headline =
+    action === "estimate_request" ? `Estimate needed: "${taskTitle}"`
+    : action === "overdue_reminder" ? `Overdue: "${taskTitle}"`
+    : action === "verification_request" ? `Verification needed: "${taskTitle}"`
+    : `Escalation: "${taskTitle}"`;
+  return { type: `task_${action}`, title: headline, body: reason, link: `/app/operations/tasks/${taskId}` };
+}
+
+/** Identity of one notification for one person: task × action × recipient. */
+export function followUpDedupeKey(recipientId: string, n: FollowUpNotification): string {
+  return `${recipientId}|${n.type}|${n.link}`;
+}

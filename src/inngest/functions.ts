@@ -16,10 +16,10 @@ import { AiGateway } from "@/ai/gateway";
 import { makeOpenAiTransport } from "@/ai/openai-transport";
 import { serviceClient } from "@/db/client";
 import { makeSupabaseConsumerStore, makeSupabaseCostLedger } from "@/db/consumer-store";
-import { processSourceEvent, type ConsumerDeps } from "./processing";
+import { processAndCloseSourceEvent, type ConsumerDeps } from "./processing";
 import { handleCustomerMessage } from "@/lib/order-intake";
 import { completeSourceEvent } from "@/db/source-event-store";
-import { outcomeForHandlerStatus } from "@/events/source-event";
+import { outcomeForHandlerStatus, SOURCE_EVENT_RECEIVED } from "@/events/source-event";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { drainOutbox } from "@/events/outbox-drain";
 import { log } from "@/lib/log";
@@ -38,7 +38,7 @@ export const onSourceEventReceived = inngest.createFunction(
     idempotency: "event.data.source_event_id",
     retries: 4,
   },
-  { event: "financial/source_event.received" },
+  { event: SOURCE_EVENT_RECEIVED },
   async ({ event, step }) => {
     const { source_event_id, correlation_id } = event.data as {
       source_event_id: string;
@@ -49,8 +49,17 @@ export const onSourceEventReceived = inngest.createFunction(
     // via the function-level idempotency key; a RetryableExtractionError thrown from
     // inside bubbles up so Inngest retries with backoff, and dead-letters after the
     // configured retries (guide invariant #9: a failed process never loses the event).
+    //
+    // The lifecycle close-out lives in the SAME step as the work, so the two cannot drift
+    // apart across a retry. Without it every event this consumer handles stayed `received`
+    // for ever and `/api/health` counted it as unprocessed — the 2026-09-11 live defect,
+    // which was fixed at the two WhatsApp boundaries but not here. This consumer had no
+    // producer at all until the email webhook was wired, so email was about to walk
+    // straight back into it.
     const outcome = await step.run("process-source-event", () =>
-      processSourceEvent({ source_event_id, correlation_id }, liveDeps()),
+      processAndCloseSourceEvent({ source_event_id, correlation_id }, liveDeps(), (o) =>
+        completeSourceEvent(supabaseAdmin(), source_event_id, o),
+      ),
     );
 
     return outcome;

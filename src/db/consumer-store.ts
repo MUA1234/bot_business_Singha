@@ -11,6 +11,7 @@ import { approvalPolicy, type ApprovalPolicy } from "@/schemas/approval-policy";
 import { assertTransition, type FinancialEventState } from "@/domain/lifecycle";
 import type { AiRunRecord, CostLedger } from "@/ai/gateway";
 import type { ConsumerDeps, LoadedSourceEvent } from "@/inngest/processing";
+import { emailContentText } from "@/lib/email-inbound";
 import { log } from "@/lib/log";
 
 /** The DB-backed subset of ConsumerDeps (everything except the injected `gateway`). */
@@ -56,7 +57,7 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
     async loadSourceEvent(sourceEventId): Promise<LoadedSourceEvent> {
       const { data, error } = await db
         .from("source_events")
-        .select("id, company_id, correlation_id, raw_payload")
+        .select("id, company_id, correlation_id, raw_payload, source")
         .eq("id", sourceEventId)
         .single();
       if (error || !data) throw new Error(`source_event ${sourceEventId} not found: ${error?.message}`);
@@ -64,7 +65,9 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
         id: data.id,
         company_id: data.company_id ?? null,
         correlation_id: data.correlation_id,
-        content: extractText(data.raw_payload),
+        // The channel decides how to read the payload. Passing it is what stops an email
+        // being handed to the model as a JSON envelope (see `extractText`).
+        content: extractText(data.raw_payload, data.source),
       };
     },
 
@@ -237,10 +240,21 @@ export function makeSupabaseConsumerStore(db: SupabaseClient): ConsumerStore {
 
 /**
  * Pull the untrusted text out of a stored raw payload. Handles the WhatsApp Cloud API
- * message shape (`text.body`) and falls back to JSON so nothing is silently dropped.
+ * message shape (`text.body`) and the inbound-email shape (subject + body), and falls back
+ * to JSON so nothing is silently dropped.
  * The result is treated as UNTRUSTED by the gateway (fenced) — this is just extraction.
+ *
+ * `source` is the channel the event arrived on (`source_events.source`). It is honoured
+ * rather than sniffed: guessing the shape from the keys present would let a crafted WhatsApp
+ * payload choose its own reader.
  */
-export function extractText(rawPayload: unknown): string {
+export function extractText(rawPayload: unknown, source?: string | null): string {
+  if (source === "email") {
+    const emailText = emailContentText(rawPayload);
+    if (emailText !== null) return emailText;
+    // No subject and no body: fall through to the JSON dump rather than send the model an
+    // empty string, so an unrecognised provider shape is still visible to a human.
+  }
   const p = rawPayload as {
     text?: { body?: string };
     caption?: string;

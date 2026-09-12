@@ -35,6 +35,7 @@ import {
 import { scoreDuplicate, type DuplicateCandidateInput } from "@/events/duplicate";
 import { evaluatePolicy, toEvaluatable, type PolicyDecision } from "@/policy/authority";
 import { assertTransition, type FinancialEventState } from "@/domain/lifecycle";
+import type { HandlerOutcome } from "@/events/source-event";
 
 /** A source event loaded from storage, reduced to what the pipeline needs. */
 export interface LoadedSourceEvent {
@@ -384,6 +385,44 @@ function result(
   aiOk: boolean,
 ): ProcessResult {
   return { source_event_id: src.id, financial_event_id: financialEventId, outcome, ai_ok: aiOk };
+}
+
+/**
+ * Run the pipeline for one stored event AND close that event's lifecycle from the outcome.
+ *
+ * WHY THIS EXISTS. `source_events.status` is the operator's only way to tell a processed
+ * event from a lost one — `/api/health` counts `received`/`processing` as unprocessed. On
+ * 2026-09-11 every live row sat at `received` for ever; the fix wired the close-out into the
+ * two WhatsApp boundaries, but NOT into this consumer, which at the time had no producer at
+ * all. Wiring the email webhook gave it one, so the defect would have walked straight back
+ * in on a channel nobody was watching. Doing both here means the work and the bookkeeping
+ * cannot drift apart across an Inngest retry.
+ *
+ * `complete` is a port (not a DB call) so this stays unit-testable, like the rest of the
+ * file. It is best-effort by contract: it must not throw, because failing the run over a
+ * bookkeeping write would turn an observability gap into a reprocessed event.
+ */
+export async function processAndCloseSourceEvent(
+  input: { source_event_id: string; correlation_id: string },
+  deps: ConsumerDeps,
+  complete: (outcome: HandlerOutcome) => Promise<void>,
+): Promise<ProcessResult> {
+  try {
+    const res = await processSourceEvent(input, deps);
+    // EVERY ProcessOutcome means the pipeline dealt with the event. A draft awaiting
+    // approval or evidence is a real, visible outcome — not a failure — and marking it
+    // `failed` would make a healthy queue look broken. (`outcomeForHandlerStatus` is
+    // deliberately not reused here: it maps the WhatsApp order-intake vocabulary, in which
+    // most of these words are unknown and therefore scored as failures.)
+    await complete({ status: "processed", lastError: null });
+    return res;
+  } catch (e) {
+    // Name the failure on the row so a stuck event is visible rather than silent, then
+    // rethrow so Inngest still retries with backoff. A later successful attempt flips the
+    // row to `processed`; an exhausted one leaves it `failed`, which is the truth.
+    await complete({ status: "failed", lastError: (e as Error).message.slice(0, 500) });
+    throw e;
+  }
 }
 
 /** Re-export so the DB layer can validate transitions the same way the pipeline does. */

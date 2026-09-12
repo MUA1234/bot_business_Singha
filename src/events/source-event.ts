@@ -48,6 +48,14 @@ export interface SourceEventStore {
   }): Promise<{ event: StoredSourceEvent; alreadyExisted: boolean }>;
 }
 
+/**
+ * Event name for a stored source event that is ready to be processed (webhook → durable
+ * worker). Shared, like `WHATSAPP_INBOUND_EVENT`, so the producer and the consumer can never
+ * drift apart — the failure mode is silent: the event is emitted, nothing is listening, and
+ * the source event simply never leaves `received`.
+ */
+export const SOURCE_EVENT_RECEIVED = "financial/source_event.received" as const;
+
 export interface EventQueue {
   enqueue(event: { name: string; data: { source_event_id: string; correlation_id: string } }): Promise<void>;
 }
@@ -86,7 +94,7 @@ export async function ingestSourceEvent(
   }
 
   await queue.enqueue({
-    name: "financial/source_event.received",
+    name: SOURCE_EVENT_RECEIVED,
     data: { source_event_id: event.id, correlation_id: event.correlation_id },
   });
 

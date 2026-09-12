@@ -4,10 +4,12 @@ import { approvalPolicy, type ApprovalPolicy } from "@/schemas/approval-policy";
 import { assertTransition, type FinancialEventState } from "@/domain/lifecycle";
 import {
   processSourceEvent,
+  processAndCloseSourceEvent,
   RetryableExtractionError,
   type ConsumerDeps,
   type LoadedSourceEvent,
 } from "@/inngest/processing";
+import type { HandlerOutcome } from "@/events/source-event";
 import type { DuplicateCandidateInput } from "@/events/duplicate";
 
 const COMPANY = "11111111-1111-1111-1111-111111111111";
@@ -279,5 +281,68 @@ describe("Consumer pipeline (guide: extract → detect → dedup → draft → p
     // Nothing downstream was created — the event stays for a clean retry.
     expect(h.drafts).toHaveLength(0);
     expect(h.approvals).toHaveLength(0);
+  });
+});
+
+/**
+ * Lifecycle close-out (regression, 2026-09-12).
+ *
+ * `source_events.status` is how an operator tells a processed event from a lost one, and
+ * `/api/health` counts `received`/`processing` as unprocessed. The 2026-09-11 fix wired the
+ * close-out into the two WhatsApp boundaries but NOT into this consumer, which was harmless
+ * only because nothing produced `financial/source_event.received`. Wiring
+ * `/api/webhooks/email` gave it a producer — so without this, every ingested email would sit
+ * at `received` for ever and the health signal would grow without bound, exactly the live
+ * defect that had just been fixed, on a channel nobody was watching.
+ */
+describe("processAndCloseSourceEvent — the work and the bookkeeping cannot drift apart", () => {
+  const collect = () => {
+    const seen: HandlerOutcome[] = [];
+    return { seen, complete: async (o: HandlerOutcome) => { seen.push(o); } };
+  };
+
+  it("marks the event PROCESSED when the pipeline reaches a real outcome", async () => {
+    const h = makeHarness({ transport: fakeTransport(extractionJson()), policy: policyWith({ auto_approve: false }) });
+    const c = collect();
+    const r = await processAndCloseSourceEvent(RUN, h.deps, c.complete);
+
+    // `awaiting_approval` is a VISIBLE outcome, not a failure — a queue of drafts awaiting a
+    // human is the system working. Marking it failed would make a healthy queue look broken.
+    expect(r.outcome).toBe("awaiting_approval");
+    expect(c.seen).toEqual([{ status: "processed", lastError: null }]);
+  });
+
+  it("marks a clarification outcome processed too, not just the fully-approved path", async () => {
+    const h = makeHarness({ transport: fakeTransport(extractionJson({ amount: null, missing_fields: ["amount"] })) });
+    const c = collect();
+    const r = await processAndCloseSourceEvent(RUN, h.deps, c.complete);
+
+    expect(r.outcome).toBe("awaiting_information");
+    expect(c.seen).toEqual([{ status: "processed", lastError: null }]);
+  });
+
+  it("names the failure on the row AND rethrows, so Inngest still retries", async () => {
+    const h = makeHarness({ transport: throwingTransport() });
+    const c = collect();
+
+    // Rethrown: swallowing it here would mark the event done and silently drop the work.
+    await expect(processAndCloseSourceEvent(RUN, h.deps, c.complete)).rejects.toBeInstanceOf(RetryableExtractionError);
+    expect(c.seen).toHaveLength(1);
+    expect(c.seen[0]!.status).toBe("failed");
+    expect(c.seen[0]!.lastError).toContain("ECONNRESET");
+  });
+
+  it("caps the recorded error — a multi-megabyte provider dump in an observability field is its own outage", async () => {
+    const huge = "E".repeat(5000);
+    const transport: CompletionTransport = {
+      async complete(): Promise<CompletionResponse> {
+        throw new Error(huge);
+      },
+    };
+    const h = makeHarness({ transport });
+    const c = collect();
+
+    await expect(processAndCloseSourceEvent(RUN, h.deps, c.complete)).rejects.toThrow();
+    expect(c.seen[0]!.lastError!.length).toBe(500);
   });
 });

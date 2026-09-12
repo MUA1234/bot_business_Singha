@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   evaluateFollowUp,
   resolveFollowUpDelivery,
+  followUpNotification,
+  followUpDedupeKey,
   DEFAULT_FOLLOW_UP,
   type FollowUpTask,
   type FollowUpAction,
@@ -107,5 +109,34 @@ describe("resolveFollowUpDelivery — unowned work must reach a human", () => {
     const d = evaluateFollowUp(task({ status: "in_progress", dueDate: "2026-08-14", lastActivityAt: hoursAgo(48) }), DEFAULT_FOLLOW_UP, now);
     expect(d.action).toBe("overdue_reminder");
     expect(resolveFollowUpDelivery(d, false)).toMatchObject({ to: "managers", unowned: true });
+  });
+});
+
+describe("followUpNotification — the in-app channel and its day-bucket dedupe key", () => {
+  it("names the action in the type, so two different actions on one task are distinct", () => {
+    const a = followUpNotification("overdue_reminder", "t1", "Pour slab", "task is overdue");
+    const b = followUpNotification("escalation", "t1", "Pour slab", "overdue 5d");
+    expect(a.type).toBe("task_overdue_reminder");
+    expect(b.type).toBe("task_escalation");
+    expect(followUpDedupeKey("u1", a)).not.toBe(followUpDedupeKey("u1", b));
+  });
+
+  it("links to the task, and the same task+action+person is ONE key", () => {
+    const n = followUpNotification("escalation", "t1", "Pour slab", "r");
+    expect(n.link).toBe("/app/operations/tasks/t1");
+    // The sweep runs every 15 minutes; a stable key is what stops 96 notifications a day.
+    expect(followUpDedupeKey("u1", n)).toBe(followUpDedupeKey("u1", followUpNotification("escalation", "t1", "Pour slab", "different reason")));
+  });
+
+  it("two recipients of one escalation are two distinct keys", () => {
+    const n = followUpNotification("escalation", "t1", "Pour slab", "r");
+    expect(followUpDedupeKey("admin1", n)).not.toBe(followUpDedupeKey("admin2", n));
+  });
+
+  it("headlines say what is wanted, and the body carries the engine's reason", () => {
+    expect(followUpNotification("estimate_request", "t", "Wiring", "estimate still outstanding").title).toBe('Estimate needed: "Wiring"');
+    expect(followUpNotification("verification_request", "t", "Wiring", "awaiting verification").title).toBe('Verification needed: "Wiring"');
+    expect(followUpNotification("overdue_reminder", "t", "Wiring", "task is overdue").title).toBe('Overdue: "Wiring"');
+    expect(followUpNotification("escalation", "t", "Wiring", "nobody is assigned to it").body).toBe("nobody is assigned to it");
   });
 });
