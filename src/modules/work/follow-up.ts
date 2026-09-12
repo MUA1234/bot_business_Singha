@@ -84,3 +84,33 @@ export function evaluateFollowUp(
       return none(`no follow-up for state ${task.status}`);
   }
 }
+
+/**
+ * WHO a due follow-up must reach. Pure, so the rule is testable without a database.
+ *
+ * The worker-directed actions (estimate / overdue / verification) address a named person.
+ * If a task has no ACTIVE assignee there is no such person, and the sweep used to resolve
+ * an empty phone number and silently send nothing — so unowned work reached nobody at all
+ * (observed live: every AI-captured task carries `assigned_to = NULL`). Work that is due
+ * and unowned is a management problem, so it escalates to the company's managers instead.
+ */
+export type FollowUpAudience =
+  | { to: "assignee"; action: FollowUpAction; reason: string }
+  | { to: "managers"; action: "escalation"; reason: string; unowned: boolean };
+
+export function resolveFollowUpDelivery(
+  decision: FollowUpResult,
+  hasActiveAssignee: boolean,
+): FollowUpAudience | null {
+  if (!decision.due || !decision.action) return null;
+  if (decision.action === "escalation") {
+    return { to: "managers", action: "escalation", reason: decision.reason, unowned: !hasActiveAssignee };
+  }
+  if (hasActiveAssignee) return { to: "assignee", action: decision.action, reason: decision.reason };
+  return {
+    to: "managers",
+    action: "escalation",
+    reason: `${decision.reason} — and nobody is assigned to it`,
+    unowned: true,
+  };
+}

@@ -35,7 +35,7 @@
 | src/app/app/operations/tasks/actions.ts | 15 |
 | src/app/login/actions.ts | 2 |
 | src/components/PriceRequests.tsx | 3 |
-| src/inngest/functions.ts | 2 |
+| src/inngest/functions.ts | 3 |
 | src/lib/audit.ts | 2 |
 | src/lib/auth.ts | 3 |
 | src/lib/documents.ts | 3 |
@@ -43,7 +43,7 @@
 | src/lib/notify.ts | 2 |
 | src/lib/order-intake.ts | 2 |
 | src/lib/outbox-enqueue.ts | 2 |
-| src/lib/quotations.ts | 6 |
+| src/lib/quotations.ts | 7 |
 | src/lib/task-access.ts | 4 |
 
 Allowlist: none yet — Phase 2 introduces it; until then --check does not fail on this category
@@ -82,8 +82,8 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 
 | env | consumers |
 |---|---|
-| RLS_READS | src/lib/supabase/read.ts |
-| RLS_WRITES | src/app/app/finance/customer-invoices/actions.ts<br>src/app/app/finance/supplier-bills/actions.ts<br>src/lib/auth.ts<br>src/lib/supabase/read.ts |
+| RLS_READS | src/lib/identity-provisioning.ts<br>src/lib/supabase/read.ts |
+| RLS_WRITES | src/app/app/finance/customer-invoices/actions.ts<br>src/app/app/finance/supplier-bills/actions.ts<br>src/lib/auth.ts<br>src/lib/identity-provisioning.ts<br>src/lib/supabase/read.ts |
 | WHATSAPP_ASYNC | src/app/api/webhooks/whatsapp/route.ts |
 
 ## 5. TODO/FIXME markers — 3
@@ -98,13 +98,13 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 
 - src/app/api/webhooks/email/route.ts
 
-## 7. Error-masking suspects (catch → empty return) — 70 (Phase-1C triage list)
+## 7. Error-masking suspects (catch → empty return) — 71 (Phase-1C triage list)
 
 | file:line | returns |
 |---|---|
-| src/ai/gateway.ts:157 | `null` |
+| src/ai/gateway.ts:164 | `null` |
 | src/ai/manager-observation.ts:125 | `null` |
-| src/ai/quotation.ts:104 | `null` |
+| src/ai/quotation.ts:287 | `null` |
 | src/app/api/cron/daily-digest/route.ts:22 | `0` |
 | src/app/api/exports/[kind]/route.ts:28 | `error-discarding destructure` |
 | src/app/api/exports/[kind]/route.ts:40 | `error-discarding destructure` |
@@ -112,8 +112,8 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | src/app/api/exports/[kind]/route.ts:64 | `error-discarding destructure` |
 | src/app/api/exports/[kind]/route.ts:76 | `error-discarding destructure` |
 | src/app/api/exports/[kind]/route.ts:86 | `error-discarding destructure` |
-| src/app/app/admin/catalog/page.tsx:14 | `error-discarding destructure` |
-| src/app/app/admin/employees/actions.ts:26 | `error-discarding destructure` |
+| src/app/app/admin/catalog/page.tsx:17 | `error-discarding destructure` |
+| src/app/app/admin/employees/actions.ts:28 | `error-discarding destructure` |
 | src/app/app/admin/employees/page.tsx:22 | `error-discarding destructure` |
 | src/app/app/admin/health/page.tsx:20 | `[]` |
 | src/app/app/admin/outbox/page.tsx:16 | `[]` |
@@ -163,12 +163,13 @@ Allowlist: none yet — Phase 2 introduces it; until then --check does not fail 
 | src/app/app/sales/leads/page.tsx:24 | `error-discarding destructure` |
 | src/db/consumer-store.ts:74 | `error-discarding destructure` |
 | src/db/consumer-store.ts:94 | `error-discarding destructure` |
-| src/lib/access.ts:81 | `error-discarding destructure` |
-| src/lib/access.ts:112 | `error-discarding destructure` |
+| src/lib/access.ts:85 | `error-discarding destructure` |
+| src/lib/access.ts:116 | `error-discarding destructure` |
 | src/lib/documents.ts:52 | `error-discarding destructure` |
 | src/lib/documents.ts:54 | `null` |
 | src/lib/ledger-report.ts:13 | `[]` |
 | src/lib/money.ts:139 | `null` |
+| src/lib/quotations.ts:209 | `error-discarding destructure` |
 | src/lib/task-access.ts:27 | `error-discarding destructure` |
 | src/lib/task-access.ts:38 | `error-discarding destructure` |
 | src/lib/task-access.ts:48 | `error-discarding destructure` |

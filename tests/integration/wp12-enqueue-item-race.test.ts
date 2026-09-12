@@ -68,13 +68,31 @@ describe.skipIf(!enabled)("0067 enqueue vs item-mutation race (live, two connect
     const mem = (await setup.query(`insert into memberships (company_id, user_id, status) values ($1,$2,'active') returning id`, [co, capUser])).rows[0].id;
     await setup.query(`insert into membership_roles (membership_id, company_id, role_key) values ($1,$2,'owner_management')`, [mem, co]);
   });
+  // This is the ONE integration file whose fixtures must really COMMIT (it races two live
+  // transactions, so a rollback-everything harness cannot express it). Cleanup is therefore
+  // manual, and it has to be COMPLETE and in FK order. It previously stopped at `memberships`,
+  // so every run permanently leaked a company, a profile, a `users` row and an `auth.users`
+  // row — and the orphaned profile (membership deleted, profile kept) then FAILED
+  // `identity-consistency.test.ts` on the next run against the same database. The suite was
+  // not idempotent, and the leak silently broke the 2026-09-11 identity-drift gate.
   afterAll(async () => {
     for (const c of [cA, cB]) { try { await c?.query("rollback"); } catch { /* noop */ } try { await c?.query("reset role"); } catch { /* noop */ } }
-    for (const cid of [co, coB]) for (const sql of [`delete from message_outbox where company_id=$1`, `delete from quotation_items where company_id=$1`, `delete from quotations where company_id=$1`, `delete from orders where company_id=$1`, `delete from wa_conversations where company_id=$1`]) {
+    for (const cid of [co, coB]) for (const sql of [
+      `delete from message_outbox where company_id=$1`,
+      `delete from quotation_items where company_id=$1`,
+      `delete from quotations where company_id=$1`,
+      `delete from orders where company_id=$1`,
+      `delete from wa_conversations where company_id=$1`,
+      `delete from membership_roles where company_id=$1`,
+      `delete from memberships where company_id=$1`,
+      `delete from profiles where company_id=$1`,
+    ]) {
       try { await setup.query(sql, [cid]); } catch { /* noop */ }
     }
-    try { await setup.query(`delete from membership_roles where company_id=$1`, [co]); } catch { /* noop */ }
-    try { await setup.query(`delete from memberships where company_id=$1`, [co]); } catch { /* noop */ }
+    // The identity rows are keyed by user, not company — they outlive a company delete.
+    for (const sql of [`delete from users where id=$1`, `delete from auth.users where id=$1`]) {
+      try { await setup.query(sql, [capUser]); } catch { /* noop */ }
+    }
     for (const cid of [co, coB]) { try { await setup.query(`delete from companies where id=$1`, [cid]); } catch { /* noop */ } }
     await Promise.all([cA?.end(), cB?.end(), setup?.end()].map((p) => p?.catch?.(() => {})));
   });

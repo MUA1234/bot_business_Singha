@@ -232,7 +232,7 @@ describe.skipIf(!enabled)("WP11 approval scope/currency/delegation — live, zer
 // ── Concurrency: two concurrent final approvals serialise on the request FOR UPDATE lock ──
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let setup: any, c1: any, c2: any;
-let cco: string, cReq: string, cApprover: string;
+let cco: string, cReq: string, cApprover: string, cMaker: string;
 
 describe.skipIf(!enabled)("WP11 approval concurrency — live, two connections", () => {
   beforeAll(async () => {
@@ -240,14 +240,14 @@ describe.skipIf(!enabled)("WP11 approval concurrency — live, two connections",
     const mk = async () => { const c = new pg.Client({ connectionString: URL, ssl: /localhost|127\.0\.0\.1/.test(URL) ? false : { rejectUnauthorized: false } }); await c.connect(); return c; };
     setup = await mk();
     cco = (await setup.query(`insert into companies (name, base_currency) values ('wp11c','LKR') returning id`)).rows[0].id;
-    const maker2 = (await setup.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(),'c_maker',true) returning id`)).rows[0].id;
-    await setup.query(`insert into memberships (company_id, user_id, status) values ($1,$2,'active')`, [cco, maker2]);
+    cMaker = (await setup.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(),'c_maker',true) returning id`)).rows[0].id;
+    await setup.query(`insert into memberships (company_id, user_id, status) values ($1,$2,'active')`, [cco, cMaker]);
     cApprover = (await setup.query(`insert into users (id, full_name, is_active) values (gen_random_uuid(),'c_appr',true) returning id`)).rows[0].id;
     const mAppr = (await setup.query(`insert into memberships (company_id, user_id, status) values ($1,$2,'active') returning id`, [cco, cApprover])).rows[0].id;
     await setup.query(`insert into membership_roles (membership_id, company_id, role_key) values ($1,$2,'owner_management')`, [mAppr, cco]);
     await setup.query(`insert into authority_rules (membership_id, company_id, domain, max_amount, currency, is_company_wide) values ($1,$2,'payment',100000,'LKR',true)`, [mAppr, cco]);
     const fe = (await setup.query(`insert into financial_events (company_id, event_type, state, amount, currency, correlation_id) values ($1,'payment','detected',500,'LKR','corr_'||gen_random_uuid()) returning id`, [cco])).rows[0].id;
-    cReq = (await setup.query(`insert into approval_requests (company_id, financial_event_id, status, approvals_required, submitted_by) values ($1,$2,'pending',1,$3) returning id`, [cco, fe, maker2])).rows[0].id;
+    cReq = (await setup.query(`insert into approval_requests (company_id, financial_event_id, status, approvals_required, submitted_by) values ($1,$2,'pending',1,$3) returning id`, [cco, fe, cMaker])).rows[0].id;
     c1 = await mk(); c2 = await mk();
   });
   afterAll(async () => {
@@ -256,6 +256,9 @@ describe.skipIf(!enabled)("WP11 approval concurrency — live, two connections",
     for (const sql of [`delete from approval_actions where company_id=$1`, `delete from audit_events where company_id=$1`, `delete from approval_requests where company_id=$1`, `delete from financial_events where company_id=$1`, `delete from authority_rules where company_id=$1`, `delete from membership_roles where company_id=$1`, `delete from memberships where company_id=$1`, `delete from companies where id=$1`]) {
       try { await setup.query(sql, [cco]); } catch { /* noop */ }
     }
+    // `users` rows are keyed by user, not company, so a company-scoped sweep never reaches
+    // them. Without this the fixtures COMMITTED above leaked two rows on every single run.
+    for (const uid of [cMaker, cApprover]) { try { await setup.query(`delete from users where id=$1`, [uid]); } catch { /* noop */ } }
     await Promise.all([c1?.end(), c2?.end(), setup?.end()].map((p) => p?.catch?.(() => {})));
   });
 

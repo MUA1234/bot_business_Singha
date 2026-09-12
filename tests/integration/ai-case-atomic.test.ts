@@ -63,6 +63,11 @@ describe.skipIf(!enabled)("0068 atomic AI case persistence (live, two connection
       `delete from management_cases where company_id=$1`,
       `delete from companies where id=$1`,
     ]) { try { await setup.query(sql, [co]); } catch { /* noop */ } }
+    // Identity rows are keyed by user, not company — a company-scoped sweep never reaches
+    // them, so the COMMITTED fixtures above leaked a `users` + `auth.users` row per run.
+    for (const sql of [`delete from users where id=$1`, `delete from auth.users where id=$1`]) {
+      try { await setup.query(sql, [actor]); } catch { /* noop */ }
+    }
     await Promise.all([cA?.end(), cB?.end(), setup?.end()].map((p) => p?.catch?.(() => {})));
   });
 

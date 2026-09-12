@@ -48,19 +48,20 @@ describe.skipIf(!enabled)("reversal concurrency — live, two connections", () =
     c2 = await mk();
   });
 
+  // KNOWN, DELIBERATE RESIDUE. This file must really COMMIT a posted journal to race two
+  // `reverse_journal` calls, and posted accounting history is IMMUTABLE by design — the
+  // `block_posted_mutation` / `block_posted_line_mutation` triggers refuse the delete
+  // ("Never edit or delete posted accounting history"; correct it with a reversal). So the
+  // journal, its lines, the accounts, the company and the posting user CANNOT be removed,
+  // and the old cleanup list only looked like it worked because every failure was swallowed.
+  // Everything that legitimately can be removed is; the rest is left with this explanation.
+  // Consequence: a database reused across runs accumulates one `wp_revconc` company and its
+  // journal per run. Harmless (no gate asserts a company count), but real — run the
+  // integration suite against a DISPOSABLE database, per docs/TEST_STRATEGY.md.
   afterAll(async () => {
     try { await c1?.query("rollback"); } catch { /* noop */ }
     try { await c2?.query("rollback"); } catch { /* noop */ }
-    for (const sql of [
-      `delete from journal_lines where company_id=$1`,
-      `delete from journal_entries where company_id=$1`,
-      `delete from chart_of_accounts where company_id=$1`,
-      `delete from audit_events where company_id=$1`,
-      `delete from companies where id=$1`,
-    ]) {
-      try { await setup.query(sql, [company]); } catch { /* noop */ }
-    }
-    try { await setup.query(`delete from users where id=$1`, [poster]); } catch { /* noop */ }
+    try { await setup.query(`delete from audit_events where company_id=$1`, [company]); } catch { /* noop */ }
     await Promise.all([c1?.end(), c2?.end(), setup?.end()].map((p) => p?.catch?.(() => {})));
   });
 

@@ -39,7 +39,37 @@ backup/restore; failure-recovery.
 - Isolation tests use two seeded companies + users and assert zero cross-visibility
   under RLS and via each service/API/job path.
 - QuickBooks tests use the **sandbox**; financial/AI behaviour is never tested on
-  production data.
+  production data. _(Superseded — QuickBooks is not used; see CLAUDE.md and DECISIONS
+  D-011. Kept only so the paragraph's absence is not read as an omission.)_
+
+### 3.1 Standing up the integration database (added 2026-09-12)
+
+The 333 integration tests need a real PostgreSQL 16 and are skipped without
+`DATABASE_URL`. The migrations are written for **Supabase**, so a plain cluster is missing
+the `auth` schema, `auth.uid()`, the API roles (`anon` / `authenticated` / `service_role`)
+and Supabase's default table grants. `scripts/test-db-bootstrap.sql` supplies exactly
+those, and must run **before** the migrations so the migrations' own REVOKEs still win.
+
+```bash
+createdb singha_test
+psql -d singha_test -v ON_ERROR_STOP=1 -f scripts/test-db-bootstrap.sql
+DATABASE_URL=postgresql://…/singha_test npm run migrate           # 0001 → 0070
+DATABASE_URL=postgresql://…/singha_test npm run test:integration  # 43 files / 333 tests
+```
+
+Two traps the script exists to remove, both of which fail loudly but misleadingly:
+skipping the grants fails ~100 RLS tests with `permission denied`; defining `auth.uid()`
+from only `request.jwt.claim.sub` (and not the JSON `request.jwt.claims` PostgREST
+actually sets) fails every RLS **write** test while reads still pass.
+
+Use a **disposable** database. Most files are zero-persistence (one transaction, rolled
+back), but a few must really commit to race two live connections, and `rpc-concurrency`
+commits a **posted journal** — immutable by design, so its company and posting user cannot
+be cleaned up and accumulate one per run. Everything else now cleans up fully: until
+2026-09-12 three files leaked committed identity rows, and the orphaned `profiles` row left
+by `wp12-enqueue-item-race` made the **second** run of the suite fail
+`identity-consistency.test.ts` — the suite was not idempotent and silently broke the
+identity-drift gate added the day before.
 
 ## 4. Per-phase test gates
 
