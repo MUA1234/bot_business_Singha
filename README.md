@@ -10,6 +10,7 @@ ingestion, and a large passing test suite.
 > are **void** (see `CLAUDE.md` and `docs/DECISIONS.md` D-011). Corrected 2026-09-12.
 
 ## Read first
+- `STATUS.md` — plain-language status & handover: what changed, what is open, what needs the owner.
 - `CLAUDE.md` — authoritative for any coding agent, including the document-precedence rule.
 - `AGENTS.md` — start-of-session checklist and constraints.
 - `docs/CURRENT_IMPLEMENTATION_STATUS.md` — what actually exists, written from the code.
